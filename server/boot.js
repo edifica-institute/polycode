@@ -1,0 +1,10 @@
+const express = require('express');
+const app = express();
+const core = { app };
+require('./core/term').register(app);
+require('./langs/java/plugin').register(app, core);
+require('./langs/c/plugin').register(app, core);
+require('./langs/web/plugin').register(app, core);
+require('./langs/sql/plugin').register(app, core);
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
