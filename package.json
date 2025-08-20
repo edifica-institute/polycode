@@ -1,0 +1,15 @@
+{
+  "name": "polycode-backend",
+  "type": "module",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server/boot.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "nanoid": "^5.0.7",
+    "node-pty": "^1.0.0",
+    "ws": "^8.18.0"
+  }
+}
