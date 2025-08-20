@@ -21,5 +21,30 @@
   <main>
     <p>Welcome to SQL environment. Editor goes here.</p>
   </main>
+
+  <!-- Editor container -->
+<div id="editor" style="height: calc(100vh - 56px);"></div>
+
+<!-- Monaco AMD loader -->
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js"></script>
+
+<script>
+  // 1) Point AMD loader to Monaco
+  require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+
+  // 2) Load Monaco and create editor
+  require(['vs/editor/editor.main'], function () {
+    window.editor = monaco.editor.create(document.getElementById('editor'), {
+      value: `-- In-browser SQL (sql.js)
+CREATE TABLE users(id INTEGER, name TEXT);
+INSERT INTO users VALUES (1,'Alice'),(2,'Bob');
+SELECT * FROM users;`,
+      language: 'sql',
+      theme: 'vs-dark',
+      automaticLayout: true
+    });
+  });
+</script>
+
 </body>
 </html>
