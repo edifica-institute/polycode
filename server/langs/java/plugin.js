@@ -19,10 +19,13 @@ async function register(app, core) {
       }));
 
       let compileLog = '', diagnostics = [], ok = false;
-      const out = await execCapture('bash', ['-lc',
-        `cd "${dir}"; shopt -s nullglob; files=( *.java ); ` +
-        `if (( \\${#files[@]} )); then javac -Xlint:unchecked -verbose "\\${files[@]}" 2>&1; else echo "No .java files"; fi; true`
-      ]);
+     const out = await execCapture('bash', ['-lc',
+  'cd "' + dir + '"; ' +
+  'shopt -s nullglob; files=( *.java ); ' +
+  'if (( ${#files[@]} )); then javac -Xlint:unchecked -verbose "${files[@]}" 2>&1; ' +
+  'else echo "No .java files"; fi; true'
+]);
+
       compileLog = out.stdout;
       diagnostics = parseJavac(compileLog);
       ok = diagnostics.every(d => d.severity !== 'error');
