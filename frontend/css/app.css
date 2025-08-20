@@ -1,0 +1,4 @@
+.logo { height: 40px; vertical-align: middle; }
+body { font-family: sans-serif; background: #1e1e1e; color: #f0f0f0; margin: 0; padding: 0; }
+header { display: flex; align-items: center; gap: 1em; background: #111; padding: 1em; }
+select { padding: 0.3em; }
