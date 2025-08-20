@@ -1,5 +1,5 @@
 // server/core/utils.js (CommonJS)
-const fs = require('fs/promises');
+const fs = require('fs').promises;
 const fssync = require('fs');
 const path = require('path');
 const { spawn: cpSpawn } = require('child_process');
