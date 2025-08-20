@@ -1,15 +1,13 @@
-// server/core/utils.js (CommonJS)
 const fs = require('fs').promises;
 const fssync = require('fs');
 const path = require('path');
 const { spawn: cpSpawn } = require('child_process');
 
-const __dirname = __dirname || path.resolve(); // harmless in Node 20, but retained for clarity
+const __dirname_resolved = __dirname || path.resolve();
 
 const USE_DOCKER = process.env.SANDBOX !== 'local';
-const JOB_ROOT = path.join(__dirname, '..', '.jobs');
+const JOB_ROOT = path.join(__dirname_resolved, '..', '.jobs');
 
-// NO top-level await. Ensure dir inside loadPlugins.
 async function ensureJobRoot() {
   try { await fs.mkdir(JOB_ROOT, { recursive: true }); } catch {}
 }
@@ -33,6 +31,7 @@ function parseJavac(stderr) {
   }
   return out;
 }
+
 function parseGcc(stderr) {
   const re = /^(.*?):(\d+):(\d+):\s*(fatal error|error|warning|note):\s*(.*)$/gm;
   const out = []; let m;
@@ -46,15 +45,16 @@ function parseGcc(stderr) {
 
 async function loadPlugins(app) {
   await ensureJobRoot();
-  const langsDir = path.join(__dirname, '..', 'langs');
+  const langsDir = path.join(__dirname_resolved, '..', 'langs');
   if (!fssync.existsSync(langsDir)) return;
   const entries = await fs.readdir(langsDir, { withFileTypes: true });
   for (const ent of entries) {
     if (!ent.isDirectory()) continue;
     const plugPath = path.join(langsDir, ent.name, 'plugin.js');
     if (!fssync.existsSync(plugPath)) continue;
-    // Use dynamic import to load either CJS or ESM transparently
-    const mod = await import(plugPath.startsWith('/') ? `file://${plugPath}` : plugPath);
+    // dynamic import works from CJS for ESM/CJS plugins
+    const url = `file://${plugPath}`;
+    const mod = await import(url);
     const register = mod.register || (mod.default && mod.default.register);
     if (typeof register !== 'function') continue;
     await register(app, { USE_DOCKER, JOB_ROOT, execCapture, parseJavac, parseGcc });
