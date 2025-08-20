@@ -15,8 +15,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Backend deps (needs package.json below)
-COPY package.json ./
-RUN npm ci --omit=dev || npm i --omit=dev
+# Copy package manifests (copy lockfile too if it exists)
+COPY package*.json ./
+
+# If a lockfile exists, use `npm ci`; otherwise use `npm i`
+RUN if [ -f package-lock.json ]; then \
+      npm ci --omit=dev; \
+    else \
+      npm i --omit=dev; \
+    fi
 
 # Server code
 COPY server ./server
