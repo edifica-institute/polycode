@@ -2,7 +2,7 @@
 const express = require('express');
 const cors = require('cors');
 const { createTermServer } = require('./core/term');
-const { loadPlugins } = require('./core/utils');
+const { loadPlugins } = require('./core/utils.cjs');
 
 const PORT = process.env.PORT || 8080;
 const app = express();
