@@ -1,30 +1,36 @@
-// server/langs/c/plugin.js
-import fs from 'fs/promises';
-import path from 'path';
-import { nanoid } from 'nanoid';
-import { SESSIONS } from '../../core/utils.js';
+const fs = require('fs/promises');
+const path = require('path');
+const { nanoid } = require('nanoid');
+const { SESSIONS } = require('../../core/utils');
 
-export async function register(app, core){
-  const { USE_DOCKER, JOB_ROOT, execCapture, parseGcc } = core;
+async function register(app, core) {
+  const { JOB_ROOT, execCapture, parseGcc } = core;
   app.post('/api/c/prepare', async (req, res, next) => {
-    try{
+    try {
       const { files = [] } = req.body || {};
-      if (!Array.isArray(files) || files.length === 0) return res.status(400).json({ error:'No files' });
-      const jobId = nanoid(); const jobDir = path.join(JOB_ROOT, jobId); await fs.mkdir(jobDir, { recursive:true });
+      if (!Array.isArray(files) || !files.length) return res.status(400).json({ error: 'No files' });
+
+      const id = nanoid(); const dir = path.join(JOB_ROOT, id);
+      await fs.mkdir(dir, { recursive: true });
       await Promise.all(files.map(async f => {
-        const full = path.join(jobDir, path.normalize(f.path)); await fs.mkdir(path.dirname(full), { recursive:true }); await fs.writeFile(full, f.content ?? '', 'utf8');
+        const full = path.join(dir, path.normalize(f.path));
+        await fs.mkdir(path.dirname(full), { recursive: true });
+        await fs.writeFile(full, f.content ?? '', 'utf8');
       }));
-      let compileLog = '', diagnostics = [], ok = false;
-      if (USE_DOCKER){
-        const out = await execCapture('docker', ['run','--rm','--network','none','--cpus','1.0','--memory','512m','--pids-limit','256','-v', `${jobDir}:/workspace:rw`,'-w','/workspace','oc-c:gcc','bash','-lc','shopt -s nullglob; files=( *.c ); if (( ${#files[@]} )); then gcc -O2 -pipe -o main "${files[@]}" 2>&1; else echo "No .c files"; fi; true']);
-        compileLog = out.stdout; diagnostics = parseGcc(compileLog); ok = diagnostics.every(d => d.severity !== 'error' && d.severity !== 'fatal error');
-      } else {
-        const out = await execCapture('bash', ['-lc', `cd "${jobDir}"; shopt -s nullglob; files=( *.c ); if (( \${#files[@]} )); then gcc -O2 -pipe -o main "\${files[@]}" 2>&1; else echo "No .c files"; fi; true`]);
-        compileLog = out.stdout; diagnostics = parseGcc(compileLog); ok = diagnostics.every(d => d.severity !== 'error' && d.severity !== 'fatal error');
-      }
+
+      const out = await execCapture('bash', ['-lc',
+        `cd "${dir}"; shopt -s nullglob; files=( *.c ); ` +
+        `if (( \\${#files[@]} )); then gcc -O2 -pipe -o main "\\${files[@]}" 2>&1; else echo "No .c files"; fi; true`
+      ]);
+      const compileLog = out.stdout;
+      const diagnostics = parseGcc(compileLog);
+      const ok = diagnostics.every(d => !/error|fatal/i.test(d.severity));
+
       const token = nanoid();
-      SESSIONS.set(token, { jobDir, runCmd: `./main`, dockerImage: 'oc-c:gcc' });
+      SESSIONS.set(token, { jobDir: dir, runCmd: `timeout 10s ./main` });
       res.json({ token, ok, diagnostics, compileLog });
-    }catch(e){ next(e); }
+    } catch (e) { next(e); }
   });
 }
+
+module.exports = { register };
