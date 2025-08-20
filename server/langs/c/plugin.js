@@ -18,10 +18,13 @@ async function register(app, core) {
         await fs.writeFile(full, f.content ?? '', 'utf8');
       }));
 
-      const out = await execCapture('bash', ['-lc',
-        `cd "${dir}"; shopt -s nullglob; files=( *.c ); ` +
-        `if (( \\${#files[@]} )); then gcc -O2 -pipe -o main "\\${files[@]}" 2>&1; else echo "No .c files"; fi; true`
-      ]);
+     const out = await execCapture('bash', ['-lc',
+  'cd "' + dir + '"; ' +
+  'shopt -s nullglob; files=( *.c ); ' +
+  'if (( ${#files[@]} )); then gcc -O2 -pipe -o main "${files[@]}" 2>&1; ' +
+  'else echo "No .c files"; fi; true'
+]);
+
       const compileLog = out.stdout;
       const diagnostics = parseGcc(compileLog);
       const ok = diagnostics.every(d => !/error|fatal/i.test(d.severity));
