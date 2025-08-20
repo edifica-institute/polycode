@@ -2,136 +2,149 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>SQL - EDIFICA PolyCode</title>
+  <title>SQL • PolyCode</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="./assets/logo.png" />
-  <style>
-    :root { color-scheme: dark; }
-    body { margin:0; background:#111; color:#ddd; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    header { display:flex; align-items:center; gap:12px; background:#1a1a1a; padding:10px 14px; }
-    header img { height:26px; width:26px; border-radius:50%; }
-    header h1 { font-size:18px; margin:0; font-weight:600; }
-    header .right { margin-left:auto; display:flex; gap:8px; align-items:center; }
-    button { padding:6px 10px; border:0; border-radius:6px; background:#2e5bea; color:#fff; cursor:pointer; }
-    button.secondary { background:#2a2a2a; color:#eee; }
-    #status.ok { color:#83ffa6; }
-    #status.err { color:#ff8b8b; }
-    #spinner { display:none; width:14px; height:14px; border:2px solid #888; border-top-color:transparent; border-radius:50%; animation:spin 1s linear infinite; }
-    @keyframes spin { to { transform:rotate(360deg); } }
-    #main { display:grid; grid-template-columns: 1fr 1fr; height: calc(100vh - 52px); }
-    #editor { height: 100%; }
-    #right { padding:12px; overflow:auto; border-left: 1px solid #222; }
-    #sqlout table { border-collapse: collapse; }
-    #sqlout th, #sqlout td { border:1px solid #444; padding:6px 8px; }
-    #sqlout pre { white-space: pre-wrap; }
-    select { background:#2a2a2a; color:#eee; border:1px solid #444; border-radius:6px; padding:6px; }
-  </style>
+  <link rel="stylesheet" href="./css/shell.css" />
 </head>
 <body>
-  <header>
-    <img src="./assets/logo.png" alt="EDIFICA" />
-    <h1>SQL - EDIFICA PolyCode</h1>
-    <div class="right">
-      <span id="status" class="ok">Ready</span>
-      <span id="spinner"></span>
-      <button id="runBtn">Run</button>
-      <button id="clearBtn" class="secondary">Clear</button>
-      <select id="langSelect" onchange="location.href=this.value">
-        <option value="./index-sql.html" selected>SQL</option>
-        <option value="./index-web.html">HTML/CSS/JS</option>
-        <option value="./index-java.html">Java</option>
-        <option value="./index-c.html">C</option>
-        <!-- add more as you publish them: index-cpp.html, index-python.html, etc. -->
-      </select>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="logo">
+      <img src="./assets/logo.png" alt="EDIFICA" />
+      <span>PolyCode</span>
+      <small>powered by EDIFICA</small>
+      <span class="slogan">• learn by running code</span>
     </div>
+    <nav>
+      <a href="./index.html">Home</a>
+      <a href="./about.html">About</a>
+      <a href="./contact.html">Contact</a>
+    </nav>
   </header>
 
-  <div id="main">
-    <div id="editor"></div>
-    <div id="right">
-      <h3>Result</h3>
-      <div id="sqlout">(output will appear here)</div>
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button id="btnRun">Run</button>
+    <button id="btnClear" class="secondary">Clear</button>
+
+    <select id="langSelect" onchange="location.href=this.value">
+      <option value="./index-sql.html" selected>SQL</option>
+      <option value="./index-web.html">HTML/CSS/JS</option>
+      <option value="./index-java.html">Java</option>
+      <option value="./index-c.html">C</option>
+      <!-- add more: index-cpp.html, index-python.html, etc. -->
+    </select>
+
+    <div class="status">
+      <span class="spin"></span>
+      <span class="label ok">Ready</span>
     </div>
   </div>
 
-  <!-- Monaco AMD loader -->
+  <!-- App layout: 3 panes -->
+  <div class="app">
+    <!-- Left: About (collapsible) -->
+    <aside class="pane about">
+      <button id="aboutToggle" class="toggle">⮐</button>
+      <div class="about-content">
+        <h3>About SQL</h3>
+        <div style="padding:12px; color:#cfcfcf; line-height:1.5;">
+          SQL (Structured Query Language) is used to create and query relational databases.
+          This page runs SQLite <em>in your browser</em> via <code>sql.js</code> (WASM).
+          No server needed for SQL.
+          <ul>
+            <li><code>CREATE TABLE</code>, <code>INSERT</code>, <code>SELECT</code></li>
+            <li>Multiple statements supported; output shows first result set.</li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Middle: Editor -->
+    <section class="pane" id="editor"></section>
+
+    <!-- Handle between center and right -->
+    <div class="resizer" id="dragHandle"></div>
+
+    <!-- Right: Output -->
+    <section class="pane" id="output">
+      <h3>Result</h3>
+      <div id="sqlout" style="padding:2px 0 14px 0;"></div>
+    </section>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="social">
+      <a href="https://facebook.com" target="_blank" aria-label="Facebook">
+        <svg viewBox="0 0 24 24"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
+      </a>
+      <a href="https://instagram.com" target="_blank" aria-label="Instagram">
+        <svg viewBox="0 0 24 24"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
+      </a>
+    </div>
+    <div class="legal">
+      <a href="./privacy.html">Privacy Policy</a>
+      <a href="./terms.html">Terms & Conditions</a>
+      <a href="./legal.html">Legal Information</a>
+    </div>
+  </footer>
+
+  <!-- Monaco loader + sql.js -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js"></script>
-  <!-- sql.js (WASM runner for SQLite) -->
   <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js"></script>
 
+  <!-- Shared shell -->
+  <script src="./js/shell.js"></script>
+
+  <!-- Page script -->
   <script>
-    // ---- Monaco init ----
     const SAMPLE_SQL =
 `-- In-browser SQL (sql.js)
 CREATE TABLE users(id INTEGER, name TEXT);
 INSERT INTO users VALUES (1,'Alice'),(2,'Bob');
 SELECT * FROM users;`;
 
-    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    let db;
 
-    let editor, db;
-    require(['vs/editor/editor.main'], async function () {
-      editor = monaco.editor.create(document.getElementById('editor'), {
-        value: SAMPLE_SQL,
-        language: 'sql',
-        theme: 'vs-dark',
-        automaticLayout: true
-      });
-
-      // init sql.js
+    async function bootstrap(){
+      await PolyShell.initMonaco({ value: SAMPLE_SQL, language:'sql' });
       const SQL = await window.initSqlJs({
         locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f
       });
       db = new SQL.Database();
-      setStatus('Ready', 'ok');
-    });
-
-    // ---- UI helpers ----
-    function setStatus(text, kind) {
-      const el = document.getElementById('status');
-      el.textContent = text;
-      el.className = kind || '';
-    }
-    function spin(on) {
-      document.getElementById('spinner').style.display = on ? 'inline-block' : 'none';
+      PolyShell.setStatus('Ready','ok');
     }
 
-    // ---- Run / Clear ----
-    async function runSQL() {
-      if (!db) return;
-      spin(true); setStatus('Running…');
+    window.runLang = async function(){
+      if (!db) await bootstrap();
       const out = document.getElementById('sqlout');
       out.innerHTML = '';
-      try {
-        const res = db.exec(editor.getValue());
-        if (!res.length) { out.textContent = '(no rows)'; setStatus('OK', 'ok'); return; }
+      try{
+        const res = db.exec(window.editor.getValue());
+        if (!res.length){ out.textContent='(no rows)'; return; }
         const { columns, values } = res[0];
         const table = document.createElement('table');
-        const thead = document.createElement('thead'); const trh = document.createElement('tr');
-        columns.forEach(c => { const th = document.createElement('th'); th.textContent = c; trh.appendChild(th); });
-        thead.appendChild(trh);
-        const tbody = document.createElement('tbody');
-        values.forEach(row => {
-          const tr = document.createElement('tr');
-          row.forEach(cell => { const td = document.createElement('td'); td.textContent = String(cell); tr.appendChild(td); });
+        table.style.borderCollapse='collapse';
+        const thead=document.createElement('thead'), trh=document.createElement('tr');
+        columns.forEach(c=>{ const th=document.createElement('th'); th.textContent=c; th.style.border='1px solid #3a3a3a'; th.style.padding='6px 8px'; trh.appendChild(th);});
+        thead.appendChild(trh); table.appendChild(thead);
+        const tbody=document.createElement('tbody');
+        values.forEach(row=>{
+          const tr=document.createElement('tr');
+          row.forEach(cell=>{ const td=document.createElement('td'); td.textContent=String(cell); td.style.border='1px solid #3a3a3a'; td.style.padding='6px 8px'; tr.appendChild(td);});
           tbody.appendChild(tr);
         });
-        table.appendChild(thead); table.appendChild(tbody);
-        out.appendChild(table);
-        setStatus('OK', 'ok');
-      } catch (e) {
-        out.innerHTML = '<pre>' + (e && e.message ? e.message : String(e)) + '</pre>';
-        setStatus('Error', 'err');
-      } finally { spin(false); }
+        table.appendChild(tbody); out.appendChild(table);
+      }catch(e){ out.innerHTML='<pre>'+ (e?.message || String(e)) +'</pre>'; throw e; }
     }
 
-    function clearSQL() {
-      document.getElementById('sqlout').innerHTML = '';
-      setStatus('Cleared', 'ok');
-    }
+    window.clearLang = function(){ document.getElementById('sqlout').innerHTML=''; };
 
-    document.getElementById('runBtn').addEventListener('click', runSQL);
-    document.getElementById('clearBtn').addEventListener('click', clearSQL);
+    // start
+    bootstrap();
   </script>
 </body>
 </html>
