@@ -44,53 +44,55 @@
   </div>
 
   <!-- App layout: 3 panes -->
-  <div class="app">
-    <!-- Left: About (collapsible) -->
-    <aside class="pane about">
-      <button id="aboutToggle" class="toggle">⮐</button>
-      <div class="about-content">
-        <h3>About SQL</h3>
-        <div style="padding:12px; color:#cfcfcf; line-height:1.5;">
-          SQL (Structured Query Language) is used to create and query relational databases.
-          This page runs SQLite <em>in your browser</em> via <code>sql.js</code> (WASM).
-          No server needed for SQL.
-          <ul>
-            <li><code>CREATE TABLE</code>, <code>INSERT</code>, <code>SELECT</code></li>
-            <li>Multiple statements supported; output shows first result set.</li>
-          </ul>
-        </div>
-      </div>
-    </aside>
 
-    <!-- Middle: Editor -->
-    <section class="pane" id="editor"></section>
 
-    <!-- Handle between center and right -->
-    <div class="resizer" id="dragHandle"></div>
+<div class="app">
+  <header class="top-header">
+    <div class="logo">PolyCode <small>powered by Edifica</small></div>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#">About</a>
+      <a href="#">Contact</a>
+    </nav>
+  </header>
 
-    <!-- Right: Output -->
-    <section class="pane" id="output">
-      <h3>Result</h3>
-      <div id="sqlout" style="padding:2px 0 14px 0;"></div>
-    </section>
+  <div class="controls-bar">
+    <button id="run">Run</button>
+    <button id="clear">Clear</button>
+    <select id="language">
+      <option>SQL</option>
+      <option>Java</option>
+      <option>Python</option>
+    </select>
   </div>
 
-  <!-- Footer -->
-  <footer class="site-footer">
+  <div class="main-area">
+    <aside class="sidebar">
+      <h3>About SQL</h3>
+      <p>SQL (Structured Query Language) is used to manage data in relational databases...</p>
+    </aside>
+
+    <div class="editor-pane" id="editor"></div>
+
+    <div class="output-pane" id="output"></div>
+  </div>
+
+  <footer class="bottom-bar">
     <div class="social">
-      <a href="https://facebook.com" target="_blank" aria-label="Facebook">
-        <svg viewBox="0 0 24 24"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
-      </a>
-      <a href="https://instagram.com" target="_blank" aria-label="Instagram">
-        <svg viewBox="0 0 24 24"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
-      </a>
+      <span>FB</span> | <span>Insta</span>
     </div>
-    <div class="legal">
-      <a href="./privacy.html">Privacy Policy</a>
-      <a href="./terms.html">Terms & Conditions</a>
-      <a href="./legal.html">Legal Information</a>
+    <div class="links">
+      <a href="#">Privacy Policy</a> | 
+      <a href="#">Terms & Conditions</a> | 
+      <a href="#">Legal</a>
     </div>
   </footer>
+</div>
+
+
+
+
+  
 
   <!-- Monaco loader + sql.js -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js"></script>
