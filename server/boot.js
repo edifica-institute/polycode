@@ -1,10 +1,18 @@
+// server/boot.js (CommonJS)
 const express = require('express');
-const app = express();
-const core = { app };
-require('./core/term').register(app);
-require('./langs/java/plugin').register(app, core);
-require('./langs/c/plugin').register(app, core);
-require('./langs/web/plugin').register(app, core);
-require('./langs/sql/plugin').register(app, core);
+const cors = require('cors');
+const { createTermServer } = require('./core/term');
+const { loadPlugins } = require('./core/utils');
+
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
+
+(async () => {
+  await loadPlugins(app);           // await inside an async IIFE (not top-level await)
+  const server = app.listen(PORT, () => {
+    console.log('[polycode] listening on :' + PORT);
+  });
+  createTermServer(server);
+})();
