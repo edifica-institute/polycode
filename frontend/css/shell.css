@@ -1,158 +1,287 @@
-/* ===== Theme (dark gray / light) ===== */
-:root{
-  color-scheme: dark;
-  --bg:#16181b;         /* dark gray (not pitch black) */
-  --panel:#1e2024;      /* panel surface */
-  --panel-2:#1a1c1f;    /* header/footer bands */
-  --border:#2b2f34;
-  --muted:#aeb5bd;
-  --brand:#2e5bea;
-  --ok:#7dffa0; --err:#ff8b8b; --link:#9ecbff;
-  --glass: rgba(255,255,255,.05); --glass-brd: rgba(255,255,255,.12);
-  --text:#e9edf3;
-  --shadow-3d: 0 24px 60px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.22);
-}
-body.light{
-  color-scheme: light;
-  --bg:#eef2f7;
-  --panel:#ffffff;
-  --panel-2:#f1f4f9;
-  --border:#d7dbe2;
-  --muted:#6b7280;
-  --brand:#2457ff;
-  --ok:#22985a; --err:#cc2f2f; --link:#204ecf;
-  --glass: rgba(0,0,0,.05); --glass-brd: rgba(0,0,0,.12);
-  --text:#0b0b0b;
-  --shadow-3d: 0 24px 60px rgba(0,0,0,.12), 0 10px 24px rgba(0,0,0,.08);
+/* =========================
+   Global Variables
+========================= */
+:root {
+  --bg-light: #f5f5f7;
+  --bg-dark: #2b2b2b;
+  --panel-light: #ffffff;
+  --panel-dark: #3a3a3a;
+  --border-light: #cccccc;
+  --border-dark: #555;
+  --accent-light: #0066cc;
+  --accent-dark: #4db2ff;
+  --success-light: #007700;
+  --success-dark: #33ff66;
+  --error: #ff4444;
+  --glass-light: rgba(255,255,255,0.8);
+  --glass-dark: rgba(40,40,40,0.85);
+  --shadow: 0 4px 12px rgba(0,0,0,0.15);
+  --gap: 8px;
 }
 
-*{ box-sizing:border-box; }
-html,body{ height:100%; }
-body{ margin:0; background:var(--bg); color:var(--text);
-      font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-
-/* ===== Header / Footer (taller, contrasting) ===== */
-.site-header{
-  display:flex; align-items:flex-start; gap:14px;
-  padding:26px 24px; background:var(--panel-2);
-  border-bottom:1px solid var(--border); box-shadow:var(--shadow-3d);
+body.light {
+  --bg: var(--bg-light);
+  --panel: var(--panel-light);
+  --border: var(--border-light);
+  --accent: var(--accent-light);
+  --success: var(--success-light);
+  --glass: var(--glass-light);
+  color: #111;
+  background: var(--bg);
 }
-.site-header .logo{ display:flex; align-items:center; gap:12px; }
-.site-header .logo img{ width:52px; height:52px; }          /* (15) bigger logo */
-.site-header .brand{ line-height:1.05; }
-.brand .title{ font-weight:800; font-size:26px; }
-.brand .powered{ color:var(--muted); font-size:12px; margin-top:4px; }
-.site-header nav{ margin-left:auto; display:flex; gap:20px; padding-top:6px; }
-.site-header nav a{ color:var(--text); text-decoration:underline; text-underline-offset:3px; }
-.site-header nav a:hover{ color:var(--brand); }
-
-/* stage gives the outer gap and keeps footer visible */
-.stage{ padding:10px 12px 18px; }
-
-/* ===== App layout (grid with narrow gaps; square look) ===== */
-.app{
-  display:grid;
-  grid-template-columns: 280px 8px minmax(360px,1fr) 8px minmax(360px, 42%);
-  grid-template-rows: calc(100vh - 220px);
-  gap:10px;                                /* (10) tighter gaps */
+body.dark {
+  --bg: var(--bg-dark);
+  --panel: var(--panel-dark);
+  --border: var(--border-dark);
+  --accent: var(--accent-dark);
+  --success: var(--success-dark);
+  --glass: var(--glass-dark);
+  color: #eee;
+  background: var(--bg);
 }
-.app.collapsed-left{ grid-template-columns: 0 0 minmax(520px,1fr) 8px minmax(360px,42%); }
 
-/* ===== Panel (square + elevated + glassy head) ===== */
-.panel{
-  background: linear-gradient(180deg, var(--panel) 0%, color-mix(in oklab, var(--panel), #000 4%) 100%);
-  border:1px solid var(--border);
-  border-radius:4px;                        /* square (10) */
-  overflow:hidden;
-  box-shadow: var(--shadow-3d);             /* (11) more elevated */
+/* =========================
+   Layout: Site Header
+========================= */
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  background: var(--glass);
+  backdrop-filter: blur(12px);
+  box-shadow: var(--shadow);
+  z-index: 100;
 }
-.pane-head{
-  display:flex; align-items:center; gap:10px;
-  padding:12px 12px;
-  background:var(--glass); border-bottom:1px solid var(--glass-brd);
-  backdrop-filter: blur(10px);
-  font-weight:500;                          /* (1) no heavy bold */
+.site-header .logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.pane-head .title{ font-weight:500; }
-
-/* Square buttons */
-.btn{
-  width:36px; height:36px; padding:0; border-radius:4px;    /* square (10) */
-  border:1px solid var(--glass-brd); background:var(--glass); color:var(--text);
-  cursor:pointer; font-weight:800; display:inline-grid; place-items:center;
-  box-shadow: 0 10px 22px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06);
+.site-header .logo img {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: transparent;
 }
-.btn.primary{ background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.05)); border-color:transparent; }
-.btn:disabled{ opacity:.6; cursor:not-allowed; }
-
-/* Run / Reset animation cues (7) */
-@keyframes pulse { 0%{transform:scale(1);} 50%{transform:scale(1.08);} 100%{transform:scale(1);} }
-.btn.is-running{ animation:pulse .9s ease-in-out infinite; }
-@keyframes spinReset { to{transform:rotate(360deg);} }
-.btn.is-resetting svg{ animation:spinReset .7s linear infinite; }
-
-/* Icons in buttons */
-.btn svg{ width:18px; height:18px; fill:var(--text); }
-
-/* Theme icon (3) smaller) */
-.theme-btn{ width:36px; height:36px; }
-
-/* Select in heads / left pane */
-.select{
-  background:var(--panel); color:var(--text);
-  border:1px solid var(--border);
-  border-radius:4px; padding:8px 10px; width:100%;
+.site-header .brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
 }
-.select option{ background:var(--panel); color:var(--text); }   /* (5) visible in dark */
-
-/* Left panel */
-.left.panel{ grid-column:1 / span 1; display:flex; flex-direction:column; }
-.left .pane-head .title{ display:none; }                        /* (12) remove "SQL" text */
-.left .pane-head .select{ max-width:100%; }                     /* (1) full width dropdown in head */
-.left .pane-body{ padding:10px 12px; height:100%; overflow:auto; }
-
-/* Center panel (editor) */
-.center.panel{ grid-column:3 / span 1; display:flex; flex-direction:column; }
-.center .pane-head .title{ }
-.center .pane-head .right-controls{ margin-left:auto; display:flex; gap:8px; align-items:center; }
-#editor{ flex:1; }
-
-/* Right panel (screen) */
-.right.panel{ grid-column:5 / span 1; display:flex; flex-direction:column; }
-#output{ flex:1; overflow:auto; padding:12px; }
-
-/* Resizers (2,14) */
-.v-resize{ width:8px; cursor:col-resize; }
-.v-resize div{ width:100%; height:100%; background:transparent; }
-.v-resize div:hover{ background:var(--glass); }
-
-/* Frozen tone (6) single tint for all frozen panels) */
-.panel.frozen{ filter:saturate(.85) brightness(.92); }
-.panel.frozen .pane-head{ filter:grayscale(.2); }
-.screen-dim{ opacity:.55; pointer-events:none; }
-
-/* Links / footer */
-a{ color:var(--link); text-decoration:underline; text-underline-offset:3px; }
-a:hover{ color:var(--brand); }
-
-.site-footer{
-  margin-top:12px; padding:18px 24px; background:var(--panel-2);
-  border-top:1px solid var(--border); box-shadow:var(--shadow-3d);
-  position:relative; z-index:2;             /* (4) stay above OS/taskbar */
+.site-header .brand .title {
+  font-size: 20px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
 }
-.footer-tagline{ color:var(--muted); margin-bottom:8px; }
-.footer-row{ display:flex; align-items:center; justify-content:space-between; }
-.footer-row .legal a{ margin-right:14px; }
-
-/* Social icons brighter in dark (8) */
-.footer-row .social svg{ width:18px; height:18px; fill:color-mix(in oklab, var(--text), #fff 20%); }
-.footer-row .social a:hover svg{ fill:var(--text); }
-
-/* Floating chevron */
-.chevron-tab{
-  position:fixed; left:6px; top:50%; transform:translateY(-50%);
-  width:24px; height:46px; display:flex; align-items:center; justify-content:center;
-  border-radius:4px; background:var(--glass); border:1px solid var(--glass-brd);
-  backdrop-filter: blur(8px); cursor:pointer; z-index:50;
+.site-header .brand .powered {
+  font-size: 11px;
+  color: var(--accent);
+  margin-top: 2px;
 }
-.chevron-tab svg{ width:16px; height:16px; fill:var(--text); }
+.site-header nav {
+  display: flex;
+  gap: 16px;
+}
+.site-header nav a {
+  text-decoration: none;
+  color: inherit;
+  font-size: 14px;
+}
+.site-header nav a:hover {
+  color: orange;
+}
+
+/* =========================
+   Stage & Panels
+========================= */
+.stage {
+  display: flex;
+  flex: 1;
+  height: calc(100vh - 100px);
+  padding: var(--gap);
+  gap: var(--gap);
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+.app {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  min-width: 120px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+.panel.frozen {
+  opacity: 0.7;
+  filter: grayscale(0.2);
+  border-style: dashed;
+}
+
+/* Head bar */
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--glass);
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: normal;
+}
+.pane-head .title {
+  font-size: 14px;
+}
+.right-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Bottom bar */
+.pane-foot {
+  padding: 4px 8px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+body.light .pane-foot { color: var(--accent-light); }
+body.dark .pane-foot { color: var(--success-dark); }
+
+/* Editor + Output area */
+#editor, #output {
+  flex: 1;
+  overflow: auto;
+  background: inherit;
+}
+
+/* =========================
+   Buttons
+========================= */
+.btn {
+  border: 1px solid var(--border);
+  background: var(--glass);
+  padding: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.btn:hover {
+  border-color: var(--accent);
+}
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn:active {
+  transform: scale(0.95);
+}
+.btn.glow {
+  animation: glow 1s infinite alternate;
+}
+@keyframes glow {
+  from { box-shadow: 0 0 5px var(--accent); }
+  to   { box-shadow: 0 0 15px var(--accent); }
+}
+
+/* =========================
+   Resizers
+========================= */
+.v-resize {
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 50;
+}
+.v-resize:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+/* =========================
+   Footer
+========================= */
+.site-footer {
+  padding: 10px 18px;
+  background: var(--glass);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  border-top: 1px solid var(--border);
+}
+.site-footer .footer-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.footer-tagline {
+  text-align: center;
+  font-weight: 500;
+}
+.site-footer a {
+  text-decoration: none;
+  color: inherit;
+}
+.site-footer a:hover {
+  color: orange;
+}
+.social {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.social svg {
+  fill: currentColor;
+  opacity: 0.8;
+}
+body.dark .social svg {
+  color: #eee;
+}
+body.light .social svg {
+  color: #333;
+}
+
+/* =========================
+   Chevron Collapse
+========================= */
+.chevron-tab {
+  position: absolute;
+  left: 0;
+  top: 40%;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  padding: 4px;
+  cursor: pointer;
+  z-index: 200;
+  transition: all 0.3s;
+}
+.chevron-tab:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* =========================
+   Utility
+========================= */
+select.select {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid var(--border);
+  background: var(--glass);
+  font-size: 14px;
+}
