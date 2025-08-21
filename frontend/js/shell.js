@@ -1,8 +1,5 @@
 // Start idle animation immediately on page load
-window.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('btnRun')?.classList.add('idle-attract');
-  document.getElementById('btnReset')?.classList.add('idle-attract');
-});
+
 
 /* ===========================
    theme toggle (dark <-> light)
