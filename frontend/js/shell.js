@@ -210,7 +210,6 @@ function unfreezeUI() {
    initial footer state
 =========================== */
 window.addEventListener('DOMContentLoaded', () => {
-  foot('leftFoot', 'About selected language');
   foot('centerFoot', 'Ready for Execution');
   foot('rightFoot', 'Waiting for Execution');
   unfreezeUI();
