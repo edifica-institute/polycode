@@ -81,8 +81,7 @@ function initCols() {
   const app = document.querySelector('.app');
   if (!app) return;
    
-  const app = document.querySelector('.app');
-  if (!app) return;
+  
   // compute from current panel rects
   const L = document.getElementById('leftPanel')?.getBoundingClientRect().width || 280;
   const C = document.getElementById('centerPanel')?.getBoundingClientRect().width || 720;
