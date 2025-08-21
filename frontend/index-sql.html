@@ -100,46 +100,60 @@
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js"></script>
   <script src="./js/shell.js"></script>
-  <script>
-    // Monaco + SQL runner
-    const SAMPLE_SQL =
+
+<script>
+  const SAMPLE_SQL =
 `-- In-browser SQL (sql.js)
 CREATE TABLE users(id INTEGER, name TEXT);
 INSERT INTO users VALUES (1,'Alice'),(2,'Bob');
 SELECT * FROM users;`;
 
-    let db;
-    async function bootstrap(){
-      await PolyShell.initMonaco({ value:SAMPLE_SQL, language:'sql' });
-      const SQL = await window.initSqlJs({
-        locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f
-      });
-      db = new SQL.Database();
-      PolyShell.setStatus('Ready','ok');
-    }
-    window.runLang = async function(){
-      if (!db) await bootstrap();
-      const out = document.getElementById('sqlout');
-      out.innerHTML = '';
+  let db;
+  async function bootstrap(){
+    await PolyShell.initMonaco({ value:SAMPLE_SQL, language:'sql' });
+    const SQL = await window.initSqlJs({
+      locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f
+    });
+    db = new SQL.Database();
+    PolyShell.setStatus('Ready','ok');
+    // startup state: clear disabled + output frozen handled by shell.js
+  }
+
+  window.runLang = async function(){
+    if (!db) await bootstrap();
+    const out = document.getElementById('sqlout');
+    out.innerHTML = '';
+    try{
       const res = db.exec(window.editor.getValue());
       if (!res.length){ out.textContent='(no rows)'; return; }
       const { columns, values } = res[0];
       const table = document.createElement('table');
       table.style.borderCollapse='collapse';
       const thead=document.createElement('thead'), trh=document.createElement('tr');
-      columns.forEach(c=>{ const th=document.createElement('th'); th.textContent=c; th.style.border='1px solid #3a3a3a'; th.style.padding='6px 8px'; trh.appendChild(th);});
+      columns.forEach(c=>{ const th=document.createElement('th'); th.textContent=c;
+        th.style.border='1px solid var(--border)'; th.style.padding='6px 8px'; trh.appendChild(th);});
       thead.appendChild(trh); table.appendChild(thead);
       const tbody=document.createElement('tbody');
       values.forEach(row=>{
         const tr=document.createElement('tr');
-        row.forEach(cell=>{ const td=document.createElement('td'); td.textContent=String(cell); td.style.border='1px solid #3a3a3a'; td.style.padding='6px 8px'; tr.appendChild(td);});
+        row.forEach(cell=>{ const td=document.createElement('td'); td.textContent=String(cell);
+          td.style.border='1px solid var(--border)'; td.style.padding='6px 8px'; tr.appendChild(td);});
         tbody.appendChild(tr);
       });
       table.appendChild(tbody); out.appendChild(table);
+    }catch(e){
+      document.getElementById('sqlout').innerHTML = '<pre>'+ (e?.message || String(e)) +'</pre>';
+      throw e; // let shell mark the editor + set status
     }
-    window.clearLang = function(){ document.getElementById('sqlout').innerHTML=''; };
-    bootstrap();
-  </script>
+  }
+
+  window.clearLang = function(){ document.getElementById('sqlout').innerHTML=''; };
+
+  bootstrap();
+</script>
+
+
+  
 </body>
 
 
