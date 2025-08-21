@@ -1,287 +1,163 @@
-/* =========================
-   Global Variables
-========================= */
-:root {
-  --bg-light: #f5f5f7;
-  --bg-dark: #2b2b2b;
-  --panel-light: #ffffff;
-  --panel-dark: #3a3a3a;
-  --border-light: #cccccc;
-  --border-dark: #555;
-  --accent-light: #0066cc;
-  --accent-dark: #4db2ff;
-  --success-light: #007700;
-  --success-dark: #33ff66;
-  --error: #ff4444;
-  --glass-light: rgba(255,255,255,0.8);
-  --glass-dark: rgba(40,40,40,0.85);
-  --shadow: 0 4px 12px rgba(0,0,0,0.15);
-  --gap: 8px;
+:root{
+  --bg: #ffffff;
+  --fg: #1f2937;
+  --muted: #6b7280;
+  --ring: #e5e7eb;
+  --brand: #111827;
+  --accent: #2563eb;
+  --accent-weak:#c7d2fe;
+  --surface:#f8fafc;
+  --shadow: 0 6px 18px rgba(0,0,0,.08);
 }
 
-body.light {
-  --bg: var(--bg-light);
-  --panel: var(--panel-light);
-  --border: var(--border-light);
-  --accent: var(--accent-light);
-  --success: var(--success-light);
-  --glass: var(--glass-light);
-  color: #111;
+body.theme-dark{
+  --bg: #0b0f17;
+  --fg: #e5e7eb;
+  --muted: #9aa3b2;
+  --ring: #1f2937;
+  --brand: #e5e7eb;
+  --accent: #60a5fa;
+  --accent-weak:#0b1220;
+  --surface:#0f172a;
+  --shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+
+/* Reset */
+*{ box-sizing: border-box; }
+html,body{ height:100%; }
+body{
+  margin:0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  background: var(--bg); color: var(--fg);
+}
+
+/* Topbar */
+.topbar{
+  position: sticky; top:0; z-index: 30;
+  background: linear-gradient(180deg, rgba(124,58,237,.07), transparent);
+  backdrop-filter: blur(4px);
+  border-bottom: 1px solid var(--ring);
+  padding: 8px 14px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+.brand{ display:flex; align-items:center; gap:12px; }
+.logo-ring{
+  width:34px; height:34px; border-radius:999px;
+  border: 1px solid var(--ring);
+  display:grid; place-items:center; overflow:hidden; background: transparent;
+}
+.logo-ring img{
+  width:100%; height:100%; object-fit: cover;
+  /* If the source PNG has white bg, this masks it to a circle */
+  border-radius:999px;
+}
+.brand-text{ display:flex; flex-direction:column; line-height:1.1; }
+.brand-text strong{ color: var(--brand); font-weight:700; letter-spacing:.3px; }
+.brand-text .powered{ color: var(--muted); margin-top:2px; } /* (4) next line */
+
+/* Menu */
+.menu a{
+  color: var(--fg); text-decoration:none; margin-left:16px;
+  opacity:.9;
+}
+.menu a:hover{ opacity:1; text-decoration: underline; }
+
+/* Shell layout */
+.shell{
+  display:grid;
+  grid-template-columns: 220px 1fr 6px minmax(320px, 42%);
+  grid-template-rows: minmax(0,1fr);
+  gap:0;
+  height: calc(100vh - 58px);
+  overflow:hidden;
+}
+
+/* Panes */
+.pane{
+  display:flex; flex-direction:column; min-width:0; background: var(--surface);
+  border-right: 1px solid var(--ring);
+}
+.pane-right{ border-left: 1px solid var(--ring); }
+.pane-head{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-bottom:1px solid var(--ring);
   background: var(--bg);
 }
-body.dark {
-  --bg: var(--bg-dark);
-  --panel: var(--panel-dark);
-  --border: var(--border-dark);
-  --accent: var(--accent-dark);
-  --success: var(--success-dark);
-  --glass: var(--glass-dark);
-  color: #eee;
-  background: var(--bg);
-}
-
-/* =========================
-   Layout: Site Header
-========================= */
-.site-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 18px;
-  background: var(--glass);
-  backdrop-filter: blur(12px);
-  box-shadow: var(--shadow);
-  z-index: 100;
-}
-.site-header .logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.site-header .logo img {
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: transparent;
-}
-.site-header .brand {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.1;
-}
-.site-header .brand .title {
-  font-size: 20px;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-.site-header .brand .powered {
-  font-size: 11px;
-  color: var(--accent);
-  margin-top: 2px;
-}
-.site-header nav {
-  display: flex;
-  gap: 16px;
-}
-.site-header nav a {
-  text-decoration: none;
-  color: inherit;
-  font-size: 14px;
-}
-.site-header nav a:hover {
-  color: orange;
-}
-
-/* =========================
-   Stage & Panels
-========================= */
-.stage {
-  display: flex;
-  flex: 1;
-  height: calc(100vh - 100px);
-  padding: var(--gap);
-  gap: var(--gap);
-  background: var(--bg);
-  box-sizing: border-box;
-}
-
-.app {
-  flex: 1;
-  display: flex;
-  position: relative;
-  overflow: hidden;
-}
-
-.panel {
-  display: flex;
-  flex-direction: column;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  min-width: 120px;
-  transition: all 0.3s ease;
+.pane-title{ font-weight:600; }
+.pane-body{ padding:10px; overflow:auto; }
+.pane-foot{
+  border-top:1px solid var(--ring);
+  padding:6px 10px;
   position: relative;
 }
-.panel.frozen {
-  opacity: 0.7;
-  filter: grayscale(0.2);
-  border-style: dashed;
+.pane-foot small{
+  position: relative; top: -2px;  /* (3) nudge slightly upward */
+  color: var(--muted);
 }
 
-/* Head bar */
-.pane-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 10px;
-  background: var(--glass);
-  border-bottom: 1px solid var(--border);
-  font-size: 14px;
-  font-weight: normal;
+/* Buttons */
+.btn{
+  border: 1px solid var(--ring); background: var(--bg); color: var(--fg);
+  padding: 6px 12px; border-radius: 999px; cursor:pointer;
+  box-shadow: var(--shadow); transition: transform .06s ease, box-shadow .2s ease, border-color .2s ease;
 }
-.pane-head .title {
-  font-size: 14px;
+.btn.primary{ background: var(--accent); color:white; border-color: transparent; }
+.btn.primary:hover{ filter: brightness(1.05); }
+.btn.icon{ width:34px; height:34px; padding:0; display:grid; place-items:center; }
+.btn.ghost{ background: transparent; box-shadow:none; }
+.btn.sm{ font-size:12px; padding:4px 8px; }
+
+.btn:active{ transform: translateY(1px); }
+
+/* (2) Active glow for Run/Reset */
+@keyframes btnGlow {
+  from { box-shadow: 0 0 0 rgba(99,102,241,0.0), 0 0 0 rgba(99,102,241,0.0); }
+  50% { box-shadow: 0 0 20px rgba(99,102,241,0.45), 0 0 40px rgba(99,102,241,0.20); }
+  to { box-shadow: 0 0 0 rgba(99,102,241,0.0), 0 0 0 rgba(99,102,241,0.0); }
 }
-.right-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.btn[data-glow="on"]{ animation: btnGlow 1.2s ease-in-out infinite; }
+
+/* Editor */
+.editor-wrap{
+  height:100%; display:flex; flex-direction:column;
+}
+#sql-editor{
+  flex:1; min-height: 260px;
+  width:100%; resize:none;
+  background: var(--bg); color: var(--fg);
+  border: 1px solid var(--ring);
+  border-radius: 12px; padding: 12px 14px;
+  font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  outline: none;
 }
 
-/* Bottom bar */
-.pane-foot {
-  padding: 4px 8px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
+/* Splitter */
+.splitter{
+  background: var(--ring); cursor: col-resize;
 }
-body.light .pane-foot { color: var(--accent-light); }
-body.dark .pane-foot { color: var(--success-dark); }
+.splitter:hover{ background: var(--accent-weak); }
 
-/* Editor + Output area */
-#editor, #output {
-  flex: 1;
-  overflow: auto;
-  background: inherit;
+/* Screen / Output */
+.pane-screen{ background: var(--bg); }
+.screen-output{
+  border: 1px dashed var(--ring);
+  border-radius: 12px; padding: 12px; min-height: 120px;
+  white-space: pre-wrap; word-break: break-word;
 }
 
-/* =========================
-   Buttons
-========================= */
-.btn {
-  border: 1px solid var(--border);
-  background: var(--glass);
-  padding: 6px;
-  min-width: 32px;
-  min-height: 32px;
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+/* Collapsed left panel */
+.pane-left.collapsed{
+  width: 0 !important; min-width:0 !important; border-right:none;
 }
-.btn:hover {
-  border-color: var(--accent);
-}
-.btn.primary {
-  background: var(--accent);
-  color: #fff;
-}
-.btn:active {
-  transform: scale(0.95);
-}
-.btn.glow {
-  animation: glow 1s infinite alternate;
-}
-@keyframes glow {
-  from { box-shadow: 0 0 5px var(--accent); }
-  to   { box-shadow: 0 0 15px var(--accent); }
-}
+.pane-left.collapsed .pane-head,
+.pane-left.collapsed .pane-body,
+.pane-left.collapsed .pane-foot{ display:none; }
 
-/* =========================
-   Resizers
-========================= */
-.v-resize {
-  width: 6px;
-  cursor: col-resize;
-  background: transparent;
-  position: relative;
-  z-index: 50;
-}
-.v-resize:hover {
-  background: rgba(0,0,0,0.05);
-}
-
-/* =========================
-   Footer
-========================= */
-.site-footer {
-  padding: 10px 18px;
-  background: var(--glass);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  border-top: 1px solid var(--border);
-}
-.site-footer .footer-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.footer-tagline {
-  text-align: center;
-  font-weight: 500;
-}
-.site-footer a {
-  text-decoration: none;
-  color: inherit;
-}
-.site-footer a:hover {
-  color: orange;
-}
-.social {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.social svg {
-  fill: currentColor;
-  opacity: 0.8;
-}
-body.dark .social svg {
-  color: #eee;
-}
-body.light .social svg {
-  color: #333;
-}
-
-/* =========================
-   Chevron Collapse
-========================= */
-.chevron-tab {
-  position: absolute;
-  left: 0;
-  top: 40%;
-  background: var(--glass);
-  border: 1px solid var(--border);
-  padding: 4px;
-  cursor: pointer;
-  z-index: 200;
-  transition: all 0.3s;
-}
-.chevron-tab:hover {
-  background: var(--accent);
-  color: #fff;
-}
-
-/* =========================
-   Utility
-========================= */
-select.select {
-  width: 100%;
-  padding: 6px;
-  border: 1px solid var(--border);
-  background: var(--glass);
-  font-size: 14px;
+/* Responsive */
+@media (max-width: 900px){
+  .shell{
+    grid-template-columns: 54px 1fr 6px minmax(280px, 45%);
+  }
+  .pane-left:not(.collapsed){ width:54px; }
+  .pane-left:not(.collapsed) .pane-body{ display:none; }
+  .pane-left:not(.collapsed) .pane-foot{ display:none; }
 }
