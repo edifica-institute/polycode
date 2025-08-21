@@ -220,9 +220,13 @@ function panels() {
     right: document.getElementById('rightPanel')
   };
 }
-function setFrozen(all, frozen) {
-  ['left', 'center', 'right'].forEach(k => all[k]?.classList.toggle('frozen', frozen));
+function setFrozen(all, frozen, { excludeRight = false } = {}){
+  ['left','center','right'].forEach(k => {
+    if (excludeRight && k === 'right') return;
+    all[k]?.classList.toggle('frozen', frozen);
+  });
 }
+
 
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -252,14 +256,19 @@ function freezeUI() {
   document.getElementById('btnReset')?.removeAttribute('disabled');
   document.getElementById('langSelect')?.setAttribute('disabled','');
   window.editor?.updateOptions({ readOnly:true });
+
+  // Output should be LIVE during run
   document.getElementById('output')?.classList.remove('screen-dim');
-  setFrozen(all, true);
+
+  // Freeze only left + center (exclude the right/output panel)
+  setFrozen(all, true, { excludeRight: true });
 
   foot('centerFoot','Click Reset for your next code');
   foot('rightFoot','Executing…');
 
-  setAttention({ reset: true }); // << show Reset as the next action
+  setAttention({ reset: true }); // highlight Reset as next action
 }
+
 
 function unfreezeUI() {
   const all = panels();
