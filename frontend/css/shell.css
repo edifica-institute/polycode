@@ -940,6 +940,19 @@ body{
 }
 
 
+/* ready */
+.pane-foot.status.ready .icon{ background: currentColor; animation: pulseDot 1.2s ease-in-out infinite; }
+/* waiting */
+.pane-foot.status.waiting .icon{ border:2px solid currentColor; background:transparent; animation: breath 1.4s ease-in-out infinite; }
+.pane-foot.status.waiting .dots span{ animation: dot 1.2s ease-in-out infinite; }
+/* running */
+.pane-foot.status.running .icon{ border:2px solid transparent; border-top-color:currentColor; border-left-color:currentColor; animation: spin .8s linear infinite; }
+/* success */
+.pane-foot.status.success .icon{ border:2px solid currentColor; background:transparent; }
+.pane-foot.status.success .icon::before{ content:'✓'; animation: popIn .35s ease-out both; }
+/* error */
+.pane-foot.status.error .icon{ border:2px solid currentColor; background:transparent; animation: shakeX .5s linear 1; }
+.pane-foot.status.error .icon::before{ content:'✕'; }
 
 
 
