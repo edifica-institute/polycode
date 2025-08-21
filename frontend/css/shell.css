@@ -694,6 +694,31 @@ body{
 
 
 
+/* --- Left panel scroll FIX --- */
+.app,
+.panel { min-height: 0 !important; }  /* lets children shrink/scroll */
+
+.left.panel { min-height: 0 !important; }
+
+.left .pane-body{
+  /* undo earlier height:100% rule */
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  overflow: auto !important;     /* show scrollbar when needed */
+  -webkit-overflow-scrolling: touch; /* smooth on iOS */
+}
+
+/* Safety: large tables/pre won’t force horizontal growth */
+.left .pane-body table,
+.left .pane-body pre{
+  display: block;
+  max-width: 100%;
+  overflow: auto;
+}
+
+/* Safety: if the imported doc centers at big widths, allow it but don’t overflow */
+#leftContent .wrap{ max-width: 1200px; margin: 0 auto; }
 
 
 
