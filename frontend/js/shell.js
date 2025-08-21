@@ -211,31 +211,58 @@ function setFrozen(all, frozen) {
   ['left', 'center', 'right'].forEach(k => all[k]?.classList.toggle('frozen', frozen));
 }
 
+
+window.addEventListener('DOMContentLoaded', () => {
+  foot('centerFoot', 'Ready for Execution');
+  foot('rightFoot', 'Waiting for Execution');
+  unfreezeUI();
+  setAttention({ run: true }); // highlight Run initially
+});
+
+
+function setAttention({run=false, reset=false}={}){
+  const runBtn = document.getElementById('btnRun');
+  const rstBtn = document.getElementById('btnReset');
+  // clear both
+  runBtn?.classList.remove('attn');
+  rstBtn?.classList.remove('attn');
+  // set desired
+  if(run)  runBtn?.classList.add('attn');
+  if(reset) rstBtn?.classList.add('attn');
+}
+
+
+
 function freezeUI() {
   const all = panels();
-  document.getElementById('btnRun')?.setAttribute('disabled', '');
+  document.getElementById('btnRun')?.setAttribute('disabled','');
   document.getElementById('btnReset')?.removeAttribute('disabled');
-  document.getElementById('langSelect')?.setAttribute('disabled', '');
-  window.editor?.updateOptions({ readOnly: true });
+  document.getElementById('langSelect')?.setAttribute('disabled','');
+  window.editor?.updateOptions({ readOnly:true });
   document.getElementById('output')?.classList.remove('screen-dim');
   setFrozen(all, true);
 
-  // bottom-bar messages
-  foot('centerFoot', 'Click Reset for your next code');
-  foot('rightFoot', 'Executing…');
+  foot('centerFoot','Click Reset for your next code');
+  foot('rightFoot','Executing…');
+
+  setAttention({ reset: true }); // << show Reset as the next action
 }
+
 function unfreezeUI() {
   const all = panels();
   document.getElementById('btnRun')?.removeAttribute('disabled');
-  document.getElementById('btnReset')?.setAttribute('disabled', '');
+  document.getElementById('btnReset')?.setAttribute('disabled','');
   document.getElementById('langSelect')?.removeAttribute('disabled');
-  window.editor?.updateOptions({ readOnly: false });
+  window.editor?.updateOptions({ readOnly:false });
   document.getElementById('output')?.classList.add('screen-dim');
   setFrozen(all, false);
 
-  foot('centerFoot', 'Ready for Execution');
-  foot('rightFoot', 'Waiting for Execution');
+  foot('centerFoot','Ready for Execution');
+  foot('rightFoot','Waiting for Execution');
+
+  setAttention({ run: true }); // << show Run as the next action
 }
+
 
 /* ===========================
    initial footer state
@@ -270,7 +297,7 @@ window.addEventListener('DOMContentLoaded', () => {
       spin(false);
       runBtn.classList.remove('is-running');
       // optional: re-enable idle attract
-      runBtn.classList.add('idle-attract');
+      //runBtn.classList.add('idle-attract');
     }
   });
 
@@ -283,7 +310,7 @@ window.addEventListener('DOMContentLoaded', () => {
     setTimeout(()=>{
       rstBtn.classList.remove('is-resetting');
       // optional: re-enable idle attract
-      rstBtn.classList.add('idle-attract');
+      //rstBtn.classList.add('idle-attract');
     }, 1500);
 
     clearEditorErrors(); setStatus('Reset','ok'); unfreezeUI();
