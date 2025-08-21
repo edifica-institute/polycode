@@ -573,3 +573,65 @@ body{
 
 .site-header{ margin:0; }
 .site-footer{ margin:0; }
+
+
+
+
+
+
+/* ===== FIX: equal outer gaps + full-height app (override old grid row) ===== */
+.site-header{ margin:0 !important; }
+.site-footer{ margin:0 !important; }
+.stage{
+  padding-block: var(--outer-gap) !important; /* same gap above & below panels */
+  padding-inline: 12px !important;
+}
+.app{
+  height: 100% !important;
+  min-height: 0 !important;
+  grid-template-rows: 1fr !important; /* override any calc(100vh-220px) */
+}
+
+/* ===== FIX: stop any idle animations on buttons ===== */
+.btn{ box-shadow: none; }                     /* base: no glow */
+.btn:disabled{ opacity:.6; cursor:not-allowed; }
+
+/* Remove any previously defined idle-attract behaviors */
+.btn.idle-attract,
+.btn.idle-attract:disabled{
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+/* ===== Active attention state (only one button at a time) ===== */
+/* Uses currentColor so: dark theme -> white glow; light theme -> black glow */
+@keyframes glowPulseFix {
+  0%,100% { box-shadow: 0 0 0 currentColor; }
+  50%     { box-shadow: 0 0 18px currentColor, 0 0 34px currentColor; }
+}
+@keyframes shakeStrongFix {
+  0%   { transform: translateX(0) rotate(0); }
+  10%  { transform: translateX(-3px) rotate(-1.2deg); }
+  20%  { transform: translateX(3px)  rotate(1.2deg); }
+  30%  { transform: translateX(-3px) rotate(-1.2deg); }
+  40%  { transform: translateX(3px)  rotate(1.2deg); }
+  50%  { transform: translateX(-2px) rotate(-.8deg); }
+  60%  { transform: translateX(2px)  rotate(.8deg); }
+  70%  { transform: translateX(-2px) rotate(-.8deg); }
+  80%  { transform: translateX(2px)  rotate(.8deg); }
+  90%  { transform: translateX(-1px) rotate(-.4deg); }
+  100% { transform: translateX(0) rotate(0); }
+}
+
+/* The one-and-only highlight class */
+.btn.attn,
+.btn.attn:disabled{
+  animation:
+    glowPulseFix   1.2s ease-in-out infinite,
+    shakeStrongFix 0.5s linear       infinite !important;
+  will-change: transform, box-shadow;
+}
+
+/* If anything else tried to animate, kill it unless it’s .attn */
+.btn:not(.attn){ animation: none !important; box-shadow: none !important; }
+
