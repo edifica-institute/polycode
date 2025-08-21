@@ -27,53 +27,77 @@
 
 
   <!-- Three-pane app (single) -->
- <div class="app">
-  <!-- Left -->
-  <aside class="pane about" id="aboutPane">
-    <div class="pane-head">
-      <span class="title" id="aboutTitle">About SQL</span>
-      <button id="aboutToggle" class="toggle">Collapse</button>
-    </div>
-    <div class="pane-body">
-      SQL (Structured Query Language) is used to manage data in relational databases.
-      This page runs SQLite in your browser via <code>sql.js</code>.
-    </div>
-  </aside>
 
-  <!-- Middle -->
-  <section class="pane editor-pane" id="editorPane">
-    <div class="pane-head">
-      <span class="title" id="centerTitle">SQL</span>
-      <button id="btnRun" class="btn primary">Run</button>
-      <select id="langSelect" class="select" onchange="location.href=this.value">
-        <option value="./index-sql.html" selected>SQL</option>
-        <option value="./index-web.html">HTML/CSS/JS</option>
-        <option value="./index-java.html">Java</option>
-        <option value="./index-c.html">C</option>
-      </select>
-      <div class="status">
-        <span class="spin" id="spinner"></span>
-        <span id="status" class="ok">Ready</span>
+<div class="stage">
+  <div class="app">
+    <!-- LEFT panel -->
+    <section class="panel left" id="leftPanel">
+      <div class="pane-head">
+        <span class="title" id="leftTitle">SQL</span>
       </div>
-      <button id="themeToggle" class="btn" style="margin-left:8px;">Light</button>
-    </div>
-    <div id="editor"></div>
-  </section>
+      <div class="pane-body">
+        <!-- Language dropdown fullscreen in left pane -->
+        <select id="langSelect" class="select" onchange="location.href=this.value">
+          <option value="./index-sql.html" selected>SQL</option>
+          <option value="./index-web.html">HTML/CSS/JS</option>
+          <option value="./index-java.html">Java</option>
+          <option value="./index-c.html">C</option>
+        </select>
 
-  <!-- Drag handle -->
-  <div id="dragHandle"></div>
+        <!-- Optional content loaded from external file -->
+        <div id="leftContent" style="margin-top:12px;"></div>
+      </div>
+    </section>
 
-  <!-- Right -->
-  <section class="pane output-pane">
-    <div class="pane-head">
-      <span class="title">Screen</span>
-      <button id="btnClear" class="btn">Clear</button>
-    </div>
-    <div id="output" class="screen-dim">
-      <div id="sqlout"></div>
-    </div>
-  </section>
+    <!-- RESIZER between left and center -->
+    <div class="v-resize"><div id="dragLeft"></div></div>
+
+    <!-- CENTER panel (Editor) -->
+    <section class="panel center" id="centerPanel">
+      <div class="pane-head">
+        <span class="title" id="centerTitle">SQL – Editor</span>
+        <div class="right-controls">
+          <span class="status">
+            <span class="spin" id="spinner"></span>
+            <span id="status" class="ok">Ready</span>
+          </span>
+          <button id="themeToggle" class="btn">Light</button>
+          <button id="btnRun" class="btn primary" title="Run">▶</button>
+        </div>
+      </div>
+      <div id="editor"></div>
+    </section>
+
+    <!-- RESIZER between center and right -->
+    <div class="v-resize right"><div id="dragRight"></div></div>
+
+    <!-- RIGHT panel (Screen) -->
+    <section class="panel right" id="rightPanel">
+      <div class="pane-head">
+        <span class="title">Screen</span>
+        <div class="right-controls" style="margin-left:auto; display:flex; gap:10px;">
+          <button id="btnReset" class="btn" title="Reset">⟲</button>
+        </div>
+      </div>
+      <div id="output" class="screen-dim">
+        <div id="sqlout"></div>
+      </div>
+    </section>
+  </div>
 </div>
+
+<!-- Floating always-visible chevron for collapse/expand -->
+<div class="chevron-tab" id="chevronTab" title="Toggle left panel">
+  <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
+</div>
+
+
+
+
+
+
+
+  
 
   <!-- Footer (single) -->
   <footer class="site-footer">
