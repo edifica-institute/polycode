@@ -1,129 +1,158 @@
-/* ===== Theme (dark + light) ===== */
+/* ===== Theme (dark gray / light) ===== */
 :root{
   color-scheme: dark;
-  --bg:#0e0f11; --panel:#16181c; --panel-2:#0f1114; --border:#23262b;
-  --muted:#a9aeb5; --brand:#2e5bea; --ok:#83ffa6; --err:#ff8b8b; --link:#9ecbff;
-  --glass: rgba(255,255,255,.06); --glass-brd: rgba(255,255,255,.12); --text:#e8eaf0;
-  --top:#0b0d10; --bottom:#0b0d10;
-  --shadow: 0 25px 60px rgba(0,0,0,.35), 0 10px 25px rgba(0,0,0,.25);
+  --bg:#16181b;         /* dark gray (not pitch black) */
+  --panel:#1e2024;      /* panel surface */
+  --panel-2:#1a1c1f;    /* header/footer bands */
+  --border:#2b2f34;
+  --muted:#aeb5bd;
+  --brand:#2e5bea;
+  --ok:#7dffa0; --err:#ff8b8b; --link:#9ecbff;
+  --glass: rgba(255,255,255,.05); --glass-brd: rgba(255,255,255,.12);
+  --text:#e9edf3;
+  --shadow-3d: 0 24px 60px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.22);
 }
 body.light{
   color-scheme: light;
-  --bg:#f6f7f9; --panel:#ffffff; --panel-2:#f2f4f8; --border:#dde1e6;
-  --muted:#6b7280; --brand:#2457ff; --ok:#22985a; --err:#cc2f2f; --link:#204ecf;
-  --glass: rgba(0,0,0,.06); --glass-brd: rgba(0,0,0,.12); --text:#0b0b0b;
-  --top:#e9eef6; --bottom:#e9eef6;
-  --shadow: 0 25px 60px rgba(0,0,0,.10), 0 10px 25px rgba(0,0,0,.08);
+  --bg:#eef2f7;
+  --panel:#ffffff;
+  --panel-2:#f1f4f9;
+  --border:#d7dbe2;
+  --muted:#6b7280;
+  --brand:#2457ff;
+  --ok:#22985a; --err:#cc2f2f; --link:#204ecf;
+  --glass: rgba(0,0,0,.05); --glass-brd: rgba(0,0,0,.12);
+  --text:#0b0b0b;
+  --shadow-3d: 0 24px 60px rgba(0,0,0,.12), 0 10px 24px rgba(0,0,0,.08);
 }
+
 *{ box-sizing:border-box; }
 html,body{ height:100%; }
 body{ margin:0; background:var(--bg); color:var(--text);
       font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
 
-/* ===== Header (taller, contrasting) ===== */
+/* ===== Header / Footer (taller, contrasting) ===== */
 .site-header{
   display:flex; align-items:flex-start; gap:14px;
-  padding:22px 22px; background:var(--top);
-  border-bottom:1px solid var(--border); box-shadow:var(--shadow);
+  padding:26px 24px; background:var(--panel-2);
+  border-bottom:1px solid var(--border); box-shadow:var(--shadow-3d);
 }
 .site-header .logo{ display:flex; align-items:center; gap:12px; }
-.site-header .logo img{ width:44px; height:44px; border-radius:50%; }
-.site-header .brand{ display:flex; flex-direction:column; line-height:1.05; }
-.brand .title{ font-weight:900; font-size:26px; letter-spacing:.2px; }
-.brand .powered{ color:var(--muted); font-weight:700; font-size:12px; margin-top:6px; }
-.site-header nav{ margin-left:auto; display:flex; gap:22px; padding-top:6px; }
+.site-header .logo img{ width:52px; height:52px; }          /* (15) bigger logo */
+.site-header .brand{ line-height:1.05; }
+.brand .title{ font-weight:800; font-size:26px; }
+.brand .powered{ color:var(--muted); font-size:12px; margin-top:4px; }
+.site-header nav{ margin-left:auto; display:flex; gap:20px; padding-top:6px; }
 .site-header nav a{ color:var(--text); text-decoration:underline; text-underline-offset:3px; }
 .site-header nav a:hover{ color:var(--brand); }
 
-/* ===== 3D panel stage ===== */
-.stage{
-  padding:16px 18px; /* gaps around panels */
-}
+/* stage gives the outer gap and keeps footer visible */
+.stage{ padding:10px 12px 18px; }
 
-/* ===== 3-pane app with gaps ===== */
+/* ===== App layout (grid with narrow gaps; square look) ===== */
 .app{
   display:grid;
-  grid-template-columns: 320px 8px minmax(320px,1fr) 8px minmax(340px, 42%);
-  grid-template-rows: calc(100vh - 200px); /* header + footer */
-  gap:16px;
+  grid-template-columns: 280px 8px minmax(360px,1fr) 8px minmax(360px, 42%);
+  grid-template-rows: calc(100vh - 220px);
+  gap:10px;                                /* (10) tighter gaps */
 }
+.app.collapsed-left{ grid-template-columns: 0 0 minmax(520px,1fr) 8px minmax(360px,42%); }
 
-/* Generic panel */
+/* ===== Panel (square + elevated + glassy head) ===== */
 .panel{
-  background: linear-gradient(180deg, var(--panel) 0%, color-mix(in oklab, var(--panel), #000 3%) 100%);
+  background: linear-gradient(180deg, var(--panel) 0%, color-mix(in oklab, var(--panel), #000 4%) 100%);
   border:1px solid var(--border);
-  border-radius:14px;
+  border-radius:4px;                        /* square (10) */
   overflow:hidden;
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-3d);             /* (11) more elevated */
 }
-
-/* Panel head (glassy) */
 .pane-head{
-  display:flex; align-items:center; gap:12px;
-  padding:14px 14px; background:var(--glass); border-bottom:1px solid var(--glass-brd);
+  display:flex; align-items:center; gap:10px;
+  padding:12px 12px;
+  background:var(--glass); border-bottom:1px solid var(--glass-brd);
   backdrop-filter: blur(10px);
+  font-weight:500;                          /* (1) no heavy bold */
 }
-.pane-head .title{ font-weight:900; letter-spacing:.2px; }
+.pane-head .title{ font-weight:500; }
+
+/* Square buttons */
 .btn{
-  padding:10px; width:42px; height:42px; border-radius:10px;
+  width:36px; height:36px; padding:0; border-radius:4px;    /* square (10) */
   border:1px solid var(--glass-brd); background:var(--glass); color:var(--text);
-  cursor:pointer; font-weight:800;
-  box-shadow: 0 12px 25px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06);
+  cursor:pointer; font-weight:800; display:inline-grid; place-items:center;
+  box-shadow: 0 10px 22px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06);
 }
 .btn.primary{ background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.05)); border-color:transparent; }
-.btn:disabled{ opacity:.55; cursor:not-allowed; }
+.btn:disabled{ opacity:.6; cursor:not-allowed; }
+
+/* Run / Reset animation cues (7) */
+@keyframes pulse { 0%{transform:scale(1);} 50%{transform:scale(1.08);} 100%{transform:scale(1);} }
+.btn.is-running{ animation:pulse .9s ease-in-out infinite; }
+@keyframes spinReset { to{transform:rotate(360deg);} }
+.btn.is-resetting svg{ animation:spinReset .7s linear infinite; }
+
+/* Icons in buttons */
+.btn svg{ width:18px; height:18px; fill:var(--text); }
+
+/* Theme icon (3) smaller) */
+.theme-btn{ width:36px; height:36px; }
+
+/* Select in heads / left pane */
 .select{
-  background:var(--glass); border:1px solid var(--glass-brd); color:var(--text);
-  border-radius:12px; padding:10px 12px; width:100%;
+  background:var(--panel); color:var(--text);
+  border:1px solid var(--border);
+  border-radius:4px; padding:8px 10px; width:100%;
 }
-.status{ margin-left:auto; font-size:13px; display:flex; gap:10px; align-items:center; }
-.status .ok{ color:var(--ok); } .status .err{ color:var(--err); }
-.spin{ width:14px; height:14px; border:2px solid #888; border-top-color:transparent; border-radius:50%; display:none; animation:spin 1s linear infinite; }
-@keyframes spin{ to{ transform:rotate(360deg);} }
+.select option{ background:var(--panel); color:var(--text); }   /* (5) visible in dark */
 
 /* Left panel */
-.left.panel{ grid-column:1 / span 1; }
+.left.panel{ grid-column:1 / span 1; display:flex; flex-direction:column; }
+.left .pane-head .title{ display:none; }                        /* (12) remove "SQL" text */
+.left .pane-head .select{ max-width:100%; }                     /* (1) full width dropdown in head */
 .left .pane-body{ padding:10px 12px; height:100%; overflow:auto; }
-
-/* Resizers */
-.v-resize{ grid-column:2 / span 1; width:8px; cursor:col-resize; }
-.v-resize.right{ grid-column:4 / span 1; }
-.v-resize div{ width:100%; height:100%; background:transparent; }
-.v-resize div:hover{ background:var(--glass); }
 
 /* Center panel (editor) */
 .center.panel{ grid-column:3 / span 1; display:flex; flex-direction:column; }
+.center .pane-head .title{ }
+.center .pane-head .right-controls{ margin-left:auto; display:flex; gap:8px; align-items:center; }
 #editor{ flex:1; }
-.center .pane-head .right-controls{ margin-left:auto; display:flex; gap:10px; align-items:center; }
 
 /* Right panel (screen) */
 .right.panel{ grid-column:5 / span 1; display:flex; flex-direction:column; }
 #output{ flex:1; overflow:auto; padding:12px; }
 
-/* Frozen look */
-.panel.frozen .pane-head{ filter:saturate(.6); }
-.panel.frozen .pane-body, .panel.frozen #editor, .panel.frozen #output{ opacity:.65; pointer-events:none; }
+/* Resizers (2,14) */
+.v-resize{ width:8px; cursor:col-resize; }
+.v-resize div{ width:100%; height:100%; background:transparent; }
+.v-resize div:hover{ background:var(--glass); }
 
-/* Links */
+/* Frozen tone (6) single tint for all frozen panels) */
+.panel.frozen{ filter:saturate(.85) brightness(.92); }
+.panel.frozen .pane-head{ filter:grayscale(.2); }
+.screen-dim{ opacity:.55; pointer-events:none; }
+
+/* Links / footer */
 a{ color:var(--link); text-decoration:underline; text-underline-offset:3px; }
 a:hover{ color:var(--brand); }
 
-/* Footer (taller, contrasting) */
 .site-footer{
-  margin-top:16px; padding:18px 22px; background:var(--bottom);
-  border-top:1px solid var(--border); box-shadow:var(--shadow);
+  margin-top:12px; padding:18px 24px; background:var(--panel-2);
+  border-top:1px solid var(--border); box-shadow:var(--shadow-3d);
+  position:relative; z-index:2;             /* (4) stay above OS/taskbar */
 }
 .footer-tagline{ color:var(--muted); margin-bottom:8px; }
 .footer-row{ display:flex; align-items:center; justify-content:space-between; }
 .footer-row .legal a{ margin-right:14px; }
-.footer-row .social{ display:flex; align-items:center; gap:10px; }
-.footer-row .social .label{ margin-right:4px; color:var(--muted); }
 
-/* Collapsible chevron tab (always visible) */
+/* Social icons brighter in dark (8) */
+.footer-row .social svg{ width:18px; height:18px; fill:color-mix(in oklab, var(--text), #fff 20%); }
+.footer-row .social a:hover svg{ fill:var(--text); }
+
+/* Floating chevron */
 .chevron-tab{
   position:fixed; left:6px; top:50%; transform:translateY(-50%);
-  width:28px; height:52px; display:flex; align-items:center; justify-content:center;
-  border-radius:8px; background:var(--glass); border:1px solid var(--glass-brd);
+  width:24px; height:46px; display:flex; align-items:center; justify-content:center;
+  border-radius:4px; background:var(--glass); border:1px solid var(--glass-brd);
   backdrop-filter: blur(8px); cursor:pointer; z-index:50;
 }
-.chevron-tab svg{ width:18px; height:18px; fill:var(--text); }
+.chevron-tab svg{ width:16px; height:16px; fill:var(--text); }
