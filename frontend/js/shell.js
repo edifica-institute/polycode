@@ -300,14 +300,14 @@ function setFrozen(all, frozen, { excludeRight = false } = {}){
 
 
 
-window.addEventListener('DOMContentLoaded', () => {
+/*window.addEventListener('DOMContentLoaded', () => {
   foot('centerFoot', 'Ready for Execution');
   foot('rightFoot', 'Waiting for Execution');
   unfreezeUI();
   setAttention({ run: true }); // highlight Run initially
    //setFootStatus('centerFoot','ready');
   //setFootStatus('rightFoot','waiting');
-});
+});*/
 
 
 function setAttention({run=false, reset=false}={}){
@@ -437,11 +437,17 @@ function unfreezeUI() {
 /* ===========================
    initial footer state
 =========================== */
-window.addEventListener('DOMContentLoaded', () => {
+/*window.addEventListener('DOMContentLoaded', () => {
   foot('centerFoot', 'Ready for Execution');
   foot('rightFoot', 'Waiting for Execution');
   unfreezeUI();
+});*/
+
+window.addEventListener('DOMContentLoaded', () => {
+  unfreezeUI();                 // this calls setFootStatus('ready'/'waiting')
+  setAttention({ run: true });  // glow on the Run button
 });
+
 
 /* ===========================
    run/reset handlers with animations
