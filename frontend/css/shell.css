@@ -120,7 +120,7 @@ body{ margin:0; background:var(--bg); color:var(--text);
 .left .pane-body{ padding:10px 12px; height:100%; overflow:auto; }
 
 /* Center panel (editor) */
-.center.panel{ grid-column:3 / span 1; display:flex; flex-direction:column; }
+.center.panel{ grid-column:3 / span 1; display:flex; flex-direction:column; padding-top: 12px; }
 .center .pane-head .title{ }
 .center .pane-head .right-controls{ margin-left:auto; display:flex; gap:8px; align-items:center; }
 #editor{ flex:1; }
