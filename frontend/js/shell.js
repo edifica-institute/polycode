@@ -99,7 +99,7 @@ function initCols() {
   const app = document.querySelector('.app');
 
    
-  const app = document.querySelector('.app');
+ 
   const dragLeft = document.getElementById('dragLeft');
   const dragRight = document.getElementById('dragRight');
   if (!app) return;
