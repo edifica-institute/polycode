@@ -148,14 +148,17 @@ function initCols() {
    resizers (left and right)
    - grid-based; keeps total C+R constant
 =========================== */
+/* ===========================
+   resizers (left & right) — safe clamps
+   - Left handle: redistribute between LEFT <-> CENTER (keep L+C constant)
+   - Right handle: redistribute between CENTER <-> RIGHT (keep C+R constant)
+=========================== */
 (function () {
+  // Disable resizers on small screens (stacked layout)
+  if (window.innerWidth <= 1024) return;
 
-   if (window.innerWidth <= 1024) return; // disable resizers on small screens
   const app = document.querySelector('.app');
-
-   
- 
-  const dragLeft = document.getElementById('dragLeft');
+  const dragLeft  = document.getElementById('dragLeft');
   const dragRight = document.getElementById('dragRight');
   if (!app) return;
 
@@ -163,33 +166,50 @@ function initCols() {
     e.preventDefault();
     const startX = e.clientX;
 
-    // current inline columns
+    // Get current numeric px widths from the computed grid
     const [L, , C, , R] = parseCols(getComputedStyle(app).gridTemplateColumns);
-    const totalCR = C + R;
+
+    // Totals to preserve depending on the handle
+    const totalLC = L + C;   // left handle redistributes L <-> C
+    const totalCR = C + R;   // right handle redistributes C <-> R
+
+    // Minimum widths (px)
+    const minL = 200, minC = 360, minR = 300;
 
     function move(ev) {
       const dx = ev.clientX - startX;
 
       if (side === 'left') {
-        const newL = Math.max(200, L + dx);
-        setCols(app, newL, C, R);
+        // Keep L + C constant; only shift between them
+        let newL = L + dx;
+        let newC = totalLC - newL;
+
+        // Clamp so neither collapses nor overgrows
+        if (newL < minL) { newL = minL; newC = totalLC - newL; }
+        if (newC < minC) { newC = minC; newL = totalLC - newC; }
+        // Prevent making left too big: max left is totalLC - minC
+        if (newL > totalLC - minC) { newL = totalLC - minC; newC = minC; }
+
+        setCols(app, newL, newC, R);
       } else {
-        // right handle: adjust C and R but preserve total
-        let newR = Math.max(300, R - dx);
+        // Right handle: keep C + R constant
+        let newR = R - dx;          // dragging left increases R, right decreases R
         let newC = totalCR - newR;
-        // clamp center minimum
-        if (newC < 360) {
-          newC = 360;
-          newR = totalCR - newC;
-        }
+
+        // Clamp to minimums
+        if (newR < minR) { newR = minR; newC = totalCR - newR; }
+        if (newC < minC) { newC = minC; newR = totalCR - newC; }
+
         setCols(app, L, newC, newR);
       }
     }
+
     function up() {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
       document.body.style.userSelect = '';
     }
+
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
     document.body.style.userSelect = 'none';
@@ -197,10 +217,8 @@ function initCols() {
 
   dragLeft?.addEventListener('mousedown', e => startDrag(e, 'left'));
   dragRight?.addEventListener('mousedown', e => startDrag(e, 'right'));
-
-  window.addEventListener('load', initCols);
-  window.addEventListener('resize', initCols);
 })();
+
 
 /* ===========================
    collapse/expand left panel
