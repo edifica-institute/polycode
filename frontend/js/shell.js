@@ -446,10 +446,11 @@ function unfreezeUI() {
   unfreezeUI();
 });*/
 
+/*
 window.addEventListener('DOMContentLoaded', () => {
   unfreezeUI();                 // this calls setFootStatus('ready'/'waiting')
   setAttention({ run: true });  // glow on the Run button
-});
+});*/
 
 
 /* ===========================
@@ -568,17 +569,47 @@ window.PolyShell = {
 
 
 
-// Ensure animated footers exist on first paint
-(function initFootersNow(){
-  function init(){
-    unfreezeUI();                // builds animated 'ready' + 'waiting'
-    setAttention({ run: true }); // Run button glow on first paint
-  }
+// 🔧 Ensure footer animations + Run glow start on first paint
+(function bootUIOnFirstPaint(){
+  const init = () => {
+    // Defer to the first fully painted frame so animations start
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // Build the animated chips
+        setFootStatus('centerFoot','ready');
+        setFootStatus('rightFoot','waiting');
+
+        // Make sure the output panel is dimmed while idle, etc.
+        document.getElementById('output')?.classList.add('screen-dim');
+
+        // Re-arm the Run button glow
+        const runBtn = document.getElementById('btnRun');
+        if (runBtn){
+          runBtn.classList.remove('attn');
+          // force a reflow so the animation restarts cleanly
+          void runBtn.offsetWidth;
+          runBtn.classList.add('attn');
+        }
+
+        // Panel interactivity/readonly state
+        const all = panels?.();
+        if (all){
+          setFrozen(all, false);
+          document.getElementById('btnRun')?.removeAttribute('disabled');
+          document.getElementById('btnReset')?.setAttribute('disabled','');
+          document.getElementById('langSelect')?.removeAttribute('disabled');
+          window.editor?.updateOptions?.({ readOnly:false });
+        }
+      });
+    });
+  };
+
   if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', init, { once:true });
   } else {
-    init(); // DOM is already ready — do it right now
+    init();
   }
 })();
+
 
 
