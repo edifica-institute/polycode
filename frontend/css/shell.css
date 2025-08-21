@@ -38,10 +38,14 @@ body{ margin:0; background:var(--bg); color:var(--text);
   border-bottom:1px solid var(--border); box-shadow:var(--shadow-3d);
 }
 .site-header .logo{ display:flex; align-items:center; gap:12px; }
-.site-header .logo img{ width:52px; height:52px; }          /* (15) bigger logo */
+.site-header .logo img{
+  width:52px; height:52px; border-radius:50%;
+  object-fit:contain; background:transparent;
+}      /* (15) bigger logo */
 .site-header .brand{ line-height:1.05; }
 .brand .title{ font-weight:800; font-size:26px; }
-.brand .powered{ color:var(--muted); font-size:12px; margin-top:4px; }
+.brand{ display:flex; flex-direction:column; }
+.brand .powered{ margin-top:6px; display:block; }
 .site-header nav{ margin-left:auto; display:flex; gap:20px; padding-top:6px; }
 .site-header nav a{ color:var(--text); text-decoration:underline; text-underline-offset:3px; }
 .site-header nav a:hover{ color:var(--brand); }
@@ -54,9 +58,9 @@ body{ margin:0; background:var(--bg); color:var(--text);
   display:grid;
   grid-template-columns: 280px 8px minmax(360px,1fr) 8px minmax(360px, 42%);
   grid-template-rows: calc(100vh - 220px);
-  gap:10px;                                /* (10) tighter gaps */
+  gap:5px;                                /* (10) tighter gaps */
 }
-.app.collapsed-left{ grid-template-columns: 0 0 minmax(520px,1fr) 8px minmax(360px,42%); }
+.app.collapsed-left{ grid-template-columns: 0 0 minmax(560px,1fr) 8px minmax(340px,42%); }
 
 /* ===== Panel (square + elevated + glassy head) ===== */
 .panel{
@@ -133,7 +137,7 @@ body{ margin:0; background:var(--bg); color:var(--text);
 
 /* Links / footer */
 a{ color:var(--link); text-decoration:underline; text-underline-offset:3px; }
-a:hover{ color:var(--brand); }
+a:hover{ color:#ffa043; }   
 
 .site-footer{
   margin-top:12px; padding:18px 24px; background:var(--panel-2);
