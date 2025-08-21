@@ -683,6 +683,11 @@ body{
 }
 
 
+/* Ensure the output panel never looks frozen during run */
+.right.panel.frozen,
+.right.panel.frozen .pane-head{
+  filter: none !important;
+}
 
 
 
