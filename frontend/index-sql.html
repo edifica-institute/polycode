@@ -27,7 +27,7 @@
 
   <!-- App -->
   <div class="stage">
-    <div class="app">
+    <div class="app" id="appRoot">
       <!-- LEFT panel -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
@@ -43,6 +43,7 @@
           <!-- Editable content pulled from /content/sql.html -->
           <div id="leftContent" style="margin-top:12px;"></div>
         </div>
+        <div class="pane-foot"><span class="msg" id="leftFoot">About selected language</span></div>
       </section>
 
       <!-- RESIZER between left and center -->
@@ -51,16 +52,14 @@
       <!-- CENTER panel (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
-          <span class="title" id="centerTitle">SQL – Editor</span>
-          <div class="right-controls">
-            <span class="status">
-              <span class="spin" id="spinner"></span>
-              <span id="status" class="ok">Ready</span>
-            </span>
-            <!-- Theme toggle (icon) -->
-            <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
-              <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-            </button>
+          <!-- Theme toggle (icon) sits left of title -->
+          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+
+          <span class="title" id="centerTitle" style="margin-left:8px;">SQL – Editor</span>
+
+          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
             <!-- Run -->
             <button id="btnRun" class="btn primary" title="Run" aria-label="Run">
               <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -68,6 +67,7 @@
           </div>
         </div>
         <div id="editor"></div>
+        <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
       </section>
 
       <!-- RESIZER between center and right -->
@@ -84,9 +84,10 @@
             </button>
           </div>
         </div>
-        <div id="output" class="screen-dim">
+        <div id="output">
           <div id="sqlout"></div>
         </div>
+        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
     </div>
   </div>
@@ -117,12 +118,14 @@
     </div>
   </footer>
 
-  <!-- Scripts -->
+  <!-- Vendor scripts -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/sql-wasm.js"></script>
+
+  <!-- App shell -->
   <script src="./js/shell.js"></script>
 
-  <!-- Page script -->
+  <!-- Page logic -->
   <script>
     const SAMPLE_SQL =
 `-- In-browser SQL (sql.js)
@@ -138,8 +141,8 @@ SELECT * FROM users;`;
         locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f
       });
       db = new SQL.Database();
-      PolyShell.setStatus('Ready','ok');
-      PolyShell.loadLeftContent('sql');  // load /content/sql.html into left pane
+      PolyShell.loadLeftContent('sql');  // /content/sql.html -> #leftContent
+      // Bottom bars are initialized by shell.js on DOMContentLoaded
     }
 
     window.runLang = async function(){
@@ -148,7 +151,10 @@ SELECT * FROM users;`;
       out.innerHTML = '';
       try{
         const res = db.exec(window.editor.getValue());
-        if (!res.length){ out.textContent='(no rows)'; return; }
+        if (!res.length){
+          out.textContent='(no rows)';
+          return;
+        }
         const { columns, values } = res[0];
         const table = document.createElement('table');
         table.style.borderCollapse='collapse';
@@ -172,7 +178,7 @@ SELECT * FROM users;`;
         table.appendChild(tbody); out.appendChild(table);
       }catch(e){
         document.getElementById('sqlout').innerHTML = '<pre>'+ (e?.message || String(e)) +'</pre>';
-        throw e; // let shell mark the editor
+        throw e; // let shell.js highlight and set footer
       }
     }
 
