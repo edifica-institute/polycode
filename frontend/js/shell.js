@@ -17,6 +17,90 @@ function initMonaco({value, language}){
   });
 }
 
+
+
+/* helpers to get/set grid columns */
+function parseCols(str){
+  // returns numeric pixel widths for [left, spacer, center, spacer, right]
+  return str.split(' ').map(s=>{
+    if(s.endsWith('px')) return parseFloat(s);
+    return s; // keep 'minmax(...)' / '1fr' etc
+  });
+}
+function setCols(app, L, C, R){
+  app.style.gridTemplateColumns = `${L}px 8px ${C}px 8px ${R}px`;
+}
+
+/* initialize widths once */
+function initCols(){
+  const app = document.querySelector('.app');
+  const rect = app.getBoundingClientRect();
+  // If no inline style yet, compute from panel rects
+  const L = document.getElementById('leftPanel').getBoundingClientRect().width;
+  const C = document.getElementById('centerPanel').getBoundingClientRect().width;
+  const R = document.getElementById('rightPanel').getBoundingClientRect().width;
+  setCols(app, Math.max(200,L), Math.max(360,C), Math.max(320,R));
+}
+
+/* resizers (only center<->right resize; left resizer only adjusts left) */
+(function(){
+  const app = document.querySelector('.app');
+  const dragLeft = document.getElementById('dragLeft');
+  const dragRight = document.getElementById('dragRight');
+
+  function startDrag(e, side){
+    e.preventDefault();
+    const rectC = document.getElementById('centerPanel').getBoundingClientRect();
+    const rectR = document.getElementById('rightPanel').getBoundingClientRect();
+    const rectL = document.getElementById('leftPanel').getBoundingClientRect();
+    const startX = e.clientX;
+
+    // current inline columns
+    const [L, , C, , R] = parseCols(getComputedStyle(app).gridTemplateColumns);
+
+    function move(ev){
+      const dx = ev.clientX - startX;
+
+      if(side==='left'){
+        const newL = Math.max(200, L + dx);
+        setCols(app, newL, C, R);
+      }else{
+        // grow right when dragging left (<-), shrink when dragging right (->)
+        let newR = Math.max(300, R - dx);
+        let newC = Math.max(360, C + dx);
+        const totalCR = C + R;
+        // maintain total width to avoid shift
+        if(newC + newR !== totalCR){
+          // lock total and clamp mins
+          newC = Math.max(360, totalCR - newR);
+          newR = totalCR - newC;
+        }
+        setCols(app, L, newC, newR);
+      }
+    }
+    function up(){ window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.userSelect=''; }
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    document.body.style.userSelect='none';
+  }
+
+  dragLeft?.addEventListener('mousedown', e=> startDrag(e,'left'));
+  dragRight?.addEventListener('mousedown', e=> startDrag(e,'right'));
+  window.addEventListener('load', initCols);
+  window.addEventListener('resize', initCols);
+})();
+
+
+
+
+
+
+
+
+
+
+
+
 /* markers */
 function showEditorError(msg, line=1, col=1){
   if(!window.editor || !window.monaco) return;
