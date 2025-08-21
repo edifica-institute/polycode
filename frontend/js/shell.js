@@ -19,6 +19,10 @@ function initMonaco({value, language}){
 
 
 
+
+
+
+
 /* helpers to get/set grid columns */
 function parseCols(str){
   // returns numeric pixel widths for [left, spacer, center, spacer, right]
@@ -89,6 +93,44 @@ function initCols(){
   window.addEventListener('load', initCols);
   window.addEventListener('resize', initCols);
 })();
+
+
+(function(){
+  const app = document.querySelector('.app');
+  const tab = document.getElementById('chevronTab');
+  let collapsed = false;
+
+  function icon(){
+    tab.innerHTML = collapsed
+      ? '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'
+      : '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>';
+  }
+  icon();
+
+  tab.addEventListener('click', ()=>{
+    collapsed = !collapsed;
+    app.classList.toggle('collapsed-left', collapsed);
+
+    // when collapsing, push width to center; when expanding, restore default init
+    const [L, , C, , R] = parseCols(getComputedStyle(app).gridTemplateColumns);
+    if(collapsed){
+      setCols(app, 0, C + L, R);
+    }else{
+      const newL = Math.max(240, 280); // default left
+      setCols(app, newL, Math.max(360, C - newL), R);
+    }
+    icon();
+  });
+})();
+
+
+
+
+
+
+
+
+
 
 
 
