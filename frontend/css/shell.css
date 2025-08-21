@@ -11,6 +11,7 @@
   --glass: rgba(255,255,255,.05); --glass-brd: rgba(255,255,255,.12);
   --text:#e9edf3;
   --shadow-3d: 0 24px 60px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.22);
+   --outer-gap: 8px; 
 }
 body.light{
   color-scheme: light;
@@ -51,7 +52,10 @@ body{ margin:0; background:var(--bg); color:var(--text);
 .site-header nav a:hover{ color:var(--brand); }
 
 /* stage gives the outer gap and keeps footer visible */
-.stage{ padding:10px 12px 18px; }
+.stage{
+  padding-block: var(--outer-gap); /* equal gap above and below panels */
+  padding-inline: 12px;            /* keep your side gap the same */
+}
 
 /* ===== App layout (grid with narrow gaps; square look) ===== */
 .app{
@@ -567,3 +571,5 @@ body{
 .panel a{ color:var(--link); text-decoration:none; }
 .panel a:hover{ color:var(--link-hover); }
 
+.site-header{ margin:0; }
+.site-footer{ margin:0; }
