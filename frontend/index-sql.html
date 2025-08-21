@@ -41,6 +41,8 @@
         </div>
         <div class="pane-body">
           <!-- Editable content pulled from /content/sql.html -->
+          <div class="pane-foot"><span class="msg" id="leftFoot">About SQL</span></div>
+
           <div id="leftContent" style="margin-top:12px;"></div>
         </div>
       </section>
@@ -51,23 +53,24 @@
       <!-- CENTER panel (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
-          <span class="title" id="centerTitle">SQL – Editor</span>
-          <div class="right-controls">
-            <span class="status">
-              <span class="spin" id="spinner"></span>
-              <span id="status" class="ok">Ready</span>
-            </span>
-            <!-- Theme toggle (icon) -->
-            <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
-              <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-            </button>
-            <!-- Run -->
-            <button id="btnRun" class="btn primary" title="Run" aria-label="Run">
-              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-          </div>
-        </div>
+  <!-- theme first (6) -->
+  <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
+    <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+  </button>
+
+  <span class="title" id="centerTitle" style="margin-left:8px;">SQL – Editor</span>
+
+  <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+    <!-- Run -->
+    <button id="btnRun" class="btn primary" title="Run" aria-label="Run">
+      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+  </div>
+</div>
+
         <div id="editor"></div>
+        <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
+
       </section>
 
       <!-- RESIZER between center and right -->
@@ -87,6 +90,8 @@
         <div id="output" class="screen-dim">
           <div id="sqlout"></div>
         </div>
+        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
+
       </section>
     </div>
   </div>
