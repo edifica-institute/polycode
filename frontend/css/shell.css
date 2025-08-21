@@ -348,3 +348,222 @@ body.light .pane-foot .msg{ color:#2457ff; }
   }
 }
 
+
+
+
+
+
+
+
+
+
+/* ========== THEME TOKENS ========== */
+:root{
+  /* base */
+  --bg: #0b0b0c;
+  --text: #eaeaea;
+  --muted: #b8b8b8;
+
+  /* panels (transparent + fade) */
+  --panel-bg: rgba(22,24,28,0.55);
+  --panel-border: rgba(255,255,255,0.08);
+
+  /* pane foot (bottom bars inside panels) */
+  --pane-foot-bg: #000;
+  --pane-foot-text: #fff;
+
+  /* links */
+  --link: #ffffff;
+  --link-hover: #f59e0b;
+
+  /* buttons */
+  --btn-bg: #000000;   /* dark theme buttons = black */
+  --btn-fg: #ffffff;   /* text/icon white */
+}
+
+body.light{
+  --bg: #ffffff;
+  --text: #0b0b0c;
+  --muted: #444;
+
+  --panel-bg: rgba(255,255,255,0.7);
+  --panel-border: rgba(0,0,0,0.08);
+
+  --pane-foot-bg: #ffffff; /* light pane foot */
+  --pane-foot-text: #000000;
+
+  --link: #000000;         /* light theme links = black */
+  --link-hover: #f59e0b;
+
+  --btn-bg: #ffffff;       /* light theme buttons = white */
+  --btn-fg: #000000;       /* glow color uses currentColor = black */
+}
+
+/* ========== ROOT LAYOUT (NO PAGE SCROLL) ========== */
+html, body { height: 100%; }
+body{
+  margin:0;
+  color:var(--text);
+  background:var(--bg);
+  display:grid;
+  grid-template-rows:auto 1fr auto; /* header, main, footer */
+  overflow:hidden; /* no page scrollbars */
+}
+
+/* Header */
+.site-header{
+  display:flex; align-items:center; gap:14px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--panel-border);
+}
+.site-header .logo{ display:flex; align-items:center; gap:10px; }
+.site-header .logo img{ width:32px; height:32px; }
+.site-header .brand{ display:flex; flex-direction:column; line-height:1.1; }
+.site-header .brand .title{ font-weight:700; text-transform:lowercase; }
+.site-header .brand .powered{ font-size:12px; color:var(--muted); }
+.site-header .brand .tagline{ font-size:12px; color:var(--muted); }
+
+.site-header nav{ margin-left:auto; display:flex; gap:16px; }
+.site-header nav a{
+  color:var(--link); text-decoration:none; font-weight:500;
+}
+.site-header nav a:hover{ color:var(--link-hover); }
+
+/* Footer (site bottom) */
+.site-footer{
+  border-top:1px solid var(--panel-border);
+  padding:8px 16px;
+  background:transparent;
+}
+.footer-tagline{ text-align:center; font-size:12px; color:var(--muted); margin-bottom:6px; }
+
+/* new footer 3-column layout */
+.footer-grid{
+  display:grid; grid-template-columns:1fr auto 1fr;
+  align-items:center; gap:12px;
+}
+.footer-left{ display:flex; align-items:center; gap:10px; }
+.footer-left img{ width:24px; height:24px; }
+.footer-left .txt{ display:flex; flex-direction:column; line-height:1.1; }
+.footer-left .txt .powered{ font-size:12px; color:var(--muted); }
+.footer-left .txt .subline{ font-size:11px; color:var(--muted); }
+
+.footer-center{ display:flex; align-items:center; gap:10px; justify-content:center; }
+.footer-center .label{ font-size:12px; color:var(--muted); }
+.footer-center a{ color:var(--link); text-decoration:none; display:inline-flex; }
+.footer-center a:hover{ color:var(--link-hover); }
+
+.footer-right{ display:flex; gap:16px; justify-content:flex-end; }
+.footer-right a{ color:var(--link); text-decoration:none; font-size:12px; }
+.footer-right a:hover{ color:var(--link-hover); }
+
+/* ========== APP GRID ========== */
+.stage{ padding:10px 12px; }
+.app{
+  height:100%; min-height:0; /* allow children to size inside viewport */
+  display:grid; gap:8px; /* gaps between panels and resizers */
+  /* columns dynamic from JS via gridTemplateColumns */
+}
+
+.panel{
+  display:flex; flex-direction:column; min-width:0; min-height:0;
+  background:var(--panel-bg);
+  border:1px solid var(--panel-border);
+  border-radius:12px;
+  backdrop-filter: blur(6px); /* transparency effect */
+  transition: background .25s ease, border-color .25s ease;
+}
+
+.pane-head{
+  display:flex; align-items:center; gap:10px;
+  padding:8px 10px;
+  border-bottom:1px solid var(--panel-border);
+  min-height:40px; /* consistent top bar height */
+}
+.pane-body{
+  flex:1 1 auto; min-height:0; overflow:auto; /* scroll inside, not page */
+  padding:10px;
+}
+.pane-foot{
+  display:flex; align-items:center;
+  padding:4px 8px;            /* reduced height to fit text */
+  min-height:28px;            /* compact */
+  border-top:1px solid var(--panel-border);
+  background:var(--pane-foot-bg);
+  color:var(--pane-foot-text);
+}
+
+/* vertical resizers */
+.v-resize{ width:8px; display:flex; align-items:stretch; }
+.v-resize > div{ flex:1; cursor:col-resize; opacity:.5; }
+.v-resize.right{ }
+
+/* ========== BUTTONS & ACTIVE ANIMATIONS ONLY ========== */
+.btn{
+  border:1px solid var(--panel-border);
+  background:var(--btn-bg);
+  color:var(--btn-fg);
+  border-radius:10px;
+  padding:6px 10px;
+  display:inline-flex; align-items:center; justify-content:center;
+  gap:6px;
+  transition:transform .15s ease, box-shadow .2s ease, background .2s ease, color .2s ease;
+}
+.btn svg{ width:18px; height:18px; fill:currentColor; }
+.btn:hover{ transform: translateY(-1px); }
+.btn:disabled{ opacity:.6; cursor:not-allowed; }
+
+/* Glow uses currentColor so:
+   - Dark theme: btn color is white -> white glow
+   - Light theme: btn color is black -> black glow */
+@keyframes glowPulse {
+  0%,100% { box-shadow: 0 0 0 currentColor; }
+  50%     { box-shadow: 0 0 18px currentColor, 0 0 34px currentColor; }
+}
+@keyframes shakeStrong {
+  0%   { transform: translateX(0) rotate(0deg); }
+  10%  { transform: translateX(-3px) rotate(-1.2deg); }
+  20%  { transform: translateX(3px)  rotate(1.2deg); }
+  30%  { transform: translateX(-3px) rotate(-1.2deg); }
+  40%  { transform: translateX(3px)  rotate(1.2deg); }
+  50%  { transform: translateX(-2px) rotate(-.8deg); }
+  60%  { transform: translateX(2px)  rotate(.8deg); }
+  70%  { transform: translateX(-2px) rotate(-.8deg); }
+  80%  { transform: translateX(2px)  rotate(.8deg); }
+  90%  { transform: translateX(-1px) rotate(-.4deg); }
+  100% { transform: translateX(0) rotate(0deg); }
+}
+
+/* Only when logically active */
+.btn.is-running,
+.btn.is-running:disabled{
+  animation:
+    glowPulse   1.2s ease-in-out infinite,
+    shakeStrong 0.5s linear       infinite !important;
+  will-change: transform, box-shadow;
+}
+.btn.is-resetting,
+.btn.is-resetting:disabled{
+  animation:
+    glowPulse   1.2s ease-in-out infinite,
+    shakeStrong 0.5s linear       infinite !important;
+  will-change: transform, box-shadow;
+}
+
+/* Prefer reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .btn.is-running,
+  .btn.is-running:disabled,
+  .btn.is-resetting,
+  .btn.is-resetting:disabled{
+    animation:none !important; box-shadow:none !important;
+  }
+}
+
+/* Editor area should fill center panel */
+#editor{ height:100%; min-height:0; }
+
+/* Links in pane bodies/footers also theme to spec */
+.panel a{ color:var(--link); text-decoration:none; }
+.panel a:hover{ color:var(--link-hover); }
+
