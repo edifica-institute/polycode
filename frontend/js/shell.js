@@ -305,6 +305,8 @@ window.addEventListener('DOMContentLoaded', () => {
   foot('rightFoot', 'Waiting for Execution');
   unfreezeUI();
   setAttention({ run: true }); // highlight Run initially
+   setFootStatus('centerFoot','ready');
+  setFootStatus('rightFoot','waiting');
 });
 
 
@@ -318,6 +320,36 @@ function setAttention({run=false, reset=false}={}){
   if(run)  runBtn?.classList.add('attn');
   if(reset) rstBtn?.classList.add('attn');
 }
+
+
+
+
+function setFootStatus(id, state){
+  const host = document.getElementById(id);
+  if (!host) return;
+
+  const label = {
+    ready:   'Ready for Execution',
+    waiting: 'Waiting for Execution',
+    running: 'Executing…',
+    success: 'Execution Success',
+    error:   'Executed with Error'
+  }[state] || '';
+
+  // Build dots only for waiting
+  const dots = state === 'waiting'
+    ? '<span class="dots"><span></span><span></span><span></span></span>'
+    : '';
+
+  host.className = 'msg status ' + state;
+  host.innerHTML = `<span class="icon" aria-hidden="true"></span><span class="text">${label}${dots}</span>`;
+}
+
+
+
+
+
+
 
 
 
@@ -338,6 +370,7 @@ function freezeUI() {
   foot('rightFoot','Executing…');
 
   setAttention({ reset: true }); // highlight Reset as next action
+   setFootStatus('rightFoot','running');
 }
 
 
@@ -354,6 +387,8 @@ function unfreezeUI() {
   foot('rightFoot','Waiting for Execution');
 
   setAttention({ run: true }); // << show Run as the next action
+   setFootStatus('centerFoot','ready');
+  setFootStatus('rightFoot','waiting');
 }
 
 
@@ -382,8 +417,10 @@ window.addEventListener('DOMContentLoaded', () => {
       clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
       await window.runLang();
       setStatus('OK','ok'); foot('rightFoot','Execution Success');
+       setFootStatus('rightFoot','success');
     }catch(e){
       setStatus('Error','err'); foot('rightFoot','Executed with Error');
+       setFootStatus('rightFoot','error');
       const m=/line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
       showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
     }finally{
