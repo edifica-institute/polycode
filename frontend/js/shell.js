@@ -305,8 +305,8 @@ window.addEventListener('DOMContentLoaded', () => {
   foot('rightFoot', 'Waiting for Execution');
   unfreezeUI();
   setAttention({ run: true }); // highlight Run initially
-   setFootStatus('centerFoot','ready');
-  setFootStatus('rightFoot','waiting');
+   //setFootStatus('centerFoot','ready');
+  //setFootStatus('rightFoot','waiting');
 });
 
 
@@ -347,13 +347,55 @@ function setFootStatus(id, state){
 
 
 
-
-
-
-
-
-
 function freezeUI() {
+  const all = panels();
+  document.getElementById('btnRun')?.setAttribute('disabled','');
+  document.getElementById('btnReset')?.removeAttribute('disabled');
+  document.getElementById('langSelect')?.setAttribute('disabled','');
+  window.editor?.updateOptions({ readOnly:true });
+
+  // Output should be LIVE during run
+  document.getElementById('output')?.classList.remove('screen-dim');
+
+  // Freeze only left + center (keep right active)
+  setFrozen(all, true, { excludeRight: true });
+
+  // Center footer can be plain text if you like:
+  foot('centerFoot','Click Reset for your next code');
+
+  // Right footer should use the animated status markup
+  setFootStatus('rightFoot','running');
+
+  // Next action: Reset
+  setAttention({ reset: true });
+}
+
+function unfreezeUI() {
+  const all = panels();
+  document.getElementById('btnRun')?.removeAttribute('disabled');
+  document.getElementById('btnReset')?.setAttribute('disabled','');
+  document.getElementById('langSelect')?.removeAttribute('disabled');
+  window.editor?.updateOptions({ readOnly:false });
+
+  // Dim the output when idle
+  document.getElementById('output')?.classList.add('screen-dim');
+
+  setFrozen(all, false);
+
+  // Use animated statuses for both feet on idle
+  setFootStatus('centerFoot','ready');
+  setFootStatus('rightFoot','waiting');
+
+  // Next action: Run
+  setAttention({ run: true });
+}
+
+
+
+
+
+
+/*function freezeUI() {
   const all = panels();
   document.getElementById('btnRun')?.setAttribute('disabled','');
   document.getElementById('btnReset')?.removeAttribute('disabled');
@@ -389,7 +431,7 @@ function unfreezeUI() {
   setAttention({ run: true }); // << show Run as the next action
    setFootStatus('centerFoot','ready');
   setFootStatus('rightFoot','waiting');
-}
+}*/
 
 
 /* ===========================
@@ -404,7 +446,7 @@ window.addEventListener('DOMContentLoaded', () => {
 /* ===========================
    run/reset handlers with animations
 =========================== */
-(function () {
+/*(function () {
   const runBtn = document.getElementById('btnRun');
   const rstBtn = document.getElementById('btnReset');
 
@@ -445,7 +487,49 @@ window.addEventListener('DOMContentLoaded', () => {
 
     clearEditorErrors(); setStatus('Reset','ok'); unfreezeUI();
   });
-})(); // <-- ✅ this line was missing
+})(); // <-- ✅ this line was missing*/
+
+
+(function () {
+  const runBtn = document.getElementById('btnRun');
+  const rstBtn = document.getElementById('btnReset');
+
+  // RUN
+  runBtn?.addEventListener('click', async () => {
+    try {
+      runBtn.classList.add('is-running');
+      clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
+
+      await window.runLang();
+
+      setStatus('OK','ok');
+      setFootStatus('rightFoot','success');  // animated ✓
+    } catch(e) {
+      setStatus('Error','err');
+      setFootStatus('rightFoot','error');    // animated ✕
+      const m = /line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
+      showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
+    } finally {
+      spin(false);
+      runBtn.classList.remove('is-running');
+    }
+  });
+
+  // RESET
+  rstBtn?.addEventListener('click', () => {
+    try { window.clearLang && window.clearLang(); } catch {}
+    rstBtn.classList.add('is-resetting');
+    setTimeout(()=> rstBtn.classList.remove('is-resetting'), 1500);
+
+    setStatus('Reset','ok');
+    unfreezeUI(); // will set animated 'ready' + 'waiting'
+  });
+})();
+
+
+
+
+
 
 /* ===========================
    load left content helper
