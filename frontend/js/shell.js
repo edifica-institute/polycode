@@ -123,6 +123,55 @@ function initCols(){
   });
 })();
 
+function foot(id, text){ const el=document.getElementById(id); if(el) el.textContent=text; }
+
+function freezeUI(){
+  const all = panels();
+  document.getElementById('btnRun')?.setAttribute('disabled','');
+  document.getElementById('btnReset')?.removeAttribute('disabled');
+  document.getElementById('langSelect')?.setAttribute('disabled','');
+  editor?.updateOptions({ readOnly:true });
+  setFrozen(all, true);
+  // bottom-bar messages (9)
+  foot('centerFoot','Click Reset for your next code');
+  foot('rightFoot','Executing…');
+}
+function unfreezeUI(){
+  const all = panels();
+  document.getElementById('btnRun')?.removeAttribute('disabled');
+  document.getElementById('btnReset')?.setAttribute('disabled','');
+  document.getElementById('langSelect')?.removeAttribute('disabled');
+  editor?.updateOptions({ readOnly:false });
+  setFrozen(all, false);
+  foot('centerFoot','Ready for Execution');
+  foot('rightFoot','Waiting for Execution');
+}
+window.addEventListener('DOMContentLoaded', ()=>{
+  foot('leftFoot','About selected language');
+  foot('centerFoot','Ready for Execution');
+  foot('rightFoot','Waiting for Execution');
+});
+
+
+// inside runBtn click:
+runBtn.classList.add('is-running');
+try{
+  clearEditorErrors(); spin(true); setStatus(''); freezeUI();
+  await window.runLang();
+  foot('rightFoot','Execution Success');
+} catch(e){
+  foot('rightFoot','Executed with Error');
+  // (existing showEditorError...)
+} finally{
+  spin(false);
+  runBtn.classList.remove('is-running');
+}
+
+// inside resetBtn click:
+rstBtn.classList.add('is-resetting');
+setTimeout(()=> rstBtn.classList.remove('is-resetting'), 900);
+clearEditorErrors(); unfreezeUI();
+
 
 
 
