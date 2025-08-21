@@ -184,7 +184,22 @@ body.light .panel.frozen{
 }
 .btn.is-running{ animation:glow 1.2s ease-in-out infinite; }
 .btn.is-resetting{ animation:glowGreen 1.2s ease-in-out 2; } /* two pulses */
-.btn:disabled{ animation:none !important; } /* frozen one no glow (2) */
+/* keep disabled styling but do NOT kill animations */
+.btn:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+}
+
+/* Allow glow even when disabled */
+.btn.is-running,
+.btn.is-running:disabled{
+  animation:glow 1.2s ease-in-out infinite;
+}
+.btn.is-resetting,
+.btn.is-resetting:disabled{
+  animation:glowGreen 1.2s ease-in-out 2;
+}
+
 
 
 .pane-foot{
