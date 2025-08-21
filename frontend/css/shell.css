@@ -163,8 +163,9 @@ a:hover{ color:#ffa043; }
 
 
 .panel.frozen{
-  background: silver;
+  background: color-mix(in oklab, var(--panel), #777 12%);
   border-color: color-mix(in oklab, var(--border), #999 18%);
+  color: gray;
 }
 body.light .panel.frozen{
   background: color-mix(in oklab, var(--panel), #000 6%);
