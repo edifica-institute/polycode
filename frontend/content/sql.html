@@ -1,632 +1,108 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>SQL Handbook – MySQL 8.0 Functions & Keywords</title>
+<meta charset="utf-8">
+<title>MySQL 8.4 SQL Functions & Keywords (Static Reference)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
   :root{
-    --bg:#0f172a; --panel:#121a2c; --panel-2:#0b1222; --text:#e6eefc; --muted:#9fb1d0;
-    --brand:#3b82f6; --border:#21304a; --chip:#17223a; --ok:#10b981; --warn:#f59e0b;
+    --bg:#0f172a; --paper:#111827; --ink:#e5e7eb; --muted:#9ca3af;
+    --line:#1f2937; --accent:#60a5fa; --tag:#1e293b; --thead:#0b1222;
   }
   @media (prefers-color-scheme: light){
-    :root{ --bg:#f7f9fe; --panel:#ffffff; --panel-2:#eef3ff; --text:#0b1222; --muted:#44536b;
-           --brand:#2e5bea; --border:#dfe6f7; --chip:#eef3ff; }
+    :root{ --bg:#f6f7fb; --paper:#ffffff; --ink:#0b1222; --muted:#5b677a; --line:#e6e9f2; --accent:#2e5bea; --tag:#eef3ff; --thead:#f0f4ff; }
   }
-  *{box-sizing:border-box} html,body{margin:0;height:100%}
-  body{background:var(--bg);color:var(--text);font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Inter, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";}
-
-  .wrap{max-width:1200px;margin:auto;padding:24px}
-  header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
-  .title{font-size:20px;font-weight:700;letter-spacing:.2px}
-  .sub{color:var(--muted);font-size:13px}
-  .bar{display:flex;gap:10px;flex-wrap:wrap}
-  input[type="search"]{flex:1 1 360px;padding:12px 14px;border-radius:12px;border:1px solid var(--border);background:var(--panel);color:var(--text);outline:none}
-  select,button{padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-  .chip{padding:6px 10px;background:var(--chip);border:1px solid var(--border);border-radius:999px;font-size:12px;cursor:pointer}
-  .chip.active{outline:2px solid var(--brand)}
-  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
-  .card{grid-column:span 12;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px 14px 10px}
-  @media (min-width:740px){.card{grid-column:span 6}}
-  @media (min-width:1100px){.card{grid-column:span 4}}
-  .k{font-weight:700}
-  .cat{font-size:12px;color:var(--muted)}
-  .syn{margin:8px 0 10px;padding:10px;border-radius:12px;background:var(--panel-2);border:1px dashed var(--border);font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:12.5px;overflow:auto}
-  .ex{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:12.5px}
-  .toolbar{display:flex;gap:8px;align-items:center;margin-top:8px}
-  .pill{font-size:11px;color:var(--muted);border:1px solid var(--border);padding:4px 8px;border-radius:999px}
-  .link{font-size:12px}
-  .count{font-size:12px;color:var(--muted);margin:8px 0 4px}
-  .hr{height:1px;background:var(--border);margin:14px 0}
-  .foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px}
-  .btn{border:1px solid var(--border);background:var(--panel);padding:8px 10px;border-radius:10px}
-  .ok{color:var(--ok)} .warn{color:var(--warn)}
+  html,body{background:var(--bg);color:var(--ink);margin:0;font:14px/1.55 ui-sans-serif,system-ui,Segoe UI,Inter,Roboto,Arial}
+  .wrap{max-width:1200px;margin:auto;padding:28px}
+  h1{margin:0 0 6px 0; font-size:28px}
+  .sub{color:var(--muted);margin:0 0 18px 0}
+  h2{margin:26px 0 6px 0; font-size:20px}
+  h3{margin:20px 0 6px 0; font-size:16px; color:var(--accent)}
+  .note{font-size:12px;color:var(--muted);margin:8px 0 16px 0}
+  .toc{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 18px}
+  .toc a{display:block;padding:8px 10px;border:1px solid var(--line);background:var(--paper);color:inherit;text-decoration:none;border-radius:10px}
+  .box{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:14px;margin:10px 0 18px}
+  table{width:100%;border-collapse:collapse;border:1px solid var(--line);background:var(--paper)}
+  thead th{background:var(--thead);text-align:left;border-bottom:1px solid var(--line);padding:10px 10px;font-weight:700}
+  tbody td{padding:9px 10px;vertical-align:top;border-top:1px dashed var(--line)}
+  code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;font-size:12.5px}
+  .tag{display:inline-block;font-size:11px;padding:3px 8px;border-radius:999px;background:var(--tag);border:1px solid var(--line);margin-right:6px}
+  .cols{columns:4 260px;column-gap:14px}
+  .keyword{break-inside:avoid;margin:0 0 6px 0;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--paper);font-size:13px}
+  .muted{color:var(--muted)}
+  .pill{display:inline-block;border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:11px;margin:0 6px 4px 0}
+  .small{font-size:12px}
+  .hr{height:1px;background:var(--line);margin:18px 0}
+  @media print{
+    body{background:#fff}
+    .wrap{padding:0}
+    .toc{display:none}
+    a{color:#000;text-decoration:none}
+  }
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <div class="title">SQL Handbook — MySQL 8.0</div>
-        <div class="sub">Functions & reserved keywords with syntax and runnable-style examples. Search, filter by category, and copy snippets.</div>
-      </div>
-      <button id="toggleMode" class="btn" title="Toggle light/dark">🌓</button>
-    </header>
+<div class="wrap">
+  <h1>MySQL 8.4 — SQL Functions & Reserved Keywords</h1>
+  <p class="sub">Syntax and compact examples for built-in functions; complete reserved keyword appendix. Static, read-only; no scripts or external links.</p>
 
-    <div class="bar">
-      <input id="q" type="search" placeholder="Search (e.g., CONCAT, window, date diff, JSON_EXTRACT, ROW_NUMBER)…" />
-      <select id="cat">
-        <option value="">All categories</option>
-        <option>Aggregate</option>
-        <option>String</option>
-        <option>Numeric</option>
-        <option>Date/Time</option>
-        <option>Control Flow</option>
-        <option>Conversion</option>
-        <option>JSON</option>
-        <option>Window</option>
-        <option>Geospatial</option>
-        <option>Information</option>
-        <option>Other</option>
-        <option>Keyword</option>
-      </select>
-      <select id="scope">
-        <option value="all">Functions + Keywords</option>
-        <option value="functions">Functions only</option>
-        <option value="keywords">Keywords only</option>
-      </select>
-      <button id="clear" class="btn">Clear</button>
-    </div>
-
-    <div class="chips" id="quick">
-      <div class="chip" data-q="date">Date</div>
-      <div class="chip" data-q="json">JSON</div>
-      <div class="chip" data-q="regexp">REGEXP</div>
-      <div class="chip" data-q="rank">RANK</div>
-      <div class="chip" data-q="concat">CONCAT</div>
-      <div class="chip" data-q="join">JOIN</div>
-      <div class="chip" data-q="case">CASE</div>
-      <div class="chip" data-q="group by">GROUP BY</div>
-      <div class="chip" data-q="window">WINDOW</div>
-    </div>
-
-    <div class="count"><span id="shown">0</span> shown</div>
-    <div class="grid" id="out"></div>
-
-    <div class="hr"></div>
-    <div class="foot">
-      <div>
-        Sources: MySQL 8.0 Reference Manual (functions, operators, and reserved words). Check your exact server version for edge differences.
-      </div>
-      <div>
-        <a class="link" href="https://dev.mysql.com/doc/refman/8.0/en/functions.html" target="_blank" rel="noopener">Functions</a> ·
-        <a class="link" href="https://dev.mysql.com/doc/refman/8.0/en/keywords.html" target="_blank" rel="noopener">Keywords</a>
-      </div>
-    </div>
+  <div class="box small">
+    <b>Scope</b>: Built-in (native) SQL functions available in MySQL 8.4 LTS. Spatial functions are listed in a core subset due to volume. Examples are minimal and intended for reference (not execution plans).
   </div>
 
-<script>
-/* ===== Helper: tiny copy-to-clipboard ===== */
-function copy(txt){
-  navigator.clipboard?.writeText(txt).then(()=>showToast("Copied!"));
-}
-let toastEl;
-function showToast(msg){
-  if(!toastEl){
-    toastEl = document.createElement('div');
-    toastEl.style.position='fixed';
-    toastEl.style.inset='auto 16px 16px auto';
-    toastEl.style.padding='10px 14px';
-    toastEl.style.background='rgba(15,23,42,.9)';
-    toastEl.style.color='#fff';
-    toastEl.style.border='1px solid rgba(255,255,255,.15)';
-    toastEl.style.borderRadius='10px';
-    toastEl.style.font='12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Inter';
-    toastEl.style.boxShadow='0 6px 20px rgba(0,0,0,.35)';
-    document.body.appendChild(toastEl);
-  }
-  toastEl.textContent=msg;
-  toastEl.style.opacity='1';
-  setTimeout(()=>toastEl.style.opacity='0',1200);
-}
-
-/* ===== Data =====
-Each entry: {name, type: 'Function'|'Keyword', category, syntax, example, note?, ref?}
-This list targets MySQL 8.0.x. It includes reserved keywords and a broad function set spanning:
-- Aggregate, String, Numeric, Date/Time, Control Flow, Conversion, JSON, Window, Geospatial, Information, Other
-You can extend freely—structure is straightforward.
-*/
-
-const DATA = [
-  /* ===================== Aggregates ===================== */
-  {name:'AVG',type:'Function',category:'Aggregate',
-   syntax:'AVG([DISTINCT] expr)',
-   example:'SELECT AVG(salary) FROM employees;',
-   note:'NULLs ignored.'},
-
-  {name:'COUNT',type:'Function',category:'Aggregate',
-   syntax:'COUNT({*|[DISTINCT] expr})',
-   example:'SELECT COUNT(*) FROM orders WHERE status="PAID";'},
-
-  {name:'SUM',type:'Function',category:'Aggregate',
-   syntax:'SUM([DISTINCT] expr)',
-   example:'SELECT SUM(amount) FROM payments WHERE method="UPI";'},
-
-  {name:'MIN',type:'Function',category:'Aggregate',
-   syntax:'MIN(expr)',
-   example:'SELECT MIN(created_at) FROM users;'},
-
-  {name:'MAX',type:'Function',category:'Aggregate',
-   syntax:'MAX(expr)',
-   example:'SELECT MAX(score) FROM tests;'},
-
-  {name:'GROUP_CONCAT',type:'Function',category:'Aggregate',
-   syntax:'GROUP_CONCAT([DISTINCT] expr [ORDER BY expr] [SEPARATOR str])',
-   example:'SELECT dept, GROUP_CONCAT(name ORDER BY name SEPARATOR ", ") FROM emp GROUP BY dept;',
-   note:'Controlled by group_concat_max_len.'},
-
-  {name:'JSON_ARRAYAGG',type:'Function',category:'Aggregate',
-   syntax:'JSON_ARRAYAGG(expr [ORDER BY expr] [LIMIT n])',
-   example:'SELECT JSON_ARRAYAGG(name ORDER BY name) FROM users;'},
-
-  {name:'JSON_OBJECTAGG',type:'Function',category:'Aggregate',
-   syntax:'JSON_OBJECTAGG(key, value [ORDER BY key] [LIMIT n])',
-   example:'SELECT JSON_OBJECTAGG(id, name) FROM users;'},
-
-  {name:'BIT_AND',type:'Function',category:'Aggregate',
-   syntax:'BIT_AND(expr)',
-   example:'SELECT BIT_AND(flags) FROM features;'},
-
-  {name:'BIT_OR',type:'Function',category:'Aggregate',
-   syntax:'BIT_OR(expr)',
-   example:'SELECT BIT_OR(mask) FROM permissions;'},
-
-  {name:'BIT_XOR',type:'Function',category:'Aggregate',
-   syntax:'BIT_XOR(expr)',
-   example:'SELECT BIT_XOR(val) FROM t;'},
-  
-  /* ===================== Control Flow ===================== */
-  {name:'CASE',type:'Function',category:'Control Flow',
-   syntax:'CASE WHEN cond THEN expr [WHEN cond THEN expr]... [ELSE expr] END',
-   example:'SELECT CASE WHEN score>=90 THEN "A" WHEN score>=75 THEN "B" ELSE "C" END AS grade FROM results;'},
-
-  {name:'IF',type:'Function',category:'Control Flow',
-   syntax:'IF(cond, expr_true, expr_false)',
-   example:'SELECT IF(active, "yes", "no") FROM users;'},
-
-  {name:'IFNULL',type:'Function',category:'Control Flow',
-   syntax:'IFNULL(expr1, expr2)',
-   example:'SELECT IFNULL(nickname, name) FROM users;'},
-
-  {name:'NULLIF',type:'Function',category:'Control Flow',
-   syntax:'NULLIF(expr1, expr2)',
-   example:'SELECT NULLIF(a,b) FROM pairs;'},
-  
-  /* ===================== String ===================== */
-  {name:'CONCAT',type:'Function',category:'String',
-   syntax:'CONCAT(str1, str2, ...)',
-   example:'SELECT CONCAT(first_name," ",last_name) FROM users;'},
-
-  {name:'CONCAT_WS',type:'Function',category:'String',
-   syntax:'CONCAT_WS(sep, str1, str2, ...)',
-   example:'SELECT CONCAT_WS("-", country, state, city) FROM addr;'},
-
-  {name:'SUBSTRING / SUBSTR',type:'Function',category:'String',
-   syntax:'SUBSTRING(str, pos[, len])',
-   example:'SELECT SUBSTRING("HELLO",2,3); -- ELL'},
-
-  {name:'LEFT',type:'Function',category:'String',
-   syntax:'LEFT(str, len)',
-   example:'SELECT LEFT("abcdef",3); -- abc'},
-
-  {name:'RIGHT',type:'Function',category:'String',
-   syntax:'RIGHT(str, len)',
-   example:'SELECT RIGHT("abcdef",2); -- ef'},
-
-  {name:'LENGTH',type:'Function',category:'String',
-   syntax:'LENGTH(str)',
-   example:'SELECT LENGTH("नमस्ते"); -- bytes, not chars'},
-
-  {name:'CHAR_LENGTH',type:'Function',category:'String',
-   syntax:'CHAR_LENGTH(str)',
-   example:'SELECT CHAR_LENGTH("नमस्ते"); -- characters'},
-
-  {name:'LOWER / LCASE',type:'Function',category:'String',
-   syntax:'LOWER(str)',
-   example:'SELECT LOWER("SQL"); -- sql'},
-
-  {name:'UPPER / UCASE',type:'Function',category:'String',
-   syntax:'UPPER(str)',
-   example:'SELECT UPPER("kolkata"); -- KOLKATA'},
-
-  {name:'TRIM',type:'Function',category:'String',
-   syntax:'TRIM([[BOTH|LEADING|TRAILING] [remstr] FROM] str)',
-   example:`SELECT TRIM('  hello  '); -- 'hello'`},
-
-  {name:'LPAD',type:'Function',category:'String',
-   syntax:'LPAD(str, len, padstr)',
-   example:`SELECT LPAD('42',5,'0'); -- '00042'`},
-
-  {name:'RPAD',type:'Function',category:'String',
-   syntax:'RPAD(str, len, padstr)',
-   example:`SELECT RPAD('IN',5,'.'); -- 'IN...'`},
-
-  {name:'REPLACE',type:'Function',category:'String',
-   syntax:'REPLACE(str, from_str, to_str)',
-   example:`SELECT REPLACE('a_b_c','_','-'); -- 'a-b-c'`},
-
-  {name:'INSTR',type:'Function',category:'String',
-   syntax:'INSTR(str, substr)',
-   example:'SELECT INSTR("banana","na"); -- 3'},
-
-  {name:'LOCATE',type:'Function',category:'String',
-   syntax:'LOCATE(substr, str[, pos])',
-   example:'SELECT LOCATE("na","banana",4); -- 5'},
-
-  {name:'FORMAT',type:'Function',category:'String',
-   syntax:'FORMAT(num, decimals[, locale])',
-   example:'SELECT FORMAT(12345.678,2,"en_IN"); -- 12,345.68'},
-
-  {name:'REGEXP_LIKE',type:'Function',category:'String',
-   syntax:'REGEXP_LIKE(str, pattern[, match_type])',
-   example:`SELECT REGEXP_LIKE('abc123','^[a-z]+\\d+$'); -- 1`},
-
-  {name:'REGEXP_REPLACE',type:'Function',category:'String',
-   syntax:'REGEXP_REPLACE(expr, pattern, repl[, pos[, occ[, mt]]])',
-   example:`SELECT REGEXP_REPLACE('a1b2','\\d',''); -- 'ab'`},
-
-  {name:'REGEXP_INSTR',type:'Function',category:'String',
-   syntax:'REGEXP_INSTR(expr, pattern[, pos[, occ[, ret[, mt]]]])',
-   example:`SELECT REGEXP_INSTR('a1b2','\\d'); -- 2`},
-
-  {name:'REGEXP_SUBSTR',type:'Function',category:'String',
-   syntax:'REGEXP_SUBSTR(expr, pattern[, pos[, occ[, mt]]])',
-   example:`SELECT REGEXP_SUBSTR('abc-123','\\d+'); -- '123'`},
-
-  {name:'QUOTE',type:'Function',category:'String',
-   syntax:'QUOTE(str)',
-   example:`SELECT QUOTE("O'Reilly"); -- 'O\\'Reilly'`},
-
-  {name:'TO_BASE64 / FROM_BASE64',type:'Function',category:'String',
-   syntax:'TO_BASE64(str), FROM_BASE64(str)',
-   example:`SELECT FROM_BASE64(TO_BASE64('ok')); -- 'ok'`},
-
-  {name:'HEX / UNHEX',type:'Function',category:'String',
-   syntax:'HEX(expr), UNHEX(str)',
-   example:'SELECT HEX("Hi"); -- 4869'},
-
-  {name:'SOUNDEX',type:'Function',category:'String',
-   syntax:'SOUNDEX(str)',
-   example:'SELECT SOUNDEX("Robert"), SOUNDEX("Rupert");'},
-
-  /* ===================== Numeric ===================== */
-  {name:'ABS',type:'Function',category:'Numeric',
-   syntax:'ABS(x)', example:'SELECT ABS(-5); -- 5'},
-
-  {name:'CEIL / CEILING',type:'Function',category:'Numeric',
-   syntax:'CEIL(x)', example:'SELECT CEILING(1.2); -- 2'},
-
-  {name:'FLOOR',type:'Function',category:'Numeric',
-   syntax:'FLOOR(x)', example:'SELECT FLOOR(1.9); -- 1'},
-
-  {name:'ROUND',type:'Function',category:'Numeric',
-   syntax:'ROUND(x[, d])', example:'SELECT ROUND(3.14159,2); -- 3.14'},
-
-  {name:'TRUNCATE',type:'Function',category:'Numeric',
-   syntax:'TRUNCATE(x, d)', example:'SELECT TRUNCATE(3.14159,2); -- 3.14'},
-
-  {name:'MOD',type:'Function',category:'Numeric',
-   syntax:'MOD(n, m)', example:'SELECT MOD(7,4); -- 3'},
-
-  {name:'POWER / POW',type:'Function',category:'Numeric',
-   syntax:'POWER(x, y)', example:'SELECT POWER(2,10); -- 1024'},
-
-  {name:'SQRT',type:'Function',category:'Numeric',
-   syntax:'SQRT(x)', example:'SELECT SQRT(16); -- 4'},
-
-  {name:'EXP',type:'Function',category:'Numeric',
-   syntax:'EXP(x)', example:'SELECT EXP(1); -- e'},
-
-  {name:'LOG',type:'Function',category:'Numeric',
-   syntax:'LOG(b, x) | LOG(x)', example:'SELECT LOG(10,1000); -- 3'},
-
-  {name:'LOG10 / LOG2',type:'Function',category:'Numeric',
-   syntax:'LOG10(x), LOG2(x)', example:'SELECT LOG2(8); -- 3'},
-
-  {name:'RAND',type:'Function',category:'Numeric',
-   syntax:'RAND([seed])', example:'SELECT RAND();'},
-
-  {name:'SIGN',type:'Function',category:'Numeric',
-   syntax:'SIGN(x)', example:'SELECT SIGN(-12); -- -1'},
-
-  {name:'GREATEST / LEAST',type:'Function',category:'Numeric',
-   syntax:'GREATEST(a,b,...), LEAST(a,b,...)',
-   example:'SELECT GREATEST(3,9,4); -- 9'},
-
-  /* ===================== Date/Time ===================== */
-  {name:'CURDATE / CURRENT_DATE',type:'Function',category:'Date/Time',
-   syntax:'CURDATE()', example:'SELECT CURDATE();'},
-
-  {name:'CURTIME / CURRENT_TIME',type:'Function',category:'Date/Time',
-   syntax:'CURTIME()', example:'SELECT CURTIME();'},
-
-  {name:'NOW / CURRENT_TIMESTAMP',type:'Function',category:'Date/Time',
-   syntax:'NOW([fsp])', example:'SELECT NOW();'},
-
-  {name:'DATE',type:'Function',category:'Date/Time',
-   syntax:'DATE(expr)', example:'SELECT DATE("2025-08-21 12:30:00"); -- 2025-08-21'},
-
-  {name:'DATEDIFF',type:'Function',category:'Date/Time',
-   syntax:'DATEDIFF(expr1, expr2)', example:'SELECT DATEDIFF("2025-09-01","2025-08-21"); -- 11'},
-
-  {name:'TIMEDIFF',type:'Function',category:'Date/Time',
-   syntax:'TIMEDIFF(expr1, expr2)', example:'SELECT TIMEDIFF("10:30","08:00"); -- 02:30:00'},
-
-  {name:'ADDDATE / DATE_ADD',type:'Function',category:'Date/Time',
-   syntax:'DATE_ADD(date, INTERVAL expr unit)',
-   example:'SELECT DATE_ADD("2025-08-21", INTERVAL 7 DAY);'},
-
-  {name:'SUBDATE / DATE_SUB',type:'Function',category:'Date/Time',
-   syntax:'DATE_SUB(date, INTERVAL expr unit)',
-   example:'SELECT DATE_SUB(CURDATE(), INTERVAL 1 MONTH);'},
-
-  {name:'EXTRACT',type:'Function',category:'Date/Time',
-   syntax:'EXTRACT(unit FROM date)',
-   example:'SELECT EXTRACT(YEAR FROM NOW());'},
-
-  {name:'TIMESTAMPDIFF',type:'Function',category:'Date/Time',
-   syntax:'TIMESTAMPDIFF(unit, datetime1, datetime2)',
-   example:'SELECT TIMESTAMPDIFF(HOUR, "2025-08-20 14:00","2025-08-21 02:00"); -- 12'},
-
-  {name:'STR_TO_DATE',type:'Function',category:'Date/Time',
-   syntax:'STR_TO_DATE(str, format)',
-   example:`SELECT STR_TO_DATE('21-08-2025','%d-%m-%Y');`},
-
-  {name:'DATE_FORMAT',type:'Function',category:'Date/Time',
-   syntax:'DATE_FORMAT(date, format)',
-   example:`SELECT DATE_FORMAT(NOW(),'%d %b %Y %H:%i');`},
-
-  {name:'LAST_DAY',type:'Function',category:'Date/Time',
-   syntax:'LAST_DAY(date)',
-   example:'SELECT LAST_DAY("2025-02-10"); -- 2025-02-28'},
-
-  /* ===================== Conversion ===================== */
-  {name:'CAST',type:'Function',category:'Conversion',
-   syntax:'CAST(expr AS type)',
-   example:'SELECT CAST("123" AS UNSIGNED);'},
-
-  {name:'CONVERT',type:'Function',category:'Conversion',
-   syntax:'CONVERT(expr, type) | CONVERT(str USING charset)',
-   example:'SELECT CONVERT("abc" USING utf8mb4);'},
-
-  {name:'BINARY',type:'Function',category:'Conversion',
-   syntax:'BINARY expr', example:'SELECT BINARY "a" = "A"; -- 0 (case-sensitive)'},
-  
-  /* ===================== JSON ===================== */
-  {name:'JSON_EXTRACT',type:'Function',category:'JSON',
-   syntax:'JSON_EXTRACT(doc, path[, path]...)',
-   example:`SELECT JSON_EXTRACT('{"a":{"b":2}}', '$.a.b'); -- 2`},
-
-  {name:'-> / ->>',type:'Function',category:'JSON',
-   syntax:"col->path , col->>path",
-   example:"SELECT j->'$.a', j->>'$.a' FROM t;"},
-
-  {name:'JSON_SET',type:'Function',category:'JSON',
-   syntax:'JSON_SET(doc, path, val[, path, val]...)',
-   example:`SELECT JSON_SET('{"a":1}','$.a',2); -- {"a":2}`},
-
-  {name:'JSON_REPLACE',type:'Function',category:'JSON',
-   syntax:'JSON_REPLACE(doc, path, val[, ...])',
-   example:`SELECT JSON_REPLACE('{"a":1}','$.a',2); -- {"a":2}`},
-
-  {name:'JSON_REMOVE',type:'Function',category:'JSON',
-   syntax:'JSON_REMOVE(doc, path[, path]...)',
-   example:`SELECT JSON_REMOVE('{"a":1,"b":2}','$.b'); -- {"a":1}`},
-
-  {name:'JSON_ARRAY',type:'Function',category:'JSON',
-   syntax:'JSON_ARRAY([val[, val] ...])',
-   example:'SELECT JSON_ARRAY(1,"x",TRUE);'},
-
-  {name:'JSON_OBJECT',type:'Function',category:'JSON',
-   syntax:'JSON_OBJECT(key, val[, key, val]...)',
-   example:`SELECT JSON_OBJECT('id',1,'name','Dip');`},
-
-  {name:'JSON_MERGE_PATCH',type:'Function',category:'JSON',
-   syntax:'JSON_MERGE_PATCH(doc, doc[, ...])',
-   example:`SELECT JSON_MERGE_PATCH('{"a":1}','{"b":2}'); -- {"a":1,"b":2}`},
-
-  {name:'JSON_TYPE',type:'Function',category:'JSON',
-   syntax:'JSON_TYPE(val)', example:`SELECT JSON_TYPE(JSON_ARRAY(1)); -- ARRAY`},
-
-  {name:'JSON_VALID',type:'Function',category:'JSON',
-   syntax:'JSON_VALID(val)', example:`SELECT JSON_VALID('{"a":1}'); -- 1`},
-
-  {name:'JSON_UNQUOTE',type:'Function',category:'JSON',
-   syntax:'JSON_UNQUOTE(str)', example:`SELECT JSON_UNQUOTE('"hello"'); -- hello`},
-
-  /* ===================== Window (Analytic) ===================== */
-  {name:'ROW_NUMBER',type:'Function',category:'Window',
-   syntax:'ROW_NUMBER() OVER ( [PARTITION BY expr] [ORDER BY expr] )',
-   example:'SELECT ROW_NUMBER() OVER(ORDER BY score DESC) AS rn, name FROM results;'},
-
-  {name:'RANK',type:'Function',category:'Window',
-   syntax:'RANK() OVER ( ... )',
-   example:'SELECT RANK() OVER(ORDER BY score DESC) AS r FROM results;'},
-
-  {name:'DENSE_RANK',type:'Function',category:'Window',
-   syntax:'DENSE_RANK() OVER ( ... )',
-   example:'SELECT DENSE_RANK() OVER(ORDER BY score DESC) FROM results;'},
-
-  {name:'NTILE',type:'Function',category:'Window',
-   syntax:'NTILE(n) OVER ( ... )',
-   example:'SELECT NTILE(4) OVER(ORDER BY score) FROM results;'},
-
-  {name:'LAG',type:'Function',category:'Window',
-   syntax:'LAG(expr[, offset[, default]]) OVER ( ... )',
-   example:'SELECT LAG(score) OVER(ORDER BY dt) FROM results;'},
-
-  {name:'LEAD',type:'Function',category:'Window',
-   syntax:'LEAD(expr[, offset[, default]]) OVER ( ... )',
-   example:'SELECT LEAD(score) OVER(ORDER BY dt) FROM results;'},
-
-  {name:'FIRST_VALUE',type:'Function',category:'Window',
-   syntax:'FIRST_VALUE(expr) OVER ( ... )',
-   example:'SELECT FIRST_VALUE(price) OVER(ORDER BY dt) FROM quotes;'},
-
-  {name:'LAST_VALUE',type:'Function',category:'Window',
-   syntax:'LAST_VALUE(expr) OVER ( ... )',
-   example:'SELECT LAST_VALUE(price) OVER(ORDER BY dt ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM quotes;'},
-
-  {name:'NTH_VALUE',type:'Function',category:'Window',
-   syntax:'NTH_VALUE(expr, n) OVER ( ... )',
-   example:'SELECT NTH_VALUE(score, 3) OVER(ORDER BY score DESC) FROM results;'},
-
-  {name:'CUME_DIST',type:'Function',category:'Window',
-   syntax:'CUME_DIST() OVER ( ... )',
-   example:'SELECT CUME_DIST() OVER(ORDER BY score) FROM results;'},
-
-  {name:'PERCENT_RANK',type:'Function',category:'Window',
-   syntax:'PERCENT_RANK() OVER ( ... )',
-   example:'SELECT PERCENT_RANK() OVER(ORDER BY score) FROM results;'},
-
-  /* ===================== Geospatial (subset) ===================== */
-  {name:'ST_AsText',type:'Function',category:'Geospatial',
-   syntax:'ST_AsText(g)',
-   example:`SELECT ST_AsText(ST_GeomFromText('POINT(88.36 22.57)'));`},
-
-  {name:'ST_Distance',type:'Function',category:'Geospatial',
-   syntax:'ST_Distance(g1, g2)',
-   example:`SELECT ST_Distance(ST_PointFromText('POINT(0 0)'), ST_PointFromText('POINT(3 4)')); -- 5`},
-
-  {name:'ST_Contains',type:'Function',category:'Geospatial',
-   syntax:'ST_Contains(g1, g2)',
-   example:`SELECT ST_Contains(poly, pt) FROM regions;`},
-
-  /* ===================== Information / Utility ===================== */
-  {name:'VERSION',type:'Function',category:'Information',
-   syntax:'VERSION()', example:'SELECT VERSION();'},
-
-  {name:'DATABASE',type:'Function',category:'Information',
-   syntax:'DATABASE()', example:'SELECT DATABASE();'},
-
-  {name:'USER',type:'Function',category:'Information',
-   syntax:'USER()', example:'SELECT USER();'},
-
-  {name:'LAST_INSERT_ID',type:'Function',category:'Information',
-   syntax:'LAST_INSERT_ID([expr])', example:'SELECT LAST_INSERT_ID();'},
-
-  /* ===================== Other notable ===================== */
-  {name:'COALESCE',type:'Function',category:'Other',
-   syntax:'COALESCE(expr1, expr2, ...)',
-   example:'SELECT COALESCE(nickname, name, "N/A") FROM users;'},
-
-  {name:'GREATEST',type:'Function',category:'Other',
-   syntax:'GREATEST(a,b,...)', example:'SELECT GREATEST(2,9,7);'},
-
-  {name:'LEAST',type:'Function',category:'Other',
-   syntax:'LEAST(a,b,...)', example:'SELECT LEAST(2,9,7);'},
-
-  /* ===================== Reserved Keywords (selection) ===================== */
-  // Tip: This list is long. Adding complete reserved words helps linters & editors.
-  // Below is a representative (non-exhaustive) slice—extend as needed.
-  ...[
-    'ADD','ALL','ALTER','ANALYZE','AND','AS','ASC','ASENSITIVE','BEFORE','BETWEEN','BIGINT',
-    'BINARY','BLOB','BOTH','BY','CALL','CASCADE','CASE','CHANGE','CHAR','CHARACTER','CHECK',
-    'COLLATE','COLUMN','CONDITION','CONSTRAINT','CONTINUE','CONVERT','CREATE','CROSS','CUBE',
-    'CUME_DIST','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','CURSOR',
-    'DATABASE','DATABASES','DAY_HOUR','DAY_MICROSECOND','DAY_MINUTE','DAY_SECOND','DEC','DECIMAL',
-    'DECLARE','DEFAULT','DELAYED','DELETE','DENSE_RANK','DESC','DESCRIBE','DETERMINISTIC',
-    'DISTINCT','DISTINCTROW','DIV','DOUBLE','DROP','DUAL','EACH','ELSE','ELSEIF','EMPTY','ENCLOSED',
-    'ESCAPED','EXCEPT','EXISTS','EXIT','EXPLAIN','FALSE','FETCH','FIRST_VALUE','FLOAT','FOR',
-    'FORCE','FOREIGN','FROM','FULLTEXT','FUNCTION','GENERATED','GET','GRANT','GROUP','GROUPING',
-    'GROUPS','HAVING','HIGH_PRIORITY','HOUR_MICROSECOND','HOUR_MINUTE','HOUR_SECOND','IF','IGNORE',
-    'IN','INDEX','INFILE','INNER','INOUT','INSENSITIVE','INSERT','INT','INTEGER','INTERVAL','INTO',
-    'IO_AFTER_GTIDS','IO_BEFORE_GTIDS','IS','ITERATE','JOIN','JSON_TABLE','KEY','KEYS','KILL',
-    'LAG','LAST_VALUE','LEAD','LEAVE','LEFT','LIKE','LIMIT','LINEAR','LINES','LOAD','LOCALTIME',
-    'LOCALTIMESTAMP','LOCK','LONG','LONGBLOB','LONGTEXT','LOOP','LOW_PRIORITY','MASTER_BIND',
-    'MATCH','MAXVALUE','MEDIUMBLOB','MEDIUMINT','MEDIUMTEXT','MIDDLEINT','MINUTE_MICROSECOND',
-    'MINUTE_SECOND','MOD','MODIFIES','NATURAL','NOT','NO_WRITE_TO_BINLOG','NTH_VALUE','NTILE',
-    'NULL','NUMERIC','OF','ON','OPTIMIZE','OPTIMIZER_COSTS','OPTION','OPTIONALLY','OR','ORDER',
-    'OUT','OUTER','OUTFILE','OVER','PARTITION','PERCENT_RANK','PERSIST','PERSIST_ONLY','PRECISION',
-    'PRIMARY','PROCEDURE','PURGE','RANGE','RANK','READ','READS','READ_WRITE','REAL','RECURSIVE',
-    'REFERENCES','REGEXP','RELEASE','RENAME','REPEAT','REPLACE','REQUIRE','RESIGNAL','RESTRICT',
-    'RETURN','REVOKE','RIGHT','RLIKE','ROLLUP','ROW','ROWS','ROW_NUMBER','SCHEMA','SCHEMAS',
-    'SECOND_MICROSECOND','SELECT','SENSITIVE','SEPARATOR','SET','SHOW','SIGNAL','SMALLINT','SPATIAL',
-    'SPECIFIC','SQL','SQLEXCEPTION','SQLSTATE','SQLWARNING','SQL_BIG_RESULT','SQL_CALC_FOUND_ROWS',
-    'SQL_SMALL_RESULT','SSL','STARTING','STORED','STRAIGHT_JOIN','SYSTEM','TABLE','TERMINATED',
-    'THEN','TINYBLOB','TINYINT','TINYTEXT','TO','TRAILING','TRIGGER','TRUE','UNDO','UNION','UNIQUE',
-    'UNLOCK','UNSIGNED','UPDATE','USAGE','USE','USING','UTC_DATE','UTC_TIME','UTC_TIMESTAMP','VALUES',
-    'VARBINARY','VARCHAR','VARYING','VIRTUAL','WHEN','WHERE','WHILE','WINDOW','WITH','WRITE','XOR',
-    'YEAR_MONTH','ZEROFILL'
-  ].map(k => ({name:k,type:'Keyword',category:'Keyword',syntax:k,example:'-- reserved word'})),
-
-];
-
-/* ===== Render ===== */
-const out = document.getElementById('out');
-const q   = document.getElementById('q');
-const cat = document.getElementById('cat');
-const scope = document.getElementById('scope');
-const shown = document.getElementById('shown');
-
-function render(){
-  const term = (q.value||'').trim().toLowerCase();
-  const catv = (cat.value||'').trim();
-  const sc = scope.value;
-
-  const list = DATA.filter(x=>{
-    if(sc==='functions' && x.type!=='Function') return false;
-    if(sc==='keywords' && x.type!=='Keyword') return false;
-    if(catv && x.category!==catv) return false;
-    if(!term) return true;
-    return (x.name.toLowerCase().includes(term)
-         || x.category.toLowerCase().includes(term)
-         || (x.syntax && x.syntax.toLowerCase().includes(term))
-         || (x.example && x.example.toLowerCase().includes(term)));
-  });
-
-  shown.textContent = list.length;
-  out.innerHTML = '';
-  for(const it of list){
-    const card = document.createElement('div');
-    card.className='card';
-    card.innerHTML = `
-      <div class="k">${it.name}</div>
-      <div class="cat">${it.type} • ${it.category}${it.ref?` • <a class="link" href="${it.ref}" target="_blank" rel="noopener">ref</a>`:''}</div>
-      <div class="syn"><code>${escapeHtml(it.syntax||'')}</code></div>
-      ${it.example?(`<div class="ex">${wrapCode(it.example)}</div>`):''}
-      <div class="toolbar">
-        ${it.note?`<span class="pill" title="${escapeHtml(it.note)}">ℹ︎ Note</span>`:''}
-        <button class="btn" title="Copy syntax">Copy syntax</button>
-        ${it.example?`<button class="btn" title="Copy example">Copy example</button>`:''}
-      </div>
-    `;
-    const [copySyn, copyEx] = card.querySelectorAll('button.btn');
-    copySyn?.addEventListener('click', ()=> copy(it.syntax||''));
-    copyEx?.addEventListener('click', ()=> copy(stripCode(it.example||'')));
-    out.appendChild(card);
-  }
-}
-function escapeHtml(s){return (s||'').replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]))}
-function wrapCode(s){return '<pre><code>'+escapeHtml(s)+'</code></pre>'}
-function stripCode(s){return s.replace(/^```[a-z]*\n?/,'').replace(/```$/,'').trim()}
-
-q.addEventListener('input', render);
-cat.addEventListener('change', render);
-scope.addEventListener('change', render);
-document.getElementById('clear').addEventListener('click', ()=>{ q.value=''; cat.value=''; scope.value='all'; render();});
-document.getElementById('toggleMode').addEventListener('click', ()=>{ document.documentElement.classList.toggle('light'); });
-
-/* Quick chips */
-document.getElementById('quick').addEventListener('click',(e)=>{
-  const node = e.target.closest('.chip'); if(!node) return;
-  q.value = node.dataset.q || '';
-  [...document.querySelectorAll('.chip')].forEach(c=>c.classList.toggle('active', c===node));
-  render();
-});
-
-render();
-</script>
-</body>
-</html>
+  <div class="toc">
+    <a href="#aggregate">Aggregate</a>
+    <a href="#string">String</a>
+    <a href="#numeric">Numeric/Math</a>
+    <a href="#datetime">Date/Time</a>
+    <a href="#json">JSON</a>
+    <a href="#window">Window (Analytic)</a>
+    <a href="#conversion">Conversion</a>
+    <a href="#controlflow">Control Flow</a>
+    <a href="#info">Information/Utility</a>
+    <a href="#crypto">Encryption/Compression</a>
+    <a href="#net">Networking/IP</a>
+    <a href="#spatial">Spatial (Core)</a>
+    <a href="#keywords">Reserved Keywords A–Z</a>
+  </div>
+
+  <!-- Aggregate -->
+  <h2 id="aggregate">Aggregate Functions</h2>
+  <table>
+    <thead><tr><th>Function</th><th>Syntax</th><th>Example</th><th class="small">Notes</th></tr></thead>
+    <tbody>
+      <tr><td><b>AVG</b></td><td><code>AVG([DISTINCT] expr)</code></td><td><code>SELECT AVG(score) FROM results;</code></td><td>Ignores <code>NULL</code>.</td></tr>
+      <tr><td><b>COUNT</b></td><td><code>COUNT({*|[DISTINCT] expr})</code></td><td><code>SELECT COUNT(*) FROM t;</code></td><td>Counts rows or non-NULL expr.</td></tr>
+      <tr><td><b>SUM</b></td><td><code>SUM([DISTINCT] expr)</code></td><td><code>SELECT SUM(amount) FROM payments;</code></td><td></td></tr>
+      <tr><td><b>MIN</b></td><td><code>MIN(expr)</code></td><td><code>SELECT MIN(due_at) FROM invoices;</code></td><td></td></tr>
+      <tr><td><b>MAX</b></td><td><code>MAX(expr)</code></td><td><code>SELECT MAX(due_at) FROM invoices;</code></td><td></td></tr>
+      <tr><td><b>GROUP_CONCAT</b></td><td><code>GROUP_CONCAT([DISTINCT] expr [ORDER BY e] [SEPARATOR s])</code></td><td><code>SELECT dept, GROUP_CONCAT(name) FROM emp GROUP BY dept;</code></td><td>Limited by <code>group_concat_max_len</code>.</td></tr>
+      <tr><td><b>JSON_ARRAYAGG</b></td><td><code>JSON_ARRAYAGG(expr [ORDER BY e] [LIMIT n])</code></td><td><code>SELECT JSON_ARRAYAGG(name) FROM users;</code></td><td></td></tr>
+      <tr><td><b>JSON_OBJECTAGG</b></td><td><code>JSON_OBJECTAGG(k, v [ORDER BY k] [LIMIT n])</code></td><td><code>SELECT JSON_OBJECTAGG(id,name) FROM users;</code></td><td></td></tr>
+      <tr><td><b>BIT_AND</b></td><td><code>BIT_AND(expr)</code></td><td><code>SELECT BIT_AND(flags) FROM t;</code></td><td></td></tr>
+      <tr><td><b>BIT_OR</b></td><td><code>BIT_OR(expr)</code></td><td><code>SELECT BIT_OR(mask) FROM t;</code></td><td></td></tr>
+      <tr><td><b>BIT_XOR</b></td><td><code>BIT_XOR(expr)</code></td><td><code>SELECT BIT_XOR(val) FROM t;</code></td><td></td></tr>
+      <tr><td><b>STD / STDDEV</b></td><td><code>STD(expr) | STDDEV(expr)</code></td><td><code>SELECT STD(score) FROM tests;</code></td><td>Sample stddev alias.</td></tr>
+      <tr><td><b>STDDEV_POP</b></td><td><code>STDDEV_POP(expr)</code></td><td><code>SELECT STDDEV_POP(x) FROM m;</code></td><td></td></tr>
+      <tr><td><b>STDDEV_SAMP</b></td><td><code>STDDEV_SAMP(expr)</code></td><td><code>SELECT STDDEV_SAMP(x) FROM m;</code></td><td></td></tr>
+      <tr><td><b>VAR_POP</b></td><td><code>VAR_POP(expr)</code></td><td><code>SELECT VAR_POP(x) FROM m;</code></td><td></td></tr>
+      <tr><td><b>VAR_SAMP</b></td><td><code>VAR_SAMP(expr)</code></td><td><code>SELECT VAR_SAMP(x) FROM m;</code></td><td></td></tr>
+      <tr><td><b>VARIANCE</b></td><td><code>VARIANCE(expr)</code></td><td><code>SELECT VARIANCE(x) FROM m;</code></td><td>Population variance alias.</td></tr>
+      <tr><td><b>ANY_VALUE</b></td><td><code>ANY_VALUE(expr)</code></td><td><code>SELECT ANY_VALUE(name) FROM t;</code></td><td>Suppresses ONLY_FULL_GROUP_BY complaints.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- String -->
+  <h2 id="string">String Functions</h2>
+  <table>
+    <thead><tr><th>Function</th><th>Syntax</th><th>Example</th><th class="small">Notes</th></tr></thead>
+    <tbody>
+      <tr><td><b>CONCAT</b></td><td><code>CONCAT(s1, s2, ...)</code></td><td><code>SELECT CONCAT(first,' ',last)</code></td><td></td></tr>
+      <tr><td><b>CONCAT_WS</b></td><td><code>CONCAT_WS(sep, s1, s2,...)</code></td><td><code>SELECT CONCAT_WS('-',c,s)</code></td><td></td></tr>
+      <tr><td><b>SUBSTRING / SUBSTR</b></td><td><code>SUBSTRING(str,pos[,len])</code></td><td><code>SELECT SUBSTRING('HELLO',2,3)</code></td><td></td></tr>
+      <tr><td><b>LEFT / RIGHT</b></td><td><code>LEFT(str,len) | RIGHT(str,len)</code></td><td><code>SELECT RIGHT('abcdef',2)</code></td><td></td></tr>
+      <tr><td><b>LENGTH</b></td><td><code>LENGTH(str)</code></td><td><code>SELECT LENGTH('नमस्ते')</code></td><td>Bytes.</td></tr>
+      <tr><td><b>CHAR_LENGTH</b></td><td><code>CHAR_LENGTH(str)</code></td><td><code>SELECT CHAR_LENGTH('नमस्ते')</code></td><td>Characters.</td></tr>
+      <tr><td><b>LOWER / UPPER</b></td><td><code>LOWER(str) | UPPER(str)</code></td><td><code>SELECT UPPER('kolkata')</code></td><td></td></tr>
+      <tr><td><b>TRIM</b></td><td><code>TRIM([[BOTH|LEADING|TRAILING] [rem] FROM] str)</code></td><td><code>SELECT TRIM('  hi  ')</code></td><td></td></tr>
+      <tr><td><b>LPAD / RPAD</b></td><td><code>LPAD(str,len,pad) | RPAD(str,len,pad)</code></td><td><code>SELECT LPAD('42',5,'0')</code><
