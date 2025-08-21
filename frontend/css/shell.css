@@ -635,3 +635,50 @@ body{
 /* If anything else tried to animate, kill it unless it’s .attn */
 .btn:not(.attn){ animation: none !important; box-shadow: none !important; }
 
+
+
+
+/* === Top/Bottom bar refinements (override) ============================ */
+
+/* TOP BAR (header) — glassy, sticky, themed links */
+.site-header{
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--glass) !important;
+  border-bottom: 1px solid var(--glass-brd) !important;
+  backdrop-filter: blur(10px);
+}
+.site-header nav a{
+  color: var(--text) !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.site-header nav a:hover{ color: var(--brand) !important; }
+
+/* BOTTOM BAR (site footer) — glassy, a bit tighter */
+.site-footer{
+  background: var(--glass) !important;
+  border-top: 1px solid var(--glass-brd) !important;
+  backdrop-filter: blur(10px);
+  padding-block: 14px !important; /* slightly tighter than before */
+}
+
+/* Footer grid: keep 3 columns on desktop, stack on small screens */
+@media (max-width: 640px){
+  .footer-grid{ grid-template-columns: 1fr; row-gap: 10px; }
+  .footer-left, .footer-center, .footer-right{ justify-content: flex-start; }
+}
+
+
+/* OPTIONAL: ensure equal outer gaps + full-height app area */
+.stage{
+  padding-block: var(--outer-gap) !important; /* same gap above & below panels */
+  padding-inline: 12px !important;
+}
+.app{
+  height: 100% !important;
+  min-height: 0 !important;
+  grid-template-rows: 1fr !important; /* override any calc(...) row */
+}
+
