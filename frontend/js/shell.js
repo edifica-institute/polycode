@@ -76,6 +76,11 @@ function setCols(app, L, C, R) {
 }
 
 function initCols() {
+
+   if (window.innerWidth <= 1024) return; // stacked mode; no grid math
+  const app = document.querySelector('.app');
+  if (!app) return;
+   
   const app = document.querySelector('.app');
   if (!app) return;
   // compute from current panel rects
@@ -90,6 +95,11 @@ function initCols() {
    - grid-based; keeps total C+R constant
 =========================== */
 (function () {
+
+   if (window.innerWidth <= 1024) return; // disable resizers on small screens
+  const app = document.querySelector('.app');
+
+   
   const app = document.querySelector('.app');
   const dragLeft = document.getElementById('dragLeft');
   const dragRight = document.getElementById('dragRight');
@@ -146,7 +156,7 @@ function initCols() {
   const tab = document.getElementById('chevronTab');
   if (!app || !tab) return;
 
-  let collapsed = false;
+  let collapsed = window.innerWidth <= 1024;
 
   function icon() {
     tab.innerHTML = collapsed
@@ -154,11 +164,14 @@ function initCols() {
       : '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>';
   }
   icon();
+ if (collapsed) app.classList.add('collapsed-left');
 
+   
   tab.addEventListener('click', () => {
     collapsed = !collapsed;
     app.classList.toggle('collapsed-left', collapsed);
 
+     if (window.innerWidth > 1024){
     const [L, , C, , R] = parseCols(getComputedStyle(app).gridTemplateColumns);
     if (collapsed) {
       // push left width into center
@@ -169,6 +182,7 @@ function initCols() {
       const spaceForCenter = Math.max(360, C - (newL - L));
       setCols(app, newL, spaceForCenter, R);
     }
+     }
     icon();
   });
 })();
