@@ -3,6 +3,13 @@
 /* ===========================
    load left content helper (scoped)
 =========================== */
+
+
+
+
+
+
+
 async function loadLeftContent(lang){
   const el = document.getElementById('leftContent');
   if (!el) return;
