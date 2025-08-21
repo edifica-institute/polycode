@@ -850,6 +850,33 @@ body{
   .pane-foot .msg.status .dots span{ animation:none !important; }
 }
 
+/* === Bottom bar colors per pane ======================================= */
+/* Left (About) -> Orange, always */
+#leftFoot{
+  color: #f59e0b !important;        /* orange */
+}
+
+/* Middle (Editor) -> Green, always */
+#centerFoot{
+  color: var(--ok) !important;       /* your green token */
+}
+
+/* Right (Screen) -> Blue by default; Red only on error */
+#rightFoot{
+  color: var(--brand) !important;    /* blue for waiting/running/success */
+}
+#rightFoot.error,
+#rightFoot.status.error{
+  color: var(--err) !important;      /* red on error */
+}
+
+/* Make tiny icons/dots inherit the host color */
+#leftFoot .icon,
+#centerFoot .icon,
+#rightFoot .icon{ color: inherit; }
+#leftFoot .dots span,
+#centerFoot .dots span,
+#rightFoot .dots span{ background: currentColor; }
 
 
 
