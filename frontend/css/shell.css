@@ -628,7 +628,7 @@ body{
 .btn.attn:disabled{
   animation:
     glowPulseFix   1.2s ease-in-out infinite,
-    shakeStrongFix 0.5s linear       infinite !important;
+   
   will-change: transform, box-shadow;
 }
 
