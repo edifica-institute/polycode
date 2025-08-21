@@ -690,6 +690,46 @@ body{
 }
 
 
+/* --- Left panel scroll fix ------------------------------------------- */
+/* Ensure panels are flex columns that can shrink inside the App area */
+.left.panel,
+.center.panel,
+.right.panel{
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* critical so children can scroll */
+}
+
+/* The scrollable area */
+.pane-body{
+  flex: 1 1 auto;        /* take remaining space */
+  min-height: 0;         /* allow shrinking below content height */
+  overflow: auto;        /* enable scrollbars when needed */
+}
+
+/* Override any previous rule that forced a fixed height */
+.left .pane-body{
+  height: auto !important;  /* undo height:100% */
+}
+
+/* Smoother momentum scrolling on iOS */
+.pane-body{
+  -webkit-overflow-scrolling: touch;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
