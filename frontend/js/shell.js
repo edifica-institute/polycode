@@ -561,3 +561,17 @@ window.PolyShell = {
   clearEditorErrors,
   loadLeftContent
 };
+
+
+// Ensure animated footers exist on first paint
+(function initFootersNow(){
+  function init(){
+    unfreezeUI();                // builds animated 'ready' + 'waiting'
+    setAttention({ run: true }); // Run button glow on first paint
+  }
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', init, { once:true });
+  } else {
+    init(); // DOM is already ready — do it right now
+  }
+})();
