@@ -160,3 +160,44 @@ a:hover{ color:#ffa043; }
   backdrop-filter: blur(8px); cursor:pointer; z-index:50;
 }
 .chevron-tab svg{ width:16px; height:16px; fill:var(--text); }
+
+
+.panel.frozen{
+  background: color-mix(in oklab, var(--panel), #777 12%);
+  border-color: color-mix(in oklab, var(--border), #999 18%);
+}
+body.light .panel.frozen{
+  background: color-mix(in oklab, var(--panel), #000 6%);
+  border-color: color-mix(in oklab, var(--border), #000 10%);
+}
+
+@keyframes glow {
+  0%{ box-shadow:0 0 0 rgba(46,91,234,0); }
+  50%{ box-shadow:0 0 18px rgba(46,91,234,.75); }
+  100%{ box-shadow:0 0 0 rgba(46,91,234,0); }
+}
+@keyframes glowGreen {
+  0%{ box-shadow:0 0 0 rgba(125,255,160,0); }
+  50%{ box-shadow:0 0 18px rgba(125,255,160,.75); }
+  100%{ box-shadow:0 0 0 rgba(125,255,160,0); }
+}
+.btn.is-running{ animation:glow 1.2s ease-in-out infinite; }
+.btn.is-resetting{ animation:glowGreen 1.2s ease-in-out 2; } /* two pulses */
+.btn:disabled{ animation:none !important; } /* frozen one no glow (2) */
+
+
+.pane-foot{
+  border-top:1px solid var(--glass-brd);
+  padding:8px 10px;
+  background:var(--glass);
+  font-size:12.5px;
+}
+.pane-foot .msg{ opacity:.92; }
+
+/* green in dark, blue in light */
+.pane-foot .msg{ color:#83ffa6; }
+body.light .pane-foot .msg{ color:#2457ff; }
+
+/* site footer slightly higher (3) */
+.site-footer{ padding:22px 24px; }
+
