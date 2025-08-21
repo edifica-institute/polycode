@@ -1,11 +1,8 @@
-
 // Start idle animation immediately on page load
 window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnRun')?.classList.add('idle-attract');
   document.getElementById('btnReset')?.classList.add('idle-attract');
 });
-
-
 
 /* ===========================
    theme toggle (dark <-> light)
@@ -34,8 +31,6 @@ window.addEventListener('DOMContentLoaded', () => {
   // set initial icon based on current body class
   setIcon(document.body.classList.contains('light'));
 })();
-
-
 
 /* ===========================
    status + spinner
@@ -262,42 +257,41 @@ window.addEventListener('DOMContentLoaded', () => {
   const rstBtn = document.getElementById('btnReset');
 
   // RUN
-runBtn?.addEventListener('click', async () => {
-  try{
-    runBtn.classList.add('is-running');
-    // optional: keep idle class; active rules have higher specificity
-    // or remove idle if you don’t want stacked animations:
-    // runBtn.classList.remove('idle-attract');
+  runBtn?.addEventListener('click', async () => {
+    try{
+      runBtn.classList.add('is-running');
+      // optional: runBtn.classList.remove('idle-attract');
 
-    clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
-    await window.runLang();
-    setStatus('OK','ok'); foot('rightFoot','Execution Success');
-  }catch(e){
-    setStatus('Error','err'); foot('rightFoot','Executed with Error');
-    const m=/line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
-    showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
-  }finally{
-    spin(false);
-    runBtn.classList.remove('is-running');
-    // optional: re-enable idle attract after completing
-    runBtn.classList.add('idle-attract');
-  }
-});
+      clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
+      await window.runLang();
+      setStatus('OK','ok'); foot('rightFoot','Execution Success');
+    }catch(e){
+      setStatus('Error','err'); foot('rightFoot','Executed with Error');
+      const m=/line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
+      showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
+    }finally{
+      spin(false);
+      runBtn.classList.remove('is-running');
+      // optional: re-enable idle attract
+      runBtn.classList.add('idle-attract');
+    }
+  });
 
-// RESET
-rstBtn?.addEventListener('click', () => {
-  try{ window.clearLang && window.clearLang(); }catch{}
-  rstBtn.classList.add('is-resetting');
-  // optional: rstBtn.classList.remove('idle-attract');
+  // RESET
+  rstBtn?.addEventListener('click', () => {
+    try{ window.clearLang && window.clearLang(); }catch{}
+    rstBtn.classList.add('is-resetting');
+    // optional: rstBtn.classList.remove('idle-attract');
 
-  setTimeout(()=>{
-    rstBtn.classList.remove('is-resetting');
-    // optional: re-enable idle attract after the pulse
-    rstBtn.classList.add('idle-attract');
-  }, 1500);
+    setTimeout(()=>{
+      rstBtn.classList.remove('is-resetting');
+      // optional: re-enable idle attract
+      rstBtn.classList.add('idle-attract');
+    }, 1500);
 
-  clearEditorErrors(); setStatus('Reset','ok'); unfreezeUI();
-});
+    clearEditorErrors(); setStatus('Reset','ok'); unfreezeUI();
+  });
+})(); // <-- ✅ this line was missing
 
 /* ===========================
    load left content helper
