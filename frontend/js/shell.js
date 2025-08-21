@@ -13,39 +13,37 @@ async function loadLeftContent(lang){
 
     const raw = await res.text();
 
-    // Extract <style> blocks and <body> content (if present)
-    const styleBlocks = [...raw.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1]);
-    const bodyMatch   = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    const innerHTML   = bodyMatch ? bodyMatch[1] : raw; // fallback to whole file if no <body>
+    // pull out body content if present
+    const bodyMatch = raw.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    const innerHTML = bodyMatch ? bodyMatch[1] : raw;
 
-    // Scope styles so they don't target the whole page
+    // scope any <style> blocks so html/body rules don’t leak
+    const styleBlocks = [...raw.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1]);
     const scopedCSS = styleBlocks.map(css =>
       css
-        .replace(/(^|[}\s;])\s*html\b/g,      '$1 #leftContent')
-        .replace(/(^|[}\s;])\s*body\b/g,      '$1 #leftContent')
-        .replace(/(^|[}\s;])\s*:root\b/g,     '$1 #leftContent') // optional: localize :root tokens
+        .replace(/(^|[}\s;])\s*html\b/g,  '$1 #leftContent')
+        .replace(/(^|[}\s;])\s*body\b/g,  '$1 #leftContent')
+        .replace(/(^|[}\s;])\s*:root\b/g, '$1 #leftContent')
     ).join('\n');
 
-    el.innerHTML = ''; // clear
-
-    if(scopedCSS){
+    el.innerHTML = '';
+    if (scopedCSS){
       const styleEl = document.createElement('style');
       styleEl.textContent = scopedCSS;
       el.appendChild(styleEl);
     }
 
-    // Inject the actual content
     const host = document.createElement('div');
     host.className = 'left-doc';
     host.innerHTML = innerHTML;
     el.appendChild(host);
 
-    // Ensure the container can scroll (belt & suspenders)
+    // belt & suspenders: ensure the scroll container is active
     const paneBody = el.closest('.pane-body');
     if (paneBody){
-      paneBody.style.overflow = 'auto';
-      paneBody.style.minHeight = '0';
       paneBody.style.height = 'auto';
+      paneBody.style.minHeight = '0';
+      paneBody.style.overflowY = 'auto';
     }
   }catch{
     el.innerHTML = '';
