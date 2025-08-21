@@ -682,3 +682,76 @@ body{
   grid-template-rows: 1fr !important; /* override any calc(...) row */
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* === Responsive layout: tablet & mobile =============================== */
+
+/* Tablet and below: stack panels vertically, hide resizers,
+   let the chevron toggle the left panel visibility */
+@media (max-width: 1024px){
+  .app{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+
+  /* Resizers are desktop-only */
+  .v-resize{ display:none !important; }
+
+  /* By default on small screens we consider the left panel collapsed.
+     The chevron toggles .collapsed-left on .app, so wire visibility to that: */
+  .left.panel{ display:none; } /* base: hidden */
+  .app:not(.collapsed-left) .left.panel{ display:block; } /* shown when expanded via chevron */
+
+  /* Make heads a touch more compact */
+  .pane-head{ padding: 10px 12px; }
+
+  /* Give editor and output reasonable minimum heights */
+  #editor{ min-height: 42vh; }
+  #output{ min-height: 36vh; }
+
+  /* Buttons and selects: slightly larger touch targets */
+  .btn{ width:40px; height:40px; }
+  .select{ font-size: 16px; }
+}
+
+/* Phone: tighten further */
+@media (max-width: 640px){
+  .pane-head{ padding: 8px 10px; }
+  #editor{ min-height: 48vh; }
+  #output{ min-height: 34vh; }
+  .site-header{ padding: 14px 16px; }
+  .footer-grid{ grid-template-columns: 1fr; row-gap: 10px; }
+  .footer-left, .footer-center, .footer-right{ justify-content: flex-start; }
+}
+
+/* Prevent horizontal scrolling on small screens */
+@media (max-width: 1024px){
+  html, body{ overflow-x:hidden; }
+}
