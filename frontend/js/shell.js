@@ -1,152 +1,179 @@
-// ===== THEME ================================================================
-(function Theme(){
-  const btn = document.getElementById('btn-theme');
-  const root = document.body;
-  const KEY = 'polycode-theme';
+/* status + spinner */
+function setStatus(t,c){ const e=document.getElementById('status'); if(!e) return; e.textContent=t; e.className=(c||''); }
+function spin(on){ const s=document.getElementById('spinner'); if(s) s.style.display=on?'inline-block':'none'; }
 
-  const set = (mode) => {
-    root.classList.toggle('theme-dark', mode === 'dark');
-    root.classList.toggle('theme-light', mode !== 'dark');
-    btn.textContent = (mode === 'dark') ? '☀️' : '🌙';
-    btn.setAttribute('aria-pressed', mode === 'dark' ? 'true' : 'false');
-    localStorage.setItem(KEY, mode);
-  };
-
-  const saved = localStorage.getItem(KEY);
-  set(saved || 'light');
-
-  btn.addEventListener('click', () => {
-    const now = root.classList.contains('theme-dark') ? 'light' : 'dark';
-    set(now);
+/* monaco (minimap disabled) */
+function initMonaco({value, language}){
+  return new Promise(resolve=>{
+    require.config({ paths:{ vs:'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
+    require(['vs/editor/editor.main'], function(){
+      window.editor = monaco.editor.create(document.getElementById('editor'), {
+        value, language,
+        theme: document.body.classList.contains('light') ? 'vs' : 'vs-dark',
+        automaticLayout:true, minimap:{ enabled:false }
+      });
+      resolve();
+    });
   });
-})();
+}
 
-// ===== RUN / RESET glow + demo execution ===================================
-(function Runner(){
-  const btnRun = document.getElementById('btn-run');
-  const btnReset = document.getElementById('btn-reset');
-  const out = document.getElementById('screen-output');
-  const estatus = document.getElementById('editor-status');
-  const sstatus = document.getElementById('screen-status');
-  const textarea = document.getElementById('sql-editor');
+/* markers */
+function showEditorError(msg, line=1, col=1){
+  if(!window.editor || !window.monaco) return;
+  monaco.editor.setModelMarkers(editor.getModel(), 'polycode', [{
+    startLineNumber: line, startColumn: col, endLineNumber: line, endColumn: col+1,
+    message: msg, severity: monaco.MarkerSeverity.Error
+  }]);
+}
+function clearEditorErrors(){
+  if(!window.editor || !window.monaco) return;
+  monaco.editor.setModelMarkers(editor.getModel(), 'polycode', []);
+}
 
-  function setGlow(which){
-    btnRun.dataset.glow = (which === 'run') ? 'on' : 'off';
-    btnReset.dataset.glow = (which === 'reset') ? 'on' : 'off';
+/* freeze/unfreeze + visual tone */
+function panels(){ return {
+  left:document.getElementById('leftPanel'),
+  center:document.getElementById('centerPanel'),
+  right:document.getElementById('rightPanel')
+};}
+function setFrozen(all, frozen){
+  ['left','center','right'].forEach(k=> all[k]?.classList.toggle('frozen', frozen));
+}
+function freezeUI(){
+  const {left,center,right}=panels();
+  document.getElementById('btnRun')?.setAttribute('disabled','');
+  document.getElementById('btnReset')?.removeAttribute('disabled');
+  document.getElementById('langSelect')?.setAttribute('disabled','');
+  editor?.updateOptions({ readOnly:true });
+  document.getElementById('output')?.classList.remove('screen-dim');
+  setFrozen({left,center,right}, true);
+}
+function unfreezeUI(){
+  const {left,center,right}=panels();
+  document.getElementById('btnRun')?.removeAttribute('disabled');
+  document.getElementById('btnReset')?.setAttribute('disabled','');
+  document.getElementById('langSelect')?.removeAttribute('disabled');
+  editor?.updateOptions({ readOnly:false });
+  document.getElementById('output')?.classList.add('screen-dim');
+  setFrozen({left,center,right}, false);
+}
+window.addEventListener('DOMContentLoaded', ()=> unfreezeUI());
+
+/* collapse/expand left (13) – grid reflows widths */
+(function(){
+  const app = document.querySelector('.app');
+  const tab = document.getElementById('chevronTab');
+  let collapsed = false;
+  function icon(){
+    tab.innerHTML = collapsed
+      ? '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'
+      : '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>';
   }
-
-  btnRun.addEventListener('click', async () => {
-    setGlow('run');
-    estatus.textContent = 'Executing…';
-    sstatus.textContent = 'Running SQL…';
-    out.textContent = '';
-
-    // DEMO: Fake “execution”
-    await new Promise(r => setTimeout(r, 500));
-    const q = textarea.value.trim() || "SELECT 'Hello, POLYCODE!' AS greeting;";
-    out.textContent =
-      `Query:\n${q}\n\nResult (demo):\n┌──────────┬───────────────┐\n│ row_num  │ greeting      │\n├──────────┼───────────────┤\n│ 1        │ Hello, POLYCODE! │\n└──────────┴───────────────┘`;
-    estatus.textContent = 'Done';
-    sstatus.textContent = 'Complete';
-    setGlow('off');
-  });
-
-  btnReset.addEventListener('click', () => {
-    setGlow('reset');
-    textarea.value = '';
-    out.textContent = '';
-    estatus.textContent = 'Cleared';
-    sstatus.textContent = 'Idle';
-    setTimeout(()=>setGlow('off'), 500);
-  });
-
-  document.getElementById('btn-clear').addEventListener('click', () => {
-    out.textContent = '';
-    sstatus.textContent = 'Cleared';
-  });
+  icon();
+  tab.addEventListener('click', ()=>{ collapsed=!collapsed; app.classList.toggle('collapsed-left', collapsed); icon(); });
 })();
 
-// ===== LEFT PANEL collapse ==================================================
-(function LeftPane(){
-  const left = document.getElementById('pane-left');
-  const btn = document.getElementById('btn-left-toggle');
+/* resizers – left handle sets left width; right handle adjusts RIGHT (14) */
+(function(){
+  const app = document.querySelector('.app');
+  const leftPanel = document.getElementById('leftPanel');
+  const centerPanel = document.getElementById('centerPanel');
+  const rightPanel = document.getElementById('rightPanel');
+  const dragLeft = document.getElementById('dragLeft');
+  const dragRight = document.getElementById('dragRight');
 
-  btn.addEventListener('click', () => {
-    left.classList.toggle('collapsed');
-    // NOTE: When left is collapsed, editor simply shifts left via CSS grid.
-    // This matches your requirement that the editor only moves left if the left panel is collapsed.
-  });
-})();
+  function startDrag(e, side){
+    e.preventDefault();
+    const startX = e.clientX;
+    const rectCenter = centerPanel.getBoundingClientRect();
+    const rectRight  = rightPanel.getBoundingClientRect();
+    const rectLeft   = leftPanel.getBoundingClientRect();
+    const totalCR = rectCenter.width + rectRight.width;
 
-// ===== RESIZER between Editor and Screen ===================================
-// (1) Drag should only resize editor vs screen; left panel never changes.
-// This splitter respects min widths and updates grid columns inline.
-(function Splitter(){
-  const shell = document.querySelector('.shell');
-  const splitter = document.getElementById('splitter');
+    function move(ev){
+      const dx = ev.clientX - startX;
 
-  let dragging = false;
-  let startX = 0;
-  let startEditorPx = 0;
-  let startScreenPx = 0;
-
-  // Compute current pixel widths of editor & screen columns
-  function getCols(){
-    const cs = getComputedStyle(shell);
-    const cols = cs.gridTemplateColumns.split(' ');
-    // Expected: [left, editor, splitter, screen]
-    const left = parseFloat(cols[0]);
-    const editor = parseFloat(cols[1]);
-    const split = parseFloat(cols[2]);
-    const screen = parseFloat(cols[3]);
-    return { left, editor, split, screen, cols };
+      if(side==='left'){
+        const newLeft = Math.max(200, rectLeft.width + dx);
+        leftPanel.style.width = newLeft+'px';
+        leftPanel.style.flexBasis = newLeft+'px';
+      }else{
+        // Grow/shrink right; center gets the rest
+        let newRight = Math.max(300, Math.min(totalCR - 320, rectRight.width - dx));
+        let newCenter = totalCR - newRight;
+        rightPanel.style.width = newRight+'px';
+        rightPanel.style.flexBasis = newRight+'px';
+        centerPanel.style.width = newCenter+'px';
+        centerPanel.style.flexBasis = newCenter+'px';
+      }
+    }
+    function up(){
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      document.body.style.userSelect='';
+    }
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    document.body.style.userSelect='none';
   }
-
-  function setCols(editorPx, screenPx){
-    // Keep constraints
-    const editorMin = 360;        // don’t let editor be too small
-    const screenMin = 320;        // don’t let screen be too small
-    const e = Math.max(editorMin, editorPx);
-    const s = Math.max(screenMin, screenPx);
-    shell.style.gridTemplateColumns = `${getCols().left}px ${e}px 6px ${s}px`;
-  }
-
-  splitter.addEventListener('mousedown', (e)=>{
-    dragging = true;
-    startX = e.clientX;
-    const { editor, screen } = getCols();
-    startEditorPx = editor;
-    startScreenPx = screen;
-    document.body.style.userSelect = 'none';
-  });
-
-  window.addEventListener('mousemove', (e)=>{
-    if(!dragging) return;
-    const dx = e.clientX - startX;
-    // Increase editor, decrease screen (and vice versa)
-    setCols(startEditorPx + dx, startScreenPx - dx);
-  });
-
-  window.addEventListener('mouseup', ()=>{
-    if(!dragging) return;
-    dragging = false;
-    document.body.style.userSelect = '';
-  });
-
-  // Touch support
-  splitter.addEventListener('touchstart', (e)=>{
-    const t = e.touches[0];
-    dragging = true; startX = t.clientX;
-    const { editor, screen } = getCols();
-    startEditorPx = editor; startScreenPx = screen;
-  }, {passive:true});
-
-  window.addEventListener('touchmove', (e)=>{
-    if(!dragging) return;
-    const t = e.touches[0];
-    const dx = t.clientX - startX;
-    setCols(startEditorPx + dx, startScreenPx - dx);
-  }, {passive:true});
-
-  window.addEventListener('touchend', ()=>{ dragging = false; });
+  dragLeft?.addEventListener('mousedown', e=> startDrag(e,'left'));
+  dragRight?.addEventListener('mousedown', e=> startDrag(e,'right'));
 })();
+
+/* theme toggle (icon) */
+(function(){
+  const btn = document.getElementById('themeToggle');
+  const ico = document.getElementById('themeIcon');
+  if(!btn || !ico) return;
+  btn.addEventListener('click', ()=>{
+    const toLight = !document.body.classList.contains('light');
+    document.body.classList.toggle('light', toLight);
+    // swap icon: moon ↔ sun
+    ico.innerHTML = toLight
+      ? '<path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.8 1.79L6.76 4.84zM1 10.5H4v3H1v-3zm9.5 9.5h3v-3h-3v3zM20 10.5h3v3h-3v-3zM17.24 4.84l1.79-1.79 1.79 1.79-1.79 1.79-1.79-1.79zM12 5a7 7 0 100 14 7 7 0 000-14z"/>'
+      : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+    if(window.editor && window.monaco){
+      monaco.editor.setTheme(toLight ? 'vs' : 'vs-dark');
+    }
+  });
+})();
+
+/* run/reset handlers with animations (7) */
+(function(){
+  const runBtn = document.getElementById('btnRun');
+  const rstBtn = document.getElementById('btnReset');
+
+  runBtn?.addEventListener('click', async ()=>{
+    try{
+      runBtn.classList.add('is-running');
+      clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
+      await window.runLang(); setStatus('OK','ok');
+    }catch(e){
+      setStatus('Error','err');
+      const m = /line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
+      showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
+    }finally{
+      spin(false);
+      runBtn.classList.remove('is-running');
+    }
+  });
+
+  rstBtn?.addEventListener('click', ()=>{
+    try{ window.clearLang && window.clearLang(); }catch{}
+    rstBtn.classList.add('is-resetting');
+    setTimeout(()=> rstBtn.classList.remove('is-resetting'), 900);
+    clearEditorErrors(); setStatus('Reset','ok'); unfreezeUI();
+  });
+})();
+
+/* load left content helper (unchanged) */
+async function loadLeftContent(lang){
+  const el = document.getElementById('leftContent');
+  if (!el) return;
+  try{
+    const res = await fetch(`./content/${lang}.html`, { cache:'no-store' });
+    el.innerHTML = res.ok ? await res.text() : '';
+  }catch{ el.innerHTML = ''; }
+}
+
+window.PolyShell = { initMonaco, setStatus, showEditorError, clearEditorErrors, loadLeftContent };
