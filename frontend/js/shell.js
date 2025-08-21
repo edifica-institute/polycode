@@ -1,3 +1,34 @@
+
+/* ===========================
+   theme toggle (dark <-> light)
+=========================== */
+(function(){
+  const btn = document.getElementById('themeToggle');
+  const ico = document.getElementById('themeIcon');
+  if (!btn || !ico) return;
+
+  function setIcon(isLight){
+    // sun for light, moon for dark
+    ico.innerHTML = isLight
+      ? '<path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.8 1.79L6.76 4.84zM1 10.5H4v3H1v-3zm9.5 9.5h3v-3h-3v3zM20 10.5h3v3h-3v-3zM17.24 4.84l1.79-1.79 1.79 1.79-1.79 1.79-1.79-1.79zM12 5a7 7 0 100 14 7 7 0 000-14z"/>'
+      : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+  }
+
+  btn.addEventListener('click', () => {
+    const toLight = !document.body.classList.contains('light');
+    document.body.classList.toggle('light', toLight);
+    setIcon(toLight);
+    if (window.editor && window.monaco) {
+      monaco.editor.setTheme(toLight ? 'vs' : 'vs-dark');
+    }
+  });
+
+  // set initial icon based on current body class
+  setIcon(document.body.classList.contains('light'));
+})();
+
+
+
 /* ===========================
    status + spinner
 =========================== */
