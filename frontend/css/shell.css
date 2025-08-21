@@ -721,6 +721,31 @@ body{
 #leftContent .wrap{ max-width: 1200px; margin: 0 auto; }
 
 
+/* --- LEFT PANE VERTICAL SCROLL FIX ---------------------------------- */
+/* Critical: allow grid/flex children to shrink so the inner area can scroll */
+.app,
+.panel,
+.left.panel {
+  min-height: 0 !important;
+}
+
+/* Make the left body the actual scroll container (override older height:100%) */
+.left .pane-body{
+  height: auto !important;         /* undo the earlier 100% height */
+  min-height: 0 !important;        /* allow shrinking within the panel */
+  flex: 1 1 0 !important;          /* take remaining space, not more */
+  overflow-y: auto !important;     /* <-- vertical scrollbar when needed */
+  overflow-x: auto;                /* keep your horizontal scroll as-is */
+  -webkit-overflow-scrolling: touch; /* smoother on iOS */
+}
+
+/* Safety: big blocks shouldn’t force the container to grow */
+.left .pane-body table,
+.left .pane-body pre,
+.left .pane-body .wrap{
+  max-width: 100%;
+  overflow: auto;
+}
 
 
 
