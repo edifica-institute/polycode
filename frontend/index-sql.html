@@ -184,52 +184,63 @@
   <script defer src="./js/shell.js"></script>
 
   <!-- Page script -->
+
+
   <script defer>
-    const SAMPLE_SQL =
+  const SAMPLE_SQL =
 `-- In-browser SQL (sql.js)
 CREATE TABLE users(id INTEGER, name TEXT);
 INSERT INTO users VALUES (1,'Alice'),(2,'Bob');
 SELECT * FROM users;`;
 
-    let db;
+  let db;
 
-    async function bootstrap(){
-      await PolyShell.initMonaco({ value:SAMPLE_SQL, language:'sql' });
-      const SQL = await window.initSqlJs({
-        locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f
-      });
-      db = new SQL.Database();
-      PolyShell.setStatus('Ready','ok');
-      PolyShell.loadLeftContent('sql');  // load /content/sql.html into left pane
-    }
+  async function bootstrap(){
+    await PolyShell.initMonaco({ value: SAMPLE_SQL, language: 'sql' });
+    const SQL = await window.initSqlJs({
+      locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.2/dist/' + f
+    });
+    db = new SQL.Database();
+    PolyShell.setStatus('Ready','ok');
+    PolyShell.loadLeftContent('sql');
+  }
 
-    window.runLang = async function (codeOverride) {
+  // Robust start: wait until shell.js has created window.PolyShell
+  (function startWhenReady(){
+    if (window.PolyShell) return void bootstrap();
+    const id = setInterval(() => {
+      if (window.PolyShell){ clearInterval(id); bootstrap(); }
+    }, 25);
+    setTimeout(() => clearInterval(id), 5000);
+  })();
+
+  window.runLang = async function (codeOverride) {
     if (!db) await bootstrap();
     const out = document.getElementById('sqlout');
     out.innerHTML = '';
 
     try {
       const sql = (typeof codeOverride === 'string' && codeOverride.trim())
-      ? codeOverride
-      : window.editor.getValue();
-      const results = db.exec(sql);     // <-- array of result sets (one per SELECT)
+        ? codeOverride
+        : window.editor.getValue();
+      const results = db.exec(sql);
 
       if (!results.length) {
-        out.textContent = '(no rows)';   // no SELECT produced rows
+        out.textContent = '(no rows)';
         return;
       }
 
       results.forEach((r, i) => {
-        // title per result
         const block = document.createElement('div');
+
         const title = document.createElement('div');
         title.textContent = `Result ${i + 1} — ${r.values.length} row${r.values.length === 1 ? '' : 's'}`;
         title.style.cssText = 'font-size:12.5px;color:var(--muted);margin:8px 0 6px;';
         block.appendChild(title);
 
-        // table
         const wrap = document.createElement('div');
         wrap.style.cssText = 'max-width:100%;overflow:auto;border:1px solid var(--border);';
+
         const table = document.createElement('table');
         table.style.borderCollapse = 'collapse';
         table.style.width = '100%';
@@ -257,22 +268,24 @@ SELECT * FROM users;`;
           tbody.appendChild(tr);
         });
         table.appendChild(tbody);
+
         wrap.appendChild(table);
         block.appendChild(wrap);
         block.style.marginBottom = '14px';
         out.appendChild(block);
       });
     } catch (e) {
-      document.getElementById('sqlout').innerHTML =
-        '<pre>' + (e?.message || String(e)) + '</pre>';
+      document.getElementById('sqlout').innerHTML = '<pre>' + (e?.message || String(e)) + '</pre>';
       throw e;
     }
-  }
-    window.clearLang = function(){
-      document.getElementById('sqlout').innerHTML='';
-    }
+  };
 
-    bootstrap();
-  </script>
+  window.clearLang = function(){
+    document.getElementById('sqlout').innerHTML = '';
+  };
+</script>
+
+
+  
 </body>
 </html>
