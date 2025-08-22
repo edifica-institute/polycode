@@ -1171,7 +1171,7 @@ body{
 }
 
 .brand-title2{
-  font-weight:400;        /* not bold */
+  font-weight:500;        /* not bold */
   text-transform:none;
   font-size: 30px;  /* larger wordmark */
   line-height:1.05;
