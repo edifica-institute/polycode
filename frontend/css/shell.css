@@ -1513,6 +1513,36 @@ body:not(.light) .footer-logo{
 
 
 
+/* --- Footer logo: crop out the white square & keep transparent --- */
+/* Works even if you don't touch the HTML */
+.footer-left > img,
+.footer-left .footer-logo{
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  background: transparent !important;
+  border-radius: 50% !important;              /* hide the square corners */
+  clip-path: circle(50% at 50% 50%);          /* hard crop to a circle */
+  vertical-align: middle;
+}
+/* Optional: dark theme blend helps if the PNG is bright */
+body:not(.light) .footer-left > img,
+body:not(.light) .footer-left .footer-logo{
+  mix-blend-mode: multiply;
+}
+
+/* --- Footer text sizing: "powered by edifica" larger than slogan --- */
+.footer-left .txt .powered{
+  font-size: 14.5px !important;               /* larger */
+  font-weight: 600;
+  letter-spacing: .2px;
+  color: var(--text) !important;
+  line-height: 1.2;
+}
+.footer-left .txt .subline{
+  font-size: 12.5px !important;               /* smaller */
+  color: var(--muted) !important;
+}
 
 
 
