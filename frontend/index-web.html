@@ -164,7 +164,8 @@
 
   <!-- Page script -->
  <script>
-  const SAMPLE_WEB =
+/* --- Sample HTML used in the editor --- */
+const SAMPLE_WEB =
 `<!doctype html>
 <html>
 <head>
@@ -192,33 +193,53 @@
 </body>
 </html>`;
 
-  async function bootstrap(){
-    await PolyShell.initMonaco({ value: SAMPLE_WEB, language: 'html' });
-    PolyShell.setStatus('Ready','ok');
-    PolyShell.loadLeftContent('web');  // load /content/web.html
-  }
+/* --- Make bootstrap globally visible --- */
+window.bootstrap = async function bootstrap(){
+  await window.PolyShell.initMonaco({ value: SAMPLE_WEB, language: 'html' });
+  window.PolyShell.setStatus('Ready','ok');
+  window.PolyShell.loadLeftContent('web');  // loads /content/web.html into left pane
+};
 
-  window.runLang = async function(codeOverride){
-    const code = (typeof codeOverride === 'string' && codeOverride.trim())
+/* --- Run/Clear (accepts optional selection for hotkeys) --- */
+window.runLang = async function(codeOverride){
+  const code = (typeof codeOverride === 'string' && codeOverride.trim())
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_WEB);
-    const frame = document.getElementById('preview');
 
-    if ('srcdoc' in frame) {
-      frame.srcdoc = code;               // simplest + no flicker
-    } else {
-      const doc = frame.contentWindow.document;
-      doc.open(); doc.write(code); doc.close();
+  const frame = document.getElementById('preview');
+  if ('srcdoc' in frame) {
+    frame.srcdoc = code;
+  } else {
+    const doc = frame.contentWindow.document;
+    doc.open(); doc.write(code); doc.close();
+  }
+};
+window.clearLang = function(){
+  const frame = document.getElementById('preview');
+  frame.srcdoc = '<!doctype html><meta charset="utf-8"><title>Cleared</title><style>body{font:14px system-ui;padding:20px;color:#888}</style><body><em>Preview cleared.</em>';
+};
+
+/* --- Start after shell.js (defer) has run --- */
+(function startWhenReady(){
+  function start(){
+    if (!window.PolyShell) {
+      // shell.js not ready yet; poll briefly
+      const id = setInterval(() => {
+        if (window.PolyShell){ clearInterval(id); window.bootstrap(); }
+      }, 25);
+      setTimeout(() => clearInterval(id), 3000); // stop polling after 3s
+      return;
     }
-  };
-
-  window.clearLang = function(){
-    const frame = document.getElementById('preview');
-    frame.srcdoc = '<!doctype html><meta charset="utf-8"><title>Cleared</title><style>body{font:14px system-ui;padding:20px;color:#888}</style><body><em>Preview cleared.</em>';
-  };
-
-  bootstrap();
+    window.bootstrap();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once:true });
+  } else {
+    start();
+  }
+})();
 </script>
+
 
 </body>
 </html>
