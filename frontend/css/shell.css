@@ -1517,12 +1517,12 @@ body:not(.light) .footer-logo{
 /* Works even if you don't touch the HTML */
 .footer-left > img,
 .footer-left .footer-logo{
-  width: 38px;
-  height: 38px;
+  width: 45px;
+  height: 45px;
   object-fit: contain;
   background: transparent !important;
-  border-radius: 50% !important;              /* hide the square corners */
-  clip-path: circle(70% at 70% 70%);          /* hard crop to a circle */
+  border-radius: 10% !important;              /* hide the square corners */
+  clip-path: circle(50% at 50% 50%);          /* hard crop to a circle */
   vertical-align: middle;
 }
 /* Optional: dark theme blend helps if the PNG is bright */
@@ -1533,14 +1533,14 @@ body:not(.light) .footer-left .footer-logo{
 
 /* --- Footer text sizing: "powered by edifica" larger than slogan --- */
 .footer-left .txt .powered{
-  font-size: 15.5px !important;               /* larger */
+  font-size: 15px !important;               /* larger */
   font-weight: 400;
   letter-spacing: .2px;
   color: var(--text) !important;
   line-height: 2.2;
 }
 .footer-left .txt .subline{
-  font-size: 10.5px !important;               /* smaller */
+  font-size: 10px !important;               /* smaller */
   color: var(--muted) !important;
 }
 
