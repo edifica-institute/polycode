@@ -1687,6 +1687,8 @@ body:not(.light) .footer-left .footer-logo{
 #output { background: transparent !important; }
 #output iframe { background: transparent !important; }
 
+/* Right panel background from theme; iframe stays transparent on reset */
+#rightPanel, #output { background: var(--panel-1); }
 
 
 
