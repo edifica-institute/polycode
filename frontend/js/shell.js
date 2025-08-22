@@ -788,3 +788,153 @@ try {
   // If your page creates the editor later, run again then:
   window.addEventListener('polycode-editor-ready', tryBind);
 })();
+
+
+
+
+<script>
+(() => {
+  const WHATSAPP_CC = '91';
+  const WHATSAPP_NUM = '9836313636';
+
+  // --- Save the current editor code to a local file -----------------
+  function getLangInfo(){
+    const id = window.editor?.getModel?.()?.getLanguageId?.() || 'text';
+    switch (id) {
+      case 'sql':  return { ext: 'sql',  mime: 'application/sql',      langLabel: 'SQL'  };
+      case 'html': return { ext: 'html', mime: 'text/html',           langLabel: 'Web'  };
+      case 'javascript': return { ext:'js', mime:'text/javascript',   langLabel:'JS'    };
+      case 'css':  return { ext:'css', mime:'text/css',               langLabel:'CSS'   };
+      default:     return { ext: 'txt',  mime: 'text/plain',          langLabel: id     };
+    }
+  }
+
+  async function saveFile(){
+    const { ext, mime, langLabel } = getLangInfo();
+    const code = window.editor ? window.editor.getValue() : '';
+    const suggested = `polycode-${langLabel.toLowerCase()}.${ext}`;
+    const name = prompt('Save file as:', suggested) || suggested;
+    const blob = new Blob([code], { type: mime + ';charset=utf-8' });
+
+    // Download
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // --- Capture the right panel as an image for PDF ------------------
+  async function captureOutputImageDataURL(){
+    const preview = document.getElementById('preview');
+    // Web page: clone the current code into a hidden same-origin iframe for a clean snapshot
+    if (preview && window.editor) {
+      const code = window.editor.getValue();
+      const tmp = document.createElement('iframe');
+      tmp.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:800px;visibility:hidden';
+      tmp.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+      tmp.srcdoc = code;
+      document.body.appendChild(tmp);
+      await new Promise(r => tmp.onload = () => setTimeout(r, 80));
+      const canvas = await html2canvas(tmp.contentDocument.body, { backgroundColor:'#ffffff', scale:2 });
+      const url = canvas.toDataURL('image/png');
+      document.body.removeChild(tmp);
+      return url;
+    }
+    // SQL/others: snapshot the visible #output area
+    const out = document.getElementById('output');
+    const canvas = await html2canvas(out, { backgroundColor:'#ffffff', scale:2 });
+    return canvas.toDataURL('image/png');
+  }
+
+  // --- Build a nice PDF (Language + Name + Code + Screen) ----------
+  async function buildPdfBlob(userTitle){
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit:'pt', format:'a4' });
+    const margin = 40, pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+    let y = margin;
+
+    const { langLabel } = getLangInfo();
+    const title = (userTitle && userTitle.trim()) || 'Polycode Session';
+    const when = new Date().toLocaleString();
+
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
+    pdf.text(`${langLabel} — ${title}`, margin, y); y += 18;
+    pdf.setFont('helvetica','normal'); pdf.setFontSize(10);
+    pdf.text(when, margin, y); y += 16;
+    pdf.setDrawColor(180); pdf.line(margin, y, pageW - margin, y); y += 12;
+
+    // Code
+    pdf.setFont('courier','normal'); pdf.setFontSize(10);
+    const code = window.editor ? window.editor.getValue() : '';
+    const lines = pdf.splitTextToSize(code || '(empty)', pageW - margin*2);
+    const lh = 12;
+    for (const line of lines){
+      if (y + lh > pageH - margin){ pdf.addPage(); y = margin; }
+      pdf.text(line, margin, y); y += lh;
+    }
+
+    // Screen
+    y += 12;
+    const img = await captureOutputImageDataURL().catch(()=>null);
+    if (img){
+      if (y > pageH - margin - 120){ pdf.addPage(); y = margin; }
+      pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+      pdf.text('Screen', margin, y); y += 10;
+      const w = pageW - margin*2, h = Math.min(520, pageH - margin - y);
+      pdf.addImage(img, 'PNG', margin, y, w, h, undefined, 'FAST');
+    }
+
+    return new Promise(res => pdf.output('blob', b => res(b)));
+  }
+
+  async function savePdfToDisk(){
+    const { langLabel } = getLangInfo();
+    const name = prompt('Enter a title for the PDF:', 'Untitled') || 'Untitled';
+    const blob = await buildPdfBlob(name);
+    const fileName = `Polycode-${langLabel}-${name.replace(/[^\w-]+/g,'_')}.pdf`;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  async function sharePdf(){
+    const { langLabel } = getLangInfo();
+    const title = `${langLabel} Session`;
+    const blob = await buildPdfBlob(title);
+    const file = new File([blob], `Polycode-${langLabel}.pdf`, { type: 'application/pdf' });
+    const text = `Polycode ${langLabel} — ${title}`;
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ title, text, files: [file] }); return; } catch {}
+    }
+
+    // Fallback: download + open WhatsApp chat
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `Polycode-${langLabel}.pdf`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    const wa = `https://wa.me/${WHATSAPP_CC}${WHATSAPP_NUM}?text=${encodeURIComponent(text + ' — PDF downloaded; please attach in WhatsApp.')}`;
+    window.open(wa, '_blank', 'noopener');
+  }
+
+  // Hook up buttons
+  window.addEventListener('load', () => {
+    document.getElementById('btnSaveFile')?.addEventListener('click', saveFile);
+    document.getElementById('btnSharePdf')?.addEventListener('click', sharePdf);
+  });
+
+  // Shortcut: Ctrl/Cmd+S = Save file (prevent browser "Save page")
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      saveFile();
+    }
+  }, { passive:false });
+})();
+</script>
+
