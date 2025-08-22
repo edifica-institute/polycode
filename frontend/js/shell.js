@@ -124,6 +124,8 @@ async function loadLeftContent(lang){
 
   // set initial icon based on current body class
   setIcon(document.body.classList.contains('light'));
+  document.getElementById('output')?.style.setProperty('background','transparent','important');
+
 })();
 
 /* ===========================
@@ -402,6 +404,7 @@ function freezeUI() {
 
   // Output should be LIVE during run
   document.getElementById('output')?.classList.remove('screen-dim');
+ document.getElementById('output')?.style.setProperty('background','transparent','important');
 
   // Freeze only left + center (keep right active)
   setFrozen(all, true, { excludeRight: true });
@@ -423,6 +426,12 @@ function unfreezeUI() {
   document.getElementById('langSelect')?.removeAttribute('disabled');
   window.editor?.updateOptions({ readOnly:false });
 
+  const out = document.getElementById('output');
+if (out) {
+  out.style.setProperty('background','transparent','important');
+}
+
+  
   // Dim the output when idle
   document.getElementById('output')?.classList.add('screen-dim');
 
