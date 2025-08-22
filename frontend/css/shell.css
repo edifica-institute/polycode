@@ -1251,6 +1251,111 @@ body{
 
 
 
+/* --- Compact centered lockup ---------------------------------------- */
+.site-header{
+  display:grid !important;
+  grid-template-columns: 1fr auto 1fr !important; /* left spacer | brand | nav */
+  align-items:center !important;
+  gap:12px !important;
+  padding:10px 16px !important;
+}
+
+.brand-lockup{
+  grid-column:2 !important;                 /* keep whole lockup centered */
+  display:flex !important;
+  align-items:center !important;
+  gap:12px !important;
+}
+
+.brand-logo{
+  width:56px !important;                     /* logo sits left of both lines */
+  height:56px !important;
+  object-fit:contain !important;
+  flex:0 0 auto;
+}
+
+.brand-stack{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:flex-start !important;         /* title left aligned */
+  width:max-content;                          /* stack width = title width */
+  line-height:1.05;
+}
+
+.brand-title{
+  font-weight:400 !important;                /* not bold */
+  font-size: clamp(22px, 2.6vw, 28px) !important; /* compact */
+  text-transform:none !important;
+}
+
+.brand-tagline{
+  margin-top:2px;
+  font-size: clamp(11px, 1.2vw, 13px) !important; /* smaller than title */
+  color: var(--muted);
+  align-self:center;                         /* center under the title width */
+  text-align:center;
+}
+
+/* nav stays on the right */
+.site-nav{ grid-column:3 !important; justify-self:end !important; display:flex; gap:16px; }
+
+
+
+/* tagline stays compact */
+.brand-tagline2,
+.brand-tagline { 
+  font-size: clamp(11px, 1.2vw, 13px);
+  color: var(--muted);
+  text-align: center;
+}
+
+/* make ONLY the dots bold/heavier */
+.brand-tagline2 .dot,
+.brand-tagline  .dot{
+  font-weight: 900;          /* bold dot */
+  font-size: 1.05em;         /* a touch larger so it reads like a bullet */
+  margin: 0 2px;             /* spacing similar to • */
+  display: inline-block;
+  transform: translateY(-0.02em); /* subtle vertical centering */
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
