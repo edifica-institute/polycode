@@ -1610,6 +1610,24 @@ body:not(.light) .footer-left .footer-logo{
 
 
 
+/* ===== Page fade-in (entire app) ===== */
+@keyframes pageIn { from{opacity:0; transform: translateY(6px)} to{opacity:1; transform:none} }
+.page-fade, body.page-fade{
+  animation: pageIn .55s ease-out both;
+}
+
+/* Optional: gentle stagger for main regions */
+.page-fade .site-header{ animation-delay: .02s; }
+.page-fade .stage, .page-fade .app{ animation-delay: .06s; }
+.page-fade .site-footer{ animation-delay: .10s; }
+
+/* Reduced motion: no entrance effects */
+@media (prefers-reduced-motion: reduce){
+  .page-fade, body.page-fade,
+  .page-fade .site-header, .page-fade .stage, .page-fade .app, .page-fade .site-footer{
+    animation: none !important;
+  }
+}
 
 
 
