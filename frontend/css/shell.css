@@ -1279,6 +1279,48 @@ body{
 
 
 
+/* Center the brand block in the header, keep nav on the right */
+.site-header{
+  display:grid !important;
+  grid-template-columns: 1fr auto 1fr !important;
+  align-items:center !important;
+}
+.site-header .logo{ grid-column:2; justify-self:center; display:flex; align-items:center; gap:12px; }
+.site-header nav{ grid-column:3; justify-self:end; }
+
+/* Bigger logo */
+.site-header .logo img{ width:56px; height:56px; }
+
+/* “polycode”: larger, NOT bold */
+.site-header .brand .title{
+  font-weight:400 !important;   /* kill bold */
+  font-size:30px;               /* a bit larger */
+  line-height:1;
+}
+
+/* Slogan centered under the title, smaller */
+.site-header .brand{
+  display:flex; flex-direction:column;
+}
+.site-header .brand .tagline{
+  font-size:12px;               /* smaller than title */
+  line-height:1.2;
+  text-align:center;            /* centered to the title */
+  margin-top:2px;
+}
+
+/* Optional: remove any leftover heavy styling from earlier CSS */
+.brand .title{ font-weight:400 !important; }  /* safety override */
+
+
+
+
+
+
+
+
+
+
 
 
 
