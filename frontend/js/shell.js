@@ -124,7 +124,8 @@ async function loadLeftContent(lang){
 
   // set initial icon based on current body class
   setIcon(document.body.classList.contains('light'));
-  document.getElementById('output')?.style.setProperty('background','transparent','important');
+document.getElementById('output')?.style.setProperty('background','transparent','important');
+document.getElementById('preview')?.style.setProperty('background','transparent','important');
 
 })();
 
