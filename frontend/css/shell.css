@@ -1149,7 +1149,7 @@ body{
 
 
 /* FINAL wordmark settings — wins the cascade */
-.site-header .brand .title{
+.site-header .brand .title2{
   font-weight:300 !important;  /* light */
   text-transform:none !important;
   font-size: clamp(28px, 3.2vw, 44px); /* larger but not shouty */
