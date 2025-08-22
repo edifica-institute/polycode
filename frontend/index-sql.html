@@ -191,13 +191,15 @@ SELECT * FROM users;`;
       PolyShell.loadLeftContent('sql');  // load /content/sql.html into left pane
     }
 
-    window.runLang = async function () {
+    window.runLang = async function (codeOverride) {
     if (!db) await bootstrap();
     const out = document.getElementById('sqlout');
     out.innerHTML = '';
 
     try {
-      const sql = window.editor.getValue();
+      const sql = (typeof codeOverride === 'string' && codeOverride.trim())
+      ? codeOverride
+      : window.editor.getValue();
       const results = db.exec(sql);     // <-- array of result sets (one per SELECT)
 
       if (!results.length) {
