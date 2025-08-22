@@ -1,8 +1,49 @@
 // Start idle animation immediately on page load
 
+
+// When RUN starts, enable interaction on the output
+function enableOutput(){
+  const out = document.getElementById('output');
+  out && out.classList.remove('screen-dim');   // keep dim style but no pointer-block
+  out && out.classList.remove('error');
+  out && out.removeAttribute('aria-busy');
+}
+function disableOutput(){  // only if you really want to block it temporarily
+  const out = document.getElementById('output');
+  if (!out) return;
+  // If you want a “disabled” phase, add a separate blocker overlay instead of pointer-events:none
+  // out.classList.add('screen-dim'); // visual only; DO NOT block pointer-events
+  out.setAttribute('aria-busy','true');
+}
+
+// Call these in your existing handlers:
+document.getElementById('btnRun')?.addEventListener('click', enableOutput);
+document.getElementById('btnReset')?.addEventListener('click', enableOutput);
+
+// Keep Monaco sized correctly after window drag/orientation change
+addEventListener('resize', () => {
+  if (window.editor?.layout) {
+    const el = document.getElementById('editor');
+    requestAnimationFrame(() =>
+      window.editor.layout({ width: el.clientWidth, height: el.clientHeight })
+    );
+  }
+}, { passive:true });
+
+
+
+
+
+
+
+
 /* ===========================
    load left content helper (scoped)
 =========================== */
+
+
+
+
 
 
 
