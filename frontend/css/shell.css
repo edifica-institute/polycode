@@ -1689,3 +1689,54 @@ body:not(.light) .footer-left .footer-logo{
 @media (max-width: 1024px){
   html, body{ overflow-x:hidden; }
 }
+
+
+
+
+/* --- Mobile/Tablet layout ----------------------------------------- */
+/* Let children shrink/scroll inside the viewport */
+.app, .panel { min-height: 0 !important; }
+
+/* Left body should scroll on small screens */
+.left .pane-body{
+  min-height: 0 !important;
+  overflow: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hide resizers on touch layouts; stack panels vertically */
+@media (max-width: 1024px){
+  .app{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+  .v-resize{ display:none !important; }
+
+  /* Comfortable editor/output heights on mobile */
+  #editor{ min-height: 44svh; }
+  #output{ min-height: 40svh; }
+
+  /* Bigger touch targets */
+  .btn{ width:40px; height:40px; }
+  .select{ font-size:16px; }
+}
+
+/* Phone tweaks */
+@media (max-width: 640px){
+  .pane-head{ padding: 8px 10px; min-height: 40px; }
+  #editor{ min-height: 48svh; }
+  #output{ min-height: 34svh; }
+
+  /* Header + footer compress nicely */
+  .site-header{ padding: 12px 14px; }
+  .footer-grid{ grid-template-columns: 1fr; row-gap: 10px; }
+  .footer-right{ justify-content:flex-start; flex-wrap:wrap; gap:12px; }
+}
+
+/* Safer viewport units on iOS/Android */
+html, body { height: 100%; }
+.stage, .app { block-size: auto; }
+
