@@ -1,25 +1,214 @@
 <!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>polycode | Web (HTML/CSS/JS)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="./assets/logo.png" />
+  <link rel="stylesheet" href="./css/shell.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <meta name="color-scheme" content="dark light">
+</head>
+
+<body class="page-fade">
+  <!-- Header -->
+  <header class="site-header">
+    <!-- centered brand block -->
+    <div class="brand-wrap">
+      <div class="brand-grid">
+        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
+        <div class="brand-title2">polycode</div>
+        <div class="brand-tagline2">
+          learn<span class="dot">.</span>code<span class="dot">.</span>execute
+        </div>
+      </div>
+    </div>
+
+    <!-- right nav -->
+    <nav class="site-nav">
+      <a href="./index.html">Home</a>
+      <a href="./about.html">About</a>
+      <a href="./contact.html">Contact</a>
+    </nav>
+  </header>
+
+  <!-- App -->
+  <div class="stage">
+    <div class="app">
+      <!-- LEFT panel -->
+      <section class="panel left" id="leftPanel">
+        <div class="pane-head">
+          <!-- Language dropdown in the top bar (full width) -->
+          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
+            <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
+            <option value="./index-web.html" selected>HTML/CSS/JS</option>
+            <option value="./index-java.html">Java</option>
+            <option value="./index-c.html">C</option>
+          </select>
+        </div>
+        <div class="pane-body">
+          <!-- Editable content pulled from /content/web.html -->
+          <div id="leftContent" style="margin-top:12px;"></div>
+        </div>
+        <div class="pane-foot"><span class="msg" id="leftFoot">About Web</span></div>
+      </section>
+
+      <!-- RESIZER between left and center -->
+      <div class="v-resize"><div id="dragLeft"></div></div>
+
+      <!-- CENTER panel (Editor) -->
+      <section class="panel center" id="centerPanel">
+        <div class="pane-head">
+          <!-- theme -->
+          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+
+          <span class="title" id="centerTitle" style="margin-left:8px;">Web – Editor | Polycode</span>
+
+          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+            <!-- Run -->
+            <button id="btnRun" class="btn primary attn" title="Run" aria-label="Run">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="editor"></div>
+        <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
+      </section>
+
+      <!-- RESIZER between center and right -->
+      <div class="v-resize right"><div id="dragRight"></div></div>
+
+      <!-- RIGHT panel (Preview) -->
+      <section class="panel right" id="rightPanel">
+        <div class="pane-head">
+          <span class="title">Web – Preview | Polycode</span>
+          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px;">
+            <!-- Reset -->
+            <button id="btnReset" class="btn" title="Reset" aria-label="Reset">
+              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="output" class="screen-dim" style="padding:0;">
+          <!-- sandboxed preview -->
+          <iframe id="preview"
+                  title="Web Preview"
+                  referrerpolicy="no-referrer"
+                  sandbox="allow-scripts allow-forms allow-modals allow-pointer-lock allow-popups allow-downloads allow-same-origin"
+                  style="width:100%; height:100%; border:0; background:transparent;"></iframe>
+        </div>
+
+        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Floating chevron for collapse/expand -->
+  <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
+    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-grid">
+      <!-- Left: Edifica logo + powered + slogan -->
+      <div class="footer-left">
+        <img src="./assets/logo.png" alt="Edifica" class="footer-logo" loading="lazy" decoding="async" />
+        <div class="txt">
+          <span class="powered">powered by edifica</span>
+          <span class="subline">
+            education<span class="dot">.</span>consultation<span class="dot">.</span>assistance
+          </span>
+          <div class="siteurl"><a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a></div>
+        </div>
+      </div>
+
+      <!-- Center: Follow us + icons -->
+      <div class="footer-center">
+        <span class="label">Follow us</span>
+        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
+        </a>
+        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
+        </a>
+        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
+        </a>
+      </div>
+
+      <!-- Right: legal links -->
+      <div class="footer-right">
+        <a href="./privacy.html">Privacy Policy</a>
+        <a href="./terms.html">Terms &amp; Conditions</a>
+        <a href="./legal.html">Legal Information</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
+  <script src="./js/shell.js" defer></script>
+
+  <!-- Page script -->
+  <script>
+    const SAMPLE_WEB =
+`<!doctype html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>HTML/CSS/JS | EDIFICA PolyCode</title>
-  <link rel="stylesheet" href="css/app.css">
-  <script type="module" src="js/shared/dropdown.js"></script>
+  <meta charset="utf-8">
+  <title>Polycode Preview</title>
+  <style>
+    :root{ color-scheme: light dark }
+    body{ font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin:24px; }
+    h1{ margin:0 0 8px; }
+    .card{ border:1px solid #ddd; padding:12px; border-radius:8px; }
+    button{ padding:6px 10px; border:1px solid #ccc; background:#f7f7f7; cursor:pointer; }
+  </style>
 </head>
 <body>
-  <header>
-    <img src="assets/logo.png" alt="EDIFICA Logo" class="logo"/>
-    <h1>HTML/CSS/JS - EDIFICA PolyCode</h1>
-    <select id="langSelect">
-      <option value="">-- Select Language --</option>
-      <option value="java">Java</option>
-      <option value="c">C</option>
-      <option value="web">HTML/CSS/JS</option>
-      <option value="sql">SQL</option>
-    </select>
-  </header>
-  <main>
-    <p>Welcome to HTML/CSS/JS environment. Editor goes here.</p>
-  </main>
+  <h1>Hello, Polycode 👋</h1>
+  <p>Edit HTML/CSS/JS in the editor and press <strong>Run</strong>.</p>
+  <div class="card">
+    <p>Time now: <span id="tn"></span></p>
+    <button onclick="document.getElementById('tn').textContent = new Date().toLocaleTimeString()">Update Time</button>
+  </div>
+  <script>
+    console.log('Preview loaded!');
+    document.getElementById('tn').textContent = new Date().toLocaleTimeString();
+  </script>
+</body>
+</html>`;
+
+    async function bootstrap(){
+      await PolyShell.initMonaco({ value: SAMPLE_WEB, language: 'html' });
+      PolyShell.setStatus('Ready','ok');
+      PolyShell.loadLeftContent('web');  // load /content/web.html into left pane
+    }
+
+    window.runLang = async function(){
+      const code = window.editor ? window.editor.getValue() : SAMPLE_WEB;
+      const frame = document.getElementById('preview');
+
+      // Prefer srcdoc (simple, no reflow flicker)
+      if ('srcdoc' in frame) {
+        frame.srcdoc = code;
+      } else {
+        const doc = frame.contentWindow.document;
+        doc.open(); doc.write(code); doc.close();
+      }
+    };
+
+    window.clearLang = function(){
+      const frame = document.getElementById('preview');
+      frame.srcdoc = '<!doctype html><meta charset="utf-8"><title>Cleared</title><style>body{font:14px system-ui;padding:20px;color:#888}</style><body><em>Preview cleared.</em>';
+    };
+
+    bootstrap();
+  </script>
 </body>
 </html>
