@@ -1074,7 +1074,12 @@ body{
 }
 
 
+/* Emojis for panel titles */
+.center.panel .pane-head .title::before { content: "🧑‍💻 "; }
+.right.panel  .pane-head .title::before { content: "🖥️ "; }
 
+/* tiny spacing tweak if needed */
+.pane-head .title::before { margin-right: 2px; }
 
 
 
