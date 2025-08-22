@@ -1293,7 +1293,7 @@ body{
 
 /* “polycode”: larger, NOT bold */
 .site-header .brand .title{
-  font-weight:400 !important;   /* kill bold */
+  font-weight:300 !important;   /* kill bold */
   font-size:30px;               /* a bit larger */
   line-height:1;
 }
