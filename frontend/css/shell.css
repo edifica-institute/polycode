@@ -215,7 +215,7 @@ body.light .panel.frozen{
 .pane-foot .msg{ opacity:.92; }
 
 /* green in dark, blue in light */
-.pane-foot .msg{ color:#83ffa6; }
+.pane-foot .msg:not(.status){ color:#83ffa6; }
 body.light .pane-foot .msg{ color:#2457ff; }
 
 /* site footer slightly higher (3) */
