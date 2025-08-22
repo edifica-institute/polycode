@@ -792,20 +792,29 @@ try {
 
 
 
-<script>
+
+
+
+
+
+
+
+
+
+
+
 (() => {
   const WHATSAPP_CC = '91';
   const WHATSAPP_NUM = '9836313636';
 
-  // --- Save the current editor code to a local file -----------------
   function getLangInfo(){
     const id = window.editor?.getModel?.()?.getLanguageId?.() || 'text';
     switch (id) {
-      case 'sql':  return { ext: 'sql',  mime: 'application/sql',      langLabel: 'SQL'  };
-      case 'html': return { ext: 'html', mime: 'text/html',           langLabel: 'Web'  };
-      case 'javascript': return { ext:'js', mime:'text/javascript',   langLabel:'JS'    };
-      case 'css':  return { ext:'css', mime:'text/css',               langLabel:'CSS'   };
-      default:     return { ext: 'txt',  mime: 'text/plain',          langLabel: id     };
+      case 'sql':        return { ext:'sql',  mime:'application/sql',     langLabel:'SQL' };
+      case 'html':       return { ext:'html', mime:'text/html',           langLabel:'Web' };
+      case 'javascript': return { ext:'js',   mime:'text/javascript',     langLabel:'JS'  };
+      case 'css':        return { ext:'css',  mime:'text/css',            langLabel:'CSS' };
+      default:           return { ext:'txt',  mime:'text/plain',          langLabel:id    };
     }
   }
 
@@ -815,8 +824,6 @@ try {
     const suggested = `polycode-${langLabel.toLowerCase()}.${ext}`;
     const name = prompt('Save file as:', suggested) || suggested;
     const blob = new Blob([code], { type: mime + ';charset=utf-8' });
-
-    // Download
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = name;
@@ -824,10 +831,8 @@ try {
     URL.revokeObjectURL(a.href);
   }
 
-  // --- Capture the right panel as an image for PDF ------------------
   async function captureOutputImageDataURL(){
     const preview = document.getElementById('preview');
-    // Web page: clone the current code into a hidden same-origin iframe for a clean snapshot
     if (preview && window.editor) {
       const code = window.editor.getValue();
       const tmp = document.createElement('iframe');
@@ -841,13 +846,11 @@ try {
       document.body.removeChild(tmp);
       return url;
     }
-    // SQL/others: snapshot the visible #output area
     const out = document.getElementById('output');
     const canvas = await html2canvas(out, { backgroundColor:'#ffffff', scale:2 });
     return canvas.toDataURL('image/png');
   }
 
-  // --- Build a nice PDF (Language + Name + Code + Screen) ----------
   async function buildPdfBlob(userTitle){
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ unit:'pt', format:'a4' });
@@ -864,7 +867,6 @@ try {
     pdf.text(when, margin, y); y += 16;
     pdf.setDrawColor(180); pdf.line(margin, y, pageW - margin, y); y += 12;
 
-    // Code
     pdf.setFont('courier','normal'); pdf.setFontSize(10);
     const code = window.editor ? window.editor.getValue() : '';
     const lines = pdf.splitTextToSize(code || '(empty)', pageW - margin*2);
@@ -874,7 +876,6 @@ try {
       pdf.text(line, margin, y); y += lh;
     }
 
-    // Screen
     y += 12;
     const img = await captureOutputImageDataURL().catch(()=>null);
     if (img){
@@ -884,7 +885,6 @@ try {
       const w = pageW - margin*2, h = Math.min(520, pageH - margin - y);
       pdf.addImage(img, 'PNG', margin, y, w, h, undefined, 'FAST');
     }
-
     return new Promise(res => pdf.output('blob', b => res(b)));
   }
 
@@ -910,25 +910,23 @@ try {
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try { await navigator.share({ title, text, files: [file] }); return; } catch {}
     }
-
-    // Fallback: download + open WhatsApp chat
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `Polycode-${langLabel}.pdf`;
     a.click();
     URL.revokeObjectURL(a.href);
 
-    const wa = `https://wa.me/${WHATSAPP_CC}${WHATSAPP_NUM}?text=${encodeURIComponent(text + ' — PDF downloaded; please attach in WhatsApp.')}`;
+    const wa = `https://wa.me/91${WHATSAPP_NUM}?text=${encodeURIComponent(text + ' — PDF downloaded; please attach in WhatsApp.')}`;
     window.open(wa, '_blank', 'noopener');
   }
 
-  // Hook up buttons
+  // Hook up buttons when the page is ready
   window.addEventListener('load', () => {
     document.getElementById('btnSaveFile')?.addEventListener('click', saveFile);
-    document.getElementById('btnSharePdf')?.addEventListener('click', sharePdf);
+    document.getElementById('btnSharePdf')?.addEventListener('click', savePdfToDisk); // or sharePdf
   });
 
-  // Shortcut: Ctrl/Cmd+S = Save file (prevent browser "Save page")
+  // Ctrl/Cmd+S to save file
   document.addEventListener('keydown', (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
       e.preventDefault();
@@ -936,5 +934,3 @@ try {
     }
   }, { passive:false });
 })();
-</script>
-
