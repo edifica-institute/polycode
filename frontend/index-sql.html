@@ -33,6 +33,9 @@
 </header>
 
 
+<!-- place anywhere in <body>, e.g., just after <header> -->
+<div id="status" role="status" aria-live="polite"
+     style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden;"></div>
 
 
 
@@ -43,7 +46,7 @@
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
           <!-- Language dropdown in the top bar (full width) -->
-          <select id="langSelect" class="select" onchange="location.href=this.value">
+          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
             <option value="./index-sql.html" selected>SQL (MySQL/SQLite)</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html">Java</option>
@@ -109,9 +112,11 @@
   </div>
 
   <!-- Floating chevron for collapse/expand -->
-  <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
-    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
-  </div>
+ <button class="chevron-tab" id="chevronTab" type="button"
+        title="Toggle left panel" aria-controls="leftPanel" aria-expanded="true">
+  <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
+</button>
+
 
   <!-- Footer -->
 <footer class="site-footer">
@@ -121,9 +126,12 @@
       <img src="./assets/logo.png" alt="Edifica" class="footer-logo" />
       <div class="txt">
         <span class="powered">powered by edifica</span>
-        <span class="subline">
-          education<span class="dot">.</span>consultation<span class="dot">.</span>assistance
-       <div class="siteurl"><a href="https://www.edifica.in" target="_blank">www.edifica.in</a></div>
+       <span class="subline">
+  education<span class="dot">.</span>consultation<span class="dot">.</span>assistance
+</span>
+<div class="siteurl">
+  <a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a>
+</div>
 
         </span>
       </div>
