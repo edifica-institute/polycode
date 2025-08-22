@@ -230,21 +230,6 @@ window.clearLang = function () {
   frame.srcdoc = BLANK;
 
 
-if (!window.PolyShell?.getTheme) return setTimeout(wait, 25);
-
-  // read current theme
-  const current = window.PolyShell.getTheme();   // 'light' | 'dark'
-  console.log('Current theme:', current);
-
-  // do whatever you need — e.g., re-apply or pass to your page logic
-  window.PolyShell.setTheme(current);
-
-  // react to future changes (optional)
-  window.addEventListener('polycode:themechange', (e) => {
-    console.log('Theme changed to:', e.detail.mode);
-  });
-  
-
 };
 
 
