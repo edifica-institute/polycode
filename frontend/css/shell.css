@@ -1194,6 +1194,68 @@ body{
 
 
 
+/* === FINAL: compact centered header with logo on the left ============= */
+.site-header{
+  display:grid !important;
+  grid-template-columns: 1fr auto 1fr !important; /* left spacer | brand | nav */
+  align-items:center !important;
+  padding:10px 16px !important;                    /* tighter */
+  background: var(--glass) !important;
+  border-bottom:1px solid var(--glass-brd) !important;
+  backdrop-filter: blur(10px);
+}
+
+.brand-row{
+  grid-column:2 !important;
+  display:flex !important;
+  align-items:center !important;
+  gap:12px !important;
+  justify-self:center !important;                 /* whole block centered */
+}
+
+.brand-logo{
+  width:48px !important;
+  height:48px !important;                          /* ~height of title+slogan */
+  object-fit:contain !important;
+}
+
+.brand-text2{
+  display:flex !important;
+  flex-direction:column !important;
+  line-height:1.05 !important;
+}
+
+.brand-title2{
+  font-weight:400 !important;                      /* not bold */
+  font-size:28px !important;                       /* compact */
+  letter-spacing:.2px;
+}
+
+.brand-tagline2{
+  margin-top:2px !important;
+  font-size:12px !important;                       /* smaller than title */
+  color:var(--muted) !important;
+  text-align:left !important;                      /* aligns with title */
+}
+
+/* keep nav pinned right */
+.site-nav{ grid-column:3 !important; justify-self:end !important; display:flex; gap:16px; }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
