@@ -1173,14 +1173,14 @@ body{
 .brand-title2{
   font-weight:500;        /* not bold */
   text-transform:none;
-  font-size: 30px;  /* larger wordmark */
+  font-size: 40px;  /* larger wordmark */
   line-height:2.05;
   letter-spacing:.2px;
 }
 
 .brand-tagline2{
   margin-top:2px;
-  font-size:12px;         /* smaller than the title */
+  font-size:20px;         /* smaller than the title */
   color:var(--muted);
   text-align:center;
 }
