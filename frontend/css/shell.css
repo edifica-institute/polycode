@@ -1135,6 +1135,33 @@ body{
 
 
 
+/* final header look */
+.site-header .brand{
+  display:flex; flex-direction:column; align-items:center; line-height:1.06;
+}
+.site-header .brand .title{
+  font-weight:400;                  /* not bold */
+  font-size:clamp(28px,3.2vw,38px); /* a bit larger */
+  text-transform:none;
+}
+.site-header .brand .tagline{
+  margin-top:2px;
+  font-size:clamp(12px,1.2vw,15px); /* smaller than the title */
+  text-align:center;
+  color:var(--muted);
+}
+/* big logo */
+.site-header .logo img{ width:80px; height:80px; object-fit:contain; }
+
+
+
+
+
+
+
+
+
+
 
 
 
