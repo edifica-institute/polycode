@@ -1588,6 +1588,21 @@ body:not(.light) .footer-left .footer-logo{
 
 
 
+.footer-left .txt .siteurl{
+  font-size: 11.5px;       /* slightly smaller than slogan */
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.footer-left .txt .siteurl a{
+  color: var(--link);
+  text-decoration: none;
+}
+
+.footer-left .txt .siteurl a:hover{
+  color: var(--link-hover);
+  text-decoration: underline;
+}
 
 
 
