@@ -545,16 +545,7 @@ window.addEventListener('DOMContentLoaded', () => {
 /* ===========================
    load left content helper
 =========================== */
-async function loadLeftContent(lang) {
-  const el = document.getElementById('leftContent');
-  if (!el) return;
-  try {
-    const res = await fetch(`./content/${lang}.html`, { cache: 'no-store' });
-    el.innerHTML = res.ok ? await res.text() : '';
-  } catch {
-    el.innerHTML = '';
-  }
-}
+
 
 /* ===========================
    export minimal API
