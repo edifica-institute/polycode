@@ -712,3 +712,79 @@ try {
   ro.observe(document.getElementById('editor'));
 } catch {}
 
+
+
+
+
+
+
+
+
+
+
+
+
+// ===== Global hotkeys for Polycode ==================================
+(function initPolycodeHotkeys(){
+  function click(id){ document.getElementById(id)?.click(); }
+
+  // Global fallbacks (works even when focus isn't in Monaco)
+  document.addEventListener('keydown', (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+
+    // Run: Ctrl/Cmd+Enter or F9
+    if ((mod && e.key === 'Enter') || e.key === 'F9') {
+      e.preventDefault();
+      click('btnRun');
+      return;
+    }
+
+    // Clear: Ctrl/Cmd+Shift+L or F10
+    if ((mod && e.shiftKey && (e.key === 'L' || e.key === 'l')) || e.key === 'F10') {
+      e.preventDefault();
+      click('btnReset');
+      return;
+    }
+
+    // Run selection: Ctrl/Cmd+Shift+Enter
+    if (mod && e.shiftKey && e.key === 'Enter') {
+      e.preventDefault();
+      if (window.editor) {
+        const sel = window.editor.getModel().getValueInRange(window.editor.getSelection());
+        const code = (sel && sel.trim()) ? sel : null;
+        if (window.runLang) window.runLang(code); // pages accept optional override
+      } else {
+        click('btnRun');
+      }
+    }
+  }, { passive: false });
+
+  // Monaco-accurate bindings (work when focus IS in the editor)
+  function bindMonaco(){
+    if (!window.monaco || !window.editor) return;
+    const m = monaco;
+
+    // Run
+    window.editor.addCommand(m.KeyMod.CtrlCmd | m.KeyCode.Enter, () => {
+      document.getElementById('btnRun')?.click();
+    });
+
+    // Run selection
+    window.editor.addCommand(m.KeyMod.CtrlCmd | m.KeyMod.Shift | m.KeyCode.Enter, () => {
+      const sel = window.editor.getModel().getValueInRange(window.editor.getSelection());
+      if (window.runLang) window.runLang(sel && sel.trim() ? sel : null);
+    });
+
+    // Clear
+    window.editor.addCommand(m.KeyMod.CtrlCmd | m.KeyMod.Shift | m.KeyCode.KeyL, () => {
+      document.getElementById('btnReset')?.click();
+    });
+  }
+
+  // Try now; also rebind when the editor element resizes (editor created after loader)
+  const tryBind = () => setTimeout(bindMonaco, 0);
+  tryBind();
+
+  // If your page creates the editor later, run again then:
+  window.addEventListener('polycode-editor-ready', tryBind);
+})();
