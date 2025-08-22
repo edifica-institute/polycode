@@ -228,6 +228,10 @@ window.clearLang = function () {
   
   //frame.style.background = 'transparent';
   frame.srcdoc = BLANK;
+  const current =
+  localStorage.getItem('polycode-theme') ||
+  (document.body.classList.contains('light') ? 'light' : 'dark');
+
 };
 
 
