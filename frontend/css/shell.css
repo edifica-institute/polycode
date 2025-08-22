@@ -1161,6 +1161,39 @@ body{
 
 
 
+/* Header brand block (matches your current HTML classes) */
+.brand-text2{
+  display:flex;
+  flex-direction:column;
+  align-items:center;     /* centers the slogan under the title */
+  line-height:1.1;
+  text-align:center;
+}
+
+.brand-title2{
+  font-weight:400;        /* not bold */
+  text-transform:none;
+  font-size: clamp(34px, 3.6vw, 52px);  /* larger wordmark */
+  line-height:1.05;
+  letter-spacing:.2px;
+}
+
+.brand-tagline2{
+  margin-top:2px;
+  font-size:12px;         /* smaller than the title */
+  color:var(--muted);
+  text-align:center;
+}
+
+
+
+
+
+
+
+
+
+
 
 
 
