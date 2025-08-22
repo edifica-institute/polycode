@@ -1683,7 +1683,9 @@ body:not(.light) .footer-left .footer-logo{
   background-color: transparent !important;
 }
 
-
+/* Keep the preview/output area transparent in any theme */
+#output { background: transparent !important; }
+#output iframe { background: transparent !important; }
 
 
 
