@@ -960,6 +960,56 @@ body{
 
 
 
+/* === Header: center brand block, stack vertically, keep nav on right === */
+.site-header{
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr !important; /* left spacer • center brand • right nav */
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.site-header .logo{
+  grid-column: 2 !important;               /* center cell */
+  display: flex !important;
+  flex-direction: column !important;       /* stack: logo -> title -> tagline */
+  align-items: center !important;
+  gap: 4px !important;
+  margin: 0 auto !important;
+}
+
+.site-header .logo img{
+  width: 48px !important;
+  height: 48px !important;
+  object-fit: contain !important;
+}
+
+.site-header .brand{
+  line-height: 1.05 !important;
+  text-align: center !important;
+}
+
+.site-header .brand .title{
+  font-size: 12px !important;              /* “polycode” in small */
+  font-weight: 600 !important;
+  letter-spacing: .04em !important;
+  text-transform: lowercase !important;
+}
+
+.site-header .brand .powered{
+  display: none !important;                /* hide per request for top bar */
+}
+
+.site-header .brand .tagline{
+  font-size: 12px !important;              /* learn • code • run */
+  color: var(--muted) !important;
+}
+
+.site-header nav{
+  grid-column: 3 !important;               /* right cell */
+  justify-self: end !important;
+  display: flex !important;
+  gap: 16px !important;
+}
 
 
 
