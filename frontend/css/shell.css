@@ -1463,6 +1463,53 @@ header.site-header{
 
 
 
+/* Footer logo base */
+.footer-logo{
+  width: 24px; height: 24px;
+  object-fit: contain;
+  background: transparent !important;
+}
+
+/* Dark theme: blend out white boxes reasonably well */
+body:not(.light) .footer-logo{
+  mix-blend-mode: multiply;
+}
+
+/* If you later want a perfect, theme-colored mono mark without changing files,
+   use a masked placeholder instead of <img>:
+
+.footer-logo-mask{
+  display:inline-block;
+  width:24px; height:24px;
+  background: currentColor; /* inherits text color */
+  -webkit-mask: url("./assets/logo.png") center/contain no-repeat;
+          mask: url("./assets/logo.png") center/contain no-repeat;
+}
+*/
+
+
+/* Footer left text sizing */
+.footer-left .txt .powered{
+  font-size: 14.5px !important;   /* bigger than slogan */
+  font-weight: 600;                /* a touch of weight */
+  letter-spacing: .2px;
+  color: var(--text);
+}
+
+.footer-left .txt .subline{
+  font-size: 12.5px !important;    /* smaller */
+  color: var(--muted);
+}
+
+
+
+/* Header links hover = same orange as footer */
+.site-header nav a:hover,
+.site-nav a:hover{
+  color: var(--link-hover) !important; /* #f59e0b */
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 
 
