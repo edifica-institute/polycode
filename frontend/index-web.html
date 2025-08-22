@@ -155,8 +155,8 @@
   <script src="./js/shell.js" defer></script>
 
   <!-- Page script -->
-  <script>
-    const SAMPLE_WEB =
+ <script>
+  const SAMPLE_WEB =
 `<!doctype html>
 <html>
 <head>
@@ -180,35 +180,35 @@
   <script>
     console.log('Preview loaded!');
     document.getElementById('tn').textContent = new Date().toLocaleTimeString();
-  </script>
+  <\/script>
 </body>
 </html>`;
 
-    async function bootstrap(){
-      await PolyShell.initMonaco({ value: SAMPLE_WEB, language: 'html' });
-      PolyShell.setStatus('Ready','ok');
-      PolyShell.loadLeftContent('web');  // load /content/web.html into left pane
+  async function bootstrap(){
+    await PolyShell.initMonaco({ value: SAMPLE_WEB, language: 'html' });
+    PolyShell.setStatus('Ready','ok');
+    PolyShell.loadLeftContent('web');  // load /content/web.html
+  }
+
+  window.runLang = async function(){
+    const code  = window.editor ? window.editor.getValue() : SAMPLE_WEB;
+    const frame = document.getElementById('preview');
+
+    if ('srcdoc' in frame) {
+      frame.srcdoc = code;               // simplest + no flicker
+    } else {
+      const doc = frame.contentWindow.document;
+      doc.open(); doc.write(code); doc.close();
     }
+  };
 
-    window.runLang = async function(){
-      const code = window.editor ? window.editor.getValue() : SAMPLE_WEB;
-      const frame = document.getElementById('preview');
+  window.clearLang = function(){
+    const frame = document.getElementById('preview');
+    frame.srcdoc = '<!doctype html><meta charset="utf-8"><title>Cleared</title><style>body{font:14px system-ui;padding:20px;color:#888}</style><body><em>Preview cleared.</em>';
+  };
 
-      // Prefer srcdoc (simple, no reflow flicker)
-      if ('srcdoc' in frame) {
-        frame.srcdoc = code;
-      } else {
-        const doc = frame.contentWindow.document;
-        doc.open(); doc.write(code); doc.close();
-      }
-    };
+  bootstrap();
+</script>
 
-    window.clearLang = function(){
-      const frame = document.getElementById('preview');
-      frame.srcdoc = '<!doctype html><meta charset="utf-8"><title>Cleared</title><style>body{font:14px system-ui;padding:20px;color:#888}</style><body><em>Preview cleared.</em>';
-    };
-
-    bootstrap();
-  </script>
 </body>
 </html>
