@@ -219,10 +219,16 @@ window.runLang = async function(codeOverride){
     doc.open(); doc.write(code); doc.close();
   }
 };
-window.clearLang = function(){
+window.clearLang = function () {
   const frame = document.getElementById('preview');
-  frame.srcdoc = '<!doctype html><meta charset="utf-8"><title>Cleared</title><style>body{font:14px system-ui;padding:20px;color:#888}</style><body><em>Preview cleared.</em>';
+  const BLANK = '<!doctype html><meta charset="utf-8">' +
+                '<style>html,body{background:transparent!important;margin:0}</style>' +
+                '<body></body>';
+  // force the host iframe to be transparent too
+  frame.style.background = 'transparent';
+  frame.srcdoc = BLANK;
 };
+
 
 /* --- Start after shell.js (defer) has run --- */
 (function startWhenReady(){
