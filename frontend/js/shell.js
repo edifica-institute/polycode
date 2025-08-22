@@ -146,7 +146,7 @@ function spin(on) {
 /* ===========================
    monaco (minimap disabled)
 =========================== */
-function initMonaco({ value, language }) {
+/*function initMonaco({ value, language }) {
   return new Promise(resolve => {
     require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
     require(['vs/editor/editor.main'], function () {
@@ -161,7 +161,44 @@ function initMonaco({ value, language }) {
       resolve();
     });
   });
+}*/
+
+
+function ensureMonacoLoader(){
+  return new Promise((resolve, reject) => {
+    if (typeof require !== 'undefined' && typeof require.config === 'function') {
+      return resolve();
+    }
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js';
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Failed to load Monaco loader'));
+    document.head.appendChild(s);
+  });
 }
+
+function initMonaco({ value, language }) {
+  return ensureMonacoLoader().then(() => {
+    if (!window.__monacoConfigured) {
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+      window.__monacoConfigured = true;
+    }
+    return new Promise(resolve => {
+      require(['vs/editor/editor.main'], function () {
+        window.editor = monaco.editor.create(document.getElementById('editor'), {
+          value, language,
+          theme: document.body.classList.contains('light') ? 'vs' : 'vs-dark',
+          automaticLayout: true,
+          minimap: { enabled: false },
+          padding: { top: 20, bottom: 12 },
+          scrollBeyondLastLine: false
+        });
+        resolve();
+      });
+    });
+  });
+}
+
 
 /* ===========================
    grid column helpers
