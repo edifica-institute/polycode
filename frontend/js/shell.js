@@ -606,3 +606,68 @@ window.PolyShell = {
 
 
 
+
+
+
+
+// ---------- Window resize/orientation robustness -------------------
+(function(){
+  let raf = 0, endTimer = 0;
+
+  function applyResizeFixes(){
+    // 1) Reset any inline grid widths to CSS defaults (if resizers set them)
+    const app = document.querySelector('.app');
+    if (app) app.style.gridTemplateColumns = '';
+
+    // 2) Re-layout Monaco
+    if (window.editor?.layout) {
+      const edEl = document.getElementById('editor');
+      if (edEl) window.editor.layout({ width: edEl.clientWidth, height: edEl.clientHeight });
+    }
+
+    // 3) Clear temporary states that can remain after a resize/drag
+    document.getElementById('centerPanel')?.removeAttribute('aria-busy');
+    document.getElementById('rightPanel')?.removeAttribute('aria-busy');
+    document.getElementById('output')?.classList.remove('screen-dim');
+
+    // don’t remove the persistent .attn cue; only clear active run/reset states
+    document.querySelectorAll('.btn.is-running, .btn.is-resetting')
+      .forEach(b => { b.classList.remove('is-running','is-resetting'); });
+  }
+
+  function onResize(){
+    cancelAnimationFrame(raf);
+    clearTimeout(endTimer);
+
+    // Do light work during live resize via RAF
+    raf = requestAnimationFrame(applyResizeFixes);
+
+    // Run once more 200ms after the user stops dragging, for safety
+    endTimer = setTimeout(applyResizeFixes, 200);
+  }
+
+  addEventListener('resize', onResize, { passive:true });
+  addEventListener('orientationchange', onResize, { passive:true });
+
+  // If you have a custom resizer, also call on drag end:
+  ['mouseup','touchend','pointerup'].forEach(evt =>
+    addEventListener(evt, () => setTimeout(applyResizeFixes, 0), { passive:true })
+  );
+})();
+
+
+
+
+
+
+// Put where you create the editor
+try {
+  const ro = new ResizeObserver(() => {
+    if (window.editor?.layout) {
+      const el = document.getElementById('editor');
+      window.editor.layout({ width: el.clientWidth, height: el.clientHeight });
+    }
+  });
+  ro.observe(document.getElementById('editor'));
+} catch {}
+
