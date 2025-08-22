@@ -1146,8 +1146,18 @@ body{
 }
 
 /* Optional: remove any leftover heavy styling from earlier CSS */
-.brand .title{ font-weight:400 !important; }  /* safety override */
 
+
+/* FINAL wordmark settings — wins the cascade */
+.site-header .brand .title{
+  font-weight:300 !important;  /* light */
+  text-transform:none !important;
+  font-size: clamp(28px, 3.2vw, 44px); /* larger but not shouty */
+  line-height:1.05;
+}
+
+/* Remove the safety override that was re-bolding it */
+.brand .title{ font-weight:inherit !important; }
 
 
 
