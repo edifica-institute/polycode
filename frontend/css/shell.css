@@ -1415,6 +1415,49 @@ header.site-header{
 
 
 
+/* === Footer v2 ===================================================== */
+.site-footer{
+  background: var(--glass) !important;
+  border-top: 1px solid var(--glass-brd) !important;
+  backdrop-filter: blur(10px);
+  padding: 18px 24px !important;  /* increase if you want taller */
+}
+
+.footer-grid{
+  display:grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items:center;
+  gap:16px;
+}
+
+/* Left block */
+.footer-left{ display:flex; align-items:center; gap:10px; }
+.footer-logo{ width:26px; height:26px; object-fit:contain; }
+.footer-left .powered{ font-size:12px; line-height:1.1; }
+.footer-left .subline{ font-size:12px; color:var(--muted); line-height:1.1; }
+.footer-left .subline .dot{ font-weight:900; margin:0 2px; } /* bold dots */
+
+/* Center (Follow us + icons) */
+.footer-center{ display:flex; align-items:center; gap:12px; justify-content:center; }
+.footer-center .label{ font-size:12px; color:var(--muted); margin-right:2px; }
+.footer-center a.social{ display:inline-flex; color:var(--link); }
+.footer-center a.social:hover{ color:var(--link-hover); }
+.footer-center a.social svg{ width:18px; height:18px; fill:currentColor; }
+
+/* Right links: underline */
+.footer-right{ display:flex; gap:16px; justify-content:flex-end; }
+.footer-right a{ color:var(--link); text-decoration:underline !important; }
+.footer-right a:hover{ color:var(--link-hover); }
+
+/* === Top bar: match link hover color to footer (orange) ============ */
+.site-header nav a:hover,
+.site-nav a:hover{ color: var(--link-hover) !important; }
+
+/* Small screens */
+@media (max-width:640px){
+  .footer-grid{ grid-template-columns: 1fr; row-gap:10px; }
+  .footer-right{ justify-content:flex-start; flex-wrap:wrap; gap:12px; }
+}
 
 
 
