@@ -1139,6 +1139,15 @@ body{
 
 
 
+
+
+
+
+
+
+
+
+
 /* --- Header brand: larger (not bold) title + centered slogan --- */
 .site-header .brand{
   display:flex !important;
@@ -1183,6 +1192,62 @@ body{
 
 /* hide 'powered by' in the top bar (we'll move it to footer later) */
 .site-header .brand .powered{ display:none !important; }
+
+
+/* --- Header brand: larger (not bold) title + centered slogan --- */
+.site-header .brand{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;     /* centers the slogan under the title */
+  line-height:1.06 !important;
+}
+
+.site-header .brand .title{
+  font-weight:400 !important;         /* not bold */
+  font-size:clamp(28px, 3.2vw, 38px) !important;  /* a bit larger, responsive */
+  text-transform:none !important;     /* keep your exact casing */
+  letter-spacing:.2px;
+}
+
+.site-header .brand .tagline{
+  margin-top:2px !important;
+  font-size:clamp(12px, 1.2vw, 15px) !important;  /* smaller than title */
+  line-height:1.15;
+  text-align:center !important;       /* center the line itself */
+  color:var(--muted);
+}
+
+/* keep the centered brand block layout from before */
+.site-header{
+  display:grid !important;
+  grid-template-columns: 1fr auto 1fr !important;
+  align-items:center !important;
+}
+.site-header .logo{
+  grid-column:2 !important;
+  justify-self:center !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  gap:14px !important;                 /* space between logo and text */
+}
+.site-header .logo img{
+  width:80px !important;
+  height:80px !important;
+  object-fit:contain;
+}
+
+/* hide 'powered by' in the top bar (we'll move it to footer later) */
+.site-header .brand .powered{ display:none !important; }
+
+
+
+
+
+
+
+
+
+
 
 
 
