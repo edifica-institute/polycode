@@ -222,10 +222,10 @@ window.runLang = async function(codeOverride){
 window.clearLang = function () {
   const frame = document.getElementById('preview');
   const BLANK = '<!doctype html><meta charset="utf-8">' +
-                '<style>html,body{background:transparent!important;margin:0}</style>' +
+                '<style>html,body{margin:0}</style>' +
                 '<body></body>';
   // force the host iframe to be transparent too
-  frame.style.background = 'transparent';
+  //frame.style.background = 'transparent';
   frame.srcdoc = BLANK;
 };
 
