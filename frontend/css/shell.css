@@ -1669,6 +1669,19 @@ body:not(.light) .footer-left .footer-logo{
 
 
 
+/* Output should always use the panel skin / be transparent */
+.right.panel { background: var(--panel-bg); }
+
+/* Never let #output turn white (or any solid) */
+#output { 
+  background: transparent !important;
+  color: var(--text);
+}
+
+/* If any child (tables/pre) brings a background, kill it */
+#output *, #output table, #output pre {
+  background-color: transparent !important;
+}
 
 
 
