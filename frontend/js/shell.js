@@ -110,7 +110,7 @@ function initMonaco({ value, language }) {
         value, language,
         theme: document.body.classList.contains('light') ? 'vs' : 'vs-dark',
         automaticLayout: true,
-        minimap: { enabled: false }
+        minimap: { enabled: false },
          padding: { top: 12, bottom: 12 },   // <= add this
   scrollBeyondLastLine: false         // optional: trims extra space at bottom
       });
