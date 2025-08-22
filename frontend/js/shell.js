@@ -129,6 +129,43 @@ document.getElementById('preview')?.style.setProperty('background','transparent'
 
 })();
 
+
+
+
+
+
+
+
+
+
+function applyTheme(isLight){
+  document.body.classList.toggle('light', isLight);
+  setIcon(isLight);
+  if (window.editor && window.monaco) {
+    monaco.editor.setTheme(isLight ? 'vs' : 'vs-dark');
+  }
+  document.getElementById('output')?.style.setProperty('background','transparent','important');
+  document.getElementById('preview')?.style.setProperty('background','transparent','important');
+
+  const mode = isLight ? 'light' : 'dark';
+  localStorage.setItem('polycode-theme', mode);
+
+  // let pages listen for theme changes
+  window.dispatchEvent(new CustomEvent('polycode:themechange', { detail: { mode } }));
+}
+
+window.PolyShell = window.PolyShell || {};
+window.PolyShell.setTheme   = (mode) => applyTheme(mode === 'light');
+window.PolyShell.toggleTheme = () => applyTheme(!document.body.classList.contains('light'));
+window.PolyShell.getTheme    = () => (document.body.classList.contains('light') ? 'light' : 'dark');
+
+
+
+
+
+
+
+
 /* ===========================
    status + spinner
 =========================== */
