@@ -1150,14 +1150,12 @@ body{
 
 /* FINAL wordmark settings — wins the cascade */
 .site-header .brand .title2{
-  font-weight:300 !important;  /* light */
+  font-weight:400 !important;  /* light */
   text-transform:none !important;
   font-size: clamp(28px, 3.2vw, 44px); /* larger but not shouty */
-  line-height:1.05;
+  line-height:2.05;
 }
 
-/* Remove the safety override that was re-bolding it */
-.brand .title{ font-weight:inherit !important; }
 
 
 
