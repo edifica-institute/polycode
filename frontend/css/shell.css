@@ -1174,7 +1174,7 @@ body{
   font-weight:500;        /* not bold */
   text-transform:none;
   font-size: 30px;  /* larger wordmark */
-  line-height:1.05;
+  line-height:2.05;
   letter-spacing:.2px;
 }
 
