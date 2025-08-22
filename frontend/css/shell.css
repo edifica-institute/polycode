@@ -1548,6 +1548,42 @@ body:not(.light) .footer-left .footer-logo{
 
 
 
+/* --- Footer logo: thinner ring ----------------------------------- */
+.footer-left > img,
+.footer-left .footer-logo{
+  width: 45px;
+  height: 45px;
+  object-fit: contain;
+  background: transparent !important;
+
+  /* crop a tiny bit to shave off the thick white edge from the PNG */
+  border-radius: 50%;
+  clip-path: inset(2px round 50%);          /* trims ~2px all around */
+  outline: 1px solid rgba(255,255,255,.18); /* thin, subtle stroke */
+  outline-offset: -1px;                      /* sits right on the edge */
+}
+
+/* --- Footer text: reduce spacing between lines -------------------- */
+.footer-left .txt{
+  display: flex;
+  flex-direction: column;
+  gap: 2px;               /* was visually larger; make it snug */
+  line-height: 1.1;
+}
+
+.footer-left .txt .powered{
+  font-size: 15px !important;   /* keep larger than slogan */
+  font-weight: 500;
+  margin: 0;                     /* remove extra space */
+  line-height: 1.1;              /* tighter */
+}
+
+.footer-left .txt .subline{
+  font-size: 10px !important;
+  color: var(--muted) !important;
+  margin: 0;                     /* remove extra space */
+  line-height: 1.1;              /* tighter */
+}
 
 
 
