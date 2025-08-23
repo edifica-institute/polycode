@@ -188,41 +188,54 @@ function extractErrorLine(text){
 
 
 /* --- Run code (shell.js calls this) --- */
+function findPublicClassName(code){
+  const m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/);
+  return m ? m[1] : null;
+}
+
 window.runLang = async function(codeOverride){
   const code = (typeof codeOverride === 'string' && codeOverride.trim())
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  // Build a Piston v2 payload (language REQUIRED when calling Piston directly)
-  const payload = {
-    language: 'java',
-    version: '*',                     // let Piston pick the latest
-    files: [{ name: 'Main.java', content: code }],
-    args: [],
-    stdin: '',
-    compile_timeout: 10000,
-    run_timeout: 3000
-  };
+  // Disallow packages in this simple runner
+  if (/\bpackage\s+/.test(code)) {
+    printToConsole({ compileErr: 'Packages are not supported in this runner. Remove the package declaration.' });
+    throw new Error('line 1: packages not supported');
+  }
 
-  let data;
-  try {
-    const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
+  const files = [];
+  const userPublic = findPublicClassName(code);
+
+  if (userPublic && userPublic !== 'Main') {
+    // 1) send user's code in the correctly named file
+    files.push({ name: `${userPublic}.java`, content: code });
+    // 2) add a Main wrapper that delegates to user's main
+    files.push({
+      name: 'Main.java',
+      content:
+`public class Main {
+  public static void main(String[] args) throws Exception {
+    ${userPublic}.main(args);
+  }
+}`
+    });
+  } else {
+    // either no public class, or it is already Main -> keep original plan
+    files.push({ name: 'Main.java', content: code });
+  }
+
+  let data = {};
+  try{
+    const resp = await fetch('/api/run/java', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ files, version: '17' })
     });
-
-    // Avoid "Unexpected end of JSON input" by reading text first
-    const txt = await resp.text();
-    if (!resp.ok) {
-      // Show the first bit of the error body for debugging
-      throw new Error(`Piston ${resp.status}: ${txt.slice(0,200)}`);
-    }
-    data = JSON.parse(txt);
-  } catch (e) {
+    data = await resp.json();
+  }catch(e){
     printToConsole({ compileErr: String(e) });
-    // Bubble up with a line marker so Monaco highlights line 1
-    throw new Error('line 1: ' + (e?.message || String(e)));
+    throw new Error('line 1: ' + String(e));
   }
 
   // Piston shape:
