@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Frontend Handbook — HTML • CSS • JavaScript (Row-wise, Static, No JS)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{
+    --bg:#fafafa; --panel:#fff; --text:#1f2937; --muted:#6b7280; --head:#0b3b6a;
+    --border:#d8dee9; --badge:#eef3ff; --code:#f5f7fb;
+  }
+  @media print { :root{ --bg:#fff; } }
+  html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
+  .wrap{max-width:1000px;margin:auto;padding:20px}
+  h1{margin:0 0 6px;font-size:24px;color:var(--head)}
+  .lead{margin:0 0 16px;color:var(--muted)}
+  h2{margin:28px 0 12px;font-size:18px;color:var(--head);border-bottom:2px solid var(--border);padding-bottom:6px}
+  .entry{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;margin:10px 0}
+  .title{font-weight:700}
+  .meta{font-size:12px;color:var(--muted);margin:2px 0 8px}
+  .badge{display:inline-block;padding:3px 8px;border:1px solid var(--border);border-radius:999px;background:var(--badge);font-size:12px;margin-right:6px}
+  .kv{width:100%;border-collapse:collapse}
+  .kv th,.kv td{border-top:1px solid var(--border);padding:8px 6px;vertical-align:top}
+  .kv tr:first-child th,.kv tr:first-child td{border-top:none}
+  .kv th{width:140px;color:var(--muted);text-align:left;font-weight:600;background:#fff}
+  code,pre,tt{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
+  code{background:var(--code);padding:1px 4px;border-radius:5px}
+  pre{margin:0;background:var(--code);padding:8px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .tip{font-size:12px;color:#64748b;margin-top:12px}
+  .cols2{columns:2;column-gap:16px}
+  .cols3{columns:3;column-gap:16px}
+  .kw{break-inside:avoid;border:1px solid var(--border);border-radius:10px;background:#fff;padding:6px 8px;margin:6px 0}
+  @media (max-width:620px){ .kv th{width:110px} .cols2,.cols3{columns:1} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Frontend Handbook — HTML • CSS • JavaScript</h1>
+  <p class="lead"><b>Format:</b> one topic per block (Syntax • Example • Notes). Static, read-only, mobile-friendly, and print-ready. No external links or scripts.</p>
+
+  <!-- =============================== HTML =============================== -->
+  <h2>HTML — Document & Structure</h2>
+
+  <div class="entry">
+    <div class="title">Document skeleton</div>
+    <div class="meta"><span class="badge">HTML</span> layout of a basic page</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;!doctype html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
+  &lt;title&gt;Title&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;...&lt;/body&gt;
+&lt;/html&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Always include responsive <code>viewport</code>. Use a single, descriptive <code>&lt;title&gt;</code>.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Semantic layout: header • nav • main • section • article • aside • footer</div>
+    <div class="meta"><span class="badge">HTML</span> accessible structure</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;header&gt;Brand&lt;/header&gt;
+&lt;nav&gt;...&lt;/nav&gt;
+&lt;main&gt;
+  &lt;section&gt;&lt;article&gt;Content&lt;/article&gt;&lt;/section&gt;
+  &lt;aside&gt;Related&lt;/aside&gt;
+&lt;/main&gt;
+&lt;footer&gt;©&lt;/footer&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">One <code>&lt;main&gt;</code> per page. Use headings in logical order (h1→h6).</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Headings & paragraphs</div>
+    <div class="meta"><span class="badge">HTML</span> h1—h6 • p • small • strong • em</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>&lt;h1&gt;Title&lt;/h1&gt; ... &lt;h6&gt;</code> • <code>&lt;p&gt;Text&lt;/p&gt;</code> • <code>&lt;strong&gt;</code> • <code>&lt;em&gt;</code></td></tr>
+      <tr><th>Example</th><td><pre>&lt;h1&gt;Product&lt;/h1&gt;
+&lt;p&gt;A short &lt;strong&gt;bold&lt;/strong&gt; point with &lt;em&gt;emphasis&lt;/em&gt;.&lt;/p&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use semantic emphasis (&lt;strong&gt;/&lt;em&gt;), not just CSS.</td></tr>
+    </table>
+  </div>
+
+  <h2>HTML — Links, Media, Lists, Tables</h2>
+
+  <div class="entry">
+    <div class="title">Anchors & in-page links</div>
+    <div class="meta"><span class="badge">HTML</span> &lt;a&gt; with href, fragment ids</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>&lt;a href="#section1"&gt;Jump&lt;/a&gt;</code> • <code>&lt;h2 id="section1"&gt;...&lt;/h2&gt;</code></td></tr>
+      <tr><th>Example</th><td><pre>&lt;a href="#details"&gt;Details&lt;/a&gt;
+&lt;section id="details"&gt;...&lt;/section&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use meaningful text; avoid “click here”.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Images</div>
+    <div class="meta"><span class="badge">HTML</span> &lt;img&gt; with alt, width, height</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>&lt;img src="image.jpg" alt="description" width="600" height="400"&gt;</code></td></tr>
+      <tr><th>Notes</th><td class="tip">Provide accurate <code>alt</code>. Set intrinsic <code>width</code>/<code>height</code> to reduce layout shift.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Video & audio</div>
+    <div class="meta"><span class="badge">HTML</span> &lt;video&gt; • &lt;audio&gt; • &lt;source&gt;</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;video controls width="640"&gt;
+  &lt;source src="clip.mp4" type="video/mp4"&gt;
+  Your browser does not support video.
+&lt;/video&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use captions/subtitles for accessibility when available.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Lists</div>
+    <div class="meta"><span class="badge">HTML</span> ul • ol • dl</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;ul&gt;&lt;li&gt;Item&lt;/li&gt;&lt;/ul&gt;
+&lt;ol&gt;&lt;li&gt;Step 1&lt;/li&gt;&lt;/ol&gt;
+&lt;dl&gt;&lt;dt&gt;Term&lt;/dt&gt;&lt;dd&gt;Definition&lt;/dd&gt;&lt;/dl&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use <code>dl</code> for term–definition pairs.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Tables</div>
+    <div class="meta"><span class="badge">HTML</span> table • thead • tbody • tfoot • th • td • caption</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;table&gt;
+  &lt;caption&gt;Scores&lt;/caption&gt;
+  &lt;thead&gt;&lt;tr&gt;&lt;th scope="col"&gt;Name&lt;/th&gt;&lt;th scope="col"&gt;Score&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
+  &lt;tbody&gt;&lt;tr&gt;&lt;th scope="row"&gt;Ana&lt;/th&gt;&lt;td&gt;92&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;
+&lt;/table&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use <code>scope</code> on <code>th</code> for screen readers.</td></tr>
+    </table>
+  </div>
+
+  <h2>HTML — Forms & Controls</h2>
+
+  <div class="entry">
+    <div class="title">Form & label basics</div>
+    <div class="meta"><span class="badge">HTML</span> form • label • input • button</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;form method="post"&gt;
+  &lt;label for="email"&gt;Email&lt;/label&gt;
+  &lt;input id="email" type="email" required&gt;
+  &lt;button type="submit"&gt;Send&lt;/button&gt;
+&lt;/form&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Associate labels with inputs using <code>for</code>/<code>id</code>. Provide <code>name</code> for form submission.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Common input types</div>
+    <div class="meta"><span class="badge">HTML</span> text • email • number • password • date • time • checkbox • radio • range • file • color • tel • url • search</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;input type="text"&gt;
+&lt;input type="number" min="0" step="1"&gt;
+&lt;input type="date"&gt;
+&lt;input type="checkbox"&gt;
+&lt;input type="radio" name="opt"&gt;
+&lt;input type="file" accept="image/*"&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use constraints: <code>required</code>, <code>min</code>, <code>max</code>, <code>pattern</code>, <code>maxlength</code>, <code>autocomplete</code>.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Textarea, select, datalist</div>
+    <div class="meta"><span class="badge">HTML</span> multi-line & choices</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;textarea rows="4"&gt;&lt;/textarea&gt;
+&lt;select&gt;&lt;option&gt;A&lt;/option&gt;&lt;option&gt;B&lt;/option&gt;&lt;/select&gt;
+&lt;input list="cities"&gt;
+&lt;datalist id="cities"&gt;&lt;option value="Delhi"&gt;&lt;/datalist&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use <code>multiple</code> on select for multi-select lists.</td></tr>
+    </table>
+  </div>
+
+  <h2>HTML — Embeds & Graphics</h2>
+
+  <div class="entry">
+    <div class="title">iframe</div>
+    <div class="meta"><span class="badge">HTML</span> embed another page/app</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>&lt;iframe src="page.html" title="Embedded content" width="600" height="400"&gt;&lt;/iframe&gt;</code></td></tr>
+      <tr><th>Notes</th><td class="tip">Always include a descriptive <code>title</code> for accessibility.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">canvas & svg (basics)</div>
+    <div class="meta"><span class="badge">HTML</span> drawing APIs</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>&lt;canvas width="300" height="150"&gt;&lt;/canvas&gt;
+&lt;svg viewBox="0 0 100 100"&gt;&lt;circle cx="50" cy="50" r="40"/&gt;&lt;/svg&gt;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip"><code>canvas</code> is bitmap via JS; <code>svg</code> is vector DOM.</td></tr>
+    </table>
+  </div>
+
+  <!-- =============================== CSS =============================== -->
+  <h2>CSS — Selectors</h2>
+
+  <div class="entry">
+    <div class="title">Basic & combinators</div>
+    <div class="meta"><span class="badge">CSS</span> type • class • id • descendant • child • siblings</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>.card</code> • <code>#hero</code> • <code>h1, h2</code> • <code>.nav &gt; li</code> • <code>h2 + p</code> • <code>h2 ~ p</code></td></tr>
+      <tr><th>Notes</th><td class="tip">Use classes for reuse; limit ID usage in CSS.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Attribute selectors</div>
+    <div class="meta"><span class="badge">CSS</span> powerful filtering</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>[disabled]</code> • <code>input[type="email"]</code> • <code>a[href^="#"]</code> • <code>a[href$=".pdf"]</code> • <code>[data-id*="42"]</code></td></tr>
+      <tr><th>Notes</th><td class="tip"><code>^</code> starts, <code>$</code> ends, <code>*</code> contains.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Pseudo-classes & pseudo-elements</div>
+    <div class="meta"><span class="badge">CSS</span> states & generated content</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>:hover</code> • <code>:focus</code> • <code>:focus-visible</code> • <code>:disabled</code> • <code>:not()</code> • <code>:nth-child()</code> • <code>::before</code> • <code>::after</code></td></tr>
+      <tr><th>Example</th><td><pre>.btn:hover { transform: translateY(-1px); }
+.badge::before { content:"• "; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use <code>:focus-visible</code> to show outlines only for keyboard users.</td></tr>
+    </table>
+  </div>
+
+  <h2>CSS — Box Model & Sizing</h2>
+
+  <div class="entry">
+    <div class="title">Padding • Margin • Border • Box-sizing</div>
+    <div class="meta"><span class="badge">CSS</span> spacing inside vs outside</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>padding: t r b l;</code> • <code>margin:</code> • <code>border:1px solid #ddd;</code> • <code>box-sizing:border-box;</code></td></tr>
+      <tr><th>Example</th><td><pre>.panel{ padding:12px 16px; margin:12px 0; border:1px solid #e5e7eb; box-sizing:border-box; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip"><b>Inside</b>=padding, <b>outside</b>=margin. Use <code>box-sizing:border-box</code> globally.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Width/height & min/max</div>
+    <div class="meta"><span class="badge">CSS</span> constraints</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>width:100%;</code> • <code>max-width:1000px;</code> • <code>min-height:48px;</code></td></tr>
+      <tr><th>Notes</th><td class="tip">Images: <code>max-width:100%; height:auto;</code> for responsive media.</td></tr>
+    </table>
+  </div>
+
+  <h2>CSS — Layout</h2>
+
+  <div class="entry">
+    <div class="title">Display & position</div>
+    <div class="meta"><span class="badge">CSS</span> block • inline • inline-block • flex • grid • sticky • absolute</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>display:flex|grid</code> • <code>position:relative|absolute|sticky</code> • <code>top/right/bottom/left</code></td></tr>
+      <tr><th>Example</th><td><pre>.sticky { position: sticky; top: 0; background:#fff; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip"><code>position:relative</code> establishes a containing block for absolutely positioned children.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Flexbox</div>
+    <div class="meta"><span class="badge">CSS</span> one-dimensional layout</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>display:flex;</code> • <code>gap:</code> • <code>justify-content:</code> • <code>align-items:</code> • <code>flex-wrap:</code> • <code>flex: grow shrink basis</code></td></tr>
+      <tr><th>Example</th><td><pre>.row{ display:flex; gap:12px; align-items:center; justify-content:space-between; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use <code>flex:1</code> to make a child grow; or <code>flex:0 0 240px</code> for fixed basis.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">CSS Grid</div>
+    <div class="meta"><span class="badge">CSS</span> two-dimensional layout</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>display:grid;</code> • <code>grid-template-columns:</code> • <code>grid-template-rows:</code> • <code>gap:</code> • <code>grid-area:</code></td></tr>
+      <tr><th>Example</th><td><pre>.grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use <code>minmax()</code>, <code>auto-fit</code>/<code>auto-fill</code> for responsive tracks.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Float & clear (legacy)</div>
+    <div class="meta"><span class="badge">CSS</span> old layout technique</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><code>float:left|right;</code> • <code>clear:both;</code></td></tr>
+      <tr><th>Notes</th><td class="tip">Prefer Flex/Grid; use float for text wrap with images.</td></tr>
+    </table>
+  </div>
+
+  <h2>CSS — Typography & Visuals</h2>
+
+  <div class="entry">
+    <div class="title">Fonts & text</div>
+    <div class="meta"><span class="badge">CSS</span> font-family • size • weight • line-height • letter-spacing • text-align • text-transform • text-overflow</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>h1{ font-family:system-ui,Arial; font-size:24px; line-height:1.3; }
+p{ text-align:justify; text-justify:auto; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use unitless <code>line-height</code> for better inheritance.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Color & background</div>
+    <div class="meta"><span class="badge">CSS</span> color • background-color • gradients • images</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>.btn{ color:#fff; background:#2563eb; }
+.card{ background-image:linear-gradient(#fff,#f7f7fb); }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use accessible contrast; prefer HSL/RGB for opacity control.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Borders, radius, shadows, outline</div>
+    <div class="meta"><span class="badge">CSS</span> shape & depth & focus</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>.card{ border:1px solid #e5e7eb; border-radius:12px; box-shadow:0 6px 20px rgba(0,0,0,.08); }
+button:focus-visible{ outline:2px solid #0ea5e9; outline-offset:2px; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use subtle shadows; never remove focus outlines without a replacement.</td></tr>
+    </table>
+  </div>
+
+  <h2>CSS — Effects & Responsive</h2>
+
+  <div class="entry">
+    <div class="title">Transforms & transitions</div>
+    <div class="meta"><span class="badge">CSS</span> motion & interaction</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>.btn{ transition: transform .15s ease; }
+.btn:hover{ transform: translateY(-1px) scale(1.01); }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Animate transform/opacity for performance. Avoid layout-thrashing properties.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">@keyframes & animation</div>
+    <div class="meta"><span class="badge">CSS</span> reusable motion</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>@keyframes fade { from{opacity:0} to{opacity:1} }
+.notice{ animation: fade .4s ease; }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Prefer short, subtle animations; respect reduced-motion preferences if needed.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">@media (media queries)</div>
+    <div class="meta"><span class="badge">CSS</span> responsive design</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>@media (max-width: 640px){
+  .grid{ grid-template-columns:1fr; }
+}</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Mobile-first: write base styles, then add <code>min-width</code> breakpoints.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">@supports (feature queries)</div>
+    <div class="meta"><span class="badge">CSS</span> progressive enhancement</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>@supports (backdrop-filter: blur(4px)) {
+  .glass{ backdrop-filter: blur(4px); }
+}</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Fallbacks go outside the block; enhanced styles inside.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">@container (container queries)</div>
+    <div class="meta"><span class="badge">CSS</span> component-level responsiveness</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>.card{ container-type: inline-size; }
+@container (min-width: 480px){
+  .card .meta{ display:flex; }
+}</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Enable with <code>container-type</code> on a parent to query its size.</td></tr>
+    </table>
+  </div>
+
+  <!-- =============================== JavaScript =============================== -->
+  <h2>JavaScript — Language Essentials</h2>
+
+  <div class="entry">
+    <div class="title">Declarations & types</div>
+    <div class="meta"><span class="badge">JS</span> let • const • var • primitives & objects</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>const n = 42; let msg = "hi"; let ok = true; let nothing = null; let u;
+const obj = {a:1}, arr = [1,2];</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Prefer <b>const</b> for values you don’t reassign. Primitives are immutable; objects/arrays are mutable.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Functions & arrow functions</div>
+    <div class="meta"><span class="badge">JS</span> declarations & expressions</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>function add(a,b){ return a+b; }
+const mul = (a,b) =&gt; a*b;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Arrows don’t have their own <code>this</code>, <code>arguments</code>, or <code>prototype</code>.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Destructuring & spread/rest</div>
+    <div class="meta"><span class="badge">JS</span> concise assignment</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>const {x,y} = point; const [a,b,...rest] = arr;
+const copy = {...obj, k:2}; const merged = [...a1, ...a2];</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Shallow operations — nested objects aren’t cloned.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Classes</div>
+    <div class="meta"><span class="badge">JS</span> syntactic sugar over prototypes</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>class Point{ constructor(x,y){ this.x=x; this.y=y; } get r(){ return Math.hypot(this.x,this.y); } }</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use getters/setters for computed properties and validation.</td></tr>
+    </table>
+  </div>
+
+  <h2>JavaScript — Arrays, Strings, Objects</h2>
+
+  <div class="entry">
+    <div class="title">Arrays — core methods</div>
+    <div class="meta"><span class="badge">JS</span> transform, search, slice vs splice</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>[1,2,3].map(x =&gt; x*2)
+[1,2,3].filter(x =&gt; x % 2)
+[1,2,3].reduce((s,x) =&gt; s+x, 0)
+[1,2,3].find(x =&gt; x===2)
+arr.slice(1,3)  // copy
+arr.splice(1,1) // mutate</pre></td></tr>
+      <tr><th>Notes</th><td class="tip"><code>includes</code>, <code>every</code>, <code>some</code>, <code>flat</code>, <code>flatMap</code> are also useful.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Strings — handy methods</div>
+    <div class="meta"><span class="badge">JS</span> includes • startsWith • replaceAll • padStart/End • split/join</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>"Hello".toLowerCase()
+"Hi!".padStart(5,"_")
+"abcabc".replaceAll("a","A")
+"1,2,3".split(",").join("-")</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use template literals: <code>`Hello ${name}`</code> for formatting.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Objects & JSON</div>
+    <div class="meta"><span class="badge">JS</span> Object.* • JSON.parse/stringify</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>Object.keys(o), Object.values(o), Object.entries(o)
+JSON.stringify(o), JSON.parse(str)</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Beware of circular structures when stringifying.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Map • Set • WeakMap • WeakSet</div>
+    <div class="meta"><span class="badge">JS</span> collections beyond objects</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>const m = new Map([["a",1]]);
+const s = new Set([1,2,2]); // {1,2}</pre></td></tr>
+      <tr><th>Notes</th><td class="tip"><code>Map</code> preserves insertion order and accepts any key type.</td></tr>
+    </table>
+  </div>
+
+  <h2>JavaScript — Dates, Numbers, Math</h2>
+
+  <div class="entry">
+    <div class="title">Date basics</div>
+    <div class="meta"><span class="badge">JS</span> creation & parts</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>const d = new Date();
+d.getFullYear(); d.getMonth(); d.getDate();</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Months are 0-indexed. Avoid manual timezone math where possible.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Number & Math</div>
+    <div class="meta"><span class="badge">JS</span> parsing & utilities</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>Number.isFinite(n), Number.isNaN(x)
+parseInt("08",10), parseFloat("3.14")
+Math.round, floor, ceil, max, min, random</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use radix with <code>parseInt</code>. <code>Math.random()</code> is 0≤x&lt;1.</td></tr>
+    </table>
+  </div>
+
+  <h2>JavaScript — Async & Storage</h2>
+
+  <div class="entry">
+    <div class="title">Promises & async/await</div>
+    <div class="meta"><span class="badge">JS</span> flow control for async tasks</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>async function load(){
+  try{
+    const res = await fetch("/api");
+    return await res.json();
+  }catch(e){ /* handle */ }
+}</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Promise helpers: <code>Promise.all</code>, <code>allSettled</code>, <code>race</code>, <code>any</code>.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Fetch API (JSON)</div>
+    <div class="meta"><span class="badge">Web</span> HTTP requests</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>/* async */ fetch("/data.json").then(r =&gt; r.json())</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Always check <code>response.ok</code> for non-2xx errors.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">localStorage / sessionStorage</div>
+    <div class="meta"><span class="badge">Web</span> simple key–value storage</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>localStorage.setItem("k","v");
+const v = localStorage.getItem("k");</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Only strings are stored; JSON-encode objects.</td></tr>
+    </table>
+  </div>
+
+  <h2>JavaScript — DOM</h2>
+
+  <div class="entry">
+    <div class="title">Select & traverse</div>
+    <div class="meta"><span class="badge">DOM</span> querySelector • closest • children • parentElement</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>const el = document.querySelector(".btn");
+el.closest(".card"); el.parentElement; el.children;</pre></td></tr>
+      <tr><th>Notes</th><td class="tip"><code>querySelectorAll</code> returns a static NodeList (use spread to array).</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Modify content & classes</div>
+    <div class="meta"><span class="badge">DOM</span> textContent • innerHTML • classList • style</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>el.textContent = "Hello";
+el.classList.add("active"); el.style.paddingTop = "12px";</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Prefer <code>textContent</code> over <code>innerHTML</code> to avoid injection.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Create & insert</div>
+    <div class="meta"><span class="badge">DOM</span> createElement • append • before/after</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>const li = document.createElement("li");
+li.textContent = "Item"; list.append(li);</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">For multiple inserts, use a DocumentFragment to reduce reflows.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Events & delegation</div>
+    <div class="meta"><span class="badge">DOM</span> addEventListener • target vs currentTarget</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>list.addEventListener("click", (e) =&gt; {
+  const btn = e.target.closest("button.remove");
+  if(!btn) return;
+  // handle remove...
+});</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Use delegation for dynamic lists. Prevent default via <code>e.preventDefault()</code>.</td></tr>
+    </table>
+  </div>
+
+  <h2>JavaScript — URLs & Regex</h2>
+
+  <div class="entry">
+    <div class="title">URL & URLSearchParams</div>
+    <div class="meta"><span class="badge">Web</span> parse & build URLs</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>const u = new URL("https://example.com?a=1");
+u.searchParams.get("a"); // "1"
+u.searchParams.set("b","2");</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Works well with relative URLs when given a base.</td></tr>
+    </table>
+  </div>
+
+  <div class="entry">
+    <div class="title">Regular expressions</div>
+    <div class="meta"><span class="badge">JS</span> test • match • replace</div>
+    <table class="kv">
+      <tr><th>Syntax</th><td><pre>/^\w+@\w+\.\w+$/i.test("a@b.com")
+"abc123".replace(/\d/g,"") // "abc"</pre></td></tr>
+      <tr><th>Notes</th><td class="tip">Escape special chars; prefer raw strings for patterns containing backslashes.</td></tr>
+    </table>
+  </div>
+
+  <!-- =============================== Quick Cheats =============================== -->
+  <h2>Quick Cheats — HTML Elements (common)</h2>
+  <div class="cols3">
+    <div class="kw"><b>Text:</b> <code>h1–h6</code>, <code>p</code>, <code>small</code>, <code>strong</code>, <code>em</code>, <code>mark</code>, <code>code</code>, <code>pre</code>, <code>blockquote</code></div>
+    <div class="kw"><b>Structure:</b> <code>header</code>, <code>nav</code>, <code>main</code>, <code>section</code>, <code>article</code>, <code>aside</code>, <code>footer</code>, <code>div</code>, <code>span</code></div>
+    <div class="kw"><b>Media:</b> <code>img</code>, <code>picture</code>, <code>audio</code>, <code>video</code>, <code>source</code>, <code>track</code></div>
+    <div class="kw"><b>Forms:</b> <code>form</code>, <code>label</code>, <code>input</code>, <code>select</code>, <code>textarea</code>, <code>button</code>, <code>datalist</code>, <code>output</code>, <code>progress</code></div>
+    <div class="kw"><b>Tables:</b> <code>table</code>, <code>thead</code>, <code>tbody</code>, <code>tfoot</code>, <code>tr</code>, <code>th</code>, <code>td</code>, <code>caption</code>, <code>colgroup</code></div>
+    <div class="kw"><b>Embeds:</b> <code>iframe</code>, <code>canvas</code>, <code>svg</code>, <code>math</code></div>
+  </div>
+
+  <h2>Quick Cheats — CSS Properties (selected)</h2>
+  <div class="cols3">
+    <div class="kw"><b>Layout:</b> <code>display</code>, <code>position</code>, <code>top/right/bottom/left</code>, <code>z-index</code>, <code>float</code>, <code>clear</code>, <code>overflow</code></div>
+    <div class="kw"><b>Flex:</b> <code>flex</code>, <code>flex-grow</code>, <code>flex-shrink</code>, <code>flex-basis</code>, <code>justify-content</code>, <code>align-items</code>, <code>gap</code></div>
+    <div class="kw"><b>Grid:</b> <code>grid-template-*</code>, <code>grid-auto-*</code>, <code>place-items</code>, <code>grid-area</code></div>
+    <div class="kw"><b>Box:</b> <code>margin</code>, <code>padding</code>, <code>border*</code>, <code>box-shadow</code>, <code>box-sizing</code>, <code>outline*</code></div>
+    <div class="kw"><b>Type:</b> <code>font*</code>, <code>line-height</code>, <code>letter-spacing</code>, <code>text-align</code>, <code>text-transform</code>, <code>text-decoration*</code></div>
+    <div class="kw"><b>Visual:</b> <code>color</code>, <code>background*</code>, <code>opacity</code>, <code>filter</code>, <code>backdrop-filter</code>, <code>border-radius</code>, <code>cursor</code></div>
+    <div class="kw"><b>Media/Feature:</b> <code>@media</code>, <code>@supports</code>, <code>@container</code>, <code>@keyframes</code></div>
+  </div>
+
+  <h2>Quick Cheats — JS Methods (selected)</h2>
+  <div class="cols2">
+    <div class="kw"><b>Array:</b> <code>map</code>, <code>filter</code>, <code>reduce</code>, <code>find</code>, <code>some</code>, <code>every</code>, <code>includes</code>, <code>slice</code>, <code>splice</code>, <code>flat</code>, <code>flatMap</code></div>
+    <div class="kw"><b>String:</b> <code>includes</code>, <code>startsWith</code>, <code>endsWith</code>, <code>replace/replaceAll</code>, <code>padStart/End</code>, <code>split</code>, <code>trim</code></div>
+    <div class="kw"><b>Object:</b> <code>keys</code>, <code>values</code>, <code>entries</code>, <code>assign</code>, <code>fromEntries</code></div>
+    <div class="kw"><b>Promise:</b> <code>then</code>, <code>catch</code>, <code>finally</code>, <code>all</code>, <code>allSettled</code>, <code>race</code>, <code>any</code></div>
+    <div class="kw"><b>DOM:</b> <code>querySelector*</code>, <code>classList</code>, <code>closest</code>, <code>append/prepend</code>, <code>before/after</code>, <code>addEventListener</code></div>
+    <div class="kw"><b>Web:</b> <code>fetch</code>, <code>URL</code>, <code>URLSearchParams</code>, <code>localStorage</code>, <code>sessionStorage</code></div>
+  </div>
+
+  <p class="tip">Want this expanded further? I can add many more **row-wise cards**: full HTML form controls with attributes, an extended CSS property catalog (dozens more), and comprehensive JS reference (Date, Intl, TypedArrays, Error types, etc.) — still static, printable, and with no scripts.</p>
+</div>
+</body>
+</html>
