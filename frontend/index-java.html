@@ -187,54 +187,75 @@ function extractErrorLine(text){
 }
 
 /* --- Run code (shell.js calls this) --- */
+<script>
+/* --- Run code (shell.js calls this) --- */
 window.runLang = async function(codeOverride){
   const code = (typeof codeOverride === 'string' && codeOverride.trim())
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  setConsole('Running…');
+  // Build a Piston v2 payload (language REQUIRED when calling Piston directly)
+  const payload = {
+    language: 'java',
+    version: '*',                     // let Piston pick the latest
+    files: [{ name: 'Main.java', content: code }],
+    args: [],
+    stdin: '',
+    compile_timeout: 10000,
+    run_timeout: 3000
+  };
 
-  try{
-    const res = await fetch('https://emkc.org/api/v2/piston/execute', {
+  let data;
+  try {
+    const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        language: 'java',          // omit version -> use latest on Piston
-        files: [{ name: 'Main.java', content: code }],
-        args: [],
-        stdin: ''
-      })
+      body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error('Runner HTTP ' + res.status);
-
-    const data = await res.json();
-
-    const compileStep = data.compile || {};
-    const runStep     = data.run || {};
-
-    const compileErr = compileStep.code && compileStep.code !== 0
-      ? (compileStep.stderr || compileStep.stdout || '')
-      : '';
-
-    const stderr  = runStep.stderr || '';
-    const stdout  = runStep.stdout || '';
-    const exitCode = runStep.code ?? compileStep.code ?? 0;
-
-    printToConsole({ compileErr, stderr, stdout, code: exitCode });
-
-    // editor markers
-    window.PolyShell?.clearEditorErrors?.();
-    const errText = compileErr || stderr;
-    if (errText) {
-      const line = extractErrorLine(errText);
-      window.PolyShell?.showEditorError?.(errText.split('\\n')[0] || 'Error', line, 1);
+    // Avoid "Unexpected end of JSON input" by reading text first
+    const txt = await resp.text();
+    if (!resp.ok) {
+      // Show the first bit of the error body for debugging
+      throw new Error(`Piston ${resp.status}: ${txt.slice(0,200)}`);
     }
-  }catch(e){
-    setConsole(String(e));
-    window.PolyShell?.showEditorError?.(String(e), 1, 1);
+    data = JSON.parse(txt);
+  } catch (e) {
+    printToConsole({ compileErr: String(e) });
+    // Bubble up with a line marker so Monaco highlights line 1
+    throw new Error('line 1: ' + (e?.message || String(e)));
+  }
+
+  // Piston shape:
+  // { compile:{stdout,stderr,output,code}, run:{stdout,stderr,output,code,signal}, ... }
+  const compile = data.compile || {};
+  const run     = data.run     || {};
+
+  const compileOut = (compile.stdout || '') + (compile.stderr || '') + (compile.output || '');
+  const runStdout  = (run.stdout  || '');
+  const runStderr  = (run.stderr  || '') + (run.output || '');
+
+  const compileErr = (compile.code && compile.code !== 0) ? compileOut : '';
+  const stdout     = runStdout.trimEnd();
+  const stderr     = runStderr.trimEnd();
+
+  printToConsole({ compileErr, stderr, stdout });
+
+  // Decide success/failure
+  const ok = (!compile.code || compile.code === 0) && (run.code == null || run.code === 0);
+  if (!ok) {
+    const errText = (compileErr || stderr || 'Execution failed');
+    const line = findJavaErrorLine(errText);
+    throw new Error('line ' + line + ': ' + errText.split('\n')[0]);
   }
 };
+</script>
+
+
+
+
+
+    
 
 /* --- Clear console (shell.js calls this on Reset) --- */
 window.clearLang = function(){
