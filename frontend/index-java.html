@@ -435,18 +435,26 @@ function detectClassToRun(code){
     // Try WS quickly
     // NEW: wait longer only if stdin is likely needed
 const wsTimeout = codeNeedsInput(code) ? 1500 : 350;   // tweak 1200–2000ms if needed
-const interactive = await connectWS(wsTimeout);
+const needsStdin = codeNeedsInput(code);
 
-    if (interactive){
-      wsRunInFlight = true;
-      showInputRow(true);
-      try{
-        termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
-        return; // streaming now
-      }catch{
-        // if this fails, fall through to piston
-        try{ termWS.close(); }catch{}
-        showInputRow(false);
+// try a quick connect first (stays fast for "Hello Java!")
+let interactive = await connectWS(needsStdin ? 2500 : 350);
+
+if (!interactive && needsStdin) {
+  // runner is likely waking—tell the user and retry a bit longer
+  setConsole('Starting interactive runner…');
+  interactive = await connectWS(7000);  // one retry window
+}
+
+if (interactive) {
+  wsRunInFlight = true;
+  showInputRow(needsStdin);
+  try {
+    termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
+    return; // streaming now
+  } catch {
+    try { termWS.close(); } catch {}
+    showInputRow(false);
       }
     }
 
