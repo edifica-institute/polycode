@@ -344,18 +344,33 @@ function detectClassToRun(code){
   }
 
   // ---- Minimal input line (NO '$' prompt) ----
-  function showInputRow(show){
-    const row = document.getElementById('consoleRow');
-    if (row) row.style.display = show ? 'block' : 'none';
-    if (show) {
-      const el = document.getElementById('consoleInput');
-      if (el){
-        el.focus();
-        const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-      }
-    }
+  function focusConsoleInput() {
+  const el = document.getElementById('consoleInput');
+  if (!el) return;
+  el.focus();
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.collapse(false);
+  const s = window.getSelection();
+  s.removeAllRanges();
+  s.addRange(r);
+}
+
+function showInputRow(show) {
+  const row = document.getElementById('consoleRow');
+  const out = document.getElementById('output');
+
+  if (row) row.style.display = show ? 'block' : 'none';
+
+  // 🔓 enable typing when interactive input is needed
+  if (out) {
+    out.classList.toggle('screen-dim', !show);   // remove dim while typing
+    out.style.pointerEvents = show ? 'auto' : ''; // allow clicks/caret
   }
+
+  if (show) focusConsoleInput();
+}
+
 
   // ---- WebSocket connection with short timeout (fast fallback) ----
   let termWS = null, wsRunInFlight = false;
