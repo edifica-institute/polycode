@@ -31,6 +31,37 @@
   .cols3{columns:3;column-gap:16px}
   .kw{break-inside:avoid;border:1px solid var(--border);border-radius:10px;background:#fff;padding:6px 8px;margin:6px 0}
   @media (max-width:620px){ .kv th{width:110px} .cols2,.cols3{columns:1} }
+
+  /* Row-wise layout for kv tables on all screens */
+.kv { width: 100%; border-collapse: separate; border-spacing: 0; }
+.kv tr { display: block; padding-top: 10px; margin: 10px 0 0; border-top: 1px solid var(--border); }
+.kv tr:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
+
+.kv th { 
+  display: block; 
+  width: auto; 
+  background: transparent; 
+  padding: 0 0 4px; 
+  color: var(--muted); 
+  font-weight: 600; 
+  text-align: left; 
+}
+
+.kv td { 
+  display: block; 
+  padding: 0; 
+}
+
+/* Make code blocks pleasant and wrap nicely */
+pre { 
+  white-space: pre-wrap;      /* wrap long lines */
+  overflow-wrap: anywhere;    /* break long tokens */
+  margin: 0; 
+  background: var(--code); 
+  padding: 8px; 
+  border-radius: 8px; 
+}
+
 </style>
 </head>
 <body>
