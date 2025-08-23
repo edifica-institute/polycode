@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Java Core Packages — Packages • Functions • Use • Syntax • Examples</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+</head>
+<body>
+<div class="wrap">
+
+<h1>Java Core Packages — Packages • Functions • Use • Syntax • Examples</h1>
+<p>This reference focuses on widely used <b>Java SE</b> packages. For each package, key classes & functions (methods) are summarized with syntax and short examples. Static, no scripts, print-friendly.</p>
+
+<!-- ========================================================= -->
+<h2>Overview — Common Java SE Packages</h2>
+<table class="resp">
+  <thead><tr><th>Package / Module</th><th>Use</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Package / Module"><b>java.lang</b> (java.base)</td>
+      <td data-label="Use">Core language classes: Object, String, Math, System, Thread, exceptions</td>
+      <td data-label="Notes">Auto-imported (no <code>import</code> needed)</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.util</b> (java.base)</td>
+      <td data-label="Use">Collections, Optional, Random, Scanner, utility classes</td>
+      <td data-label="Notes">Lists, Maps, Sets, algorithms</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.time</b> (java.base)</td>
+      <td data-label="Use">Modern date/time API: LocalDate, Instant, Duration, Formatter</td>
+      <td data-label="Notes">Immutable, timezone-safe types</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.io</b> (java.base)</td>
+      <td data-label="Use">Streams, Readers/Writers for classic I/O</td>
+      <td data-label="Notes">Often paired with <b>java.nio.file</b></td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.nio.file</b> (java.base)</td>
+      <td data-label="Use">NIO.2 filesystem: Paths, Files</td>
+      <td data-label="Notes">Convenient static methods (read/write/copy/walk)</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.net</b> / <b>java.net.http</b></td>
+      <td data-label="Use">Networking (URL, URI, Inet), HTTP client (JDK 11+)</td>
+      <td data-label="Notes"><code>HttpClient</code>, <code>HttpRequest</code>, <code>HttpResponse</code></td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.util.concurrent</b></td>
+      <td data-label="Use">Threads, executors, locks, concurrent collections</td>
+      <td data-label="Notes">Futures, <code>CompletableFuture</code>, pools</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.util.stream</b></td>
+      <td data-label="Use">Stream API for functional operations on collections</td>
+      <td data-label="Notes">map/filter/reduce, collectors</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.math</b></td>
+      <td data-label="Use">BigInteger, BigDecimal for precise math</td>
+      <td data-label="Notes">Immutable arbitrary precision</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.sql</b></td>
+      <td data-label="Use">JDBC database access</td>
+      <td data-label="Notes">Driver-specific URL and dependencies</td>
+    </tr>
+    <tr>
+      <td data-label="Package / Module"><b>java.util.regex</b></td>
+      <td data-label="Use">Regular expressions (Pattern, Matcher)</td>
+      <td data-label="Notes">Java-style regex syntax</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.lang — Core</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>Object</b> (equals, hashCode, toString)</td>
+      <td data-label="Use">Base class for all objects</td>
+      <td data-label="Syntax"><code>boolean equals(Object o)</code> • <code>int hashCode()</code> • <code>String toString()</code></td>
+      <td data-label="Example"><pre>@Override public boolean equals(Object o){ /* compare fields */ }</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>String</b></td>
+      <td data-label="Use">Immutable text</td>
+      <td data-label="Syntax"><code>length()</code> • <code>substring(int,int)</code> • <code>contains</code> • <code>replace</code> • <code>format</code></td>
+      <td data-label="Example"><pre>String s = "Hello".replace("H","Y"); // "Yello"</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>StringBuilder</b></td>
+      <td data-label="Use">Mutable string builder (efficient appends)</td>
+      <td data-label="Syntax"><code>append</code> • <code>insert</code> • <code>toString()</code></td>
+      <td data-label="Example"><pre>String sb = new StringBuilder().append("A").append(1).toString();</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Math</b></td>
+      <td data-label="Use">Math utilities</td>
+      <td data-label="Syntax"><code>abs</code> • <code>ceil</code> • <code>floor</code> • <code>round</code> • <code>max/min</code> • <code>pow</code> • <code>random</code></td>
+      <td data-label="Example"><pre>double r = Math.round(3.14159 * 100.0)/100.0; // 3.14</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>System</b></td>
+      <td data-label="Use">I/O, env, time</td>
+      <td data-label="Syntax"><code>System.out.println</code> • <code>currentTimeMillis()</code> • <code>getProperty</code></td>
+      <td data-label="Example"><pre>System.out.println(System.getProperty("java.version"));</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Thread</b> / <b>Runnable</b></td>
+      <td data-label="Use">Basic concurrency</td>
+      <td data-label="Syntax"><code>new Thread(Runnable).start()</code> • <code>sleep(ms)</code></td>
+      <td data-label="Example"><pre>new Thread(() -> System.out.println("hi")).start();</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Exception</b> hierarchy</td>
+      <td data-label="Use">Errors & exceptions</td>
+      <td data-label="Syntax"><code>try { ... } catch(Exception e) { ... } finally { ... }</code></td>
+      <td data-label="Example"><pre>try { int x = 1/0; } catch (ArithmeticException e) { /* handle */ }</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.util — Collections & Utilities</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>List</b> (ArrayList, LinkedList)</td>
+      <td data-label="Use">Ordered collection (duplicates allowed)</td>
+      <td data-label="Syntax"><code>add</code> • <code>get</code> • <code>set</code> • <code>remove</code> • <code>size</code></td>
+      <td data-label="Example"><pre>List&lt;String&gt; a = new ArrayList<>(); a.add("x");</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Map</b> (HashMap, LinkedHashMap, TreeMap)</td>
+      <td data-label="Use">Key-value store</td>
+      <td data-label="Syntax"><code>put</code> • <code>get</code> • <code>containsKey</code> • <code>forEach</code></td>
+      <td data-label="Example"><pre>Map&lt;String,Integer&gt; m = new HashMap<>(); m.put("a",1);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Set</b> (HashSet, TreeSet)</td>
+      <td data-label="Use">Unique elements</td>
+      <td data-label="Syntax"><code>add</code> • <code>contains</code> • <code>remove</code></td>
+      <td data-label="Example"><pre>Set&lt;Integer&gt; s = new HashSet<>(List.of(1,2,2)); // [1,2]</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Collections</b></td>
+      <td data-label="Use">Algorithms & utilities</td>
+      <td data-label="Syntax"><code>sort</code> • <code>reverse</code> • <code>unmodifiableList</code></td>
+      <td data-label="Example"><pre>Collections.sort(list);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Optional&lt;T&gt;</b></td>
+      <td data-label="Use">Container for possibly-missing value</td>
+      <td data-label="Syntax"><code>of</code> • <code>empty</code> • <code>ofNullable</code> • <code>map</code> • <code>orElse</code></td>
+      <td data-label="Example"><pre>String name = Optional.ofNullable(user.getName()).orElse("N/A");</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Arrays</b></td>
+      <td data-label="Use">Array utilities</td>
+      <td data-label="Syntax"><code>sort</code> • <code>binarySearch</code> • <code>fill</code> • <code>toString</code></td>
+      <td data-label="Example"><pre>Arrays.sort(arr);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Random</b> / <b>SplittableRandom</b></td>
+      <td data-label="Use">Random numbers</td>
+      <td data-label="Syntax"><code>nextInt</code> • <code>nextLong</code> • <code>nextDouble</code></td>
+      <td data-label="Example"><pre>int r = new Random().nextInt(10);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Scanner</b></td>
+      <td data-label="Use">Token-based text input</td>
+      <td data-label="Syntax"><code>new Scanner(InputStream)</code> • <code>nextLine</code> • <code>nextInt</code></td>
+      <td data-label="Example"><pre>try(Scanner sc=new Scanner(System.in)){ String s=sc.nextLine(); }</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.time — Modern Date/Time</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>LocalDate</b> / <b>LocalDateTime</b></td>
+      <td data-label="Use">Date/time without zone</td>
+      <td data-label="Syntax"><code>now()</code> • <code>of()</code> • <code>plusDays</code> • <code>minusWeeks</code></td>
+      <td data-label="Example"><pre>LocalDate d = LocalDate.now().plusDays(7);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Instant</b> / <b>ZoneId</b> / <b>ZonedDateTime</b></td>
+      <td data-label="Use">Machine timestamp & time zones</td>
+      <td data-label="Syntax"><code>Instant.now()</code> • <code>ZonedDateTime.ofInstant</code></td>
+      <td data-label="Example"><pre>ZonedDateTime z = Instant.now().atZone(ZoneId.of("UTC"));</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Duration</b> / <b>Period</b></td>
+      <td data-label="Use">Time-based and date-based amounts</td>
+      <td data-label="Syntax"><code>between(a,b)</code> • <code>ofDays</code> • <code>ofHours</code></td>
+      <td data-label="Example"><pre>Duration d = Duration.between(t1, t2);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>DateTimeFormatter</b></td>
+      <td data-label="Use">Parse/format</td>
+      <td data-label="Syntax"><code>ofPattern("dd-MM-yyyy")</code> • <code>format</code> • <code>parse</code></td>
+      <td data-label="Example"><pre>String s = LocalDate.now().format(DateTimeFormatter.ISO_DATE);</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.io / java.nio.file — File I/O</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>Files</b> / <b>Paths</b></td>
+      <td data-label="Use">Read/write/copy/delete files</td>
+      <td data-label="Syntax"><code>readString</code> • <code>writeString</code> • <code>copy</code> • <code>exists</code> • <code>walk</code></td>
+      <td data-label="Example"><pre>Path p = Paths.get("data.txt");
+Files.writeString(p, "hello");
+String s = Files.readString(p);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>InputStream</b> / <b>OutputStream</b></td>
+      <td data-label="Use">Byte streams</td>
+      <td data-label="Syntax"><code>read</code> • <code>write</code> • <code>close</code> (try-with-resources)</td>
+      <td data-label="Example"><pre>try(InputStream in = new FileInputStream("a.bin")){ in.read(buf); }</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Reader</b> / <b>Writer</b> (Buffered)</td>
+      <td data-label="Use">Character streams</td>
+      <td data-label="Syntax"><code>readLine</code> • <code>write</code></td>
+      <td data-label="Example"><pre>try(BufferedReader br=new BufferedReader(new FileReader("a.txt"))){
+  String line=br.readLine();
+}</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.net / java.net.http — Networking</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>URI</b> / <b>URL</b></td>
+      <td data-label="Use">Uniform resource identifiers/locators</td>
+      <td data-label="Syntax"><code>URI.create("https://...")</code> • <code>url.openStream()</code></td>
+      <td data-label="Example"><pre>URI u = URI.create("https://example.com");</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>HttpClient</b> (JDK 11+)</td>
+      <td data-label="Use">HTTP requests</td>
+      <td data-label="Syntax"><code>HttpClient.newHttpClient()</code> • <code>HttpRequest.newBuilder(URI)</code> • <code>client.send</code></td>
+      <td data-label="Example"><pre>var client = HttpClient.newHttpClient();
+var req = HttpRequest.newBuilder(URI.create("https://api")).GET().build();
+var res = client.send(req, HttpResponse.BodyHandlers.ofString());
+System.out.println(res.body());</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.util.concurrent — Concurrency Utilities</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>ExecutorService</b> / <b>Executors</b></td>
+      <td data-label="Use">Thread pools</td>
+      <td data-label="Syntax"><code>Executors.newFixedThreadPool(n)</code> • <code>submit</code> • <code>shutdown</code></td>
+      <td data-label="Example"><pre>ExecutorService es = Executors.newFixedThreadPool(4);
+Future&lt;Integer&gt; f = es.submit(() -> 42);
+es.shutdown();</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>CompletableFuture</b></td>
+      <td data-label="Use">Async pipelines</td>
+      <td data-label="Syntax"><code>supplyAsync</code> • <code>thenApply</code> • <code>thenCompose</code> • <code>allOf</code></td>
+      <td data-label="Example"><pre>CompletableFuture.supplyAsync(() -> 21)
+  .thenApply(x -> x*2)
+  .thenAccept(System.out::println);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Concurrent Collections</b></td>
+      <td data-label="Use">Thread-safe maps/queues</td>
+      <td data-label="Syntax"><code>ConcurrentHashMap</code> • <code>BlockingQueue</code> • <code>ConcurrentLinkedQueue</code></td>
+      <td data-label="Example"><pre>Map&lt;String,Integer&gt; cm = new ConcurrentHashMap<>();</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Locks</b> & atomics</td>
+      <td data-label="Use">Low-level synchronization</td>
+      <td data-label="Syntax"><code>ReentrantLock</code> • <code>ReadWriteLock</code> • <code>AtomicInteger</code></td>
+      <td data-label="Example"><pre>var lock = new ReentrantLock();
+lock.lock();
+try { /* critical */ } finally { lock.unlock(); }</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.util.stream — Streams</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>Stream</b> operations</td>
+      <td data-label="Use">Functional processing</td>
+      <td data-label="Syntax"><code>map</code> • <code>filter</code> • <code>flatMap</code> • <code>sorted</code> • <code>distinct</code> • <code>limit</code></td>
+      <td data-label="Example"><pre>List&lt;String&gt; out = list.stream()
+  .filter(s -> s.length() > 3)
+  .map(String::toUpperCase)
+  .toList();</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Terminal</b> ops</td>
+      <td data-label="Use">Produce result</td>
+      <td data-label="Syntax"><code>collect</code> • <code>toList</code> • <code>reduce</code> • <code>forEach</code> • <code>count</code></td>
+      <td data-label="Example"><pre>int sum = nums.stream().reduce(0, Integer::sum);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>Collectors</b></td>
+      <td data-label="Use">Gather results</td>
+      <td data-label="Syntax"><code>groupingBy</code> • <code>mapping</code> • <code>joining</code> • <code>toMap</code></td>
+      <td data-label="Example"><pre>Map&lt;Integer,Long&gt; m = nums.stream()
+  .collect(Collectors.groupingBy(n -> n%2, Collectors.counting()));</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.math — Big Numbers</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>BigInteger</b></td>
+      <td data-label="Use">Arbitrary-precision integer</td>
+      <td data-label="Syntax"><code>add</code> • <code>multiply</code> • <code>pow</code> • <code>mod</code></td>
+      <td data-label="Example"><pre>BigInteger b = new BigInteger("123456789").pow(2);</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>BigDecimal</b></td>
+      <td data-label="Use">Precise decimal (money)</td>
+      <td data-label="Syntax"><code>scale</code> • <code>setScale</code> • <code>add</code> • <code>multiply</code> • <code>divide</code> (RoundingMode)</td>
+      <td data-label="Example"><pre>BigDecimal total = new BigDecimal("10.25").multiply(new BigDecimal("3"));</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.sql — JDBC</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>DriverManager</b> / <b>Connection</b></td>
+      <td data-label="Use">Open DB connections</td>
+      <td data-label="Syntax"><code>DriverManager.getConnection(url,user,pass)</code> • <code>conn.close()</code></td>
+      <td data-label="Example"><pre>try(Connection c = DriverManager.getConnection(url,u,p)){ /* ... */ }</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>PreparedStatement</b></td>
+      <td data-label="Use">Parameterized queries</td>
+      <td data-label="Syntax"><code>prepareStatement(sql)</code> • <code>setString</code>/<code>setInt</code> • <code>executeQuery</code>/<code>executeUpdate</code></td>
+      <td data-label="Example"><pre>var ps = c.prepareStatement("select * from emp where id=?");
+ps.setInt(1, 7); ResultSet rs = ps.executeQuery();</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function / Class"><b>ResultSet</b></td>
+      <td data-label="Use">Read rows</td>
+      <td data-label="Syntax"><code>next()</code> • <code>getString</code> • <code>getInt</code></td>
+      <td data-label="Example"><pre>while(rs.next()){ System.out.println(rs.getString("name")); }</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>java.util.regex — Regular Expressions</h2>
+<table class="resp">
+  <thead><tr><th>Function / Class</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Function / Class"><b>Pattern</b> / <b>Matcher</b></td>
+      <td data-label="Use">Compile and apply regex</td>
+      <td data-label="Syntax"><code>Pattern.compile("...")</code> • <code>matcher</code> • <code>find</code> • <code>matches</code></td>
+      <td data-label="Example"><pre>var m = Pattern.compile("\\d+").matcher("a1b23");
+while(m.find()) System.out.println(m.group());</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>Import & Package Declarations</h2>
+<table class="resp">
+  <thead><tr><th>Topic</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
+  <tbody>
+    <tr>
+      <td data-label="Topic"><b>package</b></td>
+      <td data-label="Use">Declare class’s package</td>
+      <td data-label="Syntax"><code>package com.example.app;</code></td>
+      <td data-label="Example"><pre>package com.example.app; public class Main { public static void main(String[] a){} }</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Topic"><b>import</b></td>
+      <td data-label="Use">Use classes without FQN</td>
+      <td data-label="Syntax"><code>import java.util.List;</code> • <code>import java.util.*;</code></td>
+      <td data-label="Example"><pre>import java.time.LocalDate; LocalDate d = LocalDate.now();</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<p><i>Note:</i> Java has many more packages (graphics, security, XML/JSON, RMI, annotations, instrumentation, etc.). If you tell me which areas you use (e.g., <b>java.security</b>, <b>java.awt</b>, <b>javax.xml</b>, <b>java.lang.reflect</b>), I’ll extend this reference in the same table format.</p>
+
+</div>
+</body>
+</html>
