@@ -1,304 +1,120 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Frontend Reference — HTML • CSS • JavaScript</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<style>
-  /* Respect system theme without setting backgrounds */
-  :root { color-scheme: light dark; }
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; line-height: 1.55; margin: 16px; }
-  @media (prefers-color-scheme: light){ body { color: #111; } }
-  @media (prefers-color-scheme: dark){ body { color: #fff; } }
-
-  /* Table basics (no background colors) */
-  table { width: 100%; border-collapse: collapse; margin: 12px 0 28px; }
-  th, td { padding: 6px; vertical-align: top; border: 1px solid currentColor; border-width: 0 0 1px 0; }
-  th { font-weight: 700; }
-  tr:last-child td { border-bottom: 0; }
-
-  /* Code blocks wrap (no background color) */
-  code, pre, tt { font-family: ui-monospace, SFMono-Regular, Consolas, Menlo, monospace; }
-  pre { margin: 0; white-space: pre-wrap; word-break: break-word; }
-
-  /* Make tables stack row-wise on small screens (like cards) */
-  @media (max-width: 800px){
-    .resp thead { display: none; }
-    .resp tr { display: block; margin: 0 0 14px; padding: 8px 0; border-top: 1px solid currentColor; }
-    .resp tr:first-child { border-top: 0; }
-    .resp td { display: block; padding: 4px 0; border: 0; }
-    .resp td::before { content: attr(data-label) ": "; font-weight: 700; display: block; margin-bottom: 2px; }
-  }
-
-  h1 { margin: 0 0 6px; }
-  h2 { margin: 20px 0 8px; }
-  p  { margin: 0 0 10px; }
-</style>
-</head>
 <body>
+  <h1>SQL Functions and Keywords Reference (MySQL/SQLite)</h1>
+  <p>This document lists important SQL functions and reserved keywords with syntax and examples, organized by category.</p>
 
-<h1>Frontend Reference — HTML • CSS • JavaScript</h1>
-<p>This document lists common HTML elements/attributes, CSS selectors/properties, and JavaScript (core & DOM) with syntax and examples. Static, no scripts, no background colors.</p>
+  <h2>Aggregate Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>COUNT</b></td><td><code>COUNT(*)</code> or <code>COUNT(expr)</code></td><td><code>SELECT COUNT(*) FROM employees;</code></td></tr>
+    <tr><td><b>SUM</b></td><td><code>SUM(expr)</code></td><td><code>SELECT SUM(salary) FROM employees;</code></td></tr>
+    <tr><td><b>AVG</b></td><td><code>AVG(expr)</code></td><td><code>SELECT AVG(age) FROM students;</code></td></tr>
+    <tr><td><b>MIN</b></td><td><code>MIN(expr)</code></td><td><code>SELECT MIN(price) FROM products;</code></td></tr>
+    <tr><td><b>MAX</b></td><td><code>MAX(expr)</code></td><td><code>SELECT MAX(score) FROM results;</code></td></tr>
+    <tr><td><b>GROUP_CONCAT</b></td><td><code>GROUP_CONCAT(expr SEPARATOR ',')</code></td><td><code>SELECT GROUP_CONCAT(name) FROM employees;</code></td></tr>
+  </table>
 
-<!-- ========================== HTML ========================== -->
-<h2>HTML — Elements</h2>
-<table class="resp">
-  <thead><tr><th>Element</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Element"><b>&lt;div&gt;, &lt;span&gt;</b></td>
-      <td data-label="Syntax"><code>&lt;div&gt;block&lt;/div&gt;</code>, <code>&lt;span&gt;inline&lt;/span&gt;</code></td>
-      <td data-label="Example"><pre>&lt;div class="card"&gt;Hello &lt;span&gt;there&lt;/span&gt;&lt;/div&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Element"><b>Semantic: header, nav, main, section, article, aside, footer</b></td>
-      <td data-label="Syntax"><code>&lt;main&gt;&lt;section&gt;&lt;article&gt;...&lt;/article&gt;&lt;/section&gt;&lt;/main&gt;</code></td>
-      <td data-label="Example"><pre>&lt;header&gt;Site&lt;/header&gt;
-&lt;main&gt;&lt;section&gt;&lt;article&gt;Post&lt;/article&gt;&lt;/section&gt;&lt;/main&gt;
-&lt;footer&gt;©&lt;/footer&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Element"><b>Headings & paragraphs</b></td>
-      <td data-label="Syntax"><code>&lt;h1&gt;..&lt;/h1&gt;</code> … <code>&lt;h6&gt;</code>, <code>&lt;p&gt;text&lt;/p&gt;</code></td>
-      <td data-label="Example"><pre>&lt;h1&gt;Title&lt;/h1&gt;
-&lt;p&gt;A paragraph.&lt;/p&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Element"><b>&lt;a&gt; (anchor)</b></td>
-      <td data-label="Syntax"><code>&lt;a href="path"&gt;text&lt;/a&gt;</code></td>
-      <td data-label="Example"><pre>&lt;a href="#faq"&gt;Jump to FAQ&lt;/a&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Element"><b>&lt;img&gt;</b></td>
-      <td data-label="Syntax"><code>&lt;img src="x.png" alt="desc" width=".." height=".."&gt;</code></td>
-      <td data-label="Example"><pre>&lt;img src="logo.png" alt="Company logo" width="120" height="40"&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Element"><b>Lists</b></td>
-      <td data-label="Syntax"><code>&lt;ul&gt;&lt;li&gt;..&lt;/li&gt;&lt;/ul&gt;</code>, <code>&lt;ol&gt;</code>, <code>&lt;dl&gt;&lt;dt&gt;&lt;dd&gt;</code></td>
-      <td data-label="Example"><pre>&lt;ol&gt;&lt;li&gt;Step 1&lt;/li&gt;&lt;li&gt;Step 2&lt;/li&gt;&lt;/ol&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Element"><b>Tables</b></td>
-      <td data-label="Syntax"><code>&lt;table&gt;&lt;thead&gt;&lt;tbody&gt;&lt;/tbody&gt;&lt;/thead&gt;&lt;/table&gt;</code></td>
-      <td data-label="Example"><pre>&lt;table&gt;
-  &lt;thead&gt;&lt;tr&gt;&lt;th&gt;Name&lt;/th&gt;&lt;th&gt;Score&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;
-  &lt;tbody&gt;&lt;tr&gt;&lt;td&gt;Ana&lt;/td&gt;&lt;td&gt;92&lt;/td&gt;&lt;/tr&gt;&lt;/tbody&gt;
-&lt;/table&gt;</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>String Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>CONCAT</b></td><td><code>CONCAT(str1, str2, ...)</code></td><td><code>SELECT CONCAT(first,' ',last) FROM users;</code></td></tr>
+    <tr><td><b>SUBSTRING</b></td><td><code>SUBSTRING(str, pos, len)</code></td><td><code>SELECT SUBSTRING('Hello',2,3); -- ell</code></td></tr>
+    <tr><td><b>LENGTH</b></td><td><code>LENGTH(str)</code></td><td><code>SELECT LENGTH('SQL'); -- 3</code></td></tr>
+    <tr><td><b>LOWER</b></td><td><code>LOWER(str)</code></td><td><code>SELECT LOWER('HELLO'); -- hello</code></td></tr>
+    <tr><td><b>UPPER</b></td><td><code>UPPER(str)</code></td><td><code>SELECT UPPER('kolkata'); -- KOLKATA</code></td></tr>
+    <tr><td><b>TRIM</b></td><td><code>TRIM(str)</code></td><td><code>SELECT TRIM('  hi  '); -- hi</code></td></tr>
+    <tr><td><b>REPLACE</b></td><td><code>REPLACE(str, from, to)</code></td><td><code>SELECT REPLACE('a_b_c','_','-');</code></td></tr>
+  </table>
 
-<h2>HTML — Forms</h2>
-<table class="resp">
-  <thead><tr><th>Control</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Control"><b>form, label, input, button</b></td>
-      <td data-label="Syntax"><code>&lt;form method="get|post"&gt;...&lt;/form&gt;</code></td>
-      <td data-label="Example"><pre>&lt;form&gt;
-  &lt;label for="email"&gt;Email&lt;/label&gt;
-  &lt;input id="email" type="email" required&gt;
-  &lt;button type="submit"&gt;Send&lt;/button&gt;
-&lt;/form&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Control"><b>Common input types</b></td>
-      <td data-label="Syntax"><code>type="text|email|number|date|checkbox|radio|file|range|color|url|tel|search"</code></td>
-      <td data-label="Example"><pre>&lt;input type="number" min="0" step="1"&gt;
-&lt;input type="checkbox"&gt; Accept</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Control"><b>textarea, select, datalist</b></td>
-      <td data-label="Syntax"><code>&lt;textarea&gt;</code>, <code>&lt;select&gt;&lt;option&gt;</code>, <code>&lt;datalist&gt;</code></td>
-      <td data-label="Example"><pre>&lt;input list="cities"&gt;
-&lt;datalist id="cities"&gt;&lt;option value="Delhi"&gt;&lt;/datalist&gt;</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>Numeric Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>ABS</b></td><td><code>ABS(x)</code></td><td><code>SELECT ABS(-7); -- 7</code></td></tr>
+    <tr><td><b>CEIL</b></td><td><code>CEIL(x)</code></td><td><code>SELECT CEIL(4.2); -- 5</code></td></tr>
+    <tr><td><b>FLOOR</b></td><td><code>FLOOR(x)</code></td><td><code>SELECT FLOOR(4.9); -- 4</code></td></tr>
+    <tr><td><b>ROUND</b></td><td><code>ROUND(x, d)</code></td><td><code>SELECT ROUND(3.14159,2); -- 3.14</code></td></tr>
+    <tr><td><b>POWER</b></td><td><code>POWER(x,y)</code></td><td><code>SELECT POWER(2,3); -- 8</code></td></tr>
+    <tr><td><b>MOD</b></td><td><code>MOD(n,m)</code></td><td><code>SELECT MOD(7,3); -- 1</code></td></tr>
+    <tr><td><b>RAND</b></td><td><code>RAND()</code></td><td><code>SELECT RAND();</code></td></tr>
+  </table>
 
-<h2>HTML — Useful Global Attributes</h2>
-<table class="resp">
-  <thead><tr><th>Attribute</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Attribute"><b>class, id, style</b></td>
-      <td data-label="Syntax"><code>&lt;div id="hero" class="card" style="color:#333"&gt;</code></td>
-      <td data-label="Example"><pre>&lt;p id="msg" class="muted"&gt;Hello&lt;/p&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Attribute"><b>lang, dir</b></td>
-      <td data-label="Syntax"><code>&lt;html lang="en" dir="ltr"&gt;</code></td>
-      <td data-label="Example"><pre>&lt;p lang="hi"&gt;नमस्ते&lt;/p&gt;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Attribute"><b>data-*</b></td>
-      <td data-label="Syntax"><code>&lt;button data-id="42"&gt;Buy&lt;/button&gt;</code></td>
-      <td data-label="Example"><pre>&lt;li data-sku="PLK-1001"&gt;Item&lt;/li&gt;</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>Date/Time Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>NOW</b></td><td><code>NOW()</code></td><td><code>SELECT NOW();</code></td></tr>
+    <tr><td><b>CURDATE</b></td><td><code>CURDATE()</code></td><td><code>SELECT CURDATE();</code></td></tr>
+    <tr><td><b>CURTIME</b></td><td><code>CURTIME()</code></td><td><code>SELECT CURTIME();</code></td></tr>
+    <tr><td><b>DATE_ADD</b></td><td><code>DATE_ADD(date, INTERVAL n unit)</code></td><td><code>SELECT DATE_ADD('2025-08-21', INTERVAL 7 DAY);</code></td></tr>
+    <tr><td><b>DATE_SUB</b></td><td><code>DATE_SUB(date, INTERVAL n unit)</code></td><td><code>SELECT DATE_SUB(NOW(), INTERVAL 1 MONTH);</code></td></tr>
+    <tr><td><b>DATEDIFF</b></td><td><code>DATEDIFF(d1, d2)</code></td><td><code>SELECT DATEDIFF('2025-09-01','2025-08-21'); -- 11</code></td></tr>
+    <tr><td><b>DATE_FORMAT</b></td><td><code>DATE_FORMAT(date, fmt)</code></td><td><code>SELECT DATE_FORMAT(NOW(),'%d-%m-%Y');</code></td></tr>
+  </table>
 
-<!-- ========================== CSS ========================== -->
-<h2>CSS — Selectors</h2>
-<table class="resp">
-  <thead><tr><th>Selector</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Selector"><b>Basic & grouping</b></td>
-      <td data-label="Syntax"><code>p</code>, <code>.card</code>, <code>#hero</code>, <code>h1, h2</code></td>
-      <td data-label="Example"><pre>.card { padding: 12px; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Selector"><b>Combinators</b></td>
-      <td data-label="Syntax"><code>.menu &gt; li</code>, <code>h2 + p</code>, <code>h2 ~ p</code>, <code>.card p</code></td>
-      <td data-label="Example"><pre>.menu &gt; li { list-style: none; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Selector"><b>Attribute selectors</b></td>
-      <td data-label="Syntax"><code>input[type="email"]</code>, <code>a[href^="#"]</code>, <code>a[href$=".pdf"]</code></td>
-      <td data-label="Example"><pre>a[href^="tel:"] { text-decoration: none; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Selector"><b>Pseudo-classes/elements</b></td>
-      <td data-label="Syntax"><code>:hover</code>, <code>:focus-visible</code>, <code>:not()</code>, <code>:nth-child()</code>, <code>::before</code>, <code>::after</code></td>
-      <td data-label="Example"><pre>.tag::before { content: "• "; }</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>Control Flow Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>CASE</b></td><td><code>CASE WHEN cond THEN val ELSE val END</code></td><td><code>SELECT CASE WHEN score>90 THEN 'A' ELSE 'B' END FROM results;</code></td></tr>
+    <tr><td><b>IF</b></td><td><code>IF(cond, true_val, false_val)</code></td><td><code>SELECT IF(active=1,'Yes','No');</code></td></tr>
+    <tr><td><b>IFNULL</b></td><td><code>IFNULL(expr1, expr2)</code></td><td><code>SELECT IFNULL(nickname,name) FROM users;</code></td></tr>
+    <tr><td><b>NULLIF</b></td><td><code>NULLIF(a,b)</code></td><td><code>SELECT NULLIF(10,10); -- NULL</code></td></tr>
+  </table>
 
-<h2>CSS — Box Model & Layout</h2>
-<table class="resp">
-  <thead><tr><th>Topic</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Topic"><b>Padding/Margin/Border/Box-sizing</b></td>
-      <td data-label="Syntax"><code>padding: t r b l;</code>, <code>margin:</code>, <code>border:</code>, <code>box-sizing:border-box;</code></td>
-      <td data-label="Example"><pre>.panel { padding: 12px 16px; box-sizing: border-box; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Width/Height & Min/Max</b></td>
-      <td data-label="Syntax"><code>width:</code>, <code>max-width:</code>, <code>min-height:</code></td>
-      <td data-label="Example"><pre>img { max-width: 100%; height: auto; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Display & Position</b></td>
-      <td data-label="Syntax"><code>display:block|inline|flex|grid</code>, <code>position:relative|absolute|sticky</code></td>
-      <td data-label="Example"><pre>.sticky { position: sticky; top: 0; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Flexbox</b></td>
-      <td data-label="Syntax"><code>display:flex</code>, <code>gap</code>, <code>justify-content</code>, <code>align-items</code>, <code>flex</code></td>
-      <td data-label="Example"><pre>.row { display:flex; gap:12px; align-items:center; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Grid</b></td>
-      <td data-label="Syntax"><code>display:grid</code>, <code>grid-template-columns</code>, <code>gap</code></td>
-      <td data-label="Example"><pre>.grid { display:grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>Conversion Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>CAST</b></td><td><code>CAST(expr AS type)</code></td><td><code>SELECT CAST('123' AS UNSIGNED);</code></td></tr>
+    <tr><td><b>CONVERT</b></td><td><code>CONVERT(expr,type)</code></td><td><code>SELECT CONVERT('2025-08-21', DATE);</code></td></tr>
+  </table>
 
-<h2>CSS — Typography & Effects</h2>
-<table class="resp">
-  <thead><tr><th>Topic</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Topic"><b>Fonts & Text</b></td>
-      <td data-label="Syntax"><code>font-family</code>, <code>font-size</code>, <code>font-weight</code>, <code>line-height</code>, <code>text-align</code></td>
-      <td data-label="Example"><pre>h1 { font-size: 24px; line-height: 1.3; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Color & Background</b></td>
-      <td data-label="Syntax"><code>color</code>, <code>background-color</code>, <code>background-image: linear-gradient(...)</code></td>
-      <td data-label="Example"><pre>.btn { color: #fff; }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Transforms/Transitions</b></td>
-      <td data-label="Syntax"><code>transform</code>, <code>transition</code>, <code>@keyframes</code></td>
-      <td data-label="Example"><pre>.btn { transition: transform .15s ease; }
-.btn:hover { transform: translateY(-1px); }</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Media/Feature/Container queries</b></td>
-      <td data-label="Syntax"><code>@media</code>, <code>@supports</code>, <code>@container</code></td>
-      <td data-label="Example"><pre>@media (max-width:640px){ .grid{ grid-template-columns:1fr; } }</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>JSON Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>JSON_EXTRACT</b></td><td><code>JSON_EXTRACT(doc, path)</code></td><td><code>SELECT JSON_EXTRACT('{"a":1}', '$.a');</code></td></tr>
+    <tr><td><b>JSON_OBJECT</b></td><td><code>JSON_OBJECT(key,val,...)</code></td><td><code>SELECT JSON_OBJECT('id',1,'name','Dip');</code></td></tr>
+    <tr><td><b>JSON_ARRAY</b></td><td><code>JSON_ARRAY(val,...)</code></td><td><code>SELECT JSON_ARRAY(1,'a',TRUE);</code></td></tr>
+    <tr><td><b>JSON_SET</b></td><td><code>JSON_SET(doc, path, val)</code></td><td><code>SELECT JSON_SET('{"a":1}', '$.a',2);</code></td></tr>
+  </table>
 
-<!-- ========================== JavaScript ========================== -->
-<h2>JavaScript — Core</h2>
-<table class="resp">
-  <thead><tr><th>Topic</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Topic"><b>let / const / var</b></td>
-      <td data-label="Syntax"><code>let x = 1;</code>, <code>const PI = 3.14;</code>, <code>var old;</code></td>
-      <td data-label="Example"><pre>const name = "Dip"; let count = 0;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Functions & Arrows</b></td>
-      <td data-label="Syntax"><code>function f(a){}</code>, <code>const f = (a) =&gt; {}</code></td>
-      <td data-label="Example"><pre>const add = (a,b) =&gt; a + b;</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Arrays — map/filter/reduce</b></td>
-      <td data-label="Syntax"><code>arr.map</code>, <code>arr.filter</code>, <code>arr.reduce</code>, <code>includes</code>, <code>find</code></td>
-      <td data-label="Example"><pre>[1,2,3].map(x =&gt; x*2) // [2,4,6]</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Strings — replace/pad/split</b></td>
-      <td data-label="Syntax"><code>replace</code>, <code>replaceAll</code>, <code>padStart</code>, <code>split</code>, <code>startsWith</code></td>
-      <td data-label="Example"><pre>"Hello".padStart(7,"_") // "__Hello"</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Objects & JSON</b></td>
-      <td data-label="Syntax"><code>Object.keys/values/entries</code>, <code>JSON.parse/stringify</code></td>
-      <td data-label="Example"><pre>const o = {a:1}; const p = {...o, b:2};</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Promises / async–await</b></td>
-      <td data-label="Syntax"><code>new Promise()</code>, <code>async function</code>, <code>await</code></td>
-      <td data-label="Example"><pre>async function load(){ return 42; }</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>Window Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>ROW_NUMBER</b></td><td><code>ROW_NUMBER() OVER(ORDER BY expr)</code></td><td><code>SELECT ROW_NUMBER() OVER(ORDER BY score) FROM results;</code></td></tr>
+    <tr><td><b>RANK</b></td><td><code>RANK() OVER(...)</code></td><td><code>SELECT RANK() OVER(ORDER BY score DESC) FROM results;</code></td></tr>
+    <tr><td><b>DENSE_RANK</b></td><td><code>DENSE_RANK() OVER(...)</code></td><td><code>SELECT DENSE_RANK() OVER(ORDER BY score) FROM results;</code></td></tr>
+    <tr><td><b>LAG</b></td><td><code>LAG(expr) OVER(...)</code></td><td><code>SELECT LAG(score) OVER(ORDER BY date) FROM results;</code></td></tr>
+    <tr><td><b>LEAD</b></td><td><code>LEAD(expr) OVER(...)</code></td><td><code>SELECT LEAD(score) OVER(ORDER BY date) FROM results;</code></td></tr>
+  </table>
 
-<h2>JavaScript — DOM & Web</h2>
-<table class="resp">
-  <thead><tr><th>Topic</th><th>Syntax</th><th>Example</th></tr></thead>
-  <tbody>
-    <tr>
-      <td data-label="Topic"><b>Select elements</b></td>
-      <td data-label="Syntax"><code>document.getElementById</code>, <code>querySelector</code>, <code>querySelectorAll</code></td>
-      <td data-label="Example"><pre>// const el = document.querySelector(".btn");</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Create & insert</b></td>
-      <td data-label="Syntax"><code>createElement</code>, <code>append</code>, <code>before/after</code></td>
-      <td data-label="Example"><pre>// const li = document.createElement("li"); li.textContent="Item"; list.append(li);</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Events</b></td>
-      <td data-label="Syntax"><code>addEventListener('click', handler)</code>, <code>preventDefault</code></td>
-      <td data-label="Example"><pre>// btn.addEventListener('click', e =&gt; e.preventDefault());</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Fetch API</b></td>
-      <td data-label="Syntax"><code>fetch(url, { method, headers, body })</code> → Promise</td>
-      <td data-label="Example"><pre>/* async */ fetch('/api').then(r =&gt; r.json())</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Topic"><b>Storage</b></td>
-      <td data-label="Syntax"><code>localStorage.setItem/getItem</code>, <code>sessionStorage</code></td>
-      <td data-label="Example"><pre>localStorage.setItem("k","v");</pre></td>
-    </tr>
-  </tbody>
-</table>
+  <h2>Information Functions</h2>
+  <table>
+    <tr><th>Function</th><th>Syntax</th><th>Example</th></tr>
+    <tr><td><b>VERSION</b></td><td><code>VERSION()</code></td><td><code>SELECT VERSION();</code></td></tr>
+    <tr><td><b>DATABASE</b></td><td><code>DATABASE()</code></td><td><code>SELECT DATABASE();</code></td></tr>
+    <tr><td><b>USER</b></td><td><code>USER()</code></td><td><code>SELECT USER();</code></td></tr>
+    <tr><td><b>LAST_INSERT_ID</b></td><td><code>LAST_INSERT_ID()</code></td><td><code>SELECT LAST_INSERT_ID();</code></td></tr>
+  </table>
 
-<p><i>Tip:</i> Tables auto-stack on small screens (row-wise) so code blocks are always full-width. No background colors are used; text switches to dark/light with your system theme.</p>
+  <h2>Common SQL Keywords</h2>
+  <table>
+    <tr><th>Keyword</th><th>Usage</th></tr>
+    <tr><td><b>SELECT</b></td><td>Retrieve rows from a table</td></tr>
+    <tr><td><b>INSERT</b></td><td>Add new rows into a table</td></tr>
+    <tr><td><b>UPDATE</b></td><td>Modify existing rows</td></tr>
+    <tr><td><b>DELETE</b></td><td>Remove rows from a table</td></tr>
+    <tr><td><b>CREATE</b></td><td>Create objects (tables, views, etc.)</td></tr>
+    <tr><td><b>ALTER</b></td><td>Modify schema objects</td></tr>
+    <tr><td><b>DROP</b></td><td>Delete objects</td></tr>
+    <tr><td><b>JOIN</b></td><td>Combine rows from multiple tables</td></tr>
+    <tr><td><b>WHERE</b></td><td>Filter rows</td></tr>
+    <tr><td><b>GROUP BY</b></td><td>Aggregate rows</td></tr>
+    <tr><td><b>HAVING</b></td><td>Filter groups</td></tr>
+    <tr><td><b>ORDER BY</b></td><td>Sort result rows</td></tr>
+    <tr><td><b>UNION</b></td><td>Combine result sets</td></tr>
+    <tr><td><b>LIMIT</b></td><td>Restrict number of rows</td></tr>
+  </table>
 
+  <p><i>Note:</i> SQL syntax and functions vary slightly between database systems (MySQL, PostgreSQL, SQL Server, Oracle, SQLite). This reference is based on common MySQL 8.0 style usage.</p>
 </body>
 </html>
+
