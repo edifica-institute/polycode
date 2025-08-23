@@ -222,34 +222,30 @@ async function getPistonJavaVersion(forceRefresh = false){
   return __pistonJavaVersion;
 }
 
-    async function pistonExecuteJava({ code, fileName, version }){
+    async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
+  const body = JSON.stringify({
+    language: 'java',
+    version,
+    files: [{ name: fileName, content: code }],
+    stdin
+  });
+
+  const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body
+  });
+
+  const text = await resp.text();
+  let data = null;
   try {
-    const body = JSON.stringify({
-      language: 'java',
-      version,
-      files: [{ name: fileName, content: code }]
-    });
-
-    const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body
-    });
-
-    const text = await resp.text();
-    let data = null;
-    try {
-      if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-        data = JSON.parse(text);
-      }
-    } catch {}
-
-    return { ok: resp.ok, status: resp.status, text, data };
-  } catch (e) {
-    // Surface offline / DNS / CORS errors in the console gracefully
-    return { ok: false, status: 0, text: String(e), data: null };
-  }
+    if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+      data = JSON.parse(text);
+    }
+  } catch {}
+  return { ok: resp.ok, status: resp.status, text, data };
 }
+
 
 
     
@@ -276,23 +272,57 @@ try {
 return { ok: resp.ok, status: resp.status, text, data };
 }*/  
 
+
+// Pull stdin from special comments in the code and remove them before compile
+function extractInlineStdin(code){
+  let stdin = '';
+
+  // Multi-line form:
+  // /* stdin:
+  // line1
+  // line2
+  // */
+  const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
+  code = code.replace(block, (_, __, content) => {
+    stdin = content.replace(/^\s*\* ?/gm, ''); // strip leading '*' in block comments
+    return '';
+  });
+
+  // Single-line form: // stdin: 42\n99  (use \n for newlines)
+  if (!stdin) {
+    const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
+    const m = code.match(line);
+    if (m) {
+      stdin = m[2].replace(/\\n/g, '\n');
+      code = code.replace(line, '');
+    }
+  }
+
+  return { code: code.trim(), stdin: stdin.replace(/\r\n?/g, '\n') };
+}
+
+
+
+
+
+    
 window.runLang = async function(codeOverride){
-  const code = (typeof codeOverride === 'string' && codeOverride.trim())
+  const raw = (typeof codeOverride === 'string' && codeOverride.trim())
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  // Detect the public class name; default to Main
+  const { code, stdin } = extractInlineStdin(raw);
+
   const classMatch = code.match(/public\s+class\s+([A-Za-z_]\w*)/);
   const className  = (classMatch && classMatch[1]) || 'Main';
   const fileName   = `${className}.java`;
 
   let version = await getPistonJavaVersion();
-  let res     = await pistonExecuteJava({ code, fileName, version });
+  let res     = await pistonExecuteJava({ code, fileName, version, stdin });
 
-  // If the version is missing/unknown, refresh runtimes once and retry
   if (!res.ok && /version.*(required|unknown)/i.test(res.text || '')) {
-    version = await getPistonJavaVersion(true); // force refresh
-    res     = await pistonExecuteJava({ code, fileName, version });
+    version = await getPistonJavaVersion(true);
+    res     = await pistonExecuteJava({ code, fileName, version, stdin });
   }
 
   if (!res.ok) {
@@ -300,22 +330,20 @@ window.runLang = async function(codeOverride){
     throw new Error('line 1: request failed');
   }
 
-  // Piston v2 shape
   const data       = res.data || {};
   const compileErr = data.compile?.stderr || '';
   const stderr     = data.run?.stderr || '';
   const stdout     = data.run?.stdout || '';
-  const ok         = (data.run?.code === 0) && !compileErr;
-
- // printToConsole({ compileErr, stderr, stdout });
   printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
 
+  const ok = (data.run?.code === 0) && !compileErr;
   if (!ok){
     const errText = (compileErr || stderr || 'Execution failed').trim();
     const line = findJavaErrorLine(errText, className);
     throw new Error(`line ${line}: ${(errText.split('\n')[0] || 'Execution failed')}`);
   }
 };
+
 
 
 
