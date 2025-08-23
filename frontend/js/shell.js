@@ -1,11 +1,37 @@
 // Start idle animation immediately on page load
 
 // Disable right-click globally
+// Block Ctrl/Cmd+C & "copy" everywhere EXCEPT editor/console/inputs
 (function () {
-  document.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-  }, { capture: true });
+  const allow = (el) =>
+    el.closest('#editor') || el.closest('#jconsole') ||
+    el.closest('input,textarea,[contenteditable="true"]');
+
+  // Keyboard copy (Ctrl/Cmd+C, Ctrl+Insert)
+  document.addEventListener('keydown', (e) => {
+    const isCopyKey =
+      ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') ||
+      ((e.ctrlKey || e.metaKey) && e.key === 'Insert'); // Ctrl+Insert
+    if (isCopyKey && !allow(e.target)) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }, true);
+
+  // Any copy attempt (menu, execCommand('copy'), etc.)
+  document.addEventListener('copy', (e) => {
+    if (!allow(e.target)) {
+      e.preventDefault();               // cancel copy
+      try { e.clipboardData?.setData('text/plain', ''); } catch {}
+    }
+  }, true);
+
+  // (Optional) discourage selection on the left panel
+  const left = document.getElementById('leftPanel');
+  if (left) left.style.userSelect = 'none';
 })();
+
+
 
 
 
