@@ -391,6 +391,17 @@ function detectClassToRun(code){
     });
   }
 
+
+  function codeNeedsInput(code){
+  return (
+    /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
+    /\bBufferedReader\s*\(\s*new\s+InputStreamReader\s*\(\s*System\.in\s*\)\s*\)/.test(code) ||
+    /\bSystem\.in\b/.test(code)
+  );
+}
+
+  
+
   // ---- Send input when user presses Enter in the input line ----
   document.addEventListener('keydown', (e)=>{
     const el = document.getElementById('consoleInput');
@@ -422,7 +433,10 @@ function detectClassToRun(code){
     document.getElementById('output')?.classList.remove('error');
 
     // Try WS quickly
-    const interactive = await connectWS(350); // 250–500ms is fine
+    // NEW: wait longer only if stdin is likely needed
+const wsTimeout = codeNeedsInput(code) ? 1500 : 350;   // tweak 1200–2000ms if needed
+const interactive = await connectWS(wsTimeout);
+
     if (interactive){
       wsRunInFlight = true;
       showInputRow(true);
