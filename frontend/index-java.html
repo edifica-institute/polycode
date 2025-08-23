@@ -13,7 +13,6 @@
 <body class="page-fade">
   <!-- Header -->
   <header class="site-header">
-    <!-- centered brand block -->
     <div class="brand-wrap">
       <div class="brand-grid">
         <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
@@ -24,7 +23,6 @@
       </div>
     </div>
 
-    <!-- right nav -->
     <nav class="site-nav">
       <a href="./index.html">Home</a>
       <a href="./about.html">About</a>
@@ -38,7 +36,6 @@
       <!-- LEFT panel -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
-          <!-- Language dropdown -->
           <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
             <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
@@ -58,7 +55,6 @@
       <!-- CENTER panel (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
-          <!-- theme -->
           <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
             <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
           </button>
@@ -162,31 +158,33 @@ window.bootstrap = async function bootstrap(){
   window.PolyShell.loadLeftContent('java');  // loads /content/java.html into left pane (optional)
 };
 
-/* --- Small console helper --- */
-function printToConsole({compileErr='', stderr='', stdout=''}){
+/* --- Console helpers --- */
+function setConsole(text){
   const el = document.getElementById('jconsole');
   if (!el) return;
-  el.textContent = '';
-  if (compileErr) el.textContent += compileErr + '\\n';
-  if (stderr)     el.textContent += stderr + '\\n';
-  if (stdout)     el.textContent += stdout;
+  el.textContent = text || '';
   const out = document.getElementById('output');
   out && (out.scrollTop = out.scrollHeight);
 }
-
-/* --- Try to find a line number from compiler/runtime output --- */
-function findJavaErrorLine(text){
-  // javac:  Main.java:5: error: ...
-  let m = /Main\.java:(\d+):/.exec(text);
-  if (m) return Number(m[1]);
-
-  // runtime: at Main.main(Main.java:12)
-  m = /Main\.java:(\d+)\)/.exec(text);
-  if (m) return Number(m[1]);
-
-  return 1;
+function printToConsole({compileErr='', stderr='', stdout='', code=0}){
+  let msg = '';
+  if (compileErr) msg += compileErr + '\\n';
+  if (stderr)     msg += stderr + '\\n';
+  if (stdout)     msg += stdout;
+  msg += (msg ? '\\n\\n' : '') + 'Exit code: ' + code;
+  setConsole(msg);
 }
 
+/* --- Extract first useful Java line number (compile or runtime) --- */
+function extractErrorLine(text){
+  // javac: "Main.java:5: error: ...", or ".../Main.java:5: ..."
+  let m = /(^|\\n)[^\\n]*?\\.java:(\\d+):/m.exec(text);
+  if (m) return Number(m[2]);
+  // runtime: "at Main.main(Main.java:12)"
+  m = /\\bat\\s+[^(]+\\([^:]+\\.java:(\\d+)\\)/m.exec(text);
+  if (m) return Number(m[1]);
+  return 1;
+}
 
 /* --- Run code (shell.js calls this) --- */
 window.runLang = async function(codeOverride){
@@ -194,41 +192,53 @@ window.runLang = async function(codeOverride){
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  let data = {};
+  setConsole('Running…');
+
   try{
-    const resp = await fetch('/api/run/java', {
+    const res = await fetch('https://emkc.org/api/v2/piston/execute', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({
+        language: 'java',          // omit version -> use latest on Piston
         files: [{ name: 'Main.java', content: code }],
-        version: '17'
+        args: [],
+        stdin: ''
       })
     });
-    data = await resp.json();
+
+    if (!res.ok) throw new Error('Runner HTTP ' + res.status);
+
+    const data = await res.json();
+
+    const compileStep = data.compile || {};
+    const runStep     = data.run || {};
+
+    const compileErr = compileStep.code && compileStep.code !== 0
+      ? (compileStep.stderr || compileStep.stdout || '')
+      : '';
+
+    const stderr  = runStep.stderr || '';
+    const stdout  = runStep.stdout || '';
+    const exitCode = runStep.code ?? compileStep.code ?? 0;
+
+    printToConsole({ compileErr, stderr, stdout, code: exitCode });
+
+    // editor markers
+    window.PolyShell?.clearEditorErrors?.();
+    const errText = compileErr || stderr;
+    if (errText) {
+      const line = extractErrorLine(errText);
+      window.PolyShell?.showEditorError?.(errText.split('\\n')[0] || 'Error', line, 1);
+    }
   }catch(e){
-    // Surface network errors in the console pane
-    printToConsole({ compileErr: String(e) });
-    throw new Error('line 1: ' + String(e));
-  }
-
-  const compileErr = data.compile_stderr || data.compile_error || '';
-  const stderr     = data.stderr || '';
-  const stdout     = data.stdout || '';
-  const ok         = !!data.ok || (!compileErr && (data.status?.id === 3 || data.status?.description === 'Accepted'));
-
-  printToConsole({ compileErr, stderr, stdout });
-
-  if (!ok){
-    const errText = compileErr || stderr || 'Execution failed';
-    const line = findJavaErrorLine(errText);
-    throw new Error('line ' + line + ': ' + errText.split('\\n')[0]);
+    setConsole(String(e));
+    window.PolyShell?.showEditorError?.(String(e), 1, 1);
   }
 };
 
 /* --- Clear console (shell.js calls this on Reset) --- */
 window.clearLang = function(){
-  const el = document.getElementById('jconsole');
-  if (el) el.textContent = '';
+  setConsole('');
   document.getElementById('output')
     ?.style.setProperty('background','transparent','important');
 };
