@@ -197,14 +197,14 @@ document.getElementById('preview')?.style.setProperty('background','transparent'
   window.PolyShell.getTheme = () => (isLight() ? 'light' : 'dark');
   window.PolyShell.reapplyTheme = () => setTheme(isLight() ? 'light' : 'dark');
 
-  // initial icon
-  setIcon(isLight());
-
+ 
     try {
   const saved = localStorage.getItem('polycode_theme');
   if (saved === 'light' || saved === 'dark') setTheme(saved);
 } catch {}
 
+ // initial icon
+  setIcon(isLight());
 
   
 })();
