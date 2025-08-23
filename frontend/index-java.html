@@ -189,23 +189,6 @@ function setConsole(text){
 
     
 
-/* --- Extract first useful Java line number (compile or runtime) --- */
-function extractErrorLine(text){
-  // javac: "Main.java:5: error: ...", or ".../Main.java:5: ..."
-  let m = /(^|\\n)[^\\n]*?\\.java:(\\d+):/m.exec(text);
-  if (m) return Number(m[2]);
-  // runtime: "at Main.main(Main.java:12)"
-  m = /\\bat\\s+[^(]+\\([^:]+\\.java:(\\d+)\\)/m.exec(text);
-  if (m) return Number(m[1]);
-  return 1;
-}
-
-
-/* --- Run code (shell.js calls this) --- */
-function findPublicClassName(code){
-  const m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/);
-  return m ? m[1] : null;
-}
 
 
  
