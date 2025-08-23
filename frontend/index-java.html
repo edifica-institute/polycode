@@ -204,43 +204,73 @@ function findJavaErrorLine(text, className){
   return 1;
 }
 
-  
+let __pistonJavaVersion = null;
+
+async function getPistonJavaVersion(forceRefresh = false){
+  if (!forceRefresh && __pistonJavaVersion) return __pistonJavaVersion;
+
+  try {
+    const resp = await fetch('https://emkc.org/api/v2/piston/runtimes');
+    const runtimes = await resp.json();
+
+    // Prefer 'java' entry; fallbacks for older labels just in case
+    const java = runtimes.find(r => r.language === 'java')
+             || runtimes.find(r => /open.?jdk/i.test(r.language))
+             || runtimes.find(r => /java/i.test(r.language));
+
+    __pistonJavaVersion = java?.version || '21'; // reasonable default guess
+  } catch {
+    __pistonJavaVersion = '21'; // offline/failure fallback
+  }
+  return __pistonJavaVersion;
+}
+
+async function pistonExecuteJava({ code, fileName, version }){
+  const body = JSON.stringify({
+    language: 'java',
+    version,
+    files: [{ name: fileName, content: code }]
+  });
+
+  const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body
+  });
+
+  const text = await resp.text();
+  const isJSON = (resp.headers.get('content-type')||'').includes('application/json');
+  const data = isJSON ? JSON.parse(text) : null;
+
+  return { ok: resp.ok, status: resp.status, text, data };
+}  
 
 window.runLang = async function(codeOverride){
   const code = (typeof codeOverride === 'string' && codeOverride.trim())
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  // Detect the public class name (fallback to Main if none)
+  // Detect the public class name; default to Main
   const classMatch = code.match(/public\s+class\s+([A-Za-z_]\w*)/);
   const className  = (classMatch && classMatch[1]) || 'Main';
   const fileName   = `${className}.java`;
 
-  let data;
-  try{
-    const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      // IMPORTANT: do NOT send "version"
-      body: JSON.stringify({
-        language: 'java',
-        files: [{ name: fileName, content: code }]
-      })
-    });
+  let version = await getPistonJavaVersion();
+  let res     = await pistonExecuteJava({ code, fileName, version });
 
-    // Defensive: handle non-JSON error bodies cleanly
-    const ctype = resp.headers.get('content-type') || '';
-    const raw   = await resp.text();
-    if (!resp.ok) {
-      throw new Error(`HTTP ${resp.status} ${resp.statusText} — ${raw.slice(0,200)}`);
-    }
-    data = ctype.includes('application/json') ? JSON.parse(raw) : {};
-  }catch(e){
-    printToConsole({ compileErr: String(e) });
-    throw new Error('line 1: ' + String(e));
+  // If the version is missing/unknown, refresh runtimes once and retry
+  if (!res.ok && /version.*(required|unknown)/i.test(res.text || '')) {
+    version = await getPistonJavaVersion(true); // force refresh
+    res     = await pistonExecuteJava({ code, fileName, version });
   }
 
-  // Piston result shape
+  if (!res.ok) {
+    printToConsole({ compileErr: `HTTP ${res.status} — ${res.text.slice(0,200)}` });
+    throw new Error('line 1: request failed');
+  }
+
+  // Piston v2 shape
+  const data       = res.data || {};
   const compileErr = data.compile?.stderr || '';
   const stderr     = data.run?.stderr || '';
   const stdout     = data.run?.stdout || '';
@@ -254,7 +284,6 @@ window.runLang = async function(codeOverride){
     throw new Error(`line ${line}: ${(errText.split('\n')[0] || 'Execution failed')}`);
   }
 };
-
 
 
 
