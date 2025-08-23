@@ -198,40 +198,31 @@ window.runLang = async function(codeOverride){
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  // Disallow packages in this simple runner
-  if (/\bpackage\s+/.test(code)) {
-    printToConsole({ compileErr: 'Packages are not supported in this runner. Remove the package declaration.' });
-    throw new Error('line 1: packages not supported');
-  }
+  // Detect the public class name so users aren't forced to call it "Main"
+  const classMatch = code.match(/public\s+class\s+([A-Za-z_]\w*)/);
+  const className  = (classMatch && classMatch[1]) || 'Main';
+  const fileName   = `${className}.java`;
 
-  const files = [];
-  const userPublic = findPublicClassName(code);
-
-  if (userPublic && userPublic !== 'Main') {
-    // 1) send user's code in the correctly named file
-    files.push({ name: `${userPublic}.java`, content: code });
-    // 2) add a Main wrapper that delegates to user's main
-    files.push({
-      name: 'Main.java',
-      content:
-`public class Main {
-  public static void main(String[] args) throws Exception {
-    ${userPublic}.main(args);
-  }
-}`
-    });
-  } else {
-    // either no public class, or it is already Main -> keep original plan
-    files.push({ name: 'Main.java', content: code });
-  }
-
-  let data = {};
+  let data;
   try{
-    const resp = await fetch('/api/run/java', {
+    const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ files, version: '17' })
+      body: JSON.stringify({
+        language: 'java',
+        // you can leave version undefined to use latest, or pin something like '17'
+        version: '17',
+        files: [{ name: fileName, content: code }]
+      })
     });
+
+    // If server didn’t return JSON, surface a readable error
+    const ct = resp.headers.get('content-type') || '';
+    if (!resp.ok || !ct.includes('application/json')) {
+      const txt = await resp.text().catch(()=> '');
+      throw new Error(`HTTP ${resp.status} ${resp.statusText} — ${txt.slice(0,200)}`);
+    }
+
     data = await resp.json();
   }catch(e){
     printToConsole({ compileErr: String(e) });
@@ -239,28 +230,20 @@ window.runLang = async function(codeOverride){
   }
 
   // Piston shape:
-  // { compile:{stdout,stderr,output,code}, run:{stdout,stderr,output,code,signal}, ... }
- const compile = data.compile || {};
-const run     = data.run     || {};
+  // { run: { stdout, stderr, code }, compile?: { stdout, stderr, code } }
+  const compileErr = data.compile?.stderr || '';
+  const stderr     = data.run?.stderr || '';
+  const stdout     = data.run?.stdout || '';
+  const ok         = data.run?.code === 0 && !compileErr;
 
-// Use raw streams only (avoid compile.output/run.output to prevent duplicates)
-const compileErr = (compile.code && compile.code !== 0)
-  ? (compile.stderr || compile.stdout || '')
-  : '';
+  printToConsole({ compileErr, stderr, stdout });
 
-const stdout = (run.stdout || '').trimEnd();
-const stderr = (run.stderr || '').trimEnd();
-
-printToConsole({ compileErr, stderr, stdout });
-
-const ok = (!compile.code || compile.code === 0) && (run.code == null || run.code === 0);
-if (!ok) {
-  const errText = (compileErr || stderr || 'Execution failed');
-  const line = findJavaErrorLine(errText);
-  throw new Error('line ' + line + ': ' + errText.split('\n')[0]);
-}
+  if (!ok){
+    const errText = (compileErr || stderr || 'Execution failed').trim();
+    const line = findJavaErrorLine(errText);
+    throw new Error(`line ${line}: ${errText.split('\n')[0]}`);
+  }
 };
-
 
 
 
