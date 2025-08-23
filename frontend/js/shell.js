@@ -744,14 +744,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
 /* ===========================
    export minimal API
-=========================== */
+===========================
 window.PolyShell = {
   initMonaco,
   setStatus,
   showEditorError,
   clearEditorErrors,
   loadLeftContent
-};
+}; */
 
 
 
