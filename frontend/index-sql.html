@@ -280,9 +280,39 @@ SELECT * FROM users;`;
     }
   };
 
-  window.clearLang = function(){
+  /*window.clearLang = function(){
     document.getElementById('sqlout').innerHTML = '';
-  };
+  };*/
+
+
+window.clearLang = function () {
+  // SQL page
+  const sqlout = document.getElementById('sqlout');
+  if (sqlout) sqlout.replaceChildren();
+
+  // Web page
+  const frame = document.getElementById('preview');
+  if (frame) {
+    const mode = window.PolyShell?.getTheme?.() || (document.body.classList.contains('light') ? 'light' : 'dark');
+    frame.srcdoc = `
+      <!doctype html><meta charset="utf-8">
+      <meta name="color-scheme" content="${mode}">
+      <style>
+        :root{ color-scheme:${mode}; }
+        html,body{ margin:0; background:transparent !important; color:inherit; }
+      </style>
+      <body></body>
+    `;
+  }
+
+  // Belt & suspenders
+  document.getElementById('output')
+    ?.style.setProperty('background','transparent','important');
+};
+
+
+
+    
 </script>
 
 
