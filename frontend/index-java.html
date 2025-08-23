@@ -418,21 +418,32 @@ function showInputRow(show) {
   
 
   // ---- Send input when user presses Enter in the input line ----
-  document.addEventListener('keydown', (e)=>{
-    const el = document.getElementById('consoleInput');
-    if (!el || el.offsetParent === null) return;       // hidden
-    if (e.target !== el) return;
-    if (e.key === 'Enter'){
-      e.preventDefault();
-      const line = el.textContent;
-      el.textContent = '';
-      try{
-        if (termWS && termWS.readyState === 1 && wsRunInFlight) {
-          termWS.send(JSON.stringify({ type:'stdin', data: line + '\n' }));
-        }
-      }catch{}
-    }
-  }, { capture:true });
+document.addEventListener('keydown', (e) => {
+  const el = document.getElementById('consoleInput');
+  if (!el || el.offsetParent === null) return; // hidden
+  if (e.target !== el) return;
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const line = el.textContent;
+
+    // NEW: echo what the user typed so it stays in the transcript
+    termWrite(line + '\n');
+
+    // clear for the next line
+    el.textContent = '';
+
+    try {
+      if (termWS && termWS.readyState === 1 && wsRunInFlight) {
+        termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
+      }
+    } catch {}
+
+    // keep caret ready for the next input
+    if (typeof focusConsoleInput === 'function') focusConsoleInput();
+  }
+}, { capture: true });
+
 
   // ---- MAIN: Run (interactive first; instant fallback to Piston) ----
   window.runLang = async function(codeOverride){
