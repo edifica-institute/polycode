@@ -5,61 +5,49 @@
 <title>Frontend Handbook — HTML • CSS • JavaScript (Row-wise, Static, No JS)</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  :root{
-    --text:#1f2937; --muted:#6b7280; --head:#0b3b6a;
-    --border:#d8dee9; --badge:#eef3ff; --code:#f5f7fb;
-  }
-  @media print { :root{ --bg:#fff; } }
-  html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
-  .wrap{max-width:1000px;margin:auto;padding:20px}
-  h1{margin:0 0 6px;font-size:24px;color:var(--head)}
-  .lead{margin:0 0 16px;color:var(--muted)}
-  h2{margin:28px 0 12px;font-size:18px;color:var(--head);border-bottom:2px solid var(--border);padding-bottom:6px}
-  .entry{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;margin:10px 0}
-  .title{font-weight:700}
-  .meta{font-size:12px;color:var(--muted);margin:2px 0 8px}
-  .badge{display:inline-block;padding:3px 8px;border:1px solid var(--border);border-radius:999px;background:var(--badge);font-size:12px;margin-right:6px}
-  .kv{width:100%;border-collapse:collapse}
-  .kv th,.kv td{border-top:1px solid var(--border);padding:8px 6px;vertical-align:top}
-  .kv tr:first-child th,.kv tr:first-child td{border-top:none}
-  .kv th{width:140px;color:var(--muted);text-align:left;font-weight:600;background:#fff}
-  code,pre,tt{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
-  code{background:var(--code);padding:1px 4px;border-radius:5px}
-  pre{margin:0;background:var(--code);padding:8px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere}
-  .tip{font-size:12px;color:#64748b;margin-top:12px}
-  .cols2{columns:2;column-gap:16px}
-  .cols3{columns:3;column-gap:16px}
-  .kw{break-inside:avoid;border:1px solid var(--border);border-radius:10px;background:#fff;padding:6px 8px;margin:6px 0}
-  @media (max-width:620px){ .kv th{width:110px} .cols2,.cols3{columns:1} }
-
-  /* Row-wise layout for kv tables on all screens */
-.kv { width: 100%; border-collapse: separate; border-spacing: 0; }
-.kv tr { display: block; padding-top: 10px; margin: 10px 0 0; border-top: 1px solid var(--border); }
-.kv tr:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
-
-.kv th { 
-  display: block; 
-  width: auto; 
-  background: transparent; 
-  padding: 0 0 4px; 
-  color: var(--muted); 
-  font-weight: 600; 
-  text-align: left; 
+  :root { color-scheme: light dark; }               /* let the UA flip colors */
+html,body{
+  margin:0;
+  /* no background here */
+  color: inherit;
+  font: 15px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;
 }
+@media (prefers-color-scheme:light){ body{ color:#111; } }
+@media (prefers-color-scheme:dark){  body{ color:#fff; } }
 
-.kv td { 
-  display: block; 
-  padding: 0; 
-}
+/* Headings & layout */
+.wrap{ max-width:1000px; margin:auto; padding:20px }
+h1{ margin:0 0 6px; font-size:24px }
+h2{ margin:28px 0 12px; font-size:18px; border-bottom:1px solid currentColor; padding-bottom:6px }
+p{ margin:0 0 10px }
 
-/* Make code blocks pleasant and wrap nicely */
-pre { 
-  white-space: pre-wrap;      /* wrap long lines */
-  overflow-wrap: anywhere;    /* break long tokens */
-  margin: 0; 
-  background: var(--code); 
-  padding: 8px; 
-  border-radius: 8px; 
+/* “Card” container without background */
+.entry{ border:1px solid currentColor; border-radius:12px; padding:12px; margin:10px 0 }
+
+/* Meta/badges without background */
+.meta{ font-size:12px; opacity:.75; margin:2px 0 8px }
+.badge{ display:inline-block; padding:2px 6px; border:1px solid currentColor; border-radius:999px; font-size:12px; margin-right:6px }
+
+/* Key-value table, row-wise */
+.kv{ width:100%; border-collapse:separate; border-spacing:0 }
+.kv tr{ display:block; padding-top:10px; margin:10px 0 0; border-top:1px solid currentColor }
+.kv tr:first-child{ border-top:0; padding-top:0; margin-top:0 }
+.kv th{ display:block; width:auto; padding:0 0 4px; font-weight:600; text-align:left; /* no background */ }
+.kv td{ display:block; padding:0 }
+
+/* Code without background */
+code,pre,tt{ font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace }
+pre{ margin:0; white-space:pre-wrap; overflow-wrap:anywhere; /* no background */ }
+
+/* Simple “keyword chips” without background */
+.kw{ break-inside:avoid; border:1px solid currentColor; border-radius:10px; padding:6px 8px; margin:6px 0 }
+
+/* Responsive stacking for classic tables (if you use .resp elsewhere) */
+@media (max-width:800px){
+  .resp thead{ display:none }
+  .resp tr{ display:block; margin-bottom:16px; border-bottom:1px solid currentColor }
+  .resp td{ display:block; padding:4px 0; border:none }
+  .resp td::before{ content:attr(data-label) ": "; font-weight:700; display:block }
 }
 
   
