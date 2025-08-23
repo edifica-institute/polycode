@@ -494,6 +494,10 @@ window.clearLang = function(){
   setConsole('');
   document.getElementById('output')
     ?.style.setProperty('background','transparent','important');
+
+  showInputRow(false);
+    try { termWS?.close(); } catch {}
+    termWS = null;
 };
 
 /* --- Start after shell.js (defer) has run --- */
