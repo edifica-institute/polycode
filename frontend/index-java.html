@@ -381,7 +381,9 @@ function detectClassToRun(code){
           if (m.type === 'stdout') termWrite(m.data);
           else if (m.type === 'stderr') termWrite(m.data);
           else if (m.type === 'compileErr') termWrite(m.data);
-          else if (m.type === 'exit'){ termWrite(`\nExit code: ${m.code}\n`); wsRunInFlight=false; showInputRow(false); }
+          else if (m.type === 'exit'){if (m.code !== 0) termWrite(`\nExit code: ${m.code}\n`);
+  wsRunInFlight = false;
+  showInputRow(false); }
         }catch{
           termWrite(String(ev.data));
         }
