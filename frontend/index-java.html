@@ -222,7 +222,38 @@ async function getPistonJavaVersion(forceRefresh = false){
   return __pistonJavaVersion;
 }
 
-async function pistonExecuteJava({ code, fileName, version }){
+    async function pistonExecuteJava({ code, fileName, version }){
+  try {
+    const body = JSON.stringify({
+      language: 'java',
+      version,
+      files: [{ name: fileName, content: code }]
+    });
+
+    const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body
+    });
+
+    const text = await resp.text();
+    let data = null;
+    try {
+      if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+        data = JSON.parse(text);
+      }
+    } catch {}
+
+    return { ok: resp.ok, status: resp.status, text, data };
+  } catch (e) {
+    // Surface offline / DNS / CORS errors in the console gracefully
+    return { ok: false, status: 0, text: String(e), data: null };
+  }
+}
+
+
+    
+/*async function pistonExecuteJava({ code, fileName, version }){
   const body = JSON.stringify({
     language: 'java',
     version,
@@ -243,7 +274,7 @@ try {
   }
 } catch {}
 return { ok: resp.ok, status: resp.status, text, data };
-}  
+}*/  
 
 window.runLang = async function(codeOverride){
   const code = (typeof codeOverride === 'string' && codeOverride.trim())
