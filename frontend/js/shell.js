@@ -705,14 +705,23 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   // RESET
-  rstBtn?.addEventListener('click', () => {
+  /*rstBtn?.addEventListener('click', () => {
     try { window.clearLang && window.clearLang(); } catch {}
     rstBtn.classList.add('is-resetting');
     setTimeout(()=> rstBtn.classList.remove('is-resetting'), 1500);
 
     setStatus('Reset','ok');
     unfreezeUI(); // will set animated 'ready' + 'waiting'
-  });
+  });*/
+
+  rstBtn?.addEventListener('click', () => {
+  try { window.clearLang && window.clearLang(); } catch {}
+  window.PolyShell?.reapplyTheme?.();   // <-- re-apply current theme to everything
+  setStatus('Reset','ok');
+  unfreezeUI();
+});
+
+  
 })();
 
 
