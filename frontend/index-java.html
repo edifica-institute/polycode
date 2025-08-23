@@ -227,26 +227,25 @@ window.runLang = async function(codeOverride){
 
   // Piston shape:
   // { compile:{stdout,stderr,output,code}, run:{stdout,stderr,output,code,signal}, ... }
-  const compile = data.compile || {};
-  const run     = data.run     || {};
+ const compile = data.compile || {};
+const run     = data.run     || {};
 
-  const compileOut = (compile.stdout || '') + (compile.stderr || '') + (compile.output || '');
-  const runStdout  = (run.stdout  || '');
-  const runStderr  = (run.stderr  || '') + (run.output || '');
+// Use raw streams only (avoid compile.output/run.output to prevent duplicates)
+const compileErr = (compile.code && compile.code !== 0)
+  ? (compile.stderr || compile.stdout || '')
+  : '';
 
-  const compileErr = (compile.code && compile.code !== 0) ? compileOut : '';
-  const stdout     = runStdout.trimEnd();
-  const stderr     = runStderr.trimEnd();
+const stdout = (run.stdout || '').trimEnd();
+const stderr = (run.stderr || '').trimEnd();
 
-  printToConsole({ compileErr, stderr, stdout });
+printToConsole({ compileErr, stderr, stdout });
 
-  // Decide success/failure
-  const ok = (!compile.code || compile.code === 0) && (run.code == null || run.code === 0);
-  if (!ok) {
-    const errText = (compileErr || stderr || 'Execution failed');
-    const line = findJavaErrorLine(errText);
-    throw new Error('line ' + line + ': ' + errText.split('\n')[0]);
-  }
+const ok = (!compile.code || compile.code === 0) && (run.code == null || run.code === 0);
+if (!ok) {
+  const errText = (compileErr || stderr || 'Execution failed');
+  const line = findJavaErrorLine(errText);
+  throw new Error('line ' + line + ': ' + errText.split('\n')[0]);
+}
 };
 
 
