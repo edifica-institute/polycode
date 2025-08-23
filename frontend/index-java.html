@@ -193,12 +193,26 @@ function findPublicClassName(code){
   return m ? m[1] : null;
 }
 
+
+ 
+function findJavaErrorLine(text, className){
+  const fileRe = `${className}.java`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // e.g. Foo.java:5:
+  if (m) return Number(m[1]);
+  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);     // e.g. Foo.java:12)
+  if (m) return Number(m[1]);
+  return 1;
+}
+
+
+  
+
 window.runLang = async function(codeOverride){
   const code = (typeof codeOverride === 'string' && codeOverride.trim())
     ? codeOverride
     : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  // Detect the public class name so users aren't forced to call it "Main"
+  // Detect the public class name (fallback to Main if none)
   const classMatch = code.match(/public\s+class\s+([A-Za-z_]\w*)/);
   const className  = (classMatch && classMatch[1]) || 'Main';
   const fileName   = `${className}.java`;
@@ -208,43 +222,39 @@ window.runLang = async function(codeOverride){
     const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
       method: 'POST',
       headers: { 'Content-Type':'application/json' },
+      // IMPORTANT: do NOT send "version"
       body: JSON.stringify({
         language: 'java',
-        // you can leave version undefined to use latest, or pin something like '17'
-        version: '17',
         files: [{ name: fileName, content: code }]
       })
     });
 
-    // If server didn’t return JSON, surface a readable error
-    const ct = resp.headers.get('content-type') || '';
-    if (!resp.ok || !ct.includes('application/json')) {
-      const txt = await resp.text().catch(()=> '');
-      throw new Error(`HTTP ${resp.status} ${resp.statusText} — ${txt.slice(0,200)}`);
+    // Defensive: handle non-JSON error bodies cleanly
+    const ctype = resp.headers.get('content-type') || '';
+    const raw   = await resp.text();
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status} ${resp.statusText} — ${raw.slice(0,200)}`);
     }
-
-    data = await resp.json();
+    data = ctype.includes('application/json') ? JSON.parse(raw) : {};
   }catch(e){
     printToConsole({ compileErr: String(e) });
     throw new Error('line 1: ' + String(e));
   }
 
-  // Piston shape:
-  // { run: { stdout, stderr, code }, compile?: { stdout, stderr, code } }
+  // Piston result shape
   const compileErr = data.compile?.stderr || '';
   const stderr     = data.run?.stderr || '';
   const stdout     = data.run?.stdout || '';
-  const ok         = data.run?.code === 0 && !compileErr;
+  const ok         = (data.run?.code === 0) && !compileErr;
 
   printToConsole({ compileErr, stderr, stdout });
 
   if (!ok){
     const errText = (compileErr || stderr || 'Execution failed').trim();
-    const line = findJavaErrorLine(errText);
-    throw new Error(`line ${line}: ${errText.split('\n')[0]}`);
+    const line = findJavaErrorLine(errText, className);
+    throw new Error(`line ${line}: ${(errText.split('\n')[0] || 'Execution failed')}`);
   }
 };
-
 
 
 
