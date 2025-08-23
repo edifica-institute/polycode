@@ -176,12 +176,17 @@ function printToConsole({compileErr='', stderr='', stdout=''}){
 
 /* --- Try to find a line number from compiler/runtime output --- */
 function findJavaErrorLine(text){
-  let m = /Main\\.java:(\\d+):/.exec(text);      // javac: Main.java:5: error: ...
+  // javac:  Main.java:5: error: ...
+  let m = /Main\.java:(\d+):/.exec(text);
   if (m) return Number(m[1]);
-  m = /Main\\.java:(\\d+)\\)/.exec(text);        // runtime: at Main.main(Main.java:12)
+
+  // runtime: at Main.main(Main.java:12)
+  m = /Main\.java:(\d+)\)/.exec(text);
   if (m) return Number(m[1]);
+
   return 1;
 }
+
 
 /* --- Run code (shell.js calls this) --- */
 window.runLang = async function(codeOverride){
