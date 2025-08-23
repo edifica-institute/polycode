@@ -301,7 +301,18 @@ function extractInlineStdin(code){
   return { code: code.trim(), stdin: stdin.replace(/\r\n?/g, '\n') };
 }
 
+function detectClassToRun(code){
+  // Prefer 'public class X'
+  let m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/);
+  if (m) return m[1];
 
+  // Otherwise, find the first class that actually has a main method
+  m = code.match(/\bclass\s+([A-Za-z_]\w*)\b[\s\S]*?\bpublic\s+static\s+void\s+main\s*\(/);
+  if (m) return m[1];
+
+  // Fallback
+  return 'Main';
+}
 
 
 
@@ -314,7 +325,7 @@ window.runLang = async function(codeOverride){
   const { code, stdin } = extractInlineStdin(raw);
 
   const classMatch = code.match(/public\s+class\s+([A-Za-z_]\w*)/);
-  const className  = (classMatch && classMatch[1]) || 'Main';
+  const className = detectClassToRun(code); 
   const fileName   = `${className}.java`;
 
   let version = await getPistonJavaVersion();
