@@ -345,6 +345,18 @@ window.runLang = async function(codeOverride){
   const compileErr = data.compile?.stderr || '';
   const stderr     = data.run?.stderr || '';
   const stdout     = data.run?.stdout || '';
+
+
+  const usedScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code);
+if (usedScanner && !stdin && data.run?.code !== 0 && /NoSuchElementException/.test(stderr || '')) {
+  const tip = '\nTip: Provide input using a comment:\n' +
+              '  // stdin: 2 3\n' +
+              '  /* stdin:\n2\n3\n*/\n';
+  printToConsole({ compileErr: (stderr || compileErr || 'Runtime error') + tip });
+}
+
+
+  
   printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
 
   const ok = (data.run?.code === 0) && !compileErr;
