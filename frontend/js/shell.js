@@ -151,12 +151,7 @@ document.getElementById('preview')?.style.setProperty('background','transparent'
     document.body.classList.toggle('light', toLight);
     setIcon(toLight);
 
-
-    try {
-  const saved = localStorage.getItem('polycode_theme');
-  if (saved === 'light' || saved === 'dark') setTheme(saved);
-} catch {}
-
+ 
     
     // Monaco
     if (window.monaco && window.editor) {
@@ -195,6 +190,14 @@ document.getElementById('preview')?.style.setProperty('background','transparent'
 
   // initial icon
   setIcon(isLight());
+
+    try {
+  const saved = localStorage.getItem('polycode_theme');
+  if (saved === 'light' || saved === 'dark') setTheme(saved);
+} catch {}
+
+
+  
 })();
 
 
