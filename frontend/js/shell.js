@@ -1,6 +1,13 @@
 // Start idle animation immediately on page load
 
 // Disable right-click globally
+(function () {
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+  }, { capture: true });
+})();
+
+
 // Block Ctrl/Cmd+C & "copy" everywhere EXCEPT editor/console/inputs
 (function () {
   const allow = (el) =>
