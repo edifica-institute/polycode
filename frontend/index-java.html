@@ -186,8 +186,7 @@ function extractErrorLine(text){
   return 1;
 }
 
-/* --- Run code (shell.js calls this) --- */
-<script>
+
 /* --- Run code (shell.js calls this) --- */
 window.runLang = async function(codeOverride){
   const code = (typeof codeOverride === 'string' && codeOverride.trim())
@@ -249,7 +248,7 @@ window.runLang = async function(codeOverride){
     throw new Error('line ' + line + ': ' + errText.split('\n')[0]);
   }
 };
-</script>
+
 
 
 
