@@ -151,6 +151,13 @@ document.getElementById('preview')?.style.setProperty('background','transparent'
     document.body.classList.toggle('light', toLight);
     setIcon(toLight);
 
+
+    try {
+  const saved = localStorage.getItem('polycode_theme');
+  if (saved === 'light' || saved === 'dark') setTheme(saved);
+} catch {}
+
+    
     // Monaco
     if (window.monaco && window.editor) {
       monaco.editor.setTheme(toLight ? 'vs' : 'vs-dark');
@@ -173,6 +180,8 @@ document.getElementById('preview')?.style.setProperty('background','transparent'
         `;
       } catch {}
     }
+
+    try { localStorage.setItem('polycode_theme', mode); } catch {}
   }
 
   // Toggle button uses the API (but reset will *not* toggle; it calls setTheme with current)
