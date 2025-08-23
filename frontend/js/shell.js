@@ -1,5 +1,14 @@
 // Start idle animation immediately on page load
 
+// Disable right-click globally
+(function () {
+  document.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+  }, { capture: true });
+})();
+
+
+
 
 // When RUN starts, enable interaction on the output
 function enableOutput(){
