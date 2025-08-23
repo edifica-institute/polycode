@@ -1,11 +1,9 @@
-// WebSocket Java runner: compiles + runs Java, streams stdout/stderr, accepts stdin
-// deps: express, ws, fs-extra
-const express = require('express');
-const { WebSocketServer } = require('ws');
-const { spawn } = require('child_process');
-const fs = require('fs-extra');
-const os = require('os');
-const path = require('path');
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import { spawn } from 'child_process';
+import fs from 'fs-extra';
+import os from 'os';
+import path from 'path';
 
 const app = express();
 app.get('/health', (_req, res) => res.send('ok'));
@@ -13,7 +11,6 @@ app.get('/health', (_req, res) => res.send('ok'));
 const PORT = process.env.PORT || 8081;
 const server = app.listen(PORT, () => console.log('Java runner on :' + PORT));
 
-// WS endpoint: wss://<host>/java
 const wss = new WebSocketServer({ server, path: '/java' });
 
 wss.on('connection', (ws) => {
@@ -26,7 +23,7 @@ wss.on('connection', (ws) => {
 
   ws.on('message', async (raw) => {
     if (closed) return;
-    let msg; try { msg = JSON.parse(raw.toString()); } catch { return; }
+    let msg; try { msg = JSON.parse(String(raw)); } catch { return; }
 
     if (msg.type === 'run') {
       await cleanup();
