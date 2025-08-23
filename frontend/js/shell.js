@@ -101,7 +101,7 @@ async function loadLeftContent(lang){
 /* ===========================
    theme toggle (dark <-> light)
 =========================== */
-(function(){
+/*(function(){
   const btn = document.getElementById('themeToggle');
   const ico = document.getElementById('themeIcon');
   if (!btn || !ico) return;
@@ -127,7 +127,82 @@ async function loadLeftContent(lang){
 document.getElementById('output')?.style.setProperty('background','transparent','important');
 document.getElementById('preview')?.style.setProperty('background','transparent','important');
 
+})();*/
+
+
+/* ===========================
+   theme (apply, not just toggle)
+=========================== */
+(function () {
+  const btn = document.getElementById('themeToggle');
+  const ico = document.getElementById('themeIcon');
+
+  const isLight = () => document.body.classList.contains('light');
+
+  function setIcon(isLightMode){
+    if (!ico) return;
+    ico.innerHTML = isLightMode
+      ? '<path d="M6.76 4.84l-1.8-1.79L3.17 4.84l1.8 1.79L6.76 4.84zM1 10.5H4v3H1v-3zm9.5 9.5h3v-3h-3v3zM20 10.5h3v3h-3v-3zM17.24 4.84l1.79-1.79 1.79 1.79-1.79 1.79-1.79-1.79zM12 5a7 7 0 100 14 7 7 0 000-14z"/>'
+      : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+  }
+
+  function setTheme(mode /* 'light' | 'dark' */){
+    const toLight = mode === 'light';
+    document.body.classList.toggle('light', toLight);
+    setIcon(toLight);
+
+    // Monaco
+    if (window.monaco && window.editor) {
+      monaco.editor.setTheme(toLight ? 'vs' : 'vs-dark');
+    }
+
+    // Keep host output areas transparent
+    document.getElementById('output')
+      ?.style.setProperty('background','transparent','important');
+
+    // If a preview iframe exists, try to enforce transparent bg without wiping content
+    const ifr = document.getElementById('preview');
+    if (ifr && ifr.contentDocument) {
+      try {
+        const d = ifr.contentDocument;
+        let s = d.getElementById('polycode-theme-css');
+        if (!s) { s = d.createElement('style'); s.id = 'polycode-theme-css'; d.head.appendChild(s); }
+        s.textContent = `
+          :root{ color-scheme:${mode}; }
+          html,body{ background:transparent !important; color:inherit; }
+        `;
+      } catch {}
+    }
+  }
+
+  // Toggle button uses the API (but reset will *not* toggle; it calls setTheme with current)
+  btn?.addEventListener('click', () => setTheme(isLight() ? 'dark' : 'light'));
+
+  // expose
+  window.PolyShell = window.PolyShell || {};
+  window.PolyShell.setTheme = setTheme;
+  window.PolyShell.getTheme = () => (isLight() ? 'light' : 'dark');
+  window.PolyShell.reapplyTheme = () => setTheme(isLight() ? 'light' : 'dark');
+
+  // initial icon
+  setIcon(isLight());
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
