@@ -166,14 +166,28 @@ function setConsole(text){
   const out = document.getElementById('output');
   out && (out.scrollTop = out.scrollHeight);
 }
-function printToConsole({compileErr='', stderr='', stdout='', code=0}){
+/*function printToConsole({compileErr='', stderr='', stdout='', code=0}){
   let msg = '';
   if (compileErr) msg += compileErr + '\\n';
   if (stderr)     msg += stderr + '\\n';
   if (stdout)     msg += stdout;
   msg += (msg ? '\\n\\n' : '') + 'Exit code: ' + code;
   setConsole(msg);
+}*/
+
+    function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
+  const el = document.getElementById('jconsole');
+  if (!el) return;
+  const parts = [];
+  if (compileErr.trim()) parts.push(compileErr.trim());
+  if (stderr.trim())     parts.push(stderr.trim());
+  if (stdout.trim())     parts.push(stdout.trim());
+  if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
+  el.textContent = parts.join('\n') + (parts.length ? '\n' : '');
+  document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
 }
+
+    
 
 /* --- Extract first useful Java line number (compile or runtime) --- */
 function extractErrorLine(text){
@@ -239,10 +253,13 @@ async function pistonExecuteJava({ code, fileName, version }){
   });
 
   const text = await resp.text();
-  const isJSON = (resp.headers.get('content-type')||'').includes('application/json');
-  const data = isJSON ? JSON.parse(text) : null;
-
-  return { ok: resp.ok, status: resp.status, text, data };
+let data = null;
+try {
+  if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+    data = JSON.parse(text);
+  }
+} catch {}
+return { ok: resp.ok, status: resp.status, text, data };
 }  
 
 window.runLang = async function(codeOverride){
@@ -276,7 +293,8 @@ window.runLang = async function(codeOverride){
   const stdout     = data.run?.stdout || '';
   const ok         = (data.run?.code === 0) && !compileErr;
 
-  printToConsole({ compileErr, stderr, stdout });
+ // printToConsole({ compileErr, stderr, stdout });
+  printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
 
   if (!ok){
     const errText = (compileErr || stderr || 'Execution failed').trim();
