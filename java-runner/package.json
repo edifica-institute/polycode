@@ -1,0 +1,13 @@
+{
+  "name": "java-runner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node java-runner.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0",
+    "fs-extra": "^11.2.0"
+  }
+}
