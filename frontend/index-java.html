@@ -88,9 +88,15 @@
           </div>
         </div>
 
-        <div id="output" class="screen-dim" style="padding:12px;">
-          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-        </div>
+       <div id="output" class="screen-dim" style="padding:12px;">
+  <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+  <div id="consoleRow" style="display:none; margin-top:8px; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+    <span style="opacity:.7; margin-right:8px;">$</span>
+    <span id="consoleInput" contenteditable="true" spellcheck="false"
+          style="outline:none; white-space:pre; min-width:2ch;"></span>
+  </div>
+</div>
+
 
         <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
@@ -141,6 +147,12 @@
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
+  <script type="module">
+  import { API_BASE, WS_BASE } from './js/config.js';
+  window.PC_CFG = { API_BASE, WS_BASE };
+</script>
+
+  
   <!-- Page script -->
   <script>
 /* --- Sample Java used in the editor --- */
@@ -317,55 +329,160 @@ function detectClassToRun(code){
 
 
     
-window.runLang = async function(codeOverride){
-  const raw = (typeof codeOverride === 'string' && codeOverride.trim())
-    ? codeOverride
-    : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
 
-  const { code, stdin } = extractInlineStdin(raw);
 
-  const classMatch = code.match(/public\s+class\s+([A-Za-z_]\w*)/);
-  const className = detectClassToRun(code); 
-  const fileName   = `${className}.java`;
 
-  let version = await getPistonJavaVersion();
-  let res     = await pistonExecuteJava({ code, fileName, version, stdin });
 
-  if (!res.ok && /version.*(required|unknown)/i.test(res.text || '')) {
-    version = await getPistonJavaVersion(true);
-    res     = await pistonExecuteJava({ code, fileName, version, stdin });
+
+    
+
+
+(function(){
+  let termWS = null;
+
+  function showInputRow(show) {
+    const row = document.getElementById('consoleRow');
+    if (row) row.style.display = show ? 'flex' : 'none';
+    if (show) focusConsoleInput();
   }
 
-  if (!res.ok) {
-    printToConsole({ compileErr: `HTTP ${res.status} — ${res.text.slice(0,200)}` });
-    throw new Error('line 1: request failed');
+  function focusConsoleInput() {
+    const el = document.getElementById('consoleInput');
+    if (el) {
+      el.focus();
+      // move caret to end
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      r.collapse(false);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }
   }
 
-  const data       = res.data || {};
-  const compileErr = data.compile?.stderr || '';
-  const stderr     = data.run?.stderr || '';
-  const stdout     = data.run?.stdout || '';
+  function openJavaTerm(token) {
+    const base = (window.PC_CFG?.WS_BASE || '').replace(/^http/i, 'ws');
+    const url  = base + '/term?token=' + encodeURIComponent(token);
+    const jc   = document.getElementById('jconsole');
 
-
-  const usedScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code);
-if (usedScanner && !stdin && data.run?.code !== 0 && /NoSuchElementException/.test(stderr || '')) {
-  const tip = '\nTip: Provide input using a comment:\n' +
-              '  // stdin: 2 3\n' +
-              '  /* stdin:\n2\n3\n*/\n';
-  printToConsole({ compileErr: (stderr || compileErr || 'Runtime error') + tip });
-}
-
-
-  
-  printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
-
-  const ok = (data.run?.code === 0) && !compileErr;
-  if (!ok){
-    const errText = (compileErr || stderr || 'Execution failed').trim();
-    const line = findJavaErrorLine(errText, className);
-    throw new Error(`line ${line}: ${(errText.split('\n')[0] || 'Execution failed')}`);
+    termWS = new WebSocket(url);
+    termWS.onopen = () => showInputRow(true);
+    termWS.onmessage = (ev) => {
+      jc.textContent += ev.data;
+      jc.scrollTop = 1e9;
+    };
+    termWS.onclose = () => showInputRow(false);
   }
-};
+
+  // Send a single line + newline on Enter
+  document.addEventListener('keydown', (e) => {
+    const inp = document.getElementById('consoleInput');
+    if (!inp || inp.style.display === 'none') return;
+
+    if (e.target === inp && e.key === 'Enter') {
+      e.preventDefault();
+      const line = inp.textContent;
+      inp.textContent = '';
+      try {
+        termWS?.send(JSON.stringify({ type:'stdin', data: line + '\n' }));
+      } catch {}
+    }
+  }, { capture:true });
+
+  // --- MAIN ENTRY: called by the Run button (shell.js) ---
+  window.runLang = async function(codeOverride){
+    const raw = (typeof codeOverride === 'string' && codeOverride.trim())
+      ? codeOverride
+      : (window.editor ? window.editor.getValue() : SAMPLE_JAVA);
+
+    // We’ll still parse // stdin: … comments for fallback, but prefer interactive
+    const { code, stdin } = extractInlineStdin(raw);
+    const className       = detectClassToRun(code);
+    const fileName        = `${className}.java`;
+
+    setConsole('');  // clear
+    document.getElementById('output')?.classList.remove('error');
+
+    // === Preferred path: use your server for interactive I/O ===
+    const API = window.PC_CFG?.API_BASE;
+    if (API) {
+      try {
+        const resp = await fetch(`${API}/api/java/prepare`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            files: [{ path: fileName, content: code }],
+            mainClass: className
+          })
+        });
+
+        const data = await resp.json().catch(()=> ({}));
+        if (!resp.ok) {
+          printToConsole({ compileErr: (data?.error || `HTTP ${resp.status}`) });
+          throw new Error('line 1: request failed');
+        }
+
+        // Compilation log + diagnostics
+        if (!data.ok) {
+          printToConsole({ compileErr: (data.compileLog || 'Compilation failed').trim() });
+          const line = findJavaErrorLine(data.compileLog || '', className);
+          throw new Error(`line ${line}: Compile error`);
+        }
+
+        // Open terminal for live input/output
+        openJavaTerm(data.token);
+        return; // we’re streaming now
+      } catch (e) {
+        // fall through to Piston if server is unavailable
+      }
+    }
+
+    // === Fallback: Piston (your current flow) ===
+    let version = await getPistonJavaVersion();
+    let res     = await pistonExecuteJava({ code, fileName, version, stdin });
+
+    if (!res.ok && /version.*(required|unknown)/i.test(res.text || '')) {
+      version = await getPistonJavaVersion(true);
+      res     = await pistonExecuteJava({ code, fileName, version, stdin });
+    }
+    if (!res.ok) {
+      printToConsole({ compileErr: `HTTP ${res.status} — ${res.text.slice(0,200)}` });
+      throw new Error('line 1: request failed');
+    }
+
+    const data       = res.data || {};
+    const compileErr = data.compile?.stderr || '';
+    const stderr     = data.run?.stderr || '';
+    const stdout     = data.run?.stdout || '';
+
+    // Nice tip if Scanner was used without stdin comment
+    const usedScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code);
+    if (usedScanner && !stdin && data.run?.code !== 0 && /NoSuchElementException/.test(stderr || '')) {
+      const tip = '\nTip: Provide input using a comment:\n' +
+                  '  // stdin: 2 3\n' +
+                  '  /* stdin:\n2\n3\n*/\n';
+      printToConsole({ compileErr: (stderr || compileErr || 'Runtime error') + tip });
+    }
+
+    printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
+
+    const ok = (data.run?.code === 0) && !compileErr;
+    if (!ok){
+      const errText = (compileErr || stderr || 'Execution failed').trim();
+      const line = findJavaErrorLine(errText, className);
+      throw new Error(`line ${line}: ${(errText.split('\n')[0] || 'Execution failed')}`);
+    }
+  };
+
+
+
+
+
+
+
+
+
+    
 
 
 
