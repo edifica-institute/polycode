@@ -197,13 +197,12 @@ function findPublicClassName(code){
  
 function findJavaErrorLine(text, className){
   const fileRe = `${className}.java`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // e.g. Foo.java:5:
+  let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // Foo.java:5:
   if (m) return Number(m[1]);
-  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);     // e.g. Foo.java:12)
+  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);     // Foo.java:12)
   if (m) return Number(m[1]);
   return 1;
 }
-
 
   
 
