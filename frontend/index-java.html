@@ -186,7 +186,9 @@ const SAMPLE_JAVA =
 window.bootstrap = async function bootstrap(){
   await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
   setStatusSafe('Ready', 'ok');
+ if (window.PolyShell && typeof window.PolyShell.loadLeftContent === 'function') {
   window.PolyShell.loadLeftContent('java');
+}
   // right after IIFE starts or inside bootstrap()
 const ci0 = document.getElementById('consoleInput');
 if (ci0) ci0.setAttribute('contenteditable', 'false');
@@ -477,13 +479,16 @@ document.addEventListener('paste', (e) => {
   if (!el || e.target !== el) return;
   e.preventDefault();
   const t = (e.clipboardData || window.clipboardData).getData('text') || '';
-  const r = window.getSelection().getRangeAt(0);
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0) return;     // <- guard
+  const r = sel.getRangeAt(0);
   r.deleteContents();
   r.insertNode(document.createTextNode(t.replace(/\r?\n/g, ' ')));
-  // move caret to end
   r.collapse(false);
-  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  sel.removeAllRanges();
+  sel.addRange(r);
 }, { capture: true });
+
 
 
 (function(){
