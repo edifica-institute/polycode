@@ -116,7 +116,7 @@
 
         <!-- DO NOT use screen-dim here (we control interactivity in JS) -->
         <div id="output">
-          <pre id="jconsole" class="console"></pre>
+          <pre id="jconsole" class="console" aria-live="polite"></pre>
           <div id="consoleRow">
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="false" role="textbox" aria-readonly="true" aria-label="Program input line" spellcheck="false"></span>
@@ -448,6 +448,7 @@ function tryConnectWS(timeoutMs=6000){
   let termWS=null, wsRunInFlight=false, inputShown=false;
 let inputAllowed=false;
 let inputUnlockTimer=null;
+let runInFlight = false;
 
   
   // Send input on Enter
@@ -531,19 +532,24 @@ document.addEventListener('paste', (e) => {
 
 
   
-  // MAIN: Run (interactive first; fallback to Piston)
-  window.runLang = async function(codeOverride){
-  if (wsRunInFlight){ setStatusSafe('Execution already in progress','busy'); return; }
+ window.runLang = async function(codeOverride){
+  // Global guard so both WS and Piston paths are covered
+  if (runInFlight){ setStatusSafe('Execution already in progress','busy'); return; }
+  runInFlight = true;
+
+  // Disable the Run button during execution
+  const btn = document.getElementById('btnRun');
+  btn?.setAttribute('disabled','');
+
+  try {
+    // --- original setup (unchanged) ---
     clearEditorMarkers();
     const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
     showInputRow(false);
 
     // Make sure Run button never shakes (e.g., F9)
-    const _btn = document.getElementById('btnRun');
-if (_btn) _btn.classList.remove('attn');
+    btn?.classList.remove('attn');
 
-
-    
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride : (window.editor ? window.editor.getValue() : '');
 
@@ -553,10 +559,9 @@ if (_btn) _btn.classList.remove('attn');
 
     setConsole('');
     setStatusSafe('Executing...','busy');
- const rf0 = document.getElementById('rightFoot');
-if (rf0) rf0.textContent = 'Executing...';
+    const rf0 = document.getElementById('rightFoot');
+    if (rf0) rf0.textContent = 'Executing...';
 
-    
     const needsStdin = codeNeedsInput(code);
     if (needsStdin) await wakeRunner();
     let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
@@ -566,33 +571,38 @@ if (rf0) rf0.textContent = 'Executing...';
     }
 
     if (ws){
+      // --- websocket interactive path ---
       termWS = ws;
       wsRunInFlight = true;
-     if (needsStdin){
-  // show LOCKED first (no typing yet)
-  showInputRow(true, { lock:true });
 
-  // Safety unlock if program immediately reads without printing a prompt
-  clearTimeout(inputUnlockTimer);
-  inputUnlockTimer = setTimeout(() => allowUserInput(), 350);
-}
+      if (needsStdin){
+        // show LOCKED first (no typing yet)
+        showInputRow(true, { lock:true });
+
+        // Safety unlock if program immediately reads without printing a prompt
+        clearTimeout(inputUnlockTimer);
+        inputUnlockTimer = setTimeout(() => allowUserInput(), 350);
+      }
 
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
-      /*const waitForExit = new Promise((resolve, reject)=>{
-        const onMsg = (ev)=>{
+      const waitForExit = new Promise((resolve, reject) => {
+        const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); /* keep current status  }
-            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); /* keep current status  }
-            else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); }
+            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); maybeUnlock(m.data); }
+            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); maybeUnlock(m.data); }
+            else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); /* usually stay locked */ }
             else if (m.type === 'exit'){
-              termWS.removeEventListener('message', onMsg);
+              // SAFELY remove listener
+              try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
               wsRunInFlight = false;
+              clearTimeout(inputUnlockTimer);
+              disallowUserInput();
               showInputRow(false);
 
               if (m.code === 0){
-                window.PolyShell?.setStatus('Execution Success','ok');
+                setStatusSafe('Execution Success','ok');
                 clearEditorMarkers();
                 resolve();
               } else {
@@ -600,97 +610,36 @@ if (rf0) rf0.textContent = 'Executing...';
                 const firstLine = (errText.split('\n')[0] || 'Execution failed');
                 const line = findJavaErrorLine(errText, className);
                 setEditorMarker(line, firstLine);
-                window.PolyShell?.setStatus('Execution Failed','error');
+                setStatusSafe('Execution Failed','error');
                 reject(new Error(`line ${line}: ${firstLine}`));
               }
             }
-          }catch{/* ignore non-JSON }
+          }catch{/* ignore non-JSON */}
         };
-        const onClose = ()=>{
-          termWS.removeEventListener('message', onMsg);
+
+        const onClose = () => {
+          // SAFELY remove listener
+          try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
           if (wsRunInFlight){
             wsRunInFlight = false;
+            clearTimeout(inputUnlockTimer);
+            disallowUserInput();
             showInputRow(false);
-            window.PolyShell?.setStatus('Runner disconnected','error');
+            setStatusSafe('Runner disconnected','error');
             reject(new Error('line 1: runner disconnected'));
           }
         };
-        termWS.addEventListener('message', onMsg);
-        termWS.addEventListener('close', onClose, { once:true });
-      });*/
 
-
-
-const waitForExit = new Promise((resolve, reject) => {
-  const onMsg = (ev) => {
-    try{
-      const m = JSON.parse(String(ev.data));
-    if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); maybeUnlock(m.data); }
-else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); maybeUnlock(m.data); }
-else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); /* keep locked or unlock? usually not needed */ }
-
-      else if (m.type === 'exit'){
-        // SAFELY remove listener
-        try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
-        wsRunInFlight = false;
-        clearTimeout(inputUnlockTimer);
-disallowUserInput();
-        showInputRow(false);
-
-        if (m.code === 0){
-          setStatusSafe('Execution Success','ok');
-          clearEditorMarkers();
-          resolve();
-        } else {
-          const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
-          const firstLine = (errText.split('\n')[0] || 'Execution failed');
-          const line = findJavaErrorLine(errText, className);
-          setEditorMarker(line, firstLine);
-          setStatusSafe('Execution Failed','error');
-          reject(new Error(`line ${line}: ${firstLine}`));
-        }
-      }
-    }catch{/* ignore non-JSON */}
-  };
-
-  const onClose = () => {
-    // SAFELY remove listener
-    try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
-    if (wsRunInFlight){
-      wsRunInFlight = false;
-      clearTimeout(inputUnlockTimer);
-disallowUserInput();
-      
-      showInputRow(false);
-      setStatusSafe('Runner disconnected','error');
-      reject(new Error('line 1: runner disconnected'));
-    }
-  };
-
-  try{
-    termWS.addEventListener('message', onMsg);
-    termWS.addEventListener('close', onClose, { once:true });
-  }catch{/* no-op */}
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
+        try{
+          termWS.addEventListener('message', onMsg);
+          termWS.addEventListener('close', onClose, { once:true });
+        }catch{/* no-op */}
+      });
 
       try { termWS.send(JSON.stringify({ type:'run', className, code: raw + '' })); }
       catch {
         try{ termWS.close(); }catch{}
-         wsRunInFlight = false;   
+        wsRunInFlight = false;   // ensure the local WS flag drops
         showInputRow(false);
         setStatusSafe('Runner unavailable','error');
         throw new Error('line 1: runner unavailable');
@@ -740,7 +689,21 @@ disallowUserInput();
       setStatusSafe('Execution Failed','error');
       throw new Error(`line ${line}: ${firstLine}`);
     }
-  };
+  } finally {
+    // Always re-enable the Run button and clear the global guard
+    runInFlight = false;
+    btn?.removeAttribute('disabled');
+  }
+};
+
+
+
+
+
+
+
+
+ 
 
   // Reset
   window.clearLang = function(){
