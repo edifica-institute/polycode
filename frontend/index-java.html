@@ -12,9 +12,9 @@
     #output { white-space: pre-wrap; }
 #jconsole { display: inline; white-space: pre-wrap; }     /* make output inline */
 #consoleRow { display: inline-flex; gap: 4px; align-items: baseline; }  /* sit on same line */
-    #output { /* remove: white-space: pre-wrap; */ }
-#jconsole { display:block; white-space:pre-wrap; }
-#consoleRow { display:inline-flex; }
+    #output { padding: 6px 8px 10px 8px; }           /* was 12px all sides */
+  #jconsole { margin:0; white-space:pre-wrap; line-height:1.25; }
+  #consoleRow { display:inline-flex; margin-top:0; line-height:1.25; }
   </style>
 </head>
 
@@ -305,7 +305,7 @@ function detectClassToRun(code){
     s.addRange(r);
   }
 
- function showInputRow(show){
+/* function showInputRow(show){
   const row    = document.getElementById('consoleRow');
   const pre    = document.getElementById('jconsole');
   const prefix = document.getElementById('consolePrefix');
@@ -343,7 +343,48 @@ function detectClassToRun(code){
       prefix.textContent = '';
     }
   }
+}*/
+
+
+  function showInputRow(show){
+  const row    = document.getElementById('consoleRow');
+  const pre    = document.getElementById('jconsole');
+  const prefix = document.getElementById('consolePrefix');
+
+  if (row) row.style.display = show ? 'inline-flex' : 'none';
+
+  if (show) {
+    // 1) Collapse any trailing whitespace in <pre> to exactly ONE newline
+    // (Use .replace(/\s+$/, '\n') if you want exactly one; use '' if you want none)
+    pre.textContent = (pre.textContent || '').replace(/[ \t\r]*(\r?\n)+$/, '');
+
+
+    // 2) If the last line has text (i.e., a print without newline), keep it as a prefix
+    const txt = pre.textContent;
+    const i   = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);
+    if (tail && !/^\s*$/.test(tail)) {
+      prefix.textContent = tail + ' ';
+      pre.textContent = txt.slice(0, i + 1);
+    } else {
+      prefix.textContent = '';
+    }
+
+    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+    focusConsoleInput?.();
+  } else {
+    if (typeof wsRunInFlight !== 'undefined' && wsRunInFlight) {
+      window.PolyShell?.setStatus('Executing...', 'busy');
+    }
+    if (prefix.textContent) {
+      pre.textContent += prefix.textContent;
+      prefix.textContent = '';
+    }
+  }
 }
+
+
+  
 
 
   /* --- Monaco marker helpers --- */
