@@ -91,6 +91,7 @@
        <div id="output" class="screen-dim" style="padding:12px;">
   <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
   <div id="consoleRow" style="display:none; margin-top:8px; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+     <span id="consolePrefix"></span>
   <span id="consoleInput" contenteditable="true" spellcheck="false"
         style="outline:none; white-space:pre; min-width:2ch;"></span>
 </div>
@@ -356,20 +357,40 @@ function detectClassToRun(code){
   s.addRange(r);
 }
 
-function showInputRow(show) {
+function showInputRow(show){
   const row = document.getElementById('consoleRow');
-  const out = document.getElementById('output');
+  const pre = document.getElementById('jconsole');
+  const prefix = document.getElementById('consolePrefix');
 
   if (row) row.style.display = show ? 'block' : 'none';
 
-  // 🔓 enable typing when interactive input is needed
-  if (out) {
-    out.classList.toggle('screen-dim', !show);   // remove dim while typing
-    out.style.pointerEvents = show ? 'auto' : ''; // allow clicks/caret
+  if (show) {
+    // Move trailing partial line from <pre> into the prefix
+    const txt = pre.textContent;
+    const i = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);              // text after last newline
+    if (tail && !/^\s*$/.test(tail)) {
+      prefix.textContent = tail + ' ';
+      pre.textContent = txt.slice(0, i + 1);    // leave full lines in <pre>
+    } else {
+      prefix.textContent = '';
+    }
+    // focus caret
+    const el = document.getElementById('consoleInput');
+    if (el){
+      el.focus();
+      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+  } else {
+    // Put the prefix back into the console output when hiding (optional)
+    if (prefix.textContent) {
+      pre.textContent += prefix.textContent;
+      prefix.textContent = '';
+    }
   }
-
-  if (show) focusConsoleInput();
 }
+
 
 
 
