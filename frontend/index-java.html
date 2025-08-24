@@ -9,17 +9,18 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
 
-  <!-- Tighter console + stop shaking when disabled -->
+  <!-- Console tightening + kill shake when disabled -->
   <style>
     #output{ padding:6px 10px !important; }
     #jconsole{ margin:0!important; white-space:pre-wrap; line-height:1.25; }
-    #consoleRow{
-      display:none; margin:0; gap:6px; align-items:baseline;
-      font:14px/1.25 ui-monospace, Menlo, Consolas, monospace;
-    }
+    #consoleRow{ display:none; margin:0; gap:6px; align-items:baseline;
+      font:14px/1.25 ui-monospace, Menlo, Consolas, monospace; }
     #consolePrefix{ white-space:pre; }
     #consoleInput{ outline:none; white-space:pre; min-width:2ch; }
-    /* kill any attention animation while disabled */
+
+    /* Stop run-button “attention” animation whenever disabled or during F9 runs */
+    #btnRun[disabled], #btnRun:disabled,
+    .btn[disabled], .btn:disabled,
     .btn.attn[disabled]{ animation:none!important; transform:none!important; }
   </style>
 </head>
@@ -78,7 +79,7 @@
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
             <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">💾</button>
             <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">📤</button>
-            <!-- remove attn from markup; we also strip it at bootstrap just in case -->
+            <!-- remove attn in markup; JS also strips it on boot/run -->
             <button id="btnRun" class="btn primary" title="Execute (Click or Press F9)" aria-label="Run">
               <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
@@ -103,7 +104,7 @@
           </div>
         </div>
 
-        <!-- NOTE: removed 'screen-dim' from here; JS also strips it on run -->
+        <!-- DO NOT use screen-dim here (we control interactivity in JS) -->
         <div id="output">
           <pre id="jconsole" class="console"></pre>
           <div id="consoleRow">
@@ -180,7 +181,7 @@ window.bootstrap = async function bootstrap(){
   document.getElementById('btnRun')?.classList.remove('attn');
 };
 
-/* --- Console helpers (shared) --- */
+/* --- Console helpers --- */
 function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   const el = document.getElementById('jconsole');
   if (!el) return;
@@ -231,12 +232,12 @@ async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
   return { ok: resp.ok, status: resp.status, text, data };
 }
 
-// Inline stdin extraction
+// Pull stdin from comments
 function extractInlineStdin(code){
   let stdin = '';
   const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
   code = code.replace(block, (_, __, content) => { stdin = content.replace(/^\s*\* ?/gm, ''); return ''; });
-  if (!stdin){
+  if (!stdin) {
     const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
     const m = code.match(line);
     if (m){ stdin = m[2].replace(/\\n/g, '\n'); code = code.replace(line, ''); }
@@ -267,7 +268,7 @@ function detectClassToRun(code){
     if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
   }
 
-  // Inline input UI
+  // Minimal inline input
   function focusConsoleInput(){
     const el = document.getElementById('consoleInput');
     if (!el) return;
@@ -275,20 +276,16 @@ function detectClassToRun(code){
     const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
     const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
-  function tailOfPre(){
-    const pre = document.getElementById('jconsole');
-    const txt = pre?.textContent ?? '';
-    const i = txt.lastIndexOf('\n');
-    return txt.slice(i + 1);
-  }
   function refreshPrefixFromTail(){
     const pre = document.getElementById('jconsole');
     const prefix = document.getElementById('consolePrefix');
     if (!pre || !prefix) return;
-    const tail = tailOfPre();
-    if (tail && !/^\s*$/.test(tail)){
+    const txt = pre.textContent;
+    const i = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);
+    if (tail && !/^\s*$/.test(tail)) {
       prefix.textContent = tail + ' ';
-      pre.textContent = pre.textContent.slice(0, pre.textContent.length - tail.length);
+      pre.textContent = txt.slice(0, i + 1);
     } else {
       prefix.textContent = '';
     }
@@ -298,12 +295,11 @@ function detectClassToRun(code){
     if (!row) return;
     if (show){
       row.style.display = 'flex';
-      refreshPrefixFromTail(); // if a partial prompt exists, keep it on the same line
+      refreshPrefixFromTail();
       inputShown = true;
-      scheduleMaybeWaiting();
+      window.PolyShell?.setStatus('Waiting for User Input...','busy'); // immediate
       focusConsoleInput();
     } else {
-      // merge any prefix back into the transcript
       const pre = document.getElementById('jconsole');
       const prefix = document.getElementById('consolePrefix');
       if (pre && prefix && prefix.textContent){
@@ -358,19 +354,6 @@ function detectClassToRun(code){
 
   // Status choreography
   let termWS=null, wsRunInFlight=false, inputShown=false;
-  let waitingTimer=null;
-  function setExecuting(){
-    clearTimeout(waitingTimer);
-    window.PolyShell?.setStatus('Executing...','busy');
-  }
-  function scheduleMaybeWaiting(){
-    clearTimeout(waitingTimer);
-    waitingTimer = setTimeout(()=>{
-      if (wsRunInFlight && inputShown){
-        window.PolyShell?.setStatus('Waiting for User Input...','busy');
-      }
-    }, 120);
-  }
 
   // Send input on Enter
   document.addEventListener('keydown', (e)=>{
@@ -384,10 +367,10 @@ function detectClassToRun(code){
       const line = inputEl.textContent;
 
       if (pre && prefix && prefix.textContent){
-        pre.textContent += prefix.textContent; // put prompt back into transcript
+        pre.textContent += prefix.textContent;
         prefix.textContent = '';
       }
-      termWrite(line + '\n');                  // echo user's input
+      termWrite(line + '\n');
       inputEl.textContent = '';
 
       try {
@@ -396,8 +379,8 @@ function detectClassToRun(code){
         }
       } catch {}
 
-      setExecuting();
-      showInputRow(true);                      // keep row visible for next prompt
+      window.PolyShell?.setStatus('Executing...','busy'); // back to executing after user submits
+      showInputRow(true); // keep row ready for the next prompt
       focusConsoleInput();
     }
   }, { capture:true });
@@ -405,11 +388,10 @@ function detectClassToRun(code){
   // MAIN: Run (interactive first; fallback to Piston)
   window.runLang = async function(codeOverride){
     clearEditorMarkers();
-    document.getElementById('output')?.classList.remove('screen-dim'); // ensure interactive
     const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
     showInputRow(false);
 
-    // also remove possible attention class on Run button
+    // Make sure Run button never shakes (e.g., F9)
     document.getElementById('btnRun')?.classList.remove('attn');
 
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
@@ -433,7 +415,7 @@ function detectClassToRun(code){
     if (ws){
       termWS = ws;
       wsRunInFlight = true;
-      if (needsStdin) showInputRow(true);
+      if (needsStdin) showInputRow(true); // shows “Waiting for User Input…”
 
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
@@ -441,13 +423,12 @@ function detectClassToRun(code){
         const onMsg = (ev)=>{
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); setExecuting(); if (inputShown) scheduleMaybeWaiting(); }
-            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); setExecuting(); if (inputShown) scheduleMaybeWaiting(); }
+            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); /* keep current status */ }
+            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); /* keep current status */ }
             else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); }
             else if (m.type === 'exit'){
               termWS.removeEventListener('message', onMsg);
               wsRunInFlight = false;
-              clearTimeout(waitingTimer);
               showInputRow(false);
 
               if (m.code === 0){
@@ -469,7 +450,6 @@ function detectClassToRun(code){
           termWS.removeEventListener('message', onMsg);
           if (wsRunInFlight){
             wsRunInFlight = false;
-            clearTimeout(waitingTimer);
             showInputRow(false);
             window.PolyShell?.setStatus('Runner disconnected','error');
             reject(new Error('line 1: runner disconnected'));
@@ -541,7 +521,6 @@ function detectClassToRun(code){
     const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
     try{ termWS?.close(); }catch{}
     termWS = null; wsRunInFlight = false;
-    clearTimeout(waitingTimer);
   };
 })();
 
