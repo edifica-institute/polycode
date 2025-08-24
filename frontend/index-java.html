@@ -519,7 +519,7 @@ document.addEventListener('keydown', (e) => {
 
     // Try WS quickly
     // NEW: wait longer only if stdin is likely needed
-const wsTimeout = codeNeedsInput(code) ? 1500 : 350;   // tweak 1200–2000ms if needed
+//const wsTimeout = codeNeedsInput(code) ? 1500 : 350;   // tweak 1200–2000ms if needed
 const needsStdin = codeNeedsInput(code);
 
 // try a quick connect first (stays fast for "Hello Java!")
