@@ -779,6 +779,12 @@ disallowUserInput();
     start();
   }
 })();
+
+
+    window.addEventListener('beforeunload', () => { try { termWS?.close(); } catch {} clearTimeout(inputUnlockTimer); });
+
+
+    
   </script>
 </body>
 </html>
