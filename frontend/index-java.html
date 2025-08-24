@@ -459,7 +459,7 @@ function detectClassToRun(code){
   // ---- Send input when user presses Enter ----
   let termWS = null, wsRunInFlight = false;
   let inputShown = false;
-
+let inputArmTimer = null;
 
   
   /*document.addEventListener('keydown', (e) => {
@@ -509,6 +509,18 @@ function detectClassToRun(code){
 }, { capture: true });
 
 
+
+
+
+
+
+
+
+
+
+
+
+  
   
 
   // ---- MAIN: Run (interactive first; fallback to Piston) ----
@@ -519,7 +531,10 @@ function detectClassToRun(code){
     showInputRow(false);
 
     inputShown = false;
+if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
 
+
+    
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride
       : (window.editor ? window.editor.getValue() : '');
@@ -550,6 +565,22 @@ function detectClassToRun(code){
         'busy'
       );
 
+
+ // Fallback: if no prompt ever prints, reveal input after ~800ms
+ if (needsStdin) {
+  inputArmTimer = setTimeout(() => {
+     if (!inputShown) {
+       showInputRow(true);
+       inputShown = true;
+     }
+   }, 800);
+ }
+
+
+
+
+
+      
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
       const waitForExit = new Promise((resolve, reject) => {
@@ -559,16 +590,25 @@ function detectClassToRun(code){
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
                                      const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
 
-  if (needsStdin && !inputShown && /(?:enter|input|number|value|:|\?\s*)$/i.test(last)) {
+  if ( needsStdin && !inputShown && (/(?:enter|input|number|value|type|choice|provide|give|no\b)/i.test(last) ||  /[:?]\s*$/.test(last) ))
+        {
     showInputRow(true);
     inputShown = true;
+          if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
   }
                                       
                                      }
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
             else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
             else if (m.type === 'exit') {
+              //termWS.removeEventListener('message', onMsg);
+
+ if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
               termWS.removeEventListener('message', onMsg);
+
+
+
+              
               wsRunInFlight = false;
               showInputRow(false);
               if (m.code === 0) {
@@ -598,6 +638,7 @@ function detectClassToRun(code){
 
 
 const onClose = (ev) => {
+  if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
   try { termWS?.removeEventListener('message', onMsg); } catch {}
   if (wsRunInFlight) {
     wsRunInFlight = false;
@@ -685,11 +726,32 @@ const onClose = (ev) => {
   };
 })();
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
 /* --- Start after shell.js (defer) has run --- */
 (function startWhenReady(){
   function start(){
     if (!window.PolyShell) {
-      const id = setInterval(() => {
+      const id = setInterval(() => {e
         if (window.PolyShell){ clearInterval(id); window.bootstrap(); }
       }, 25);
       setTimeout(() => clearInterval(id), 3000);
