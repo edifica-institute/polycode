@@ -472,13 +472,19 @@ let inputUnlockTimer=null;
 
 
 // Keep consoleInput plain-text, single-line
-document.addEventListener('paste', (e)=>{
-  const inputEl = document.getElementById('consoleInput');
-  if (!inputEl || e.target !== inputEl) return;
+document.addEventListener('paste', (e) => {
+  const el = document.getElementById('consoleInput');
+  if (!el || e.target !== el) return;
   e.preventDefault();
-  const text = (e.clipboardData || window.clipboardData).getData('text') || '';
-  document.execCommand('insertText', false, text.replace(/\r?\n/g, ' '));
-}, { capture:true });
+  const t = (e.clipboardData || window.clipboardData).getData('text') || '';
+  const r = window.getSelection().getRangeAt(0);
+  r.deleteContents();
+  r.insertNode(document.createTextNode(t.replace(/\r?\n/g, ' ')));
+  // move caret to end
+  r.collapse(false);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}, { capture: true });
+
 
 (function(){
   var ci = document.getElementById('consoleInput');
