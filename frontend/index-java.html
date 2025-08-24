@@ -518,6 +518,8 @@ function detectClassToRun(code){
     if (prefix) prefix.textContent = '';
     showInputRow(false);
 
+    inputShown = false;
+
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride
       : (window.editor ? window.editor.getValue() : '');
@@ -555,7 +557,8 @@ function detectClassToRun(code){
           try{
             const m = JSON.parse(String(ev.data));
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
-                                     const last = (acc.stdout.split('\n').pop() || ''); // <-- THIS line
+                                     const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
+
   if (needsStdin && !inputShown && /(?:enter|input|number|value|:|\?\s*)$/i.test(last)) {
     showInputRow(true);
     inputShown = true;
