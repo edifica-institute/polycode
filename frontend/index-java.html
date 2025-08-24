@@ -12,6 +12,9 @@
     #output { white-space: pre-wrap; }
 #jconsole { display: inline; white-space: pre-wrap; }     /* make output inline */
 #consoleRow { display: inline-flex; gap: 4px; align-items: baseline; }  /* sit on same line */
+    #output { /* remove: white-space: pre-wrap; */ }
+#jconsole { display:block; white-space:pre-wrap; }
+#consoleRow { display:inline-flex; }
   </style>
 </head>
 
@@ -93,23 +96,21 @@
           </div>
         </div>
 
-        <div id="output" class="screen-dim" style="padding:12px;">
-          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-          <div id="consoleRow"
-               style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; gap:4px; align-items:baseline;">
+
+<div id="output" class="screen-dim" style="padding:12px;">
+  <!-- Output only -->
+  <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+
+  <!-- Input row (shown only when needed) -->
+  <div id="consoleRow"
+       style="display:none; margin-top:0; gap:4px; align-items:baseline;
+              font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+    <span id="consolePrefix"></span><span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+  </div>
+</div>
 
 
-<pre id="jconsole" class="console" style="white-space:pre-wrap">
-  <span id="consoleText"></span><span id="consolePrefix"></span>
-  <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
-</pre>
-
-
-
-
-            
-          </div>
-        </div>
+        
 
         <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
