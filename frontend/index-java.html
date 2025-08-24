@@ -29,9 +29,15 @@
   opacity: .75;
   cursor: not-allowed;
 }
-#consolePrefix:not(:empty)::after{ content:' '; }
+#consolePrefix:not(:empty)::after{ content:''; }
 
+/* subtle pulse for busy; color hints for ok/error */
+.msg.ok    { color: var(--ok, #22c55e); }
+.msg.error { color: var(--err, #ef4444); }
+.msg.busy  { animation: pc-pulse 1s ease-in-out infinite; }
+@keyframes pc-pulse { 0%,100% {opacity: .8} 50% {opacity: 1} }
 
+    
   </style>
 </head>
 
@@ -194,17 +200,22 @@ window.bootstrap = async function bootstrap(){
 const ci0 = document.getElementById('consoleInput');
 if (ci0) ci0.setAttribute('contenteditable', 'false');
 
-
   
   // ensure the Run button never shakes by default
   const _btn = document.getElementById('btnRun');
-if (_btn) _btn.classList.remove('attn');
+if (_btn) _btn.classList.add('attn');
 };
 
 
     function setStatusSafe(label, kind){
   if (window.PolyShell && typeof window.PolyShell.setStatus === 'function') {
     window.PolyShell.setStatus(label, kind);
+  }
+       const rf = document.getElementById('rightFoot');
+  if (rf){
+    rf.textContent = label;
+    rf.classList.remove('ok','busy','error');
+    if (kind) rf.classList.add(kind);
   }
 }
 
@@ -449,7 +460,7 @@ function tryConnectWS(timeoutMs=6000){
 let inputAllowed=false;
 let inputUnlockTimer=null;
 let runInFlight = false;
-
+let hasEverRun = false; 
   
   // Send input on Enter
   document.addEventListener('keydown', (e)=>{
@@ -479,6 +490,8 @@ let runInFlight = false;
       setStatusSafe('Executing...','busy'); // back to executing after user submits
       showInputRow(true, { lock:true });// keep row ready for the next prompt
       //focusConsoleInput();
+      clearTimeout(inputUnlockTimer);
+    inputUnlockTimer = setTimeout(() => allowUserInput(), 400);
     }
   }, { capture:true });
 
@@ -535,6 +548,8 @@ document.addEventListener('paste', (e) => {
  window.runLang = async function(codeOverride){
   // Global guard so both WS and Piston paths are covered
   if (runInFlight){ setStatusSafe('Execution already in progress','busy'); return; }
+   if (!hasEverRun) { hasEverRun = true; btn?.classList.remove('attn'); }
+   
   runInFlight = true;
 
    // Disable the Run button during execution
@@ -591,8 +606,8 @@ document.addEventListener('paste', (e) => {
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); maybeUnlock(m.data); }
-            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); maybeUnlock(m.data); }
+            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); if (inputShown && !inputAllowed) refreshPrefixFromTail();  maybeUnlock(m.data); }
+            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); if (inputShown && !inputAllowed) refreshPrefixFromTail(); maybeUnlock(m.data); }
             else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); /* usually stay locked */ }
             else if (m.type === 'exit'){
               // SAFELY remove listener
