@@ -9,30 +9,18 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
 
-  <!-- Tighter, cleaner console -->
+  <!-- Tighter console + stop shaking when disabled -->
   <style>
-    #output{
-      padding: 6px 10px !important;          /* less top/left space */
-    }
-    #jconsole{
-      margin: 0 !important;
-      display: block;
-      white-space: pre-wrap;
-      line-height: 1.25;                      /* reduce vertical gaps */
-    }
+    #output{ padding:6px 10px !important; }
+    #jconsole{ margin:0!important; white-space:pre-wrap; line-height:1.25; }
     #consoleRow{
-      display: none;
-      margin: 0;                              /* remove extra top space */
-      gap: 6px;
-      align-items: baseline;
-      font: 14px/1.25 ui-monospace, Menlo, Consolas, monospace;
+      display:none; margin:0; gap:6px; align-items:baseline;
+      font:14px/1.25 ui-monospace, Menlo, Consolas, monospace;
     }
-    #consolePrefix{ white-space: pre; }
-    #consoleInput{
-      outline: none;
-      white-space: pre;
-      min-width: 2ch;
-    }
+    #consolePrefix{ white-space:pre; }
+    #consoleInput{ outline:none; white-space:pre; min-width:2ch; }
+    /* kill any attention animation while disabled */
+    .btn.attn[disabled]{ animation:none!important; transform:none!important; }
   </style>
 </head>
 
@@ -90,7 +78,8 @@
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
             <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">💾</button>
             <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">📤</button>
-            <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
+            <!-- remove attn from markup; we also strip it at bootstrap just in case -->
+            <button id="btnRun" class="btn primary" title="Execute (Click or Press F9)" aria-label="Run">
               <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
           </div>
@@ -114,7 +103,8 @@
           </div>
         </div>
 
-        <div id="output" class="screen-dim">
+        <!-- NOTE: removed 'screen-dim' from here; JS also strips it on run -->
+        <div id="output">
           <pre id="jconsole" class="console"></pre>
           <div id="consoleRow">
             <span id="consolePrefix"></span>
@@ -186,6 +176,8 @@ window.bootstrap = async function bootstrap(){
   await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
   window.PolyShell.setStatus('Ready','ok');
   window.PolyShell.loadLeftContent('java');
+  // ensure the Run button never shakes by default
+  document.getElementById('btnRun')?.classList.remove('attn');
 };
 
 /* --- Console helpers (shared) --- */
@@ -203,9 +195,9 @@ function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
 
 function findJavaErrorLine(text, className){
   const fileRe = `${className}.java`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // Foo.java:5:
+  let m = new RegExp(fileRe + ':(\\d+):').exec(text);
   if (m) return Number(m[1]);
-  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);     // Foo.java:12)
+  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);
   if (m) return Number(m[1]);
   return 1;
 }
@@ -220,55 +212,35 @@ async function getPistonJavaVersion(forceRefresh = false){
              || runtimes.find(r => /open.?jdk/i.test(r.language))
              || runtimes.find(r => /java/i.test(r.language));
     __pistonJavaVersion = java?.version || '21';
-  } catch {
-    __pistonJavaVersion = '21';
-  }
+  } catch { __pistonJavaVersion = '21'; }
   return __pistonJavaVersion;
 }
 
 async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
   const body = JSON.stringify({
-    language: 'java',
-    version,
+    language: 'java', version,
     files: [{ name: fileName, content: code }],
     stdin
   });
   const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json' },
-    body
+    method: 'POST', headers: { 'Content-Type':'application/json' }, body
   });
   const text = await resp.text();
   let data = null;
-  try {
-    if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-      data = JSON.parse(text);
-    }
-  } catch {}
+  try { if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) data = JSON.parse(text); } catch {}
   return { ok: resp.ok, status: resp.status, text, data };
 }
 
-// Pull stdin from special comments in the code and remove them before compile
+// Inline stdin extraction
 function extractInlineStdin(code){
   let stdin = '';
-
-  // Multi-line /* stdin: ... */
   const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
-  code = code.replace(block, (_, __, content) => {
-    stdin = content.replace(/^\s*\* ?/gm, '');
-    return '';
-  });
-
-  // Single-line // stdin: 42\n99
-  if (!stdin) {
+  code = code.replace(block, (_, __, content) => { stdin = content.replace(/^\s*\* ?/gm, ''); return ''; });
+  if (!stdin){
     const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
     const m = code.match(line);
-    if (m) {
-      stdin = m[2].replace(/\\n/g, '\n');
-      code = code.replace(line, '');
-    }
+    if (m){ stdin = m[2].replace(/\\n/g, '\n'); code = code.replace(line, ''); }
   }
-
   return { code: code.trim(), stdin: stdin.replace(/\r\n?/g, '\n') };
 }
 
@@ -283,7 +255,7 @@ function detectClassToRun(code){
 (function(){
   const JAVA_WS_URL = 'wss://polycode-java.onrender.com/java';
 
-  // Console helpers (scoped)
+  // Console helpers
   function setConsole(text){
     const el = document.getElementById('jconsole');
     if (!el) return;
@@ -295,32 +267,25 @@ function detectClassToRun(code){
     if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
   }
 
-  // UI bits for inline input
+  // Inline input UI
   function focusConsoleInput(){
     const el = document.getElementById('consoleInput');
     if (!el) return;
     el.focus();
-    const r = document.createRange();
-    r.selectNodeContents(el);
-    r.collapse(false);
-    const s = window.getSelection();
-    s.removeAllRanges();
-    s.addRange(r);
+    const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
-
   function tailOfPre(){
     const pre = document.getElementById('jconsole');
     const txt = pre?.textContent ?? '';
     const i = txt.lastIndexOf('\n');
     return txt.slice(i + 1);
   }
-
   function refreshPrefixFromTail(){
     const pre = document.getElementById('jconsole');
     const prefix = document.getElementById('consolePrefix');
     if (!pre || !prefix) return;
     const tail = tailOfPre();
-    // keep any non-empty partial line (prompt) on the input row
     if (tail && !/^\s*$/.test(tail)){
       prefix.textContent = tail + ' ';
       pre.textContent = pre.textContent.slice(0, pre.textContent.length - tail.length);
@@ -328,17 +293,17 @@ function detectClassToRun(code){
       prefix.textContent = '';
     }
   }
-
   function showInputRow(show){
-    const row    = document.getElementById('consoleRow');
+    const row = document.getElementById('consoleRow');
     if (!row) return;
     if (show){
       row.style.display = 'flex';
-      refreshPrefixFromTail();
+      refreshPrefixFromTail(); // if a partial prompt exists, keep it on the same line
       inputShown = true;
-      scheduleMaybeWaiting();              // set "Waiting..." soon if we stay blocked
-    }else{
-      // merge any prefix back into transcript
+      scheduleMaybeWaiting();
+      focusConsoleInput();
+    } else {
+      // merge any prefix back into the transcript
       const pre = document.getElementById('jconsole');
       const prefix = document.getElementById('consolePrefix');
       if (pre && prefix && prefix.textContent){
@@ -350,7 +315,7 @@ function detectClassToRun(code){
     }
   }
 
-  /* --- Markers --- */
+  // Markers
   function clearEditorMarkers(){
     if (!window.monaco || !window.editor) return;
     const model = window.editor.getModel();
@@ -362,16 +327,13 @@ function detectClassToRun(code){
     if (!model) return;
     const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
     window.monaco.editor.setModelMarkers(model, 'javac', [{
-      startLineNumber: line || 1,
-      endLineNumber:   line || 1,
-      startColumn:     1,
-      endColumn:       maxCol,
-      message:         String(message || 'Error'),
-      severity:        window.monaco.MarkerSeverity.Error
+      startLineNumber: line || 1, endLineNumber: line || 1,
+      startColumn: 1, endColumn: maxCol, message: String(message || 'Error'),
+      severity: window.monaco.MarkerSeverity.Error
     }]);
   }
 
-  // Does code read from stdin?
+  // Input detection
   function codeNeedsInput(code){
     return (
       /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
@@ -380,97 +342,87 @@ function detectClassToRun(code){
     );
   }
 
-  // Gentle wake for cold runner
-  async function wakeRunner(){
-    try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
-  }
-
+  // Runner wake + connect
+  async function wakeRunner(){ try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {} }
   function tryConnectWS(timeoutMs=6000){
     return new Promise((resolve)=>{
       let done=false, timer=null, ws;
       try { ws = new WebSocket(JAVA_WS_URL); } catch { return resolve(null); }
       const finish = ok => { if (done) return; done=true; clearTimeout(timer); resolve(ok ? ws : null); };
       timer = setTimeout(()=>finish(false), timeoutMs);
-      ws.onopen  = () => finish(true);
-      ws.onerror = () => finish(false);
-      ws.onclose = () => finish(false);
+      ws.onopen = ()=>finish(true);
+      ws.onerror = ()=>finish(false);
+      ws.onclose = ()=>finish(false);
     });
   }
 
-  // --- Input + status choreography ---
-  let termWS = null, wsRunInFlight = false, inputShown = false;
-  let waitingTimer = null;
+  // Status choreography
+  let termWS=null, wsRunInFlight=false, inputShown=false;
+  let waitingTimer=null;
   function setExecuting(){
     clearTimeout(waitingTimer);
     window.PolyShell?.setStatus('Executing...','busy');
   }
   function scheduleMaybeWaiting(){
     clearTimeout(waitingTimer);
-    // small delay lets any immediate output land before we call it "waiting"
     waitingTimer = setTimeout(()=>{
-      if (wsRunInFlight && inputShown) {
+      if (wsRunInFlight && inputShown){
         window.PolyShell?.setStatus('Waiting for User Input...','busy');
       }
     }, 120);
   }
 
   // Send input on Enter
-  document.addEventListener('keydown', (e) => {
+  document.addEventListener('keydown', (e)=>{
     const inputEl = document.getElementById('consoleInput');
     if (!inputEl || inputEl.offsetParent === null) return;
     if (e.target !== inputEl) return;
-
     if (e.key === 'Enter'){
       e.preventDefault();
       const pre = document.getElementById('jconsole');
       const prefix = document.getElementById('consolePrefix');
       const line = inputEl.textContent;
 
-      // 1) put the prompt (prefix) back into the transcript first
       if (pre && prefix && prefix.textContent){
-        pre.textContent += prefix.textContent;
+        pre.textContent += prefix.textContent; // put prompt back into transcript
         prefix.textContent = '';
       }
-      // 2) echo the user's input so it stays in the log
-      termWrite(line + '\n');
-
-      // 3) clear UI box
+      termWrite(line + '\n');                  // echo user's input
       inputEl.textContent = '';
 
-      // 4) send to runner
       try {
         if (termWS && termWS.readyState === 1 && wsRunInFlight) {
           termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
         }
       } catch {}
 
-      setExecuting();          // we're running work again
-      showInputRow(true);      // re-capture new prompt tail if any arrives
+      setExecuting();
+      showInputRow(true);                      // keep row visible for next prompt
       focusConsoleInput();
     }
-  }, { capture: true });
+  }, { capture:true });
 
-  // ---- MAIN: Run (interactive first; fallback to Piston) ----
+  // MAIN: Run (interactive first; fallback to Piston)
   window.runLang = async function(codeOverride){
     clearEditorMarkers();
-    const prefix = document.getElementById('consolePrefix');
-    if (prefix) prefix.textContent = '';
+    document.getElementById('output')?.classList.remove('screen-dim'); // ensure interactive
+    const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
     showInputRow(false);
 
+    // also remove possible attention class on Run button
+    document.getElementById('btnRun')?.classList.remove('attn');
+
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
-      ? codeOverride
-      : (window.editor ? window.editor.getValue() : '');
+      ? codeOverride : (window.editor ? window.editor.getValue() : '');
 
     const { code, stdin } = extractInlineStdin(raw);
     const className = detectClassToRun(code);
     const fileName  = `${className}.java`;
 
     setConsole('');
-    document.getElementById('output')?.classList.remove('error');
     window.PolyShell?.setStatus('Executing...','busy');
 
     const needsStdin = codeNeedsInput(code);
-
     if (needsStdin) await wakeRunner();
     let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
     if (!ws && needsStdin){
@@ -481,10 +433,7 @@ function detectClassToRun(code){
     if (ws){
       termWS = ws;
       wsRunInFlight = true;
-
-      if (needsStdin){
-        showInputRow(true);      // display inline input now (prompt will snap in)
-      }
+      if (needsStdin) showInputRow(true);
 
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
@@ -505,7 +454,7 @@ function detectClassToRun(code){
                 window.PolyShell?.setStatus('Execution Success','ok');
                 clearEditorMarkers();
                 resolve();
-              }else{
+              } else {
                 const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
                 const firstLine = (errText.split('\n')[0] || 'Execution failed');
                 const line = findJavaErrorLine(errText, className);
@@ -530,10 +479,9 @@ function detectClassToRun(code){
         termWS.addEventListener('close', onClose, { once:true });
       });
 
-      try {
-        termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
-      } catch {
-        try { termWS.close(); } catch {}
+      try { termWS.send(JSON.stringify({ type:'run', className, code: raw + '' })); }
+      catch {
+        try{ termWS.close(); }catch{}
         showInputRow(false);
         window.PolyShell?.setStatus('Runner unavailable','error');
         throw new Error('line 1: runner unavailable');
@@ -585,14 +533,12 @@ function detectClassToRun(code){
     }
   };
 
-  // ---- Reset (called by shell) ----
+  // Reset
   window.clearLang = function(){
     setConsole('');
-    document.getElementById('output')?.style.setProperty('background','transparent','important');
     showInputRow(false);
     clearEditorMarkers();
-    const prefix = document.getElementById('consolePrefix');
-    if (prefix) prefix.textContent = '';
+    const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
     try{ termWS?.close(); }catch{}
     termWS = null; wsRunInFlight = false;
     clearTimeout(waitingTimer);
