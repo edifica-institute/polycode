@@ -9,22 +9,17 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
   <style>
-    /* Console layout */
-    #output { white-space: pre-wrap; }
-    #jconsole { white-space: pre-wrap; }
+    /* keep prompt + input on the same line when user code uses System.out.print(...) */
+    #output { white-space: normal; }
+    #jconsole { display:inline; margin:0; white-space:pre-wrap; }
     #consoleRow {
-      display: none;               /* shown only when waiting for input */
-      margin-top: 0;
-      font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace;
-      gap: 4px;
-      align-items: baseline;
+      display:none;               /* toggled by JS */
+      margin-top:0;
+      font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;
+      gap:4px; align-items:baseline;
     }
-    #consolePrefix { white-space: pre; }
-    #consoleInput {
-      outline: none;
-      white-space: pre;
-      min-width: 2ch;
-    }
+    #consolePrefix { white-space:pre; }
+    #consoleInput  { outline:none; white-space:pre; min-width:2ch; }
   </style>
 </head>
 
@@ -107,9 +102,7 @@
         </div>
 
         <div id="output" class="screen-dim" style="padding:12px;">
-          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-
-          <!-- Inline input row (hidden until waiting for input) -->
+          <pre id="jconsole" class="console"></pre>
           <div id="consoleRow">
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
@@ -171,7 +164,12 @@
 const SAMPLE_JAVA =
 `class Main {
   public static void main(String[] args) {
-    System.out.println("Hello Java!");
+    System.out.print("enter a no ");
+    java.util.Scanner sc = new java.util.Scanner(System.in);
+    int x = sc.nextInt();
+    System.out.print("enter another no ");
+    int y = sc.nextInt();
+    System.out.println(x + y);
   }
 }`;
 
@@ -179,10 +177,10 @@ const SAMPLE_JAVA =
 window.bootstrap = async function bootstrap(){
   await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
   window.PolyShell.setStatus('Ready','ok');
-  window.PolyShell.loadLeftContent('java');  // loads /content/java.html into left pane (optional)
+  window.PolyShell.loadLeftContent('java');
 };
 
-/* --- Console render helper --- */
+/* --- Console helpers visible to fallback path --- */
 function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   const el = document.getElementById('jconsole');
   if (!el) return;
@@ -204,7 +202,7 @@ function findJavaErrorLine(text, className){
   return 1;
 }
 
-/* --- Piston runtime helpers --- */
+/* --- Piston helpers for non-interactive fallback --- */
 let __pistonJavaVersion = null;
 async function getPistonJavaVersion(forceRefresh = false){
   if (!forceRefresh && __pistonJavaVersion) return __pistonJavaVersion;
@@ -215,135 +213,93 @@ async function getPistonJavaVersion(forceRefresh = false){
              || runtimes.find(r => /open.?jdk/i.test(r.language))
              || runtimes.find(r => /java/i.test(r.language));
     __pistonJavaVersion = java?.version || '21';
-  } catch {
-    __pistonJavaVersion = '21';
-  }
+  } catch { __pistonJavaVersion = '21'; }
   return __pistonJavaVersion;
 }
-
 async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
   const body = JSON.stringify({
-    language: 'java',
-    version,
+    language: 'java', version,
     files: [{ name: fileName, content: code }],
     stdin
   });
   const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json' },
-    body
+    method: 'POST', headers: { 'Content-Type':'application/json' }, body
   });
   const text = await resp.text();
   let data = null;
-  try {
-    if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-      data = JSON.parse(text);
-    }
-  } catch {}
+  try { if ((resp.headers.get('content-type')||'').toLowerCase().includes('application/json')) data = JSON.parse(text); } catch {}
   return { ok: resp.ok, status: resp.status, text, data };
 }
 
-/* --- stdin extraction (inline comments) --- */
+/* --- Inline stdin extractor for fallback --- */
 function extractInlineStdin(code){
   let stdin = '';
-
-  // Multi-line /* stdin: ... */
   const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
   code = code.replace(block, (_, __, content) => {
     stdin = content.replace(/^\s*\* ?/gm, '');
     return '';
   });
-
-  // Single-line // stdin: 42\n99
   if (!stdin) {
     const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
     const m = code.match(line);
-    if (m) {
-      stdin = m[2].replace(/\\n/g, '\n');
-      code = code.replace(line, '');
-    }
+    if (m) { stdin = m[2].replace(/\\n/g, '\n'); code = code.replace(line, ''); }
   }
-
   return { code: code.trim(), stdin: stdin.replace(/\r\n?/g, '\n') };
 }
-
-/* --- class detection --- */
 function detectClassToRun(code){
-  let m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/);
-  if (m) return m[1];
-  m = code.match(/\bclass\s+([A-Za-z_]\w*)\b[\s\S]*?\bpublic\s+static\s+void\s+main\s*\(/);
-  if (m) return m[1];
+  let m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/); if (m) return m[1];
+  m = code.match(/\bclass\s+([A-Za-z_]\w*)\b[\s\S]*?\bpublic\s+static\s+void\s+main\s*\(/); if (m) return m[1];
   return 'Main';
 }
 
 (function(){
   const JAVA_WS_URL = 'wss://polycode-java.onrender.com/java';
 
-  // ---- Console helpers for this IIFE ----
+  /* ---- tiny console helpers ---- */
+  function termWrite(t){
+    const el = document.getElementById('jconsole');
+    if (!el) return;
+    el.textContent += t;
+    realignForInlineInput();                     // keep caret on same line as last partial line
+    document.getElementById('output')?.scrollTo({ top: 1e9 });
+    // Heuristic: most programs print a prompt just before reading input
+    if (wsRunInFlight && needsStdin) setWaiting(true);
+  }
   function setConsole(text){
     const el = document.getElementById('jconsole');
     if (!el) return;
     el.textContent = text || '';
     document.getElementById('output')?.scrollTo({ top: 1e9 });
   }
-  function termWrite(t){
-    const el = document.getElementById('jconsole');
-    if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
-  }
 
-  // ---- Minimal input line (no $ prompt) ----
+  /* ---- inline input UI ---- */
   function focusConsoleInput() {
     const el = document.getElementById('consoleInput');
     if (!el) return;
     el.focus();
-    const r = document.createRange();
-    r.selectNodeContents(el);
-    r.collapse(false);
-    const s = window.getSelection();
-    s.removeAllRanges();
-    s.addRange(r);
+    const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
-
-  function showInputRow(show){
-    const row    = document.getElementById('consoleRow');
-    const pre    = document.getElementById('jconsole');
+  function realignForInlineInput(){
+    const row = document.getElementById('consoleRow');
+    if (!row || row.style.display === 'none') return;
+    const pre = document.getElementById('jconsole');
     const prefix = document.getElementById('consolePrefix');
-
-    if (row) row.style.display = show ? 'flex' : 'none';
-
-    if (show) {
-      // Move trailing partial line from <pre> into the prefix (keeps prompt + input on one line)
-      const txt  = pre.textContent;
-      const i    = txt.lastIndexOf('\n');
-      const tail = txt.slice(i + 1);
-      if (tail && !/^\s*$/.test(tail)) {
-        prefix.textContent = tail + ' ';
-        pre.textContent = txt.slice(0, i + 1);
-      } else {
-        prefix.textContent = '';
-      }
-      window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-
-      const el = document.getElementById('consoleInput');
-      if (el){
-        el.textContent = ''; // clear leftover
-        el.focus();
-        const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-      }
-    } else {
-      // Hide input -> go back to Executing… if program still running
-      if (typeof wsRunInFlight !== 'undefined' && wsRunInFlight) {
-        window.PolyShell?.setStatus('Executing...', 'busy');
-      }
-      if (prefix.textContent) {
-        pre.textContent += prefix.textContent;
-        prefix.textContent = '';
-      }
+    const txt = pre.textContent;
+    const i = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);
+    if (tail && !/^\s*$/.test(tail)) {
+      prefix.textContent = tail + ' ';
+      pre.textContent = txt.slice(0, i + 1);
     }
   }
+  function showInputRow(show){
+    const row = document.getElementById('consoleRow');
+    if (row) row.style.display = show ? 'inline-flex' : 'none';
+    if (show) { realignForInlineInput(); focusConsoleInput(); }
+  }
 
-  /* --- Monaco marker helpers --- */
+  /* --- editor markers --- */
   function clearEditorMarkers() {
     if (!window.monaco || !window.editor) return;
     const model = window.editor.getModel();
@@ -351,20 +307,25 @@ function detectClassToRun(code){
   }
   function setEditorMarker(line, message) {
     if (!window.monaco || !window.editor) return;
-    const model = window.editor.getModel();
-    if (!model) return;
+    const model = window.editor.getModel(); if (!model) return;
     const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
     window.monaco.editor.setModelMarkers(model, 'javac', [{
-      startLineNumber: line || 1,
-      endLineNumber:   line || 1,
-      startColumn:     1,
-      endColumn:       maxCol,
-      message:         String(message || 'Error'),
-      severity:        window.monaco.MarkerSeverity.Error
+      startLineNumber: line || 1, endLineNumber: line || 1,
+      startColumn: 1, endColumn: maxCol,
+      message: String(message || 'Error'),
+      severity: window.monaco.MarkerSeverity.Error
     }]);
   }
 
-  // ---- Input detection ----
+  /* --- state + helpers for status text --- */
+  let termWS = null, wsRunInFlight = false, needsStdin = false, waitingKick = null;
+  function setWaiting(on){
+    // only meaningful while the program is running
+    if (!wsRunInFlight) return;
+    window.PolyShell?.setStatus(on ? 'Waiting for User Input...' : 'Executing...', 'busy');
+  }
+
+  /* --- detect if code will read from stdin (static) --- */
   function codeNeedsInput(code){
     return (
       /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
@@ -373,23 +334,15 @@ function detectClassToRun(code){
     );
   }
 
-  // ---- Gentle WS connect + wake ping ----
+  /* --- wake runner politely (no-cors) --- */
   async function wakeRunner(){
     try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
   }
   function tryConnectWS(timeoutMs=6000){
     return new Promise((resolve) => {
-      let done = false;
-      let timer = null;
-      let ws;
+      let done = false; let timer = null; let ws;
       try { ws = new WebSocket(JAVA_WS_URL); } catch { return resolve(null); }
-      const finish = (ok) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        ws.onopen = ws.onerror = ws.onclose = null;
-        resolve(ok ? ws : null);
-      };
+      const finish = (ok) => { if (done) return; done = true; clearTimeout(timer); resolve(ok ? ws : null); };
       timer = setTimeout(() => finish(false), timeoutMs);
       ws.onopen  = () => finish(true);
       ws.onerror = () => finish(false);
@@ -397,8 +350,7 @@ function detectClassToRun(code){
     });
   }
 
-  // ---- Send input when user presses Enter ----
-  let termWS = null, wsRunInFlight = false;
+  /* --- send input when user presses Enter --- */
   document.addEventListener('keydown', (e) => {
     const el = document.getElementById('consoleInput');
     if (!el || el.offsetParent === null) return;
@@ -407,8 +359,7 @@ function detectClassToRun(code){
     if (e.key === 'Enter') {
       e.preventDefault();
       const line = el.textContent;
-
-      termWrite(line + '\n');   // echo what the user typed
+      termWrite(line + '\n');           // echo to transcript
       el.textContent = '';
 
       try {
@@ -417,14 +368,17 @@ function detectClassToRun(code){
         }
       } catch {}
 
-      // Hide input and switch back to Executing…; re-arm idle timer if interactive block provided a hook
-      showInputRow(false);
-      window.__poly_after_user_enter?.();
-      focusConsoleInput?.();
+      // briefly show Executing…, then fall back to Waiting… if still running
+      setWaiting(false);
+      clearTimeout(waitingKick);
+      waitingKick = setTimeout(() => {
+        if (wsRunInFlight && needsStdin) setWaiting(true);
+      }, 180);
+      focusConsoleInput();
     }
   }, { capture: true });
 
-  // ---- MAIN: Run (interactive first; fallback to Piston) ----
+  /* --- MAIN run: interactive first, then fallback --- */
   window.runLang = async function(codeOverride){
     clearEditorMarkers();
     document.getElementById('consolePrefix').textContent = '';
@@ -441,99 +395,81 @@ function detectClassToRun(code){
     setConsole('');
     document.getElementById('output')?.classList.remove('error');
 
-    const needsStdin = codeNeedsInput(code);
+    needsStdin = codeNeedsInput(code);
 
-    // Wake + connect (only push wake if we expect stdin)
     if (needsStdin) await wakeRunner();
-    let ws = await tryConnectWS(needsStdin ? 6000 : 2000);
+    let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
     if (!ws && needsStdin) {
       setConsole('Starting interactive runner…');
-      ws = await tryConnectWS(12000);
+      ws = await tryConnectWS(15000);
     }
 
     if (ws) {
       termWS = ws;
       wsRunInFlight = true;
-      window.PolyShell?.setStatus('Executing...', 'busy'); // start as Executing…
 
-      // We show the input row lazily: on first prompt/idle.
-      let inputShown   = false;
-      let sawOutput    = false;
-      const runStarted = Date.now();
-      let lazyTimer    = null;
-
-      function maybeShowInputRow() {
-        if (inputShown || !needsStdin || !wsRunInFlight) return;
-        const idleLongEnough = Date.now() - runStarted > 350;
-        if (sawOutput || idleLongEnough) {
-          inputShown = true;
-          showInputRow(true);     // sets “Waiting for User Input…”
-        }
-      }
-
-      // Allow Enter handler to re-arm idle detection after each line
-      window.__poly_after_user_enter = () => {
-        sawOutput = false;
-        clearTimeout(lazyTimer);
-        lazyTimer = setTimeout(maybeShowInputRow, 350);
-      };
+      if (needsStdin) { showInputRow(true); setWaiting(true); }
+      else            { setWaiting(false); }
 
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
-      const onMsg = (ev) => {
-        try {
-          const m = JSON.parse(String(ev.data));
-          if (m.type === 'stdout') { acc.stdout += m.data; sawOutput = true; termWrite(m.data); maybeShowInputRow(); }
-          else if (m.type === 'stderr') { acc.stderr += m.data; sawOutput = true; termWrite(m.data); maybeShowInputRow(); }
-          else if (m.type === 'compileErr') { acc.compileErr += m.data; sawOutput = true; termWrite(m.data); }
-          else if (m.type === 'exit') {
-            termWS.removeEventListener('message', onMsg);
-            wsRunInFlight = false;
-            clearTimeout(lazyTimer);
-            showInputRow(false);
-            window.__poly_after_user_enter = null;
+      const waitForExit = new Promise((resolve, reject) => {
+        const onMsg = (ev) => {
+          try{
+            const m = JSON.parse(String(ev.data));
+            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data); }
+            else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
+            else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
+            else if (m.type === 'exit') {
+              termWS.removeEventListener('message', onMsg);
+              wsRunInFlight = false;
+              showInputRow(false);
+              clearTimeout(waitingKick);
 
-            if (m.code === 0) {
-              window.PolyShell?.setStatus('Execution Success','ok');
-              clearEditorMarkers();
-            } else {
-              const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
-              const firstLine = (errText.split('\n')[0] || 'Execution failed');
-              const line = findJavaErrorLine(errText, className);
-              setEditorMarker(line, firstLine);
-              window.PolyShell?.setStatus('Execution Failed','error');
+              if (m.code === 0) {
+                window.PolyShell?.setStatus('Execution Success','ok');
+                clearEditorMarkers();
+                resolve();
+              } else {
+                const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
+                const firstLine = (errText.split('\n')[0] || 'Execution failed');
+                const line = findJavaErrorLine(errText, className);
+                setEditorMarker(line, firstLine);
+                window.PolyShell?.setStatus('Execution Failed','error');
+                reject(new Error(`line ${line}: ${firstLine}`));
+              }
             }
+          } catch { /* ignore non-JSON */ }
+        };
+        const onClose = () => {
+          termWS.removeEventListener('message', onMsg);
+          if (wsRunInFlight) {
+            wsRunInFlight = false;
+            showInputRow(false);
+            clearTimeout(waitingKick);
+            window.PolyShell?.setStatus('Runner disconnected','error');
+            reject(new Error('line 1: runner disconnected'));
           }
-        } catch {
-          // Non-JSON chunk
-          sawOutput = true;
-          termWrite(String(ev.data));
-          maybeShowInputRow();
-        }
-      };
-      termWS.addEventListener('message', onMsg);
-
-      // If the program blocks immediately, reveal input after a short idle
-      if (needsStdin) lazyTimer = setTimeout(maybeShowInputRow, 400);
+        };
+        termWS.addEventListener('message', onMsg);
+        termWS.addEventListener('close', onClose, { once:true });
+      });
 
       try {
         termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
       } catch {
         try { termWS.close(); } catch {}
         showInputRow(false);
+        wsRunInFlight = false;
         window.PolyShell?.setStatus('Runner unavailable','error');
         throw new Error('line 1: runner unavailable');
       }
 
-      // Wait until exit handled in onMsg
-      await new Promise((resolve) => {
-        const tick = () => (!wsRunInFlight ? resolve() : setTimeout(tick, 30));
-        tick();
-      });
+      await waitForExit;
       return;
     }
 
-    // ---- Fallback: Piston ----
+    /* ----------- Fallback: Piston (non-interactive) ----------- */
     let version = await getPistonJavaVersion();
     let res     = await pistonExecuteJava({ code, fileName, version, stdin });
 
@@ -575,7 +511,7 @@ function detectClassToRun(code){
     }
   };
 
-  // ---- Reset (called by shell) ----
+  /* --- Reset (called by shell) --- */
   window.clearLang = function(){
     setConsole('');
     document.getElementById('output')?.style.setProperty('background','transparent','important');
@@ -584,7 +520,7 @@ function detectClassToRun(code){
     document.getElementById('consolePrefix').textContent = '';
     try{ termWS?.close(); }catch{}
     termWS = null; wsRunInFlight = false;
-    window.__poly_after_user_enter = null;
+    clearTimeout(waitingKick);
   };
 })();
 
