@@ -8,6 +8,11 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
+  <style>
+    #output { white-space: pre-wrap; }
+#jconsole { display: inline; white-space: pre-wrap; }     /* make output inline */
+#consoleRow { display: inline-flex; gap: 4px; align-items: baseline; }  /* sit on same line */
+  </style>
 </head>
 
 <body class="page-fade">
@@ -92,9 +97,17 @@
           <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
           <div id="consoleRow"
                style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; gap:4px; align-items:baseline;">
-            <span id="consolePrefix" style="white-space:pre"></span>
-            <span id="consoleInput" contenteditable="true" spellcheck="false"
-                  style="outline:none; white-space:pre; min-width:2ch;"></span>
+
+
+<pre id="jconsole" class="console" style="white-space:pre-wrap">
+  <span id="consoleText"></span><span id="consolePrefix"></span>
+  <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+</pre>
+
+
+
+
+            
           </div>
         </div>
 
@@ -291,36 +304,46 @@ function detectClassToRun(code){
     s.addRange(r);
   }
 
-  function showInputRow(show){
-    const row = document.getElementById('consoleRow');
-    const pre = document.getElementById('jconsole');
-    const prefix = document.getElementById('consolePrefix');
+ function showInputRow(show){
+  const row    = document.getElementById('consoleRow');
+  const pre    = document.getElementById('jconsole');
+  const prefix = document.getElementById('consolePrefix');
 
-    if (row) row.style.display = show ? 'flex' : 'none';
+  if (row) row.style.display = show ? 'flex' : 'none';
 
-    if (show) {
-      const txt = pre.textContent;
-      const i = txt.lastIndexOf('\n');
-      const tail = txt.slice(i + 1);
-      if (tail && !/^\s*$/.test(tail)) {
-        prefix.textContent = tail + ' ';
-        pre.textContent = txt.slice(0, i + 1);
-      } else {
-        prefix.textContent = '';
-      }
-      const el = document.getElementById('consoleInput');
-      if (el){
-        el.focus();
-        const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-      }
+  if (show) {
+    // Move trailing partial line from <pre> into the prefix (keeps prompt + input on one line)
+    const txt  = pre.textContent;
+    const i    = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);
+    if (tail && !/^\s*$/.test(tail)) {
+      prefix.textContent = tail + ' ';
+      pre.textContent = txt.slice(0, i + 1);
     } else {
-      if (prefix.textContent) {
-        pre.textContent += prefix.textContent;
-        prefix.textContent = '';
-      }
+      prefix.textContent = '';
+    }
+    // NEW: we only say this when the input row is visible
+    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+
+    // focus caret
+    const el = document.getElementById('consoleInput');
+    if (el){
+      el.focus();
+      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+  } else {
+    // Hide input -> go back to Executing… if program still running
+    if (typeof wsRunInFlight !== 'undefined' && wsRunInFlight) {
+      window.PolyShell?.setStatus('Executing...', 'busy');
+    }
+    if (prefix.textContent) {
+      pre.textContent += prefix.textContent;
+      prefix.textContent = '';
     }
   }
+}
+
 
   /* --- Monaco marker helpers --- */
   function clearEditorMarkers() {
@@ -382,7 +405,7 @@ function detectClassToRun(code){
 
   // ---- Send input when user presses Enter ----
   let termWS = null, wsRunInFlight = false;
-  document.addEventListener('keydown', (e) => {
+  /*document.addEventListener('keydown', (e) => {
     const el = document.getElementById('consoleInput');
     if (!el || el.offsetParent === null) return;
     if (e.target !== el) return;
@@ -399,7 +422,37 @@ function detectClassToRun(code){
       } catch {}
       if (typeof focusConsoleInput === 'function') focusConsoleInput();
     }
-  }, { capture: true });
+  }, { capture: true });*/
+
+
+
+  document.addEventListener('keydown', (e) => {
+  const el = document.getElementById('consoleInput');
+  if (!el || el.offsetParent === null) return;
+  if (e.target !== el) return;
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const line = el.textContent;
+
+    termWrite(line + '\n');   // echo what the user typed
+    el.textContent = '';
+
+    try {
+      if (termWS && termWS.readyState === 1 && wsRunInFlight) {
+        termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
+      }
+    } catch {}
+
+    // NEW: back to Executing… until we need input again
+    window.PolyShell?.setStatus('Executing...', 'busy');
+    inputShown = false;               // <— see next section
+    focusConsoleInput?.();
+  }
+}, { capture: true });
+
+
+  
 
   // ---- MAIN: Run (interactive first; fallback to Piston) ----
   window.runLang = async function(codeOverride){
