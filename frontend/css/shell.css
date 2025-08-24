@@ -1690,7 +1690,14 @@ body:not(.light) .footer-left .footer-logo{
 
 
 
-
+.btn.is-running:disabled{
+  animation: none !important;
+    
+}
+.btn.is-resetting:disabled{
+  animation: none !important;
+   
+}
 
 
 
