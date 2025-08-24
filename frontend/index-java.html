@@ -210,6 +210,17 @@ if (_btn) _btn.classList.remove('attn');
     
 
 /* --- Console helpers --- */
+
+    function maybeUnlock(chunk){
+  if (!chunk) return;
+  // unlock only on visible output or common prompt endings
+  const s = String(chunk);
+  if (/\S/.test(s) || /[:?>]\s?$/.test(s)) allowUserInput();
+}
+
+
+
+    
 function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   const el = document.getElementById('jconsole');
   if (!el) return;
@@ -360,22 +371,24 @@ if (rightFoot) rightFoot.textContent = 'Waiting for Execution';
 }
 
 function allowUserInput(){
-  const inputEl = document.getElementById('consoleInput');
-  if (!inputEl) return;
-  if (inputAllowed) return;
+  const el = document.getElementById('consoleInput'); if (!el || inputAllowed) return;
   inputAllowed = true;
-  inputEl.setAttribute('contenteditable','true');
+  el.setAttribute('contenteditable','true');
+  el.setAttribute('tabindex','0');            // ← focusable only when unlocked
   setStatusSafe('Waiting for User Input...','busy');
-  const rf1 = document.getElementById('rightFoot');
-if (rf1) rf1.textContent = 'Waiting for User Input...';
+  document.getElementById('rightFoot')?.textContent = 'Waiting for User Input...';
   focusConsoleInput();
 }
 function disallowUserInput(){
-  const inputEl = document.getElementById('consoleInput');
-  if (!inputEl) return;
+  const el = document.getElementById('consoleInput'); if (!el) return;
   inputAllowed = false;
-  inputEl.setAttribute('contenteditable','false');
+  el.setAttribute('contenteditable','false');
+  el.setAttribute('tabindex','-1');           // ← cannot be focused while locked
 }
+// (optional extra safety)
+document.getElementById('consoleInput')?.addEventListener('mousedown', (e)=>{
+  if (!inputAllowed) e.preventDefault();
+});
 
 
   
@@ -519,7 +532,7 @@ document.addEventListener('paste', (e) => {
   
   // MAIN: Run (interactive first; fallback to Piston)
   window.runLang = async function(codeOverride){
-  
+  if (wsRunInFlight){ setStatusSafe('Execution already in progress','busy'); return; }
     clearEditorMarkers();
     const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
     showInputRow(false);
@@ -611,8 +624,8 @@ const waitForExit = new Promise((resolve, reject) => {
   const onMsg = (ev) => {
     try{
       const m = JSON.parse(String(ev.data));
-     if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); allowUserInput(); }
-else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); allowUserInput(); }
+    if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); maybeUnlock(m.data); }
+else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); maybeUnlock(m.data); }
 else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); /* keep locked or unlock? usually not needed */ }
 
       else if (m.type === 'exit'){
