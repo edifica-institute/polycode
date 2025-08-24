@@ -119,7 +119,7 @@
           <pre id="jconsole" class="console"></pre>
           <div id="consoleRow">
             <span id="consolePrefix"></span>
-            <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+            <span id="consoleInput" contenteditable="false" spellcheck="false"></span>
           </div>
         </div>
 
@@ -185,7 +185,7 @@ const SAMPLE_JAVA =
 /* --- Make bootstrap globally visible --- */
 window.bootstrap = async function bootstrap(){
   await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
-  window.PolyShell.setStatus('Ready','ok');
+  setStatusSafe('Ready', 'ok');
   window.PolyShell.loadLeftContent('java');
   // right after IIFE starts or inside bootstrap()
 const ci0 = document.getElementById('consoleInput');
