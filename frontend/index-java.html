@@ -397,7 +397,6 @@ function detectClassToRun(code){
       } catch {}
 
       window.PolyShell?.setStatus('Executing...','busy'); // back to executing after user submits
-      document.getElementById('rightFoot')?.textContent = 'Executing...';
       showInputRow(true); // keep row ready for the next prompt
       focusConsoleInput();
     }
