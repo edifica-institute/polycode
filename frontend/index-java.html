@@ -88,17 +88,15 @@
           </div>
         </div>
 
-       <div id="output" class="screen-dim" style="padding:12px;">
-  <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-  <div id="consoleRow"
-     style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; gap:4px; align-items:baseline;">
-  <span id="consolePrefix" style="white-space:pre"></span>
-  <span id="consoleInput" contenteditable="true" spellcheck="false"
-        style="outline:none; white-space:pre; min-width:2ch;"></span>
-</div>
-
-</div>
-
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <div id="consoleRow"
+               style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; gap:4px; align-items:baseline;">
+            <span id="consolePrefix" style="white-space:pre"></span>
+            <span id="consoleInput" contenteditable="true" spellcheck="false"
+                  style="outline:none; white-space:pre; min-width:2ch;"></span>
+          </div>
+        </div>
 
         <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
@@ -149,9 +147,6 @@
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
-
-
-  
   <!-- Page script -->
   <script>
 /* --- Sample Java used in the editor --- */
@@ -177,16 +172,7 @@ window.bootstrap = async function bootstrap(){
   const out = document.getElementById('output');
   out && (out.scrollTop = out.scrollHeight);
 }*/
-/*function printToConsole({compileErr='', stderr='', stdout='', code=0}){
-  let msg = '';
-  if (compileErr) msg += compileErr + '\\n';
-  if (stderr)     msg += stderr + '\\n';
-  if (stdout)     msg += stdout;
-  msg += (msg ? '\\n\\n' : '') + 'Exit code: ' + code;
-  setConsole(msg);
-}*/
-
-    function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
+function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   const el = document.getElementById('jconsole');
   if (!el) return;
   const parts = [];
@@ -198,11 +184,6 @@ window.bootstrap = async function bootstrap(){
   document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
 }
 
-    
-
-
-
- 
 function findJavaErrorLine(text, className){
   const fileRe = `${className}.java`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // Foo.java:5:
@@ -213,40 +194,33 @@ function findJavaErrorLine(text, className){
 }
 
 let __pistonJavaVersion = null;
-
 async function getPistonJavaVersion(forceRefresh = false){
   if (!forceRefresh && __pistonJavaVersion) return __pistonJavaVersion;
-
   try {
     const resp = await fetch('https://emkc.org/api/v2/piston/runtimes');
     const runtimes = await resp.json();
-
-    // Prefer 'java' entry; fallbacks for older labels just in case
     const java = runtimes.find(r => r.language === 'java')
              || runtimes.find(r => /open.?jdk/i.test(r.language))
              || runtimes.find(r => /java/i.test(r.language));
-
-    __pistonJavaVersion = java?.version || '21'; // reasonable default guess
+    __pistonJavaVersion = java?.version || '21';
   } catch {
-    __pistonJavaVersion = '21'; // offline/failure fallback
+    __pistonJavaVersion = '21';
   }
   return __pistonJavaVersion;
 }
 
-    async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
+async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
   const body = JSON.stringify({
     language: 'java',
     version,
     files: [{ name: fileName, content: code }],
     stdin
   });
-
   const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
     method: 'POST',
     headers: { 'Content-Type':'application/json' },
     body
   });
-
   const text = await resp.text();
   let data = null;
   try {
@@ -257,49 +231,18 @@ async function getPistonJavaVersion(forceRefresh = false){
   return { ok: resp.ok, status: resp.status, text, data };
 }
 
-
-
-    
-/*async function pistonExecuteJava({ code, fileName, version }){
-  const body = JSON.stringify({
-    language: 'java',
-    version,
-    files: [{ name: fileName, content: code }]
-  });
-
-  const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json' },
-    body
-  });
-
-  const text = await resp.text();
-let data = null;
-try {
-  if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-    data = JSON.parse(text);
-  }
-} catch {}
-return { ok: resp.ok, status: resp.status, text, data };
-}*/  
-
-
 // Pull stdin from special comments in the code and remove them before compile
 function extractInlineStdin(code){
   let stdin = '';
 
-  // Multi-line form:
-  // /* stdin:
-  // line1
-  // line2
-  // */
+  // Multi-line /* stdin: ... */
   const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
   code = code.replace(block, (_, __, content) => {
-    stdin = content.replace(/^\s*\* ?/gm, ''); // strip leading '*' in block comments
+    stdin = content.replace(/^\s*\* ?/gm, '');
     return '';
   });
 
-  // Single-line form: // stdin: 42\n99  (use \n for newlines)
+  // Single-line // stdin: 42\n99
   if (!stdin) {
     const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
     const m = code.match(line);
@@ -313,27 +256,17 @@ function extractInlineStdin(code){
 }
 
 function detectClassToRun(code){
-  // Prefer 'public class X'
   let m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/);
   if (m) return m[1];
-
-  // Otherwise, find the first class that actually has a main method
   m = code.match(/\bclass\s+([A-Za-z_]\w*)\b[\s\S]*?\bpublic\s+static\s+void\s+main\s*\(/);
   if (m) return m[1];
-
-  // Fallback
   return 'Main';
 }
 
-
-
-    
-
 (function(){
-  // ---- Hardcoded WS URL for your Java runner ----
   const JAVA_WS_URL = 'wss://polycode-java.onrender.com/java';
 
-  // ---- Console helpers ----
+  // ---- Console helpers for this IIFE ----
   function setConsole(text){
     const el = document.getElementById('jconsole');
     if (!el) return;
@@ -347,255 +280,219 @@ function detectClassToRun(code){
 
   // ---- Minimal input line (NO '$' prompt) ----
   function focusConsoleInput() {
-  const el = document.getElementById('consoleInput');
-  if (!el) return;
-  el.focus();
-  const r = document.createRange();
-  r.selectNodeContents(el);
-  r.collapse(false);
-  const s = window.getSelection();
-  s.removeAllRanges();
-  s.addRange(r);
-}
-
-function showInputRow(show){
-  const row = document.getElementById('consoleRow');
-  const pre = document.getElementById('jconsole');
-  const prefix = document.getElementById('consolePrefix');
-
-  if (row) row.style.display = show ? 'flex' : 'none';
-
-  if (show) {
-    // Move trailing partial line from <pre> into the prefix
-    const txt = pre.textContent;
-    const i = txt.lastIndexOf('\n');
-    const tail = txt.slice(i + 1);              // text after last newline
-    if (tail && !/^\s*$/.test(tail)) {
-      prefix.textContent = tail + ' ';
-      pre.textContent = txt.slice(0, i + 1);    // leave full lines in <pre>
-    } else {
-      prefix.textContent = '';
-    }
-    // focus caret
     const el = document.getElementById('consoleInput');
-    if (el){
-      el.focus();
-      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-    }
-  } else {
-    // Put the prefix back into the console output when hiding (optional)
-    if (prefix.textContent) {
-      pre.textContent += prefix.textContent;
-      prefix.textContent = '';
+    if (!el) return;
+    el.focus();
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.collapse(false);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
+  }
+
+  function showInputRow(show){
+    const row = document.getElementById('consoleRow');
+    const pre = document.getElementById('jconsole');
+    const prefix = document.getElementById('consolePrefix');
+
+    if (row) row.style.display = show ? 'flex' : 'none';
+
+    if (show) {
+      const txt = pre.textContent;
+      const i = txt.lastIndexOf('\n');
+      const tail = txt.slice(i + 1);
+      if (tail && !/^\s*$/.test(tail)) {
+        prefix.textContent = tail + ' ';
+        pre.textContent = txt.slice(0, i + 1);
+      } else {
+        prefix.textContent = '';
+      }
+      const el = document.getElementById('consoleInput');
+      if (el){
+        el.focus();
+        const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+        const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      }
+    } else {
+      if (prefix.textContent) {
+        pre.textContent += prefix.textContent;
+        prefix.textContent = '';
+      }
     }
   }
-}
 
+  /* --- Monaco marker helpers --- */
+  function clearEditorMarkers() {
+    if (!window.monaco || !window.editor) return;
+    const model = window.editor.getModel();
+    if (model) window.monaco.editor.setModelMarkers(model, 'javac', []);
+  }
+  function setEditorMarker(line, message) {
+    if (!window.monaco || !window.editor) return;
+    const model = window.editor.getModel();
+    if (!model) return;
+    const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
+    window.monaco.editor.setModelMarkers(model, 'javac', [{
+      startLineNumber: line || 1,
+      endLineNumber:   line || 1,
+      startColumn:     1,
+      endColumn:       maxCol,
+      message:         String(message || 'Error'),
+      severity:        window.monaco.MarkerSeverity.Error
+    }]);
+  }
 
+  // ---- Input detection ----
+  function codeNeedsInput(code){
+    return (
+      /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
+      /\bBufferedReader\s*\(\s*new\s+InputStreamReader\s*\(\s*System\.in\s*\)\s*\)/.test(code) ||
+      /\bSystem\.in\b/.test(code)
+    );
+  }
 
-
-// … keep your existing helpers above …
-
-/* --- Monaco marker helpers --- */
-function clearEditorMarkers() {
-  if (!window.monaco || !window.editor) return;
-  const model = window.editor.getModel();
-  if (model) window.monaco.editor.setModelMarkers(model, 'javac', []);
-}
-
-function setEditorMarker(line, message) {
-  if (!window.monaco || !window.editor) return;
-  const model = window.editor.getModel();
-  if (!model) return;
-  const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
-  window.monaco.editor.setModelMarkers(model, 'javac', [{
-    startLineNumber: line || 1,
-    endLineNumber:   line || 1,
-    startColumn:     1,
-    endColumn:       maxCol,
-    message:         String(message || 'Error'),
-    severity:        window.monaco.MarkerSeverity.Error
-  }]);
-}
-
-
-
-
-
-  
-  // ---- WebSocket connection with short timeout (fast fallback) ----
-  let termWS = null, wsRunInFlight = false;
-  function connectWS(timeoutMs=350){
-    return new Promise((resolve)=>{
-      // close any previous
-      try{ termWS?.close(); }catch{}
-      let settled = false;
-      try{
-        termWS = new WebSocket(JAVA_WS_URL);
-      }catch{
-        return resolve(false);
+  // ---- Gentle WS connect + wake ping ----
+  async function wakeRunner(){
+    try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+  }
+  function tryConnectWS(timeoutMs=8000){
+    return new Promise((resolve) => {
+      let done = false;
+      let timer = null;
+      let ws;
+      try {
+        ws = new WebSocket(JAVA_WS_URL);
+      } catch {
+        return resolve(null);
       }
-      const finish = ok => { if (!settled){ settled = true; resolve(ok); } };
-      const timer = setTimeout(()=>{ try{ termWS?.close(); }catch{} finish(false); }, timeoutMs);
-
-      termWS.onopen = ()=>{ clearTimeout(timer); finish(true); };
-      termWS.onerror = ()=>{ clearTimeout(timer); finish(false); };
-      termWS.onclose = ()=>{ clearTimeout(timer); if (!settled) finish(false); showInputRow(false); };
-      termWS.onmessage = (ev)=>{
-        try{
-          const m = JSON.parse(String(ev.data));
-          if (m.type === 'stdout') termWrite(m.data);
-          else if (m.type === 'stderr') termWrite(m.data);
-          else if (m.type === 'compileErr') termWrite(m.data);
-          else if (m.type === 'exit'){if (m.code !== 0) termWrite(`\nExit code: ${m.code}\n`);
-  wsRunInFlight = false;
-  showInputRow(false); }
-        }catch{
-          termWrite(String(ev.data));
-        }
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        ws.onopen = ws.onerror = ws.onclose = null; // detach early handlers
+        resolve(ok ? ws : null);
       };
+      timer = setTimeout(() => finish(false), timeoutMs);
+      ws.onopen  = () => finish(true);
+      ws.onerror = () => finish(false);
+      ws.onclose = () => finish(false);
     });
   }
 
+  // ---- Send input when user presses Enter ----
+  let termWS = null, wsRunInFlight = false;
+  document.addEventListener('keydown', (e) => {
+    const el = document.getElementById('consoleInput');
+    if (!el || el.offsetParent === null) return;
+    if (e.target !== el) return;
 
-  function codeNeedsInput(code){
-  return (
-    /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
-    /\bBufferedReader\s*\(\s*new\s+InputStreamReader\s*\(\s*System\.in\s*\)\s*\)/.test(code) ||
-    /\bSystem\.in\b/.test(code)
-  );
-}
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const line = el.textContent;
+      termWrite(line + '\n');
+      el.textContent = '';
+      try {
+        if (termWS && termWS.readyState === 1 && wsRunInFlight) {
+          termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
+        }
+      } catch {}
+      if (typeof focusConsoleInput === 'function') focusConsoleInput();
+    }
+  }, { capture: true });
 
-  
-
-  // ---- Send input when user presses Enter in the input line ----
-document.addEventListener('keydown', (e) => {
-  const el = document.getElementById('consoleInput');
-  if (!el || el.offsetParent === null) return; // hidden
-  if (e.target !== el) return;
-
-  if (e.key === 'Enter') {
-    e.preventDefault();
-    const line = el.textContent;
-
-    // NEW: echo what the user typed so it stays in the transcript
-    termWrite(line + '\n');
-
-    // clear for the next line
-    el.textContent = '';
-
-    try {
-      if (termWS && termWS.readyState === 1 && wsRunInFlight) {
-        termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
-      }
-    } catch {}
-
-    // keep caret ready for the next input
-    if (typeof focusConsoleInput === 'function') focusConsoleInput();
-  }
-}, { capture: true });
-
-
-  // ---- MAIN: Run (interactive first; instant fallback to Piston) ----
+  // ---- MAIN: Run (interactive first; fallback to Piston) ----
   window.runLang = async function(codeOverride){
+    clearEditorMarkers();
+    const prefix = document.getElementById('consolePrefix');
+    if (prefix) prefix.textContent = '';
+    showInputRow(false);
 
-     clearEditorMarkers();
-  const prefix = document.getElementById('consolePrefix');
-  if (prefix) prefix.textContent = '';
-  showInputRow(false);
-
-    
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride
       : (window.editor ? window.editor.getValue() : '');
 
-    const { code, stdin } = extractInlineStdin(raw);   // your existing helper
-    const className = detectClassToRun(code);          // your existing helper
+    const { code, stdin } = extractInlineStdin(raw);
+    const className = detectClassToRun(code);
     const fileName  = `${className}.java`;
 
     setConsole('');
     document.getElementById('output')?.classList.remove('error');
 
-    // Try WS quickly
-    // NEW: wait longer only if stdin is likely needed
-//const wsTimeout = codeNeedsInput(code) ? 1500 : 350;   // tweak 1200–2000ms if needed
-const needsStdin = codeNeedsInput(code);
+    const needsStdin = codeNeedsInput(code);
 
-// try a quick connect first (stays fast for "Hello Java!")
-let interactive = await connectWS(needsStdin ? 2500 : 350);
+    // Wake + connect (gentle)
+    if (needsStdin) await wakeRunner();
+    let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
+    if (!ws && needsStdin) {
+      setConsole('Starting interactive runner…');
+      ws = await tryConnectWS(15000);
+    }
 
-if (!interactive && needsStdin) {
-  // runner is likely waking—tell the user and retry a bit longer
-  setConsole('Starting interactive runner…');
-  interactive = await connectWS(7000);  // one retry window
-}
+    if (ws) {
+      termWS = ws;
+      wsRunInFlight = true;
+      showInputRow(needsStdin);
+      window.PolyShell?.setStatus(
+        needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
+        'busy'
+      );
 
+      const acc = { compileErr:'', stderr:'', stdout:'' };
 
-if (interactive) {
-  wsRunInFlight = true;
-  showInputRow(needsStdin);
-  window.PolyShell?.setStatus(
-    needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
-    'busy'
-  );
-
-  // Accumulate text so we can compute a precise error/line if it fails.
-  const acc = { compileErr:'', stderr:'', stdout:'' };
-
-  const waitForExit = new Promise((resolve, reject) => {
-    const onMsg = (ev) => {
-      try {
-        const m = JSON.parse(String(ev.data));
-        if (m.type === 'stdout') acc.stdout += m.data;
-        else if (m.type === 'stderr') acc.stderr += m.data;
-        else if (m.type === 'compileErr') acc.compileErr += m.data;
-        else if (m.type === 'exit') {
+      const waitForExit = new Promise((resolve, reject) => {
+        const onMsg = (ev) => {
+          try{
+            const m = JSON.parse(String(ev.data));
+            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data); }
+            else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
+            else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
+            else if (m.type === 'exit') {
+              termWS.removeEventListener('message', onMsg);
+              wsRunInFlight = false;
+              showInputRow(false);
+              if (m.code === 0) {
+                window.PolyShell?.setStatus('Execution Success','ok');
+                clearEditorMarkers();
+                resolve();
+              } else {
+                const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
+                const firstLine = (errText.split('\n')[0] || 'Execution failed');
+                const line = findJavaErrorLine(errText, className);
+                setEditorMarker(line, firstLine);
+                window.PolyShell?.setStatus('Execution Failed','error');
+                reject(new Error(`line ${line}: ${firstLine}`));
+              }
+            }
+          } catch { /* ignore non-JSON */ }
+        };
+        const onClose = () => {
           termWS.removeEventListener('message', onMsg);
-          wsRunInFlight = false;
-          showInputRow(false);
-
-          if (m.code === 0) {
-            window.PolyShell?.setStatus('Execution Success','ok');
-            clearEditorMarkers();
-            resolve();
-          } else {
-            const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
-            const firstLine = (errText.split('\n')[0] || 'Execution failed');
-            const line = findJavaErrorLine(errText, className);
-            setEditorMarker(line, firstLine);
-            window.PolyShell?.setStatus('Execution Failed','error');
-            reject(new Error(`line ${line}: ${firstLine}`));
+          if (wsRunInFlight) {
+            wsRunInFlight = false;
+            showInputRow(false);
+            window.PolyShell?.setStatus('Runner disconnected','error');
+            reject(new Error('line 1: runner disconnected'));
           }
-        }
-      } catch { /* ignore non-JSON stream chunks */ }
-    };
-    termWS.addEventListener('message', onMsg);
-  });
+        };
+        termWS.addEventListener('message', onMsg);
+        termWS.addEventListener('close', onClose, { once:true });
+      });
 
-  try {
-    termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
-  } catch {
-    try { termWS.close(); } catch {}
-    showInputRow(false);
-    window.PolyShell?.setStatus('Runner unavailable','error');
-    throw new Error('line 1: runner unavailable');
-  }
+      try {
+        termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
+      } catch {
+        try { termWS.close(); } catch {}
+        showInputRow(false);
+        window.PolyShell?.setStatus('Runner unavailable','error');
+        throw new Error('line 1: runner unavailable');
+      }
 
-  // 🔴 Important: do not return until the program actually exits.
-  await waitForExit;
-  return;
-}
+      await waitForExit;
+      return;
+    }
 
-
-
-
-
-
-
-    
-
-    // ---- Fallback: Piston (your existing batch flow) ----
+    // ---- Fallback: Piston ----
     let version = await getPistonJavaVersion();
     let res     = await pistonExecuteJava({ code, fileName, version, stdin });
 
@@ -624,17 +521,17 @@ if (interactive) {
     printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
 
     const ok = (data.run?.code === 0) && !compileErr;
-if (ok) {
-  window.PolyShell?.setStatus('Execution Success','ok');
-  clearEditorMarkers();
-} else {
-  const errText = (compileErr || stderr || 'Execution failed').trim();
-  const firstLine = (errText.split('\n')[0] || 'Execution failed');
-  const line = findJavaErrorLine(errText, className);
-  setEditorMarker(line, firstLine);
-  window.PolyShell?.setStatus('Execution Failed','error');
-  throw new Error(`line ${line}: ${firstLine}`);
-}
+    if (ok) {
+      window.PolyShell?.setStatus('Execution Success','ok');
+      clearEditorMarkers();
+    } else {
+      const errText = (compileErr || stderr || 'Execution failed').trim();
+      const firstLine = (errText.split('\n')[0] || 'Execution failed');
+      const line = findJavaErrorLine(errText, className);
+      setEditorMarker(line, firstLine);
+      window.PolyShell?.setStatus('Execution Failed','error');
+      throw new Error(`line ${line}: ${firstLine}`);
+    }
   };
 
   // ---- Reset (called by shell) ----
@@ -642,35 +539,14 @@ if (ok) {
     setConsole('');
     document.getElementById('output')?.style.setProperty('background','transparent','important');
     showInputRow(false);
-    clearEditorMarkers(); 
+    clearEditorMarkers();
     const prefix = document.getElementById('consolePrefix');
-  if (prefix) prefix.textContent = '';
+    if (prefix) prefix.textContent = '';
     try{ termWS?.close(); }catch{}
     termWS = null; wsRunInFlight = false;
   };
 })();
 
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-    
-
-
-
-
-  
 /* --- Start after shell.js (defer) has run --- */
 (function startWhenReady(){
   function start(){
