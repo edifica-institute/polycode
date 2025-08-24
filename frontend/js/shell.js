@@ -942,7 +942,6 @@ try {
     // Run: Ctrl/Cmd+Enter or F9
     if ((mod && e.key === 'Enter') || e.key === 'F9') {
       e.preventDefault();
-      document.getElementById('btnRun')?.classList.remove('attn');
       click('btnRun');
       return;
     }
