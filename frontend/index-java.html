@@ -357,17 +357,23 @@ function detectClassToRun(code){
 
   // Runner wake + connect
   async function wakeRunner(){ try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {} }
-  function tryConnectWS(timeoutMs=6000){
-    return new Promise((resolve)=>{
-      let done=false, timer=null, ws;
-      try { ws = new WebSocket(JAVA_WS_URL); } catch { return resolve(null); }
-      const finish = ok => { if (done) return; done=true; clearTimeout(timer); resolve(ok ? ws : null); };
-      timer = setTimeout(()=>finish(false), timeoutMs);
-      ws.onopen = ()=>finish(true);
-      ws.onerror = ()=>finish(false);
-      ws.onclose = ()=>finish(false);
-    });
-  }
+function tryConnectWS(timeoutMs=6000){
+  return new Promise((resolve)=>{
+    let done=false, timer=null, ws;
+    try { ws = new WebSocket(JAVA_WS_URL); } catch { return resolve(null); }
+    const finish = ok => {
+      if (done) return;
+      done = true; clearTimeout(timer);
+      if (!ok) { try{ ws.close(); }catch{} }   // <- ensure we don’t leave a zombie socket
+      resolve(ok ? ws : null);
+    };
+    timer = setTimeout(()=>finish(false), timeoutMs);
+    ws.onopen  = ()=>finish(true);
+    ws.onerror = ()=>finish(false);
+    ws.onclose = ()=>finish(false);
+  });
+}
+
 
   // Status choreography
   let termWS=null, wsRunInFlight=false, inputShown=false;
