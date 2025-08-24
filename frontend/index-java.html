@@ -304,21 +304,25 @@ function detectClassToRun(code){
 }
 
   
-  function showInputRow(show){
+  function showInputRow(show, { lock=false } = {}){
   const row = document.getElementById('consoleRow');
   const rightFoot = document.getElementById('rightFoot');
-  if (!row) return;
+  const inputEl = document.getElementById('consoleInput');
+  if (!row || !inputEl) return;
 
   if (show){
     row.style.display = 'flex';
     refreshPrefixFromTail();
     inputShown = true;
 
-    // Update both footers immediately
-    window.PolyShell?.setStatus('Waiting for User Input...','busy');
-    if (rightFoot) rightFoot.textContent = 'Waiting for User Input...';
+    // lock/unlock typing
+    inputAllowed = !lock;
+    inputEl.setAttribute('contenteditable', inputAllowed ? 'true' : 'false');
 
-    focusConsoleInput();
+    window.PolyShell?.setStatus(inputAllowed ? 'Waiting for User Input...' : 'Preparing input…','busy');
+    if (rightFoot) rightFoot.textContent = inputAllowed ? 'Waiting for User Input...' : 'Preparing input…';
+
+    if (inputAllowed) focusConsoleInput();
   } else {
     const pre = document.getElementById('jconsole');
     const prefix = document.getElementById('consolePrefix');
@@ -328,11 +332,33 @@ function detectClassToRun(code){
     }
     row.style.display = 'none';
     inputShown = false;
-
-    // Restore right footer to neutral “Waiting for Execution” when input row hides
-    if (rightFoot) rightFoot.textContent = 'Waiting for Execution';
+    inputAllowed = false;
+    const rightFoot = document.getElementById('rightFoot');
+if (rightFoot) rightFoot.textContent = 'Waiting for Execution';
   }
 }
+
+function allowUserInput(){
+  const inputEl = document.getElementById('consoleInput');
+  if (!inputEl) return;
+  if (inputAllowed) return;
+  inputAllowed = true;
+  inputEl.setAttribute('contenteditable','true');
+  window.PolyShell?.setStatus('Waiting for User Input...','busy');
+  document.getElementById('rightFoot')?.textContent = 'Waiting for User Input...';
+  focusConsoleInput();
+}
+function disallowUserInput(){
+  const inputEl = document.getElementById('consoleInput');
+  if (!inputEl) return;
+  inputAllowed = false;
+  inputEl.setAttribute('contenteditable','false');
+}
+
+
+  
+
+  
 
 
   // Markers
@@ -384,7 +410,10 @@ function tryConnectWS(timeoutMs=6000){
 
   // Status choreography
   let termWS=null, wsRunInFlight=false, inputShown=false;
+let inputAllowed=false;
+let inputUnlockTimer=null;
 
+  
   // Send input on Enter
   document.addEventListener('keydown', (e)=>{
     const inputEl = document.getElementById('consoleInput');
@@ -392,6 +421,7 @@ function tryConnectWS(timeoutMs=6000){
     if (e.target !== inputEl) return;
     if (e.key === 'Enter'){
       e.preventDefault();
+       if (!inputAllowed) return;
       const pre = document.getElementById('jconsole');
       const prefix = document.getElementById('consolePrefix');
       const line = inputEl.textContent;
@@ -482,7 +512,14 @@ document.getElementById('consoleInput')?.addEventListener('keydown', (e)=>{
     if (ws){
       termWS = ws;
       wsRunInFlight = true;
-      if (needsStdin) showInputRow(true); // shows “Waiting for User Input…”
+     if (needsStdin){
+  // show LOCKED first (no typing yet)
+  showInputRow(true, { lock:true });
+
+  // Safety unlock if program immediately reads without printing a prompt
+  clearTimeout(inputUnlockTimer);
+  inputUnlockTimer = setTimeout(() => allowUserInput(), 350);
+}
 
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
@@ -532,13 +569,16 @@ const waitForExit = new Promise((resolve, reject) => {
   const onMsg = (ev) => {
     try{
       const m = JSON.parse(String(ev.data));
-      if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); }
-      else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); }
-      else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); }
+     if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); allowUserInput(); }
+else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); allowUserInput(); }
+else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); /* keep locked or unlock? usually not needed */ }
+
       else if (m.type === 'exit'){
         // SAFELY remove listener
         try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
         wsRunInFlight = false;
+        clearTimeout(inputUnlockTimer);
+disallowUserInput();
         showInputRow(false);
 
         if (m.code === 0){
@@ -562,6 +602,9 @@ const waitForExit = new Promise((resolve, reject) => {
     try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
     if (wsRunInFlight){
       wsRunInFlight = false;
+      clearTimeout(inputUnlockTimer);
+disallowUserInput();
+      
       showInputRow(false);
       window.PolyShell?.setStatus('Runner disconnected','error');
       reject(new Error('line 1: runner disconnected'));
@@ -645,6 +688,8 @@ const waitForExit = new Promise((resolve, reject) => {
   // Reset
   window.clearLang = function(){
   setConsole('');
+    clearTimeout(inputUnlockTimer);
+disallowUserInput();
   showInputRow(false);
   clearEditorMarkers();
   const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
