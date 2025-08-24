@@ -198,6 +198,15 @@ if (ci0) ci0.setAttribute('contenteditable', 'false');
 if (_btn) _btn.classList.remove('attn');
 };
 
+
+    function setStatusSafe(label, kind){
+  if (window.PolyShell && typeof window.PolyShell.setStatus === 'function') {
+    window.PolyShell.setStatus(label, kind);
+  }
+}
+
+    
+
 /* --- Console helpers --- */
 function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   const el = document.getElementById('jconsole');
@@ -329,7 +338,7 @@ if (_out) _out.scrollTo({ top: 1e9, behavior: 'smooth' }); }
     inputAllowed = !lock;
     inputEl.setAttribute('contenteditable', inputAllowed ? 'true' : 'false');
 
-    window.PolyShell?.setStatus(inputAllowed ? 'Waiting for User Input...' : 'Preparing input…','busy');
+    setStatusSafe(inputAllowed ? 'Waiting for User Input...' : 'Preparing input…','busy');
     if (rightFoot) rightFoot.textContent = inputAllowed ? 'Waiting for User Input...' : 'Preparing input…';
 
     if (inputAllowed) focusConsoleInput();
@@ -354,7 +363,7 @@ function allowUserInput(){
   if (inputAllowed) return;
   inputAllowed = true;
   inputEl.setAttribute('contenteditable','true');
-  window.PolyShell?.setStatus('Waiting for User Input...','busy');
+  setStatusSafe('Waiting for User Input...','busy');
   const rf1 = document.getElementById('rightFoot');
 if (rf1) rf1.textContent = 'Waiting for User Input...';
   focusConsoleInput();
@@ -450,7 +459,7 @@ let inputUnlockTimer=null;
         }
       } catch {}
 
-      window.PolyShell?.setStatus('Executing...','busy'); // back to executing after user submits
+      setStatusSafe('Executing...','busy'); // back to executing after user submits
       showInputRow(true, { lock:true });// keep row ready for the next prompt
       focusConsoleInput();
     }
@@ -518,7 +527,7 @@ if (_btn) _btn.classList.remove('attn');
     const fileName  = `${className}.java`;
 
     setConsole('');
-    window.PolyShell?.setStatus('Executing...','busy');
+    setStatusSafe('Executing...','busy');
  const rf0 = document.getElementById('rightFoot');
 if (rf0) rf0.textContent = 'Executing...';
 
@@ -604,7 +613,7 @@ disallowUserInput();
         showInputRow(false);
 
         if (m.code === 0){
-          window.PolyShell?.setStatus('Execution Success','ok');
+          setStatusSafe('Execution Success','ok');
           clearEditorMarkers();
           resolve();
         } else {
@@ -612,7 +621,7 @@ disallowUserInput();
           const firstLine = (errText.split('\n')[0] || 'Execution failed');
           const line = findJavaErrorLine(errText, className);
           setEditorMarker(line, firstLine);
-          window.PolyShell?.setStatus('Execution Failed','error');
+          setStatusSafe('Execution Failed','error');
           reject(new Error(`line ${line}: ${firstLine}`));
         }
       }
@@ -628,7 +637,7 @@ disallowUserInput();
 disallowUserInput();
       
       showInputRow(false);
-      window.PolyShell?.setStatus('Runner disconnected','error');
+      setStatusSafe('Runner disconnected','error');
       reject(new Error('line 1: runner disconnected'));
     }
   };
@@ -657,7 +666,7 @@ disallowUserInput();
       catch {
         try{ termWS.close(); }catch{}
         showInputRow(false);
-        window.PolyShell?.setStatus('Runner unavailable','error');
+        setStatusSafe('Runner unavailable','error');
         throw new Error('line 1: runner unavailable');
       }
 
@@ -695,14 +704,14 @@ disallowUserInput();
 
     const ok = (data.run?.code === 0) && !compileErr;
     if (ok) {
-      window.PolyShell?.setStatus('Execution Success','ok');
+      setStatusSafe('Execution Success','ok');
       clearEditorMarkers();
     } else {
       const errText = (compileErr || stderr || 'Execution failed').trim();
       const firstLine = (errText.split('\n')[0] || 'Execution failed');
       const line = findJavaErrorLine(errText, className);
       setEditorMarker(line, firstLine);
-      window.PolyShell?.setStatus('Execution Failed','error');
+      setStatusSafe('Execution Failed','error');
       throw new Error(`line ${line}: ${firstLine}`);
     }
   };
