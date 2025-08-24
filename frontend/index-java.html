@@ -218,6 +218,23 @@ function findJavaErrorLine(text, className){
   return 1;
 }
 
+
+
+function hasPromptBeforeRead(code){
+  // Find first input read
+  const readIdx = code.search(/\b(?:new\s+Scanner\s*\(\s*System\.in\s*\)|\.next(?:Line|Int|Long|Double|Float|Short|Byte|Boolean|BigInteger|BigDecimal)?\s*\()/);
+  if (readIdx === -1) return false; // no read → no prompt needed
+
+  // Check if a print/printf happens before the first read
+  const before = code.slice(0, readIdx);
+  return /\bSystem\.out\.(?:print|printf)\s*\(/.test(before);
+}
+
+
+    
+
+
+    
 let __pistonJavaVersion = null;
 async function getPistonJavaVersion(forceRefresh = false){
   if (!forceRefresh && __pistonJavaVersion) return __pistonJavaVersion;
@@ -533,7 +550,7 @@ let inputArmTimer = null;
     inputShown = false;
 if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
 
-
+   
     
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride
@@ -547,7 +564,10 @@ if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
     document.getElementById('output')?.classList.remove('error');
 
     const needsStdin = codeNeedsInput(code);
+const hasPrompt  = hasPromptBeforeRead(code);
 
+
+    
     // Wake + connect (gentle)
     if (needsStdin) await wakeRunner();
     let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
@@ -567,13 +587,13 @@ if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
 
 
  // Fallback: if no prompt ever prints, reveal input after ~800ms
- if (needsStdin) {
+ if (needsStdin && !hasPrompt) {
   inputArmTimer = setTimeout(() => {
      if (!inputShown) {
        showInputRow(true);
        inputShown = true;
      }
-   }, 800);
+   }, 900);
  }
 
 
