@@ -8,36 +8,10 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
-
-  <!-- Console tightening + kill shake when disabled -->
   <style>
-    #output{ padding:6px 10px !important; }
-    #jconsole{ margin:0!important; white-space:pre-wrap; line-height:1.25; }
-    #consoleRow{ display:none; margin:0; gap:6px; align-items:baseline;
-      font:14px/1.25 ui-monospace, Menlo, Consolas, monospace; }
-    #consolePrefix{ white-space:pre; }
-    #consoleInput{ outline:none; white-space:pre; min-width:2ch; }
-
-    /* Stop run-button “attention” animation whenever disabled or during F9 runs */
-    #btnRun[disabled], #btnRun:disabled,
-    .btn[disabled], .btn:disabled,
-    .btn.attn[disabled]{ animation:none!important; transform:none!important; }
-   
-
-    /* console input “locked” state */
-#consoleInput[contenteditable="false"] {
-  opacity: .75;
-  cursor: not-allowed;
-}
-#consolePrefix:not(:empty)::after{ content:''; }
-
-/* subtle pulse for busy; color hints for ok/error */
-.msg.ok    { color: var(--ok, #22c55e); }
-.msg.error { color: var(--err, #ef4444); }
-.msg.busy  { animation: pc-pulse 1s ease-in-out infinite; }
-@keyframes pc-pulse { 0%,100% {opacity: .8} 50% {opacity: 1} }
-
-    
+    #output { white-space: pre-wrap; }
+#jconsole { display: inline; white-space: pre-wrap; }     /* make output inline */
+#consoleRow { display: inline-flex; gap: 4px; align-items: baseline; }  /* sit on same line */
   </style>
 </head>
 
@@ -95,8 +69,7 @@
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
             <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">💾</button>
             <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">📤</button>
-            <!-- remove attn in markup; JS also strips it on boot/run -->
-            <button id="btnRun" class="btn primary" title="Execute (Click or Press F9)" aria-label="Run">
+            <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
               <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
           </div>
@@ -120,13 +93,21 @@
           </div>
         </div>
 
-        <!-- DO NOT use screen-dim here (we control interactivity in JS) -->
-        <div id="output">
-          <pre id="jconsole" class="console" aria-live="polite"></pre>
-          <div id="consoleRow">
-            <span id="consolePrefix"></span>
-            <span id="consoleInput" contenteditable="false" role="textbox" aria-readonly="true" aria-label="Program input line" spellcheck="false"></span>
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <div id="consoleRow"
+               style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; gap:4px; align-items:baseline;">
 
+
+<pre id="jconsole" class="console" style="white-space:pre-wrap">
+  <span id="consoleText"></span><span id="consolePrefix"></span>
+  <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+</pre>
+
+
+
+
+            
           </div>
         </div>
 
@@ -163,7 +144,7 @@
           <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
         </a>
         <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3 .6 9.3 .6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
         </a>
       </div>
 
@@ -192,47 +173,18 @@ const SAMPLE_JAVA =
 /* --- Make bootstrap globally visible --- */
 window.bootstrap = async function bootstrap(){
   await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
-  setStatusSafe('Ready', 'ok');
- if (window.PolyShell && typeof window.PolyShell.loadLeftContent === 'function') {
-  window.PolyShell.loadLeftContent('java');
-}
-  // right after IIFE starts or inside bootstrap()
-const ci0 = document.getElementById('consoleInput');
-if (ci0) ci0.setAttribute('contenteditable', 'false');
-
-  
-  // ensure the Run button never shakes by default
-  const _btn = document.getElementById('btnRun');
-if (_btn) _btn.classList.add('attn');
+  window.PolyShell.setStatus('Ready','ok');
+  window.PolyShell.loadLeftContent('java');  // loads /content/java.html into left pane (optional)
 };
 
-
-    function setStatusSafe(label, kind){
-  if (window.PolyShell && typeof window.PolyShell.setStatus === 'function') {
-    window.PolyShell.setStatus(label, kind);
-  }
-       const rf = document.getElementById('rightFoot');
-  if (rf){
-    rf.textContent = label;
-    rf.classList.remove('ok','busy','error');
-    if (kind) rf.classList.add(kind);
-  }
-}
-
-    
-
 /* --- Console helpers --- */
-
-    function maybeUnlock(chunk){
-  if (!chunk) return;
-  // unlock only on visible output or common prompt endings
-  const s = String(chunk);
-  if (/\S/.test(s) || /[:?>]\s?$/.test(s)) allowUserInput();
-}
-
-
-
-    
+/*function setConsole(text){
+  const el = document.getElementById('jconsole');
+  if (!el) return;
+  el.textContent = text || '';
+  const out = document.getElementById('output');
+  out && (out.scrollTop = out.scrollHeight);
+}*/
 function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   const el = document.getElementById('jconsole');
   if (!el) return;
@@ -242,15 +194,14 @@ function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   if (stdout.trim())     parts.push(stdout.trim());
   if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
   el.textContent = parts.join('\n') + (parts.length ? '\n' : '');
-  const _out = document.getElementById('output');
-if (_out) _out.scrollTo({ top: 1e9, behavior: 'smooth' });
+  document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
 }
 
 function findJavaErrorLine(text, className){
   const fileRe = `${className}.java`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let m = new RegExp(fileRe + ':(\\d+):').exec(text);
+  let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // Foo.java:5:
   if (m) return Number(m[1]);
-  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);
+  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);     // Foo.java:12)
   if (m) return Number(m[1]);
   return 1;
 }
@@ -265,35 +216,55 @@ async function getPistonJavaVersion(forceRefresh = false){
              || runtimes.find(r => /open.?jdk/i.test(r.language))
              || runtimes.find(r => /java/i.test(r.language));
     __pistonJavaVersion = java?.version || '21';
-  } catch { __pistonJavaVersion = '21'; }
+  } catch {
+    __pistonJavaVersion = '21';
+  }
   return __pistonJavaVersion;
 }
 
 async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
   const body = JSON.stringify({
-    language: 'java', version,
+    language: 'java',
+    version,
     files: [{ name: fileName, content: code }],
     stdin
   });
   const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
-    method: 'POST', headers: { 'Content-Type':'application/json' }, body
+    method: 'POST',
+    headers: { 'Content-Type':'application/json' },
+    body
   });
   const text = await resp.text();
   let data = null;
-  try { if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) data = JSON.parse(text); } catch {}
+  try {
+    if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+      data = JSON.parse(text);
+    }
+  } catch {}
   return { ok: resp.ok, status: resp.status, text, data };
 }
 
-// Pull stdin from comments
+// Pull stdin from special comments in the code and remove them before compile
 function extractInlineStdin(code){
   let stdin = '';
+
+  // Multi-line /* stdin: ... */
   const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
-  code = code.replace(block, (_, __, content) => { stdin = content.replace(/^\s*\* ?/gm, ''); return ''; });
+  code = code.replace(block, (_, __, content) => {
+    stdin = content.replace(/^\s*\* ?/gm, '');
+    return '';
+  });
+
+  // Single-line // stdin: 42\n99
   if (!stdin) {
     const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
     const m = code.match(line);
-    if (m){ stdin = m[2].replace(/\\n/g, '\n'); code = code.replace(line, ''); }
+    if (m) {
+      stdin = m[2].replace(/\\n/g, '\n');
+      code = code.replace(line, '');
+    }
   }
+
   return { code: code.trim(), stdin: stdin.replace(/\r\n?/g, '\n') };
 }
 
@@ -308,125 +279,94 @@ function detectClassToRun(code){
 (function(){
   const JAVA_WS_URL = 'wss://polycode-java.onrender.com/java';
 
-  // Console helpers
+  // ---- Console helpers for this IIFE ----
   function setConsole(text){
     const el = document.getElementById('jconsole');
     if (!el) return;
     el.textContent = text || '';
-    const _out = document.getElementById('output');
-if (_out) _out.scrollTo({ top: 1e9, behavior: 'smooth' });
+    document.getElementById('output')?.scrollTo({ top: 1e9 });
   }
   function termWrite(t){
     const el = document.getElementById('jconsole');
-    if (el){ el.textContent += t; const _out = document.getElementById('output');
-if (_out) _out.scrollTo({ top: 1e9, behavior: 'smooth' }); }
+    if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
   }
 
-  // Minimal inline input
-  function focusConsoleInput(){
+  // ---- Minimal input line (NO '$' prompt) ----
+  function focusConsoleInput() {
     const el = document.getElementById('consoleInput');
     if (!el) return;
     el.focus();
-    const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    r.collapse(false);
+    const s = window.getSelection();
+    s.removeAllRanges();
+    s.addRange(r);
   }
-  function refreshPrefixFromTail(){
-  const pre = document.getElementById('jconsole');
+
+ function showInputRow(show){
+  const row    = document.getElementById('consoleRow');
+  const pre    = document.getElementById('jconsole');
   const prefix = document.getElementById('consolePrefix');
-  if (!pre || !prefix) return;
 
-  const txt = pre.textContent;
-  const i = txt.lastIndexOf('\n');
-  const tail = (i >= 0) ? txt.slice(i + 1) : txt; // handle “no newline yet” case
+  if (row) row.style.display = show ? 'flex' : 'none';
 
-  if (tail && !/^\s*$/.test(tail)) {
-    prefix.textContent = tail;      // no trailing space
-    pre.textContent = (i >= 0) ? txt.slice(0, i + 1) : '';
+  if (show) {
+    // Move trailing partial line from <pre> into the prefix (keeps prompt + input on one line)
+    const txt  = pre.textContent;
+    const i    = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);
+    if (tail && !/^\s*$/.test(tail)) {
+      prefix.textContent = tail + ' ';
+      pre.textContent = txt.slice(0, i + 1);
+    } else {
+      prefix.textContent = '';
+    }
+    // NEW: we only say this when the input row is visible
+    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+
+    // focus caret
+    const el = document.getElementById('consoleInput');
+    if (el){
+      el.focus();
+      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
   } else {
-    prefix.textContent = '';
-  }
-}
-
-  
-  function showInputRow(show, { lock=false } = {}){
-  const row = document.getElementById('consoleRow');
-  const rightFoot = document.getElementById('rightFoot');
-  const inputEl = document.getElementById('consoleInput');
-  if (!row || !inputEl) return;
-
-  if (show){
-    row.style.display = 'flex';
-    refreshPrefixFromTail();
-    inputShown = true;
-
-    // lock/unlock typing
-    inputAllowed = !lock;
-    inputEl.setAttribute('contenteditable', inputAllowed ? 'true' : 'false');
-
-    setStatusSafe(inputAllowed ? 'Waiting for User Input...' : 'Preparing input…','busy');
-    if (rightFoot) rightFoot.textContent = inputAllowed ? 'Waiting for User Input...' : 'Preparing input…';
-
-    if (inputAllowed) focusConsoleInput();
-  } else {
-    const pre = document.getElementById('jconsole');
-    const prefix = document.getElementById('consolePrefix');
-    if (pre && prefix && prefix.textContent){
+    // Hide input -> go back to Executing… if program still running
+    if (typeof wsRunInFlight !== 'undefined' && wsRunInFlight) {
+      window.PolyShell?.setStatus('Executing...', 'busy');
+    }
+    if (prefix.textContent) {
       pre.textContent += prefix.textContent;
       prefix.textContent = '';
     }
-    row.style.display = 'none';
-    inputShown = false;
-    inputAllowed = false;
-    const rightFoot = document.getElementById('rightFoot');
-if (rightFoot) rightFoot.textContent = 'Waiting for Execution';
   }
 }
 
-function allowUserInput(){
-  const el = document.getElementById('consoleInput'); if (!el || inputAllowed) return;
-  inputAllowed = true;
-  el.setAttribute('contenteditable','true');
-  el.setAttribute('tabindex','0');            // ← focusable only when unlocked
-  setStatusSafe('Waiting for User Input...','busy');
-  //document.getElementById('rightFoot')?.textContent = 'Waiting for User Input...';
-  focusConsoleInput();
-}
-function disallowUserInput(){
-  const el = document.getElementById('consoleInput'); if (!el) return;
-  inputAllowed = false;
-  el.setAttribute('contenteditable','false');
-  el.setAttribute('tabindex','-1');           // ← cannot be focused while locked
-}
-// (optional extra safety)
-document.getElementById('consoleInput')?.addEventListener('mousedown', (e)=>{
-  if (!inputAllowed) e.preventDefault();
-});
 
-
-  
-
-  
-
-
-  // Markers
-  function clearEditorMarkers(){
+  /* --- Monaco marker helpers --- */
+  function clearEditorMarkers() {
     if (!window.monaco || !window.editor) return;
     const model = window.editor.getModel();
     if (model) window.monaco.editor.setModelMarkers(model, 'javac', []);
   }
-  function setEditorMarker(line, message){
+  function setEditorMarker(line, message) {
     if (!window.monaco || !window.editor) return;
     const model = window.editor.getModel();
     if (!model) return;
     const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
     window.monaco.editor.setModelMarkers(model, 'javac', [{
-      startLineNumber: line || 1, endLineNumber: line || 1,
-      startColumn: 1, endColumn: maxCol, message: String(message || 'Error'),
-      severity: window.monaco.MarkerSeverity.Error
+      startLineNumber: line || 1,
+      endLineNumber:   line || 1,
+      startColumn:     1,
+      endColumn:       maxCol,
+      message:         String(message || 'Error'),
+      severity:        window.monaco.MarkerSeverity.Error
     }]);
   }
 
-  // Input detection
+  // ---- Input detection ----
   function codeNeedsInput(code){
     return (
       /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
@@ -435,174 +375,121 @@ document.getElementById('consoleInput')?.addEventListener('mousedown', (e)=>{
     );
   }
 
-  // Runner wake + connect
-  async function wakeRunner(){ try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {} }
-function tryConnectWS(timeoutMs=6000){
-  return new Promise((resolve)=>{
-    let done=false, timer=null, ws;
-    try { ws = new WebSocket(JAVA_WS_URL); } catch { return resolve(null); }
-    const finish = ok => {
-      if (done) return;
-      done = true; clearTimeout(timer);
-      if (!ok) { try{ ws.close(); }catch{} }   // <- ensure we don’t leave a zombie socket
-      resolve(ok ? ws : null);
-    };
-    timer = setTimeout(()=>finish(false), timeoutMs);
-    ws.onopen  = ()=>finish(true);
-    ws.onerror = ()=>finish(false);
-    ws.onclose = ()=>finish(false);
-  });
-}
-
-
-  // Status choreography
-  let termWS=null, wsRunInFlight=false, inputShown=false;
-let inputAllowed=false;
-let inputUnlockTimer=null;
-let runInFlight = false;
-let hasEverRun = false; 
-  
-  // Send input on Enter
-  document.addEventListener('keydown', (e)=>{
-    const inputEl = document.getElementById('consoleInput');
-    if (!inputEl || inputEl.offsetParent === null) return;
-    if (e.target !== inputEl) return;
-    if (e.key === 'Enter'){
-      e.preventDefault();
-       if (!inputAllowed) return;
-      const pre = document.getElementById('jconsole');
-      const prefix = document.getElementById('consolePrefix');
-      const line = inputEl.textContent;
-
-      if (pre && prefix && prefix.textContent){
-        pre.textContent += prefix.textContent;
-        prefix.textContent = '';
+  // ---- Gentle WS connect + wake ping ----
+  async function wakeRunner(){
+    try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+  }
+  function tryConnectWS(timeoutMs=8000){
+    return new Promise((resolve) => {
+      let done = false;
+      let timer = null;
+      let ws;
+      try {
+        ws = new WebSocket(JAVA_WS_URL);
+      } catch {
+        return resolve(null);
       }
-      termWrite(line + '\n');
-      inputEl.textContent = '';
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        ws.onopen = ws.onerror = ws.onclose = null; // detach early handlers
+        resolve(ok ? ws : null);
+      };
+      timer = setTimeout(() => finish(false), timeoutMs);
+      ws.onopen  = () => finish(true);
+      ws.onerror = () => finish(false);
+      ws.onclose = () => finish(false);
+    });
+  }
 
+  // ---- Send input when user presses Enter ----
+  let termWS = null, wsRunInFlight = false;
+  /*document.addEventListener('keydown', (e) => {
+    const el = document.getElementById('consoleInput');
+    if (!el || el.offsetParent === null) return;
+    if (e.target !== el) return;
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const line = el.textContent;
+      termWrite(line + '\n');
+      el.textContent = '';
       try {
         if (termWS && termWS.readyState === 1 && wsRunInFlight) {
           termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
         }
       } catch {}
-
-      setStatusSafe('Executing...','busy'); // back to executing after user submits
-      showInputRow(true, { lock:true });// keep row ready for the next prompt
-      //focusConsoleInput();
-      clearTimeout(inputUnlockTimer);
-    inputUnlockTimer = setTimeout(() => allowUserInput(), 400);
+      if (typeof focusConsoleInput === 'function') focusConsoleInput();
     }
-  }, { capture:true });
+  }, { capture: true });*/
 
 
 
-  window.addEventListener('beforeunload', () => { try { termWS?.close(); } catch {} clearTimeout(inputUnlockTimer); });
-
-
-
-// Keep consoleInput plain-text, single-line
-document.addEventListener('paste', (e) => {
+  document.addEventListener('keydown', (e) => {
   const el = document.getElementById('consoleInput');
-  if (!el || e.target !== el) return;
-  e.preventDefault();
-  const t = (e.clipboardData || window.clipboardData).getData('text') || '';
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0) return;     // <- guard
-  const r = sel.getRangeAt(0);
-  r.deleteContents();
-  r.insertNode(document.createTextNode(t.replace(/\r?\n/g, ' ')));
-  r.collapse(false);
-  sel.removeAllRanges();
-  sel.addRange(r);
+  if (!el || el.offsetParent === null) return;
+  if (e.target !== el) return;
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const line = el.textContent;
+
+    termWrite(line + '\n');   // echo what the user typed
+    el.textContent = '';
+
+    try {
+      if (termWS && termWS.readyState === 1 && wsRunInFlight) {
+        termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
+      }
+    } catch {}
+
+    // NEW: back to Executing… until we need input again
+    window.PolyShell?.setStatus('Executing...', 'busy');
+    inputShown = false;               // <— see next section
+    focusConsoleInput?.();
+  }
 }, { capture: true });
 
 
-
-(function(){
-  var ci = document.getElementById('consoleInput');
-  if (!ci) return;
-  ci.addEventListener('keydown', function (e) {
-    // (Enter is already handled on the document-level keydown listener)
-    if ((e.ctrlKey || e.metaKey) && ['b','i','u'].indexOf(e.key.toLowerCase()) !== -1) {
-      e.preventDefault();
-    }
-  });
-})();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   
- window.runLang = async function(codeOverride){
-  // Global guard so both WS and Piston paths are covered
-  if (runInFlight){ setStatusSafe('Execution already in progress','busy'); return; }
 
-  // Get the button BEFORE using it
-  const btn = document.getElementById('btnRun');
-
-  // First-run: stop attention animation
-  if (!hasEverRun) { hasEverRun = true; btn?.classList.remove('attn'); }
-
-  runInFlight = true;
-
-  // Disable the Run button during execution
-  btn?.setAttribute('aria-busy','true');
-  btn?.setAttribute('disabled','');
-
-  try {
-    // --- original setup (unchanged) ---
+  // ---- MAIN: Run (interactive first; fallback to Piston) ----
+  window.runLang = async function(codeOverride){
     clearEditorMarkers();
-    const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
+    const prefix = document.getElementById('consolePrefix');
+    if (prefix) prefix.textContent = '';
     showInputRow(false);
 
-    // Make sure Run button never shakes (e.g., F9)
-    btn?.classList.remove('attn');
-
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
-      ? codeOverride : (window.editor ? window.editor.getValue() : '');
+      ? codeOverride
+      : (window.editor ? window.editor.getValue() : '');
 
     const { code, stdin } = extractInlineStdin(raw);
     const className = detectClassToRun(code);
     const fileName  = `${className}.java`;
 
     setConsole('');
-    setStatusSafe('Executing...','busy');
-    const rf0 = document.getElementById('rightFoot');
-    if (rf0) rf0.textContent = 'Executing...';
+    document.getElementById('output')?.classList.remove('error');
 
     const needsStdin = codeNeedsInput(code);
+
+    // Wake + connect (gentle)
     if (needsStdin) await wakeRunner();
     let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
-    if (!ws && needsStdin){
+    if (!ws && needsStdin) {
       setConsole('Starting interactive runner…');
       ws = await tryConnectWS(15000);
     }
 
-    if (ws){
-      // --- websocket interactive path ---
+    if (ws) {
       termWS = ws;
       wsRunInFlight = true;
-
-      if (needsStdin){
-        // show LOCKED first (no typing yet)
-        showInputRow(true, { lock:true });
-
-        // Safety unlock if program immediately reads without printing a prompt
-        clearTimeout(inputUnlockTimer);
-        inputUnlockTimer = setTimeout(() => allowUserInput(), 350);
-      }
+      showInputRow(needsStdin);
+      window.PolyShell?.setStatus(
+        needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
+        'busy'
+      );
 
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
@@ -610,19 +497,15 @@ document.addEventListener('paste', (e) => {
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); if (inputShown && !inputAllowed) refreshPrefixFromTail();  maybeUnlock(m.data); }
-            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); if (inputShown && !inputAllowed) refreshPrefixFromTail(); maybeUnlock(m.data); }
-            else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); /* usually stay locked */ }
-            else if (m.type === 'exit'){
-              // SAFELY remove listener
-              try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
+            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data); }
+            else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
+            else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
+            else if (m.type === 'exit') {
+              termWS.removeEventListener('message', onMsg);
               wsRunInFlight = false;
-              clearTimeout(inputUnlockTimer);
-              disallowUserInput();
               showInputRow(false);
-
-              if (m.code === 0){
-                setStatusSafe('Execution Success','ok');
+              if (m.code === 0) {
+                window.PolyShell?.setStatus('Execution Success','ok');
                 clearEditorMarkers();
                 resolve();
               } else {
@@ -630,38 +513,31 @@ document.addEventListener('paste', (e) => {
                 const firstLine = (errText.split('\n')[0] || 'Execution failed');
                 const line = findJavaErrorLine(errText, className);
                 setEditorMarker(line, firstLine);
-                setStatusSafe('Execution Failed','error');
+                window.PolyShell?.setStatus('Execution Failed','error');
                 reject(new Error(`line ${line}: ${firstLine}`));
               }
             }
-          }catch{/* ignore non-JSON */}
+          } catch { /* ignore non-JSON */ }
         };
-
         const onClose = () => {
-          // SAFELY remove listener
-          try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
-          if (wsRunInFlight){
+          termWS.removeEventListener('message', onMsg);
+          if (wsRunInFlight) {
             wsRunInFlight = false;
-            clearTimeout(inputUnlockTimer);
-            disallowUserInput();
             showInputRow(false);
-            setStatusSafe('Runner disconnected','error');
+            window.PolyShell?.setStatus('Runner disconnected','error');
             reject(new Error('line 1: runner disconnected'));
           }
         };
-
-        try{
-          termWS.addEventListener('message', onMsg);
-          termWS.addEventListener('close', onClose, { once:true });
-        }catch{/* no-op */}
+        termWS.addEventListener('message', onMsg);
+        termWS.addEventListener('close', onClose, { once:true });
       });
 
-      try { termWS.send(JSON.stringify({ type:'run', className, code: raw + '' })); }
-      catch {
-        try{ termWS.close(); }catch{}
-        wsRunInFlight = false;   // ensure the local WS flag drops
+      try {
+        termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
+      } catch {
+        try { termWS.close(); } catch {}
         showInputRow(false);
-        setStatusSafe('Runner unavailable','error');
+        window.PolyShell?.setStatus('Runner unavailable','error');
         throw new Error('line 1: runner unavailable');
       }
 
@@ -699,51 +575,29 @@ document.addEventListener('paste', (e) => {
 
     const ok = (data.run?.code === 0) && !compileErr;
     if (ok) {
-      setStatusSafe('Execution Success','ok');
+      window.PolyShell?.setStatus('Execution Success','ok');
       clearEditorMarkers();
     } else {
       const errText = (compileErr || stderr || 'Execution failed').trim();
       const firstLine = (errText.split('\n')[0] || 'Execution failed');
       const line = findJavaErrorLine(errText, className);
       setEditorMarker(line, firstLine);
-      setStatusSafe('Execution Failed','error');
+      window.PolyShell?.setStatus('Execution Failed','error');
       throw new Error(`line ${line}: ${firstLine}`);
     }
-  } finally {
-    // Always re-enable the Run button and clear the global guard
-    runInFlight = false;
-    btn?.removeAttribute('disabled');
-    btn?.setAttribute('aria-busy','false'); 
-    btn?.focus();
-  }
-};
+  };
 
-
-
-
-
-
-
-
- 
-
-  // Reset
+  // ---- Reset (called by shell) ----
   window.clearLang = function(){
-  setConsole('');
-    clearTimeout(inputUnlockTimer);
-disallowUserInput();
-  showInputRow(false);
-  clearEditorMarkers();
-  const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
-  try{
-    if (termWS){
-      try{ termWS.close(); }catch{}
-    }
-  }finally{
-    termWS = null;
-    wsRunInFlight = false;
-  }
-};
+    setConsole('');
+    document.getElementById('output')?.style.setProperty('background','transparent','important');
+    showInputRow(false);
+    clearEditorMarkers();
+    const prefix = document.getElementById('consolePrefix');
+    if (prefix) prefix.textContent = '';
+    try{ termWS?.close(); }catch{}
+    termWS = null; wsRunInFlight = false;
+  };
 })();
 
 /* --- Start after shell.js (defer) has run --- */
@@ -764,12 +618,6 @@ disallowUserInput();
     start();
   }
 })();
-
-
-  
-
-
-    
   </script>
 </body>
 </html>
