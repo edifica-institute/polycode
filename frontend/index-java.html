@@ -555,7 +555,7 @@ function detectClassToRun(code){
           try{
             const m = JSON.parse(String(ev.data));
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
-                                     const last = (acc.stdout.split('\n').pop() || '');
+                                     const last = (acc.stdout.replace(/\r?\n$/, '').split('\n').pop() || '');
 if (needsStdin && !inputShown && /(?:enter|input|number|value|:|\?\s*)$/i.test(last)) {
                                      showInputRow(true);
                                      inputShown = true;
