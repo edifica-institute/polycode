@@ -8,7 +8,25 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
- 
+
+<style>
+  /* kill any token-like styling on the input row */
+#consoleRow span { background: transparent !important; padding: 0 !important; border-radius: 0 !important; }
+
+/* make the input caret clean, no borders/outline */
+#consoleInput{
+  display:inline-block; min-width:1ch;
+  background:transparent; border:0; outline:0; box-shadow:none;
+  caret-color: currentColor; user-select:text;
+  -webkit-user-modify: read-write-plaintext-only;
+}
+#consoleInput:focus{ outline:0; }
+#consoleInput::selection{ background: rgba(255,255,255,0.15); } /* optional */
+/* stop all attention animations once disabled */
+.btn[disabled], .btn.attn[disabled]{ animation: none !important; }
+
+</style>
+  
 </head>
 
 <body class="page-fade">
@@ -440,6 +458,10 @@ function detectClassToRun(code){
 
   // ---- Send input when user presses Enter ----
   let termWS = null, wsRunInFlight = false;
+  let inputShown = false;
+
+
+  
   /*document.addEventListener('keydown', (e) => {
     const el = document.getElementById('consoleInput');
     if (!el || el.offsetParent === null) return;
@@ -520,7 +542,7 @@ function detectClassToRun(code){
     if (ws) {
       termWS = ws;
       wsRunInFlight = true;
-      showInputRow(needsStdin);
+      showInputRow(false);
       window.PolyShell?.setStatus(
         needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
         'busy'
@@ -532,7 +554,12 @@ function detectClassToRun(code){
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data); }
+            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
+                                     const last = (acc.stdout.split('\n').pop() || '');
+if (needsStdin && !inputShown && /(?:enter|input|number|value|:|\?\s*)$/i.test(last)) {
+                                     showInputRow(true);
+                                     inputShown = true;
+                                     }}
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
             else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
             else if (m.type === 'exit') {
@@ -554,7 +581,7 @@ function detectClassToRun(code){
             }
           } catch { /* ignore non-JSON */ }
         };
-        const onClose = () => {
+       /* const onClose = () => {
           termWS.removeEventListener('message', onMsg);
           if (wsRunInFlight) {
             wsRunInFlight = false;
@@ -562,7 +589,25 @@ function detectClassToRun(code){
             window.PolyShell?.setStatus('Runner disconnected','error');
             reject(new Error('line 1: runner disconnected'));
           }
-        };
+        };*/
+
+
+const onClose = (ev) => {
+  try { termWS?.removeEventListener('message', onMsg); } catch {}
+  if (wsRunInFlight) {
+    wsRunInFlight = false;
+    showInputRow(false);
+ window.PolyShell?.setStatus('Runner disconnected','error');
+  }
+ termWS = null;
+};
+
+
+
+
+
+
+        
         termWS.addEventListener('message', onMsg);
         termWS.addEventListener('close', onClose, { once:true });
       });
