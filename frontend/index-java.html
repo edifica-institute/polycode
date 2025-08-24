@@ -643,6 +643,8 @@ if (ok) {
     document.getElementById('output')?.style.setProperty('background','transparent','important');
     showInputRow(false);
     clearEditorMarkers(); 
+    const prefix = document.getElementById('consolePrefix');
+  if (prefix) prefix.textContent = '';
     try{ termWS?.close(); }catch{}
     termWS = null; wsRunInFlight = false;
   };
