@@ -377,7 +377,7 @@ function allowUserInput(){
   el.setAttribute('contenteditable','true');
   el.setAttribute('tabindex','0');            // ← focusable only when unlocked
   setStatusSafe('Waiting for User Input...','busy');
-  document.getElementById('rightFoot')?.textContent = 'Waiting for User Input...';
+  //document.getElementById('rightFoot')?.textContent = 'Waiting for User Input...';
   focusConsoleInput();
 }
 function disallowUserInput(){
