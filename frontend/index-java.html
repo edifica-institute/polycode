@@ -537,8 +537,9 @@ document.addEventListener('paste', (e) => {
   if (runInFlight){ setStatusSafe('Execution already in progress','busy'); return; }
   runInFlight = true;
 
-  // Disable the Run button during execution
+   // Disable the Run button during execution
   const btn = document.getElementById('btnRun');
+  btn?.setAttribute('aria-busy','true');
   btn?.setAttribute('disabled','');
 
   try {
@@ -693,6 +694,8 @@ document.addEventListener('paste', (e) => {
     // Always re-enable the Run button and clear the global guard
     runInFlight = false;
     btn?.removeAttribute('disabled');
+    btn?.setAttribute('aria-busy','false'); 
+    btn?.focus();
   }
 };
 
