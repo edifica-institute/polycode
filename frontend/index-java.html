@@ -548,12 +548,16 @@ document.addEventListener('paste', (e) => {
  window.runLang = async function(codeOverride){
   // Global guard so both WS and Piston paths are covered
   if (runInFlight){ setStatusSafe('Execution already in progress','busy'); return; }
-   if (!hasEverRun) { hasEverRun = true; btn?.classList.remove('attn'); }
-   
+
+  // Get the button BEFORE using it
+  const btn = document.getElementById('btnRun');
+
+  // First-run: stop attention animation
+  if (!hasEverRun) { hasEverRun = true; btn?.classList.remove('attn'); }
+
   runInFlight = true;
 
-   // Disable the Run button during execution
-  const btn = document.getElementById('btnRun');
+  // Disable the Run button during execution
   btn?.setAttribute('aria-busy','true');
   btn?.setAttribute('disabled','');
 
