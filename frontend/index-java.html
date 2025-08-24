@@ -22,6 +22,9 @@
     #btnRun[disabled], #btnRun:disabled,
     .btn[disabled], .btn:disabled,
     .btn.attn[disabled]{ animation:none!important; transform:none!important; }
+    #consoleInput:empty::before{ content:'▮'; opacity:.35 }
+#consolePrefix:not(:empty)::after{ content:' '; }
+
   </style>
 </head>
 
@@ -277,39 +280,53 @@ function detectClassToRun(code){
     const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
   function refreshPrefixFromTail(){
+  const pre = document.getElementById('jconsole');
+  const prefix = document.getElementById('consolePrefix');
+  if (!pre || !prefix) return;
+
+  const txt = pre.textContent;
+  const i = txt.lastIndexOf('\n');
+  const tail = (i >= 0) ? txt.slice(i + 1) : txt; // handle “no newline yet” case
+
+  if (tail && !/^\s*$/.test(tail)) {
+    prefix.textContent = tail;      // no trailing space
+    pre.textContent = (i >= 0) ? txt.slice(0, i + 1) : '';
+  } else {
+    prefix.textContent = '';
+  }
+}
+
+  
+  function showInputRow(show){
+  const row = document.getElementById('consoleRow');
+  const rightFoot = document.getElementById('rightFoot');
+  if (!row) return;
+
+  if (show){
+    row.style.display = 'flex';
+    refreshPrefixFromTail();
+    inputShown = true;
+
+    // Update both footers immediately
+    window.PolyShell?.setStatus('Waiting for User Input...','busy');
+    if (rightFoot) rightFoot.textContent = 'Waiting for User Input...';
+
+    focusConsoleInput();
+  } else {
     const pre = document.getElementById('jconsole');
     const prefix = document.getElementById('consolePrefix');
-    if (!pre || !prefix) return;
-    const txt = pre.textContent;
-    const i = txt.lastIndexOf('\n');
-    const tail = txt.slice(i + 1);
-    if (tail && !/^\s*$/.test(tail)) {
-      prefix.textContent = tail + ' ';
-      pre.textContent = txt.slice(0, i + 1);
-    } else {
+    if (pre && prefix && prefix.textContent){
+      pre.textContent += prefix.textContent;
       prefix.textContent = '';
     }
+    row.style.display = 'none';
+    inputShown = false;
+
+    // Restore right footer to neutral “Waiting for Execution” when input row hides
+    if (rightFoot) rightFoot.textContent = 'Waiting for Execution';
   }
-  function showInputRow(show){
-    const row = document.getElementById('consoleRow');
-    if (!row) return;
-    if (show){
-      row.style.display = 'flex';
-      refreshPrefixFromTail();
-      inputShown = true;
-      window.PolyShell?.setStatus('Waiting for User Input...','busy'); // immediate
-      focusConsoleInput();
-    } else {
-      const pre = document.getElementById('jconsole');
-      const prefix = document.getElementById('consolePrefix');
-      if (pre && prefix && prefix.textContent){
-        pre.textContent += prefix.textContent;
-        prefix.textContent = '';
-      }
-      row.style.display = 'none';
-      inputShown = false;
-    }
-  }
+}
+
 
   // Markers
   function clearEditorMarkers(){
@@ -380,6 +397,7 @@ function detectClassToRun(code){
       } catch {}
 
       window.PolyShell?.setStatus('Executing...','busy'); // back to executing after user submits
+      document.getElementById('rightFoot')?.textContent = 'Executing...';
       showInputRow(true); // keep row ready for the next prompt
       focusConsoleInput();
     }
@@ -387,6 +405,7 @@ function detectClassToRun(code){
 
   // MAIN: Run (interactive first; fallback to Piston)
   window.runLang = async function(codeOverride){
+  
     clearEditorMarkers();
     const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
     showInputRow(false);
@@ -419,12 +438,12 @@ function detectClassToRun(code){
 
       const acc = { compileErr:'', stderr:'', stdout:'' };
 
-      const waitForExit = new Promise((resolve, reject)=>{
+      /*const waitForExit = new Promise((resolve, reject)=>{
         const onMsg = (ev)=>{
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); /* keep current status */ }
-            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); /* keep current status */ }
+            if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); /* keep current status  }
+            else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); /* keep current status  }
             else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); }
             else if (m.type === 'exit'){
               termWS.removeEventListener('message', onMsg);
@@ -444,7 +463,7 @@ function detectClassToRun(code){
                 reject(new Error(`line ${line}: ${firstLine}`));
               }
             }
-          }catch{/* ignore non-JSON */}
+          }catch{/* ignore non-JSON }
         };
         const onClose = ()=>{
           termWS.removeEventListener('message', onMsg);
@@ -457,7 +476,69 @@ function detectClassToRun(code){
         };
         termWS.addEventListener('message', onMsg);
         termWS.addEventListener('close', onClose, { once:true });
-      });
+      });*/
+
+
+
+const waitForExit = new Promise((resolve, reject) => {
+  const onMsg = (ev) => {
+    try{
+      const m = JSON.parse(String(ev.data));
+      if (m.type === 'stdout'){ acc.stdout += m.data; termWrite(m.data); }
+      else if (m.type === 'stderr'){ acc.stderr += m.data; termWrite(m.data); }
+      else if (m.type === 'compileErr'){ acc.compileErr += m.data; termWrite(m.data); }
+      else if (m.type === 'exit'){
+        // SAFELY remove listener
+        try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
+        wsRunInFlight = false;
+        showInputRow(false);
+
+        if (m.code === 0){
+          window.PolyShell?.setStatus('Execution Success','ok');
+          clearEditorMarkers();
+          resolve();
+        } else {
+          const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
+          const firstLine = (errText.split('\n')[0] || 'Execution failed');
+          const line = findJavaErrorLine(errText, className);
+          setEditorMarker(line, firstLine);
+          window.PolyShell?.setStatus('Execution Failed','error');
+          reject(new Error(`line ${line}: ${firstLine}`));
+        }
+      }
+    }catch{/* ignore non-JSON */}
+  };
+
+  const onClose = () => {
+    // SAFELY remove listener
+    try{ termWS && termWS.removeEventListener('message', onMsg); }catch{}
+    if (wsRunInFlight){
+      wsRunInFlight = false;
+      showInputRow(false);
+      window.PolyShell?.setStatus('Runner disconnected','error');
+      reject(new Error('line 1: runner disconnected'));
+    }
+  };
+
+  try{
+    termWS.addEventListener('message', onMsg);
+    termWS.addEventListener('close', onClose, { once:true });
+  }catch{/* no-op */}
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
 
       try { termWS.send(JSON.stringify({ type:'run', className, code: raw + '' })); }
       catch {
@@ -515,13 +596,19 @@ function detectClassToRun(code){
 
   // Reset
   window.clearLang = function(){
-    setConsole('');
-    showInputRow(false);
-    clearEditorMarkers();
-    const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
-    try{ termWS?.close(); }catch{}
-    termWS = null; wsRunInFlight = false;
-  };
+  setConsole('');
+  showInputRow(false);
+  clearEditorMarkers();
+  const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
+  try{
+    if (termWS){
+      try{ termWS.close(); }catch{}
+    }
+  }finally{
+    termWS = null;
+    wsRunInFlight = false;
+  }
+};
 })();
 
 /* --- Start after shell.js (defer) has run --- */
