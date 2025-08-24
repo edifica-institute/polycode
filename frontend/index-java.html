@@ -90,8 +90,9 @@
 
        <div id="output" class="screen-dim" style="padding:12px;">
   <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-  <div id="consoleRow" style="display:none; margin-top:8px; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
-     <span id="consolePrefix"></span>
+  <div id="consoleRow"
+     style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; display:flex; gap:4px; align-items:baseline;">
+  <span id="consolePrefix" style="white-space:pre"></span>
   <span id="consoleInput" contenteditable="true" spellcheck="false"
         style="outline:none; white-space:pre; min-width:2ch;"></span>
 </div>
@@ -498,6 +499,13 @@ document.addEventListener('keydown', (e) => {
 
   // ---- MAIN: Run (interactive first; instant fallback to Piston) ----
   window.runLang = async function(codeOverride){
+
+     clearEditorMarkers();
+  const prefix = document.getElementById('consolePrefix');
+  if (prefix) prefix.textContent = '';
+  showInputRow(false);
+
+    
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride
       : (window.editor ? window.editor.getValue() : '');
