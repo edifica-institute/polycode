@@ -119,7 +119,8 @@
           <pre id="jconsole" class="console"></pre>
           <div id="consoleRow">
             <span id="consolePrefix"></span>
-            <span id="consoleInput" contenteditable="false" spellcheck="false"></span>
+            <span id="consoleInput" contenteditable="false" role="textbox" aria-readonly="true" aria-label="Program input line" spellcheck="false"></span>
+
           </div>
         </div>
 
@@ -689,6 +690,7 @@ disallowUserInput();
       try { termWS.send(JSON.stringify({ type:'run', className, code: raw + '' })); }
       catch {
         try{ termWS.close(); }catch{}
+         wsRunInFlight = false;   
         showInputRow(false);
         setStatusSafe('Runner unavailable','error');
         throw new Error('line 1: runner unavailable');
