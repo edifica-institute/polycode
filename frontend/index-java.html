@@ -24,6 +24,13 @@
     .btn.attn[disabled]{ animation:none!important; transform:none!important; }
    
 #consolePrefix:not(:empty)::after{ content:' '; }
+    /* console input “locked” state */
+#consoleInput[contenteditable="false"] {
+  opacity: .75;
+  cursor: not-allowed;
+}
+#consolePrefix:not(:empty)::after{ content:' '; }
+
 
   </style>
 </head>
