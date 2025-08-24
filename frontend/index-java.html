@@ -595,11 +595,17 @@ if (interactive) {
     printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
 
     const ok = (data.run?.code === 0) && !compileErr;
-    if (!ok){
-      const errText = (compileErr || stderr || 'Execution failed').trim();
-      const line = findJavaErrorLine(errText, className);
-      throw new Error(`line ${line}: ${(errText.split('\n')[0] || 'Execution failed')}`);
-    }
+if (ok) {
+  window.PolyShell?.setStatus('Execution Success','ok');
+  clearEditorMarkers();
+} else {
+  const errText = (compileErr || stderr || 'Execution failed').trim();
+  const firstLine = (errText.split('\n')[0] || 'Execution failed');
+  const line = findJavaErrorLine(errText, className);
+  setEditorMarker(line, firstLine);
+  window.PolyShell?.setStatus('Execution Failed','error');
+  throw new Error(`line ${line}: ${firstLine}`);
+}
   };
 
   // ---- Reset (called by shell) ----
@@ -607,6 +613,7 @@ if (interactive) {
     setConsole('');
     document.getElementById('output')?.style.setProperty('background','transparent','important');
     showInputRow(false);
+    clearEditorMarkers(); 
     try{ termWS?.close(); }catch{}
     termWS = null; wsRunInFlight = false;
   };
