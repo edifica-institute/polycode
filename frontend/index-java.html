@@ -587,14 +587,15 @@ const hasPrompt  = hasPromptBeforeRead(code);
 
 
  // Fallback: if no prompt ever prints, reveal input after ~800ms
- if (needsStdin && !hasPrompt) {
-  inputArmTimer = setTimeout(() => {
-     if (!inputShown) {
+  if (needsStdin) {
+   inputArmTimer = setTimeout(() => {
+     // show only if NOTHING was printed yet (prevents early cursor)
+     if (!inputShown && acc.stdout.length === 0 && acc.stderr.length === 0 && acc.compileErr.length === 0) {
        showInputRow(true);
        inputShown = true;
      }
-   }, 900);
- }
+   }, 1200);  // a hair longer to avoid racing the first println
+}
 
 
 
@@ -608,6 +609,7 @@ const hasPrompt  = hasPromptBeforeRead(code);
           try{
             const m = JSON.parse(String(ev.data));
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
+                                      if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
                                      const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
 
   if ( needsStdin && !inputShown && (/(?:enter|input|number|value|type|choice|provide|give|no\b)/i.test(last) ||  /[:?]\s*$/.test(last) ))
