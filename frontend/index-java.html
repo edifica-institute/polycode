@@ -91,7 +91,7 @@
        <div id="output" class="screen-dim" style="padding:12px;">
   <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
   <div id="consoleRow"
-     style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; display:flex; gap:4px; align-items:baseline;">
+     style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; gap:4px; align-items:baseline;">
   <span id="consolePrefix" style="white-space:pre"></span>
   <span id="consoleInput" contenteditable="true" spellcheck="false"
         style="outline:none; white-space:pre; min-width:2ch;"></span>
@@ -170,13 +170,13 @@ window.bootstrap = async function bootstrap(){
 };
 
 /* --- Console helpers --- */
-function setConsole(text){
+/*function setConsole(text){
   const el = document.getElementById('jconsole');
   if (!el) return;
   el.textContent = text || '';
   const out = document.getElementById('output');
   out && (out.scrollTop = out.scrollHeight);
-}
+}*/
 /*function printToConsole({compileErr='', stderr='', stdout='', code=0}){
   let msg = '';
   if (compileErr) msg += compileErr + '\\n';
@@ -363,7 +363,7 @@ function showInputRow(show){
   const pre = document.getElementById('jconsole');
   const prefix = document.getElementById('consolePrefix');
 
-  if (row) row.style.display = show ? 'block' : 'none';
+  if (row) row.style.display = show ? 'flex' : 'none';
 
   if (show) {
     // Move trailing partial line from <pre> into the prefix
