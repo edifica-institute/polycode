@@ -22,7 +22,7 @@
     #btnRun[disabled], #btnRun:disabled,
     .btn[disabled], .btn:disabled,
     .btn.attn[disabled]{ animation:none!important; transform:none!important; }
-    #consoleInput:empty::before{ content:'▮'; opacity:.35 }
+   
 #consolePrefix:not(:empty)::after{ content:' '; }
 
   </style>
@@ -402,6 +402,42 @@ function detectClassToRun(code){
     }
   }, { capture:true });
 
+
+
+
+
+
+
+// Keep consoleInput plain-text, single-line
+document.addEventListener('paste', (e)=>{
+  const inputEl = document.getElementById('consoleInput');
+  if (!inputEl || e.target !== inputEl) return;
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+  document.execCommand('insertText', false, text.replace(/\r?\n/g, ' '));
+}, { capture:true });
+
+document.getElementById('consoleInput')?.addEventListener('keydown', (e)=>{
+  if (e.key === 'Enter') { /* your existing handler already preventsDefault */ }
+  // prevent rich text (bold/italic etc.)
+  if ((e.ctrlKey || e.metaKey) && ['b','i','u'].includes(e.key.toLowerCase())) e.preventDefault();
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
   // MAIN: Run (interactive first; fallback to Piston)
   window.runLang = async function(codeOverride){
   
