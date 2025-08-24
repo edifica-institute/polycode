@@ -451,7 +451,7 @@ let inputUnlockTimer=null;
       } catch {}
 
       window.PolyShell?.setStatus('Executing...','busy'); // back to executing after user submits
-      showInputRow(true); // keep row ready for the next prompt
+      showInputRow(true, { lock:true });// keep row ready for the next prompt
       focusConsoleInput();
     }
   }, { capture:true });
@@ -471,11 +471,16 @@ document.addEventListener('paste', (e)=>{
   document.execCommand('insertText', false, text.replace(/\r?\n/g, ' '));
 }, { capture:true });
 
-document.getElementById('consoleInput')?.addEventListener('keydown', (e)=>{
-  if (e.key === 'Enter') { /* your existing handler already preventsDefault */ }
-  // prevent rich text (bold/italic etc.)
-  if ((e.ctrlKey || e.metaKey) && ['b','i','u'].includes(e.key.toLowerCase())) e.preventDefault();
-});
+(function(){
+  var ci = document.getElementById('consoleInput');
+  if (!ci) return;
+  ci.addEventListener('keydown', function (e) {
+    // (Enter is already handled on the document-level keydown listener)
+    if ((e.ctrlKey || e.metaKey) && ['b','i','u'].indexOf(e.key.toLowerCase()) !== -1) {
+      e.preventDefault();
+    }
+  });
+})();
 
 
 
@@ -514,7 +519,10 @@ if (_btn) _btn.classList.remove('attn');
 
     setConsole('');
     window.PolyShell?.setStatus('Executing...','busy');
+ const rf0 = document.getElementById('rightFoot');
+if (rf0) rf0.textContent = 'Executing...';
 
+    
     const needsStdin = codeNeedsInput(code);
     if (needsStdin) await wakeRunner();
     let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
