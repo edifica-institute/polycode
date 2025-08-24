@@ -23,7 +23,7 @@
     .btn[disabled], .btn:disabled,
     .btn.attn[disabled]{ animation:none!important; transform:none!important; }
    
-#consolePrefix:not(:empty)::after{ content:' '; }
+
     /* console input “locked” state */
 #consoleInput[contenteditable="false"] {
   opacity: .75;
@@ -187,8 +187,15 @@ window.bootstrap = async function bootstrap(){
   await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
   window.PolyShell.setStatus('Ready','ok');
   window.PolyShell.loadLeftContent('java');
+  // right after IIFE starts or inside bootstrap()
+const ci0 = document.getElementById('consoleInput');
+if (ci0) ci0.setAttribute('contenteditable', 'false');
+
+
+  
   // ensure the Run button never shakes by default
-  document.getElementById('btnRun')?.classList.remove('attn');
+  const _btn = document.getElementById('btnRun');
+if (_btn) _btn.classList.remove('attn');
 };
 
 /* --- Console helpers --- */
@@ -201,7 +208,8 @@ function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   if (stdout.trim())     parts.push(stdout.trim());
   if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
   el.textContent = parts.join('\n') + (parts.length ? '\n' : '');
-  document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
+  const _out = document.getElementById('output');
+if (_out) _out.scrollTo({ top: 1e9, behavior: 'smooth' });
 }
 
 function findJavaErrorLine(text, className){
@@ -271,11 +279,13 @@ function detectClassToRun(code){
     const el = document.getElementById('jconsole');
     if (!el) return;
     el.textContent = text || '';
-    document.getElementById('output')?.scrollTo({ top: 1e9 });
+    const _out = document.getElementById('output');
+if (_out) _out.scrollTo({ top: 1e9, behavior: 'smooth' });
   }
   function termWrite(t){
     const el = document.getElementById('jconsole');
-    if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
+    if (el){ el.textContent += t; const _out = document.getElementById('output');
+if (_out) _out.scrollTo({ top: 1e9, behavior: 'smooth' }); }
   }
 
   // Minimal inline input
@@ -345,7 +355,8 @@ function allowUserInput(){
   inputAllowed = true;
   inputEl.setAttribute('contenteditable','true');
   window.PolyShell?.setStatus('Waiting for User Input...','busy');
-  document.getElementById('rightFoot')?.textContent = 'Waiting for User Input...';
+  const rf1 = document.getElementById('rightFoot');
+if (rf1) rf1.textContent = 'Waiting for User Input...';
   focusConsoleInput();
 }
 function disallowUserInput(){
@@ -489,8 +500,11 @@ document.getElementById('consoleInput')?.addEventListener('keydown', (e)=>{
     showInputRow(false);
 
     // Make sure Run button never shakes (e.g., F9)
-    document.getElementById('btnRun')?.classList.remove('attn');
+    const _btn = document.getElementById('btnRun');
+if (_btn) _btn.classList.remove('attn');
 
+
+    
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride : (window.editor ? window.editor.getValue() : '');
 
