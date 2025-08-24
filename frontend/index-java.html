@@ -372,6 +372,36 @@ function showInputRow(show) {
 }
 
 
+
+// … keep your existing helpers above …
+
+/* --- Monaco marker helpers --- */
+function clearEditorMarkers() {
+  if (!window.monaco || !window.editor) return;
+  const model = window.editor.getModel();
+  if (model) window.monaco.editor.setModelMarkers(model, 'javac', []);
+}
+
+function setEditorMarker(line, message) {
+  if (!window.monaco || !window.editor) return;
+  const model = window.editor.getModel();
+  if (!model) return;
+  const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
+  window.monaco.editor.setModelMarkers(model, 'javac', [{
+    startLineNumber: line || 1,
+    endLineNumber:   line || 1,
+    startColumn:     1,
+    endColumn:       maxCol,
+    message:         String(message || 'Error'),
+    severity:        window.monaco.MarkerSeverity.Error
+  }]);
+}
+
+
+
+
+
+  
   // ---- WebSocket connection with short timeout (fast fallback) ----
   let termWS = null, wsRunInFlight = false;
   function connectWS(timeoutMs=350){
@@ -472,17 +502,69 @@ if (!interactive && needsStdin) {
   interactive = await connectWS(7000);  // one retry window
 }
 
+
 if (interactive) {
   wsRunInFlight = true;
   showInputRow(needsStdin);
+  window.PolyShell?.setStatus(
+    needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
+    'busy'
+  );
+
+  // Accumulate text so we can compute a precise error/line if it fails.
+  const acc = { compileErr:'', stderr:'', stdout:'' };
+
+  const waitForExit = new Promise((resolve, reject) => {
+    const onMsg = (ev) => {
+      try {
+        const m = JSON.parse(String(ev.data));
+        if (m.type === 'stdout') acc.stdout += m.data;
+        else if (m.type === 'stderr') acc.stderr += m.data;
+        else if (m.type === 'compileErr') acc.compileErr += m.data;
+        else if (m.type === 'exit') {
+          termWS.removeEventListener('message', onMsg);
+          wsRunInFlight = false;
+          showInputRow(false);
+
+          if (m.code === 0) {
+            window.PolyShell?.setStatus('Execution Success','ok');
+            clearEditorMarkers();
+            resolve();
+          } else {
+            const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
+            const firstLine = (errText.split('\n')[0] || 'Execution failed');
+            const line = findJavaErrorLine(errText, className);
+            setEditorMarker(line, firstLine);
+            window.PolyShell?.setStatus('Execution Failed','error');
+            reject(new Error(`line ${line}: ${firstLine}`));
+          }
+        }
+      } catch { /* ignore non-JSON stream chunks */ }
+    };
+    termWS.addEventListener('message', onMsg);
+  });
+
   try {
     termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
-    return; // streaming now
   } catch {
     try { termWS.close(); } catch {}
     showInputRow(false);
-      }
-    }
+    window.PolyShell?.setStatus('Runner unavailable','error');
+    throw new Error('line 1: runner unavailable');
+  }
+
+  // 🔴 Important: do not return until the program actually exits.
+  await waitForExit;
+  return;
+}
+
+
+
+
+
+
+
+    
 
     // ---- Fallback: Piston (your existing batch flow) ----
     let version = await getPistonJavaVersion();
