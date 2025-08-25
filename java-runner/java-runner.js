@@ -8,7 +8,7 @@ import path from 'path';
 const app = express();
 app.get('/health', (_req, res) => res.send('ok'));
 
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8081; // Render will set PORT (e.g., 10000)
 const server = app.listen(PORT, () => console.log('Java runner on :' + PORT));
 
 const wss = new WebSocketServer({ server, path: '/java' });
@@ -21,21 +21,31 @@ wss.on('connection', (ws) => {
     if (workdir) { try{ await fs.remove(workdir); } catch {} workdir = null; }
   }
 
-if (msg.type === 'ping') {
-  try { ws.send(JSON.stringify({ type:'pong' })); } catch {}
-  return;
-}
-  
   ws.on('message', async (raw) => {
     if (closed) return;
-    let msg; try { msg = JSON.parse(String(raw)); } catch { return; }
+
+    // Parse once, then branch on msg.type
+    let msg;
+    try { msg = JSON.parse(String(raw)); } catch { return; }
+
+    // ✅ Ping/Pong MUST be inside message handler, after parsing
+    if (msg.type === 'ping') {
+      try { ws.send(JSON.stringify({ type:'pong' })); } catch {}
+      return;
+    }
+
+    // Allow client to stop current run
+    if (msg.type === 'kill') {
+      if (proc) { try { proc.kill('SIGKILL'); } catch {} }
+      return;
+    }
 
     if (msg.type === 'run') {
       await cleanup();
 
       const cls = (msg.className || 'Main');
 
-      // Use tmpfs (/dev/shm) if available for faster I/O
+      // Use tmpfs (/dev/shm) if available
       const base = (await fs.pathExists('/dev/shm')) ? '/dev/shm' : os.tmpdir();
       workdir = await fs.mkdtemp(path.join(base, 'polyjava-'));
       const file = path.join(workdir, cls + '.java');
@@ -57,30 +67,36 @@ if (msg.type === 'ping') {
 
         if (code !== 0) {
           ws.send(JSON.stringify({ type:'compileErr', data: cerr }));
-          ws.send(JSON.stringify({ type:'exit', code }));
+          ws.send(JSON.stringify({
+            type:'exit', code,
+            metrics: { compileMs: t1 - t0, startMs: 0, execMs: 0, totalMs: t1 - t0 }
+          }));
           cleanup();
           return;
         }
 
         // ---- run via launcher.jar (emits stdin_req on blocking reads) ----
-        const timeoutMs = Number(process.env.JAVA_TIMEOUT_MS || 15000);
+        const timeoutMs = Math.min(Number(msg.timeLimitMs || process.env.JAVA_TIMEOUT_MS || 15000), 60000);
         const cpSep = process.platform === 'win32' ? ';' : ':';
         const runnerJar = path.join(process.cwd(), 'runner.jar');
         const classpath = `${runnerJar}${cpSep}${workdir}`;
 
+        const heapMb = Math.max(32, Math.min(Number(msg.heapMb || 128), 512));
         const jvmFlags = [
-          '-Xss16m','-Xmx128m',
+          `-Xss16m`, `-Xmx${heapMb}m`,
           '-XX:+UseSerialGC',
           '-XX:TieredStopAtLevel=1',
           '-Xshare:auto'
         ];
 
+        const runArgs = Array.isArray(msg.args) ? msg.args : [];
+
+        const procStart = Date.now();
         proc = spawn('java', [
-          ...jvmFlags, '-cp', classpath, 'io.polycode.Launch', cls
+          ...jvmFlags, '-cp', classpath, 'io.polycode.Launch', cls, ...runArgs
         ], { cwd: workdir });
 
         const t2 = Date.now();
-
         const timer = setTimeout(() => { try{ proc.kill('SIGKILL'); }catch{} }, timeoutMs);
 
         proc.stdout.on('data', d =>
@@ -105,13 +121,15 @@ if (msg.type === 'ping') {
         proc.on('close', code => {
           clearTimeout(timer);
           const t3 = Date.now();
-          console.log({
-            compileMs: t1 - t0,
-            startMs:   t2 - t1,
-            execMs:    t3 - t2,
-            totalMs:   t3 - t0
-          });
-          ws.send(JSON.stringify({ type:'exit', code }));
+          ws.send(JSON.stringify({
+            type:'exit', code,
+            metrics: {
+              compileMs: t1 - t0,
+              startMs:   t2 - t1,
+              execMs:    t3 - t2,
+              totalMs:   t3 - t0
+            }
+          }));
           cleanup();
         });
       });
