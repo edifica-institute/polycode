@@ -417,7 +417,13 @@ function detectClassToRun(code){
       prefix.textContent = '';
     }
     // NEW: we only say this when the input row is visible
-    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+    //window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+
+     window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+  // Always start animated dots + countdown when input is visible
+   __statusBase = 'Waiting for User Input';
+   startStatusDots(__statusBase);
+   startInputCountdown(inputWaitMs);
 
     // focus caret
     const el = document.getElementById('consoleInput');
@@ -615,7 +621,7 @@ function detectClassToRun(code){
 
 // Choose your visible input-wait time (keep in sync with backend default if you want)
 let inputWaitMs = 5 * 60 * 1000; // 5 minutes
-  
+  let needsStdin = false;
 
   // ---- MAIN: Run (interactive first; fallback to Piston) ----
   window.runLang = async function(codeOverride){
@@ -644,7 +650,7 @@ let inputWaitMs = 5 * 60 * 1000; // 5 minutes
     setConsole('');
     document.getElementById('output')?.classList.remove('error');
 
-    const needsStdin = codeNeedsInput(code);
+    needsStdin = codeNeedsInput(code);
 
     // Wake + connect (gentle)
     /*if (needsStdin) await wakeRunner();
@@ -693,7 +699,7 @@ startStatusDots(__statusBase);
             if (m.type === 'pong') { /* got heartbeat response */ return; }
             //alert(m.type);
             
-            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);}
+            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data); maybeShowInputWaitFromStdout(m.data);}
             else if (m.type === 'stdin_req') { 
                   // show input exactly when the program is waiting
                     showInputRow(true);
