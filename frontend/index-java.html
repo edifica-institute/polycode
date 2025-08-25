@@ -574,7 +574,7 @@ function detectClassToRun(code){
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
                                      const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
 
-  if (needsStdin && !inputShown && /(?:enter|input|number|value|:|\?\s*)$/i.test(last)) {
+  if (needsStdin && !inputShown ) {
     showInputRow(true);
     inputShown = true;
   }
