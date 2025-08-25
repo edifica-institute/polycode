@@ -616,7 +616,10 @@ termWS = ws; // reuse it for future runs
           // show input exactly when the program is waiting
           showInputRow(true);
           inputShown = true;
-          window.PolyShell?.setStatus('Waiting for User Input...', 'busy');}
+          window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+            alert('input now');
+            
+            }
                                       
                                      
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
