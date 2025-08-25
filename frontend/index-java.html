@@ -490,7 +490,7 @@ alert("show full text " + text);
   if (e.target !== el) return;
 
   if (e.key === 'Enter') {
-    //e.preventDefault();
+    e.preventDefault();
     const line = el.textContent;
 
 
