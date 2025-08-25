@@ -302,7 +302,7 @@ function detectClassToRun(code){
   function termWrite(t){
     const el = document.getElementById('jconsole');
     if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
-    alert('content is ' + el.textContent);
+   
     
   }
 
@@ -478,7 +478,16 @@ function detectClassToRun(code){
     e.preventDefault();
     const line = el.textContent;
 
-     
+    const ex1 = document.getElementById('jconsole');
+    let lines='';
+    let lastLine='';
+    if (ex1){
+     lines = ex1.textContent.trim().split('\n');
+if(lines.length>0)
+      lastLine = lines[lines.length - 1];
+    }
+    alert(lastLine);
+    
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
 
