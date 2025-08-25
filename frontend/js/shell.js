@@ -946,6 +946,13 @@ try {
       return;
     }
 
+    if (e.key === 'F5') {
+      if(!confirm("Are you sure you want to reload the page?"))
+      e.preventDefault();
+      return;
+    }
+
+    
     // Clear: Ctrl/Cmd+Shift+L or F10
     if ((mod && e.shiftKey && (e.key === 'L' || e.key === 'l')) || e.key === 'F10') {
       e.preventDefault();
