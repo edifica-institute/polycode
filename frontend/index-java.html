@@ -471,6 +471,7 @@ function detectClassToRun(code){
 
   const text = el.textContent; // full console text
   const idx = text.lastIndexOf("\n");
+alert( text.lastIndexOf("\n") + " -- " + text.lastIndexOf("\r\n") + " -- " + text.lastIndexOf("\r"));
 
   if (idx === -1) {
     // no newline at all → return everything
