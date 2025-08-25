@@ -24,6 +24,7 @@
 #consoleInput::selection{ background: rgba(255,255,255,0.15); } /* optional */
 /* stop all attention animations once disabled */
 .btn[disabled], .btn.attn[disabled]{ animation: none !important; }
+  .pane-foot .msg { white-space: nowrap; }
 </style>
 </head>
 
@@ -571,6 +572,7 @@ function detectClassToRun(code){
     e.preventDefault();
 
    stopInputCountdown();          // keep the countdown paused between prompts (optional)
+    inputShown = false;
  __statusBase = 'Executing';
  startStatusDots(__statusBase); // ✅ keep the animated dots going
     const line = el.textContent;
