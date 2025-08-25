@@ -471,14 +471,14 @@ function detectClassToRun(code){
 
   const text = el.textContent; // full console text
   const idx = text.lastIndexOf("\n");
-alert( text.lastIndexOf("\n") + " -- " + text.lastIndexOf("\r\n") + " -- " + text.lastIndexOf("\r"));
-
-  if (idx === -1) {
+alert("show full text " + text);
+   
+   if (idx === -1) {
     // no newline at all → return everything
     return text;
   } else {
     // return text up to *before* the last line starts
-    return text.substring(0, idx + 1); 
+    return text.substring(idx + 1); 
   }
 }
 
@@ -498,7 +498,7 @@ alert( text.lastIndexOf("\n") + " -- " + text.lastIndexOf("\r\n") + " -- " + tex
 
 
     
-    alert(getTextUptoLastLineStart());
+    alert("part text = " + getTextUptoLastLineStart());
     
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
