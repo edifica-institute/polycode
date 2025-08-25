@@ -25,15 +25,8 @@
 /* stop all attention animations once disabled */
 .btn[disabled], .btn.attn[disabled]{ animation: none !important; }
   .pane-foot .msg { white-space: nowrap; }
-  .pane-foot .msg {
-  flex: 1;
-  display: flex;
-  justify-content: space-between; /* message left, dots right */
-}
-.status-dots {
-  font-weight: bold;
-  letter-spacing: 1px;
-}
+
+  
 </style>
 </head>
 
@@ -121,6 +114,7 @@
       <section class="panel right" id="rightPanel">
         <div class="pane-head">
           <span class="title">Java – Console | Polycode</span>
+          <span id="statusDots" style="margin-left:auto; opacity:0.7; font:12px monospace;"></span>
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px;">
             <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
               <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
