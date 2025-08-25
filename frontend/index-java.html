@@ -579,6 +579,9 @@ function detectClassToRun(code){
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
+
+            alert(m.type);
+            
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);}
             else if (m.type === 'stdin_req') { 
           // show input exactly when the program is waiting
