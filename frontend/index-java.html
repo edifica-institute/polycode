@@ -553,7 +553,7 @@ function detectClassToRun(code){
       ws = await tryConnectWS(5000);
        window.PolyShell?.setStatus(
         needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
-        'busy'
+        'busy');
     }
 
     if (ws) {
