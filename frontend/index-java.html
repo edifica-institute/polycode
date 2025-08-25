@@ -25,6 +25,15 @@
 /* stop all attention animations once disabled */
 .btn[disabled], .btn.attn[disabled]{ animation: none !important; }
   .pane-foot .msg { white-space: nowrap; }
+  .pane-foot .msg {
+  flex: 1;
+  display: flex;
+  justify-content: space-between; /* message left, dots right */
+}
+.status-dots {
+  font-weight: bold;
+  letter-spacing: 1px;
+}
 </style>
 </head>
 
