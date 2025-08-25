@@ -15,7 +15,7 @@
 
 /* make the input caret clean, no borders/outline */
 #consoleInput{
-  display:inline-block; min-width:0ch;
+  display:inline-block; min-width:5ch;
   background:transparent; border:0; outline:0; box-shadow:none;
   caret-color: currentColor; user-select:text;
   -webkit-user-modify: read-write-plaintext-only;
@@ -332,7 +332,7 @@ function detectClassToRun(code){
     const i    = txt.lastIndexOf('\n');
     const tail = txt.slice(i + 1);
     if (tail && !/^\s*$/.test(tail)) {
-      prefix.textContent = tail + '';
+      prefix.textContent = tail + ' ';
       pre.textContent = txt.slice(0, i + 1);
     } else {
       prefix.textContent = '';
