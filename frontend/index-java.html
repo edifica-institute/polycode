@@ -465,7 +465,21 @@ function detectClassToRun(code){
 
 
   
- 
+ function getTextUptoLastLineStart() {
+  const el = document.getElementById('jconsole');
+  if (!el) return "";
+
+  const text = el.innerText; // full console text
+  const idx = text.lastIndexOf("\n");
+
+  if (idx === -1) {
+    // no newline at all → return everything
+    return text;
+  } else {
+    // return text up to *before* the last line starts
+    return text.substring(0, idx + 1); 
+  }
+}
 
 
 
@@ -478,15 +492,12 @@ function detectClassToRun(code){
     e.preventDefault();
     const line = el.textContent;
 
-    const ex1 = document.getElementById('jconsole');
-    let lines='';
-    let lastLine='';
-    if (ex1){
-     lines = ex1.textContent.trim().split('\n');
-if(lines.length>0)
-      lastLine = lines[lines.length - 1];
-    }
-    alert(lastLine);
+
+
+
+
+    
+    alert(getTextUptoLastLineStart());
     
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
