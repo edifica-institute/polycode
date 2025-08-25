@@ -299,7 +299,7 @@ function detectClassToRun(code){
     el.textContent = text || '';
     document.getElementById('output')?.scrollTo({ top: 1e9 });
   }
-  function termWrite(t){
+  function (t){
     const el = document.getElementById('jconsole');
     if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
   }
@@ -478,7 +478,7 @@ function detectClassToRun(code){
 
 const lines = el.innerText.trim().split('\n');
 const lastLine = '';
-    if(lines.length>0) {lines[lines.length - 1];}
+    if(lines.length>0) {lastLine = lines[lines.length - 1];}
     
  alert('write 1 ' + lastLine + "*" + line);
     termWrite(line + '\n');   // echo what the user typed
