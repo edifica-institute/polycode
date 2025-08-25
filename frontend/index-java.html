@@ -300,6 +300,7 @@ function detectClassToRun(code){
     document.getElementById('output')?.scrollTo({ top: 1e9 });
   }
   function termWrite(t){
+    alert('writing ' + t);
     const el = document.getElementById('jconsole');
     if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
   }
@@ -463,24 +464,7 @@ function detectClassToRun(code){
 
 
   
-  /*document.addEventListener('keydown', (e) => {
-    const el = document.getElementById('consoleInput');
-    if (!el || el.offsetParent === null) return;
-    if (e.target !== el) return;
-
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const line = el.textContent;
-      termWrite(line + '\n');
-      el.textContent = '';
-      try {
-        if (termWS && termWS.readyState === 1 && wsRunInFlight) {
-          termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
-        }
-      } catch {}
-      if (typeof focusConsoleInput === 'function') focusConsoleInput();
-    }
-  }, { capture: true });*/
+ 
 
 
 
