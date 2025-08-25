@@ -469,7 +469,7 @@ function detectClassToRun(code){
   const el = document.getElementById('jconsole');
   if (!el) return "";
 
-  const text = el.innerText; // full console text
+  const text = el.textContent; // full console text
   const idx = text.lastIndexOf("\n");
 
   if (idx === -1) {
