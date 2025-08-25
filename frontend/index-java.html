@@ -253,6 +253,7 @@ function startStatusDots(baseText){
     const suffix = (typeof getCountdownText === 'function') ? getCountdownText() : '';
     window.PolyShell?.setStatus(__statusBase + '.'.repeat(dots) + suffix, 'busy');
   }, 400);
+  alert('started dots');
 }
 
 function stopStatusDots(){
