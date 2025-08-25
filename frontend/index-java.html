@@ -294,6 +294,7 @@ function detectClassToRun(code){
 
   // ---- Console helpers for this IIFE ----
   function setConsole(text){
+    text='*'
     const el = document.getElementById('jconsole');
     if (!el) return;
     el.textContent = text || '';
