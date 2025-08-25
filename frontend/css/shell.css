@@ -232,12 +232,7 @@ body.light .pane-foot .msg{ color:#2457ff; }
 
 /* --- Subtle shake using transforms (no layout shift) --- */
 @keyframes shake {
-  0%   { transform: translateX(0) rotate(0deg); }
-  20%  { transform: translateX(-1px) rotate(-0.4deg); }
-  40%  { transform: translateX(1px) rotate(0.4deg); }
-  60%  { transform: translateX(-1px) rotate(-0.4deg); }
-  80%  { transform: translateX(1px) rotate(0.4deg); }
-  100% { transform: translateX(0) rotate(0deg); }
+ 
 }
 
 /* --- Let disabled buttons still animate --- */
@@ -283,8 +278,7 @@ body.light .pane-foot .msg{ color:#2457ff; }
   50%     { box-shadow: 0 0 12px rgba(99,102,241,.45); }
 }
 @keyframes shakeIdle {
-  0%,100% { transform: translateX(0); }
-  50%     { transform: translateX(1px); }
+
 }
 
 /* apply on page load */
@@ -306,17 +300,7 @@ body.light .pane-foot .msg{ color:#2457ff; }
   50%     { box-shadow: 0 0 18px rgba(34,197,94,.7), 0 0 34px rgba(34,197,94,.4); }
 }
 @keyframes shakeStrong {
-  0%   { transform: translateX(0) rotate(0deg); }
-  10%  { transform: translateX(-3px) rotate(-1.2deg); }
-  20%  { transform: translateX(3px)  rotate(1.2deg); }
-  30%  { transform: translateX(-3px) rotate(-1.2deg); }
-  40%  { transform: translateX(3px)  rotate(1.2deg); }
-  50%  { transform: translateX(-2px) rotate(-.8deg); }
-  60%  { transform: translateX(2px)  rotate(.8deg); }
-  70%  { transform: translateX(-2px) rotate(-.8deg); }
-  80%  { transform: translateX(2px)  rotate(.8deg); }
-  90%  { transform: translateX(-1px) rotate(-.4deg); }
-  100% { transform: translateX(0) rotate(0deg); }
+ 
 }
 
 /* Keep disabled buttons animating */
@@ -524,17 +508,7 @@ body{
   50%     { box-shadow: 0 0 18px currentColor, 0 0 34px currentColor; }
 }
 @keyframes shakeStrong {
-  0%   { transform: translateX(0) rotate(0deg); }
-  10%  { transform: translateX(-3px) rotate(-1.2deg); }
-  20%  { transform: translateX(3px)  rotate(1.2deg); }
-  30%  { transform: translateX(-3px) rotate(-1.2deg); }
-  40%  { transform: translateX(3px)  rotate(1.2deg); }
-  50%  { transform: translateX(-2px) rotate(-.8deg); }
-  60%  { transform: translateX(2px)  rotate(.8deg); }
-  70%  { transform: translateX(-2px) rotate(-.8deg); }
-  80%  { transform: translateX(2px)  rotate(.8deg); }
-  90%  { transform: translateX(-1px) rotate(-.4deg); }
-  100% { transform: translateX(0) rotate(0deg); }
+
 }
 
 /* Only when logically active */
@@ -609,17 +583,7 @@ body{
   50%     { box-shadow: 0 0 18px currentColor, 0 0 34px currentColor; }
 }
 @keyframes shakeStrongFix {
-  0%   { transform: translateX(0) rotate(0); }
-  10%  { transform: translateX(-3px) rotate(-1.2deg); }
-  20%  { transform: translateX(3px)  rotate(1.2deg); }
-  30%  { transform: translateX(-3px) rotate(-1.2deg); }
-  40%  { transform: translateX(3px)  rotate(1.2deg); }
-  50%  { transform: translateX(-2px) rotate(-.8deg); }
-  60%  { transform: translateX(2px)  rotate(.8deg); }
-  70%  { transform: translateX(-2px) rotate(-.8deg); }
-  80%  { transform: translateX(2px)  rotate(.8deg); }
-  90%  { transform: translateX(-1px) rotate(-.4deg); }
-  100% { transform: translateX(0) rotate(0); }
+
 }
 
 /* The one-and-only highlight class */
@@ -829,11 +793,7 @@ body{
 
 /* ERROR: cross with a gentle shake */
 @keyframes shakeX {
-  0%,100%{ transform: translateX(0) }
-  20%{ transform: translateX(-2px) }
-  40%{ transform: translateX(2px) }
-  60%{ transform: translateX(-1px) }
-  80%{ transform: translateX(1px) }
+
 }
 .pane-foot .status.error .icon{
   border:2px solid currentColor; background:transparent; animation: shakeX .5s linear 1;
