@@ -572,9 +572,12 @@ function detectClassToRun(code){
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
+            if (m.type === 'stdout') { 
+              
+               alert(acc.stdout + "**" + m.data + "**" + acc.stdout);
+                                     
+              acc.stdout += m.data; termWrite(m.data);
 
-                                      alert(acc.stdout + "**" + m.data + "**" + acc.stdout);
                                      //const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
 
   if (needsStdin && !inputShown ) {
