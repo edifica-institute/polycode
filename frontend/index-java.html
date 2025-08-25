@@ -476,9 +476,8 @@ function detectClassToRun(code){
     e.preventDefault();
     const line = el.textContent;
 
-const lines = el.innerText.trim().split('\n');
- alert(lines);
-
+ alert('inner is ' + el.innerTex);
+alert('line is ' + line);
     
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
@@ -562,7 +561,7 @@ const lines = el.innerText.trim().split('\n');
             if (m.type === 'stdout') { 
               
                //alert(acc.stdout + "**" + m.data + "**" + acc.stdout+m.data);
-                                     alert('write 2 ' + m.data);
+                                     
               acc.stdout += m.data; termWrite(m.data);
 
                                      //const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
