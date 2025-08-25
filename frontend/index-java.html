@@ -568,6 +568,7 @@ function detectClassToRun(code){
     e.preventDefault();
 
     stopInputCountdown();
+    stopStatusDots();
 __statusBase = 'Executing';
     const line = el.textContent;
 
@@ -613,17 +614,27 @@ __statusBase = 'Executing';
 
 
 
-  
+   
+
+// Choose your visible input-wait time (keep in sync with backend default if you want)
+let inputWaitMs = 5 * 60 * 1000; // 5 minutes
   
 
   // ---- MAIN: Run (interactive first; fallback to Piston) ----
   window.runLang = async function(codeOverride){
+
+    
     clearEditorMarkers();
     const prefix = document.getElementById('consolePrefix');
     if (prefix) prefix.textContent = '';
     showInputRow(false);
 
     inputShown = false;
+
+   
+
+
+    
 
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride
@@ -668,6 +679,8 @@ termWS = ws; // reuse it for future runs
     if (ws) {
       termWS = ws;
       wsRunInFlight = true;
+      __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
+startStatusDots(__statusBase);
       showInputRow(false);
       window.PolyShell?.setStatus(
         needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
@@ -685,13 +698,14 @@ termWS = ws; // reuse it for future runs
             
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);}
             else if (m.type === 'stdin_req') { 
-          // show input exactly when the program is waiting
-          showInputRow(true);
-          inputShown = true;
-          window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-            //alert('input now');
-              __statusBase = 'Waiting for User Input';
-  startInputCountdown(inputWaitMs);  // <— start the mm:ss
+                  // show input exactly when the program is waiting
+                    showInputRow(true);
+                    inputShown = true;
+                    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+                    //alert('input now');
+                   __statusBase = 'Waiting for User Input';
+                    startStatusDots(__statusBase);      // ◀ start the animated dots
+                  startInputCountdown(inputWaitMs);   // ◀ start the mm:ss countdown
             
             }
                                       
@@ -699,7 +713,7 @@ termWS = ws; // reuse it for future runs
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); 
                                           
                                           stopInputCountdown();
-stopStatusDots();
+                                stopStatusDots();
 setRunUI(false);
                                           
                                           }
@@ -780,10 +794,7 @@ setRunUI(false);
         const argsStr = document.getElementById('progArgs')?.value || '';
 const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
 
-// Choose your visible input-wait time (keep in sync with backend default if you want)
-const inputWaitMs = 5 * 60 * 1000; // 5 minutes
-
-        
+        inputWaitMs = 5 * 60 * 1000;
         termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
       } catch {
         try { termWS.close(); } catch {}
