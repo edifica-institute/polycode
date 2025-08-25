@@ -465,24 +465,6 @@ function detectClassToRun(code){
 
 
   
- function getTextUptoLastLineStart() {
-  const el = document.getElementById('jconsole');
-  if (!el) return "";
-
-  const text = el.textContent; // full console text
-  const idx = text.lastIndexOf("\n");
-alert("show full text " + text);
-   
-   if (idx === -1) {
-    // no newline at all → return everything
-    return text;
-  } else {
-    // return text up to *before* the last line starts
-    return text.substring(idx + 1); 
-  }
-}
-
-
 
   document.addEventListener('keydown', (e) => {
   const el = document.getElementById('consoleInput');
@@ -493,12 +475,19 @@ alert("show full text " + text);
     e.preventDefault();
     const line = el.textContent;
 
+    
 
+ const pre    = document.getElementById('jconsole');
+    const prefix = document.getElementById('consolePrefix');
 
+    // 1) Merge the prompt/tail back into the <pre> BEFORE echoing
+    if (prefix && prefix.textContent) {
+      pre.textContent += prefix.textContent;  // restore moved tail
+      prefix.textContent = '';
+    }
 
 
     
-    //alert("part text = " + getTextUptoLastLineStart());
     
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
