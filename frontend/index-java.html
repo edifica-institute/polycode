@@ -221,13 +221,10 @@ function findJavaErrorLine(text, className){
 
 
 function hasPromptBeforeRead(code){
-  // Find first input read
-  const readIdx = code.search(/\b(?:new\s+Scanner\s*\(\s*System\.in\s*\)|\.next(?:Line|Int|Long|Double|Float|Short|Byte|Boolean|BigInteger|BigDecimal)?\s*\()/);
-  if (readIdx === -1) return false; // no read → no prompt needed
-
-  // Check if a print/printf happens before the first read
+  const readIdx = code.search(/\bnew\s+Scanner\s*\(\s*System\.in\s*\)|\.\s*next(?:Line|Int|Long|Double|Float|Short|Byte|Boolean)\s*\(/);
+  if (readIdx === -1) return false;
   const before = code.slice(0, readIdx);
-  return /\bSystem\.out\.(?:print|printf)\s*\(/.test(before);
+  return /\bSystem\.out\.(?:print|printf|println)\s*\(/.test(before);
 }
 
 
@@ -587,22 +584,29 @@ const hasPrompt  = hasPromptBeforeRead(code);
 
 
  // Fallback: if no prompt ever prints, reveal input after ~800ms
-  if (needsStdin) {
-   inputArmTimer = setTimeout(() => {
-     // show only if NOTHING was printed yet (prevents early cursor)
-     if (!inputShown && acc.stdout.length === 0 && acc.stderr.length === 0 && acc.compileErr.length === 0) {
-       showInputRow(true);
-       inputShown = true;
-     }
-   }, 1200);  // a hair longer to avoid racing the first println
-}
-
+ 
 
 
 
 
       
       const acc = { compileErr:'', stderr:'', stdout:'' };
+
+
+if (needsStdin && !hasPrompt) {
+   inputArmTimer = setTimeout(() => {
+    if (!inputShown && acc.stdout.length === 0 && acc.stderr.length === 0 && acc.compileErr.length === 0) {
+      showInputRow(true);
+      inputShown = true;
+   }
+  }, 1200);
+ }
+
+
+
+
+
+      
 
       const waitForExit = new Promise((resolve, reject) => {
         const onMsg = (ev) => {
