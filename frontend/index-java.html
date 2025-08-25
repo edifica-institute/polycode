@@ -494,7 +494,7 @@ function detectClassToRun(code){
     const line = el.textContent;
 
     termWrite(line + '\n');   // echo what the user typed
-    //el.textContent = '';
+    el.textContent = '';
 
     try {
       if (termWS && termWS.readyState === 1 && wsRunInFlight) {
