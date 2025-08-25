@@ -795,7 +795,11 @@ setRunUI(false);
 const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
 
         inputWaitMs = 5 * 60 * 1000;
-        termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
+        termWS.send(JSON.stringify({ type: 'run',
+  className,
+  code: raw + '',
+  args,
+  inputWaitMs }));
       } catch {
         try { termWS.close(); } catch {}
         showInputRow(false);
