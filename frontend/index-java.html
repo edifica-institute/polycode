@@ -475,7 +475,7 @@ function detectClassToRun(code){
   if (e.key === 'Enter') {
     e.preventDefault();
     const line = el.textContent;
- alert('write ' + line);
+ alert('write 1 ' + line);
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
 
@@ -558,7 +558,7 @@ function detectClassToRun(code){
             if (m.type === 'stdout') { 
               
                //alert(acc.stdout + "**" + m.data + "**" + acc.stdout+m.data);
-                                     
+                                     alert('write 2 ' + m.data);
               acc.stdout += m.data; termWrite(m.data);
 
                                      //const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
