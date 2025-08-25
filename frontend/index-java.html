@@ -296,7 +296,7 @@ function detectClassToRun(code){
   function setConsole(text){
     const el = document.getElementById('jconsole');
     if (!el) return;
-    el.textContent += text || '';
+    el.textContent = text || '';
     document.getElementById('output')?.scrollTo({ top: 1e9 });
   }
   function termWrite(t){
