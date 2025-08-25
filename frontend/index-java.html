@@ -476,7 +476,8 @@ function detectClassToRun(code){
     e.preventDefault();
     const line = el.textContent;
 
- alert('inner is ' + el.innerTex);
+ alert('inner is ' + el.innerText);
+     alert('content is ' + el.textContent);
 alert('line is ' + line);
     
     termWrite(line + '\n');   // echo what the user typed
