@@ -300,7 +300,6 @@ function detectClassToRun(code){
     document.getElementById('output')?.scrollTo({ top: 1e9 });
   }
   function termWrite(t){
-    alert('writing ' + t);
     const el = document.getElementById('jconsole');
     if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
   }
@@ -476,7 +475,7 @@ function detectClassToRun(code){
   if (e.key === 'Enter') {
     e.preventDefault();
     const line = el.textContent;
- alert(line);
+ alert('write ' + line);
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
 
