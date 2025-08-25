@@ -579,22 +579,12 @@ function detectClassToRun(code){
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout') { 
-              
-               //alert(acc.stdout + "**" + m.data + "**" + acc.stdout+m.data);
-                                     
-              acc.stdout += m.data; termWrite(m.data);
-
-                                     //const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
-
-
-              //alert(m.type);
-else if (m.type === 'stdin_req') {
+            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);}
+            else if (m.type === 'stdin_req') { 
   // show input exactly when the program is waiting
   showInputRow(true);
   inputShown = true;
   window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-
 }
                                       
                                      }
