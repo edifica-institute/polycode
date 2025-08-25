@@ -254,7 +254,10 @@ function startStatusDots(baseText){
   __statusTimer = setInterval(() => {
     dots = (dots + 1) % 4; // 0..3
     const suffix = (typeof getCountdownText === 'function') ? getCountdownText() : '';
-    window.PolyShell?.setStatus(__statusBase + '.'.repeat(dots) + suffix, 'busy');
+    //window.PolyShell?.setStatus(__statusBase + '.'.repeat(dots) + suffix, 'busy');
+
+    const statusEl = document.getElementById('statusDots');
+statusEl.textContent = __statusBase + '.'.repeat(dots) + getCountdownText();
   }, 400);
   alert('started dots');
 }
