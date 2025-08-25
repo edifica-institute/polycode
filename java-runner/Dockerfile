@@ -1,5 +1,10 @@
 FROM node:20-bullseye
-RUN apt-get update && apt-get install -y --no-install-recommends openjdk-17-jdk && rm -rf /var/lib/apt/lists/*
+
+# Install only what's needed: JDK for javac + JRE for running
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openjdk-17-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # Node deps
@@ -9,12 +14,15 @@ RUN npm install --omit=dev
 # App files
 COPY java-runner.js ./
 
-# === NEW: copy the Java launcher sources and build runner.jar ===
+# === Copy launcher sources and build runner.jar (force UTF-8) ===
 COPY io /app/io
-RUN javac -d out io/polycode/*.java && \
+RUN javac -encoding UTF-8 -d out io/polycode/*.java && \
     jar --create --file runner.jar -C out .
 
+# Environment tuning
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
 ENV PORT=8081
+
 EXPOSE 8081
 CMD ["npm","start"]
-  
