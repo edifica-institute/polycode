@@ -423,13 +423,24 @@ function detectClassToRun(code){
   }
 
   // ---- Input detection ----
-  function codeNeedsInput(code){
+  /*function codeNeedsInput(code){
     return (
       /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
       /\bBufferedReader\s*\(\s*new\s+InputStreamReader\s*\(\s*System\.in\s*\)\s*\)/.test(code) ||
       /\bSystem\.in\b/.test(code)
     );
-  }
+  }*/
+
+  function codeNeedsInput(code){
+  const hasScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/s.test(code);
+  const usesNext   = /\b(\w+)\s*=\s*new\s+Scanner\s*\(\s*System\.in\s*\)[\s\S]*?\b\1\s*\.\s*next(?:Line|Int|Double|Long|Short|Float)?\s*\(/s.test(code)
+                  || /\bScanner\b[\s\S]*?\.\s*next(?:Line|Int|Double|Long|Short|Float)?\s*\(/s.test(code);
+  return hasScanner && usesNext;
+}
+
+
+
+  
 
   // ---- Gentle WS connect + wake ping ----
   async function wakeRunner(){
