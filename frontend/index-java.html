@@ -299,7 +299,7 @@ function detectClassToRun(code){
     el.textContent = text || '';
     document.getElementById('output')?.scrollTo({ top: 1e9 });
   }
-  function (t){
+  function termWrite(t){
     const el = document.getElementById('jconsole');
     if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
   }
