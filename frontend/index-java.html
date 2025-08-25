@@ -567,9 +567,9 @@ function detectClassToRun(code){
   if (e.key === 'Enter') {
     e.preventDefault();
 
-    stopInputCountdown();
-    stopStatusDots();
-__statusBase = 'Executing';
+   stopInputCountdown();          // keep the countdown paused between prompts (optional)
+ __statusBase = 'Executing';
+ startStatusDots(__statusBase); // ✅ keep the animated dots going
     const line = el.textContent;
 
     
