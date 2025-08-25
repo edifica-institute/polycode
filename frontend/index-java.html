@@ -8,24 +8,6 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
-
-<style>
-  /* kill any token-like styling on the input row */
-#consoleRow span { background: transparent !important; padding: 0 !important; border-radius: 0 !important; }
-
-/* make the input caret clean, no borders/outline */
-#consoleInput{
-  display:inline-block; min-width:1ch;
-  background:transparent; border:0; outline:0; box-shadow:none;
-  caret-color: currentColor; user-select:text;
-  -webkit-user-modify: read-write-plaintext-only;
-}
-#consoleInput:focus{ outline:0; }
-#consoleInput::selection{ background: rgba(255,255,255,0.15); } /* optional */
-/* stop all attention animations once disabled */
-.btn[disabled], .btn.attn[disabled]{ animation: none !important; }
-
-</style>
   
 </head>
 
@@ -107,21 +89,23 @@
           </div>
         </div>
 
-
-<div id="output" class="screen-dim" style="padding:12px;">
-  <!-- Output only -->
-  <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-
-  <!-- Input row (shown only when needed) -->
-  <div id="consoleRow"
-       style="display:none; margin-top:0; gap:4px; align-items:baseline;
-              font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
-    <span id="consolePrefix"></span><span id="consoleInput" contenteditable="true" spellcheck="false"></span>
-  </div>
-</div>
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <div id="consoleRow"
+               style="display:none; margin-top:0; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace; gap:4px; align-items:baseline;">
 
 
-        
+<pre id="jconsole" class="console" style="white-space:pre-wrap">
+  <span id="consoleText"></span><span id="consolePrefix"></span>
+  <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+</pre>
+
+
+
+
+            
+          </div>
+        </div>
 
         <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
@@ -218,20 +202,6 @@ function findJavaErrorLine(text, className){
   return 1;
 }
 
-
-
-function hasPromptBeforeRead(code){
-  const readIdx = code.search(/\bnew\s+Scanner\s*\(\s*System\.in\s*\)|\.\s*next(?:Line|Int|Long|Double|Float|Short|Byte|Boolean)\s*\(/);
-  if (readIdx === -1) return false;
-  const before = code.slice(0, readIdx);
-  return /\bSystem\.out\.(?:print|printf|println)\s*\(/.test(before);
-}
-
-
-    
-
-
-    
 let __pistonJavaVersion = null;
 async function getPistonJavaVersion(forceRefresh = false){
   if (!forceRefresh && __pistonJavaVersion) return __pistonJavaVersion;
@@ -371,47 +341,6 @@ function detectClassToRun(code){
 }
 
 
-  /*function showInputRow(show){
-  const row    = document.getElementById('consoleRow');
-  const pre    = document.getElementById('jconsole');
-  const prefix = document.getElementById('consolePrefix');
-
-  if (row) row.style.display = show ? 'inline-flex' : 'none';
-
-  if (show) {
-    // 1) Collapse any trailing whitespace in <pre> to exactly ONE newline
-    // (Use .replace(/\s+$/, '\n') if you want exactly one; use '' if you want none)
-    pre.textContent = (pre.textContent || '').replace(/[ \t\r]*(\r?\n)+$/, '');
-
-
-    // 2) If the last line has text (i.e., a print without newline), keep it as a prefix
-    const txt = pre.textContent;
-    const i   = txt.lastIndexOf('\n');
-    const tail = txt.slice(i + 1);
-    if (tail && !/^\s*$/.test(tail)) {
-      prefix.textContent = tail + ' ';
-      pre.textContent = txt.slice(0, i + 1);
-    } else {
-      prefix.textContent = '';
-    }
-
-    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-    focusConsoleInput?.();
-  } else {
-    if (typeof wsRunInFlight !== 'undefined' && wsRunInFlight) {
-      window.PolyShell?.setStatus('Executing...', 'busy');
-    }
-    if (prefix.textContent) {
-      pre.textContent += prefix.textContent;
-      prefix.textContent = '';
-    }
-  }
-}*/
-
-
-  
-
-
   /* --- Monaco marker helpers --- */
   function clearEditorMarkers() {
     if (!window.monaco || !window.editor) return;
@@ -472,10 +401,6 @@ function detectClassToRun(code){
 
   // ---- Send input when user presses Enter ----
   let termWS = null, wsRunInFlight = false;
-  let inputShown = false;
-let inputArmTimer = null;
-
-  
   /*document.addEventListener('keydown', (e) => {
     const el = document.getElementById('consoleInput');
     if (!el || el.offsetParent === null) return;
@@ -523,18 +448,6 @@ let inputArmTimer = null;
 }, { capture: true });
 
 
-
-
-
-
-
-
-
-
-
-
-
-  
   
 
   // ---- MAIN: Run (interactive first; fallback to Piston) ----
@@ -544,11 +457,6 @@ let inputArmTimer = null;
     if (prefix) prefix.textContent = '';
     showInputRow(false);
 
-    inputShown = false;
-if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
-
-   
-    
     const raw = (typeof codeOverride === 'string' && codeOverride.trim())
       ? codeOverride
       : (window.editor ? window.editor.getValue() : '');
@@ -561,10 +469,7 @@ if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
     document.getElementById('output')?.classList.remove('error');
 
     const needsStdin = codeNeedsInput(code);
-const hasPrompt  = hasPromptBeforeRead(code);
 
-
-    
     // Wake + connect (gentle)
     if (needsStdin) await wakeRunner();
     let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
@@ -576,65 +481,23 @@ const hasPrompt  = hasPromptBeforeRead(code);
     if (ws) {
       termWS = ws;
       wsRunInFlight = true;
-      showInputRow(false);
+      showInputRow(needsStdin);
       window.PolyShell?.setStatus(
         needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
         'busy'
       );
 
-
- // Fallback: if no prompt ever prints, reveal input after ~800ms
- 
-
-
-
-
-      
       const acc = { compileErr:'', stderr:'', stdout:'' };
-
-
-if (needsStdin && !hasPrompt) {
-   inputArmTimer = setTimeout(() => {
-    if (!inputShown && acc.stdout.length === 0 && acc.stderr.length === 0 && acc.compileErr.length === 0) {
-      showInputRow(true);
-      inputShown = true;
-   }
-  }, 1200);
- }
-
-
-
-
-
-      
 
       const waitForExit = new Promise((resolve, reject) => {
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
-                                      if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
-                                     const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
-
-  if ( needsStdin && !inputShown && (/(?:enter|input|number|value|type|choice|provide|give|no\b)/i.test(last) ||  /[:?]\s*$/.test(last) ))
-        {
-    showInputRow(true);
-    inputShown = true;
-          if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
-  }
-                                      
-                                     }
+            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data); }
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
             else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
             else if (m.type === 'exit') {
-              //termWS.removeEventListener('message', onMsg);
-
- if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
               termWS.removeEventListener('message', onMsg);
-
-
-
-              
               wsRunInFlight = false;
               showInputRow(false);
               if (m.code === 0) {
@@ -652,7 +515,7 @@ if (needsStdin && !hasPrompt) {
             }
           } catch { /* ignore non-JSON */ }
         };
-       /* const onClose = () => {
+        const onClose = () => {
           termWS.removeEventListener('message', onMsg);
           if (wsRunInFlight) {
             wsRunInFlight = false;
@@ -660,26 +523,7 @@ if (needsStdin && !hasPrompt) {
             window.PolyShell?.setStatus('Runner disconnected','error');
             reject(new Error('line 1: runner disconnected'));
           }
-        };*/
-
-
-const onClose = (ev) => {
-  if (inputArmTimer) { clearTimeout(inputArmTimer); inputArmTimer = null; }
-  try { termWS?.removeEventListener('message', onMsg); } catch {}
-  if (wsRunInFlight) {
-    wsRunInFlight = false;
-    showInputRow(false);
- window.PolyShell?.setStatus('Runner disconnected','error');
-  }
- termWS = null;
-};
-
-
-
-
-
-
-        
+        };
         termWS.addEventListener('message', onMsg);
         termWS.addEventListener('close', onClose, { once:true });
       });
@@ -752,32 +596,11 @@ const onClose = (ev) => {
   };
 })();
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
 /* --- Start after shell.js (defer) has run --- */
 (function startWhenReady(){
   function start(){
     if (!window.PolyShell) {
-      const id = setInterval(() => {e
+      const id = setInterval(() => {
         if (window.PolyShell){ clearInterval(id); window.bootstrap(); }
       }, 25);
       setTimeout(() => clearInterval(id), 3000);
