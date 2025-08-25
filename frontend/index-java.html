@@ -589,10 +589,13 @@ function detectClassToRun(code){
 
 
               //alert(m.type);
-  if (needsStdin && !inputShown ) {
-    showInputRow(true);
-    inputShown = true;
-  }
+else if (m.type === 'stdin_req') {
+  // show input exactly when the program is waiting
+  showInputRow(true);
+  inputShown = true;
+  window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+
+}
                                       
                                      }
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
