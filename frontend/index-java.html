@@ -547,10 +547,13 @@ function detectClassToRun(code){
 
     // Wake + connect (gentle)
     if (needsStdin) await wakeRunner();
-    let ws = await tryConnectWS(needsStdin ? 6000 : 2500);
+    let ws = await tryConnectWS(needsStdin ? 3000 : 2500);
     if (!ws && needsStdin) {
       setConsole('Starting interactive runner…');
-      ws = await tryConnectWS(15000);
+      ws = await tryConnectWS(5000);
+       window.PolyShell?.setStatus(
+        needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
+        'busy'
     }
 
     if (ws) {
