@@ -18,7 +18,11 @@ public class Launch {
     if (args.length > 1) System.arraycopy(args, 1, userArgs, 0, userArgs.length);
 
     Class<?> c = Class.forName(mainClass);
-    Method m = c.getMethod("main", String[].class);
+    Method m = c.getDeclaredMethod("main", String[].class);
+
+    // allow reflective access across packages
+    m.setAccessible(true);
+
     m.invoke(null, (Object) userArgs);
   }
 }
