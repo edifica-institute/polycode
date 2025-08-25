@@ -21,6 +21,11 @@ wss.on('connection', (ws) => {
     if (workdir) { try{ await fs.remove(workdir); } catch {} workdir = null; }
   }
 
+if (msg.type === 'ping') {
+  try { ws.send(JSON.stringify({ type:'pong' })); } catch {}
+  return;
+}
+  
   ws.on('message', async (raw) => {
     if (closed) return;
     let msg; try { msg = JSON.parse(String(raw)); } catch { return; }
