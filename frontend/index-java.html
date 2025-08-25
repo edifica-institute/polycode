@@ -9,24 +9,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light">
 
-<style>
-  /* kill any token-like styling on the input row */
-#consoleRow span { background: transparent !important; padding: 0 !important; border-radius: 0 !important; }
 
-/* make the input caret clean, no borders/outline */
-#consoleInput{
-  display:inline-block; min-width:1ch;
-  background:transparent; border:0; outline:0; box-shadow:none;
-  caret-color: currentColor; user-select:text;
-  -webkit-user-modify: read-write-plaintext-only;
-}
-#consoleInput:focus{ outline:0; }
-#consoleInput::selection{ background: rgba(255,255,255,0.15); } /* optional */
-/* stop all attention animations once disabled */
-.btn[disabled], .btn.attn[disabled]{ animation: none !important; }
-
-</style>
-  
 </head>
 
 <body class="page-fade">
