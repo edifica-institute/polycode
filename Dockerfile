@@ -28,6 +28,12 @@ RUN if [ -f package-lock.json ]; then \
 # Server code
 COPY server ./server
 
+# Build the tiny Java launcher JAR
+RUN javac -d server/java-runner/out server/java-runner/io/polycode/*.java && \
+    jar --create --file server/java-runner/runner.jar -C server/java-runner/out .
+
+
+
 ENV NODE_ENV=production
 ENV SANDBOX=local
 ENV PORT=8080
