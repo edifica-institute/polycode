@@ -475,7 +475,12 @@ function detectClassToRun(code){
   if (e.key === 'Enter') {
     e.preventDefault();
     const line = el.textContent;
- alert('write 1 ' + line);
+
+const lines = el.innerText.trim().split('\n');
+const lastLine = '';
+    if(lines.length>0) {lines[lines.length - 1];}
+    
+ alert('write 1 ' + lastLine + "*" + line);
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
 
