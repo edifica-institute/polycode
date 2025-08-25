@@ -211,6 +211,75 @@ window.bootstrap = async function bootstrap(){
   const out = document.getElementById('output');
   out && (out.scrollTop = out.scrollHeight);
 }*/
+
+
+// ===== Input-wait countdown =====
+let __inputDeadline = 0;           // epoch ms when input wait expires
+let __inputCountdownTimer = null;  // interval handle
+
+function getCountdownText(){
+  if (!__inputDeadline) return '';
+  const ms = Math.max(0, __inputDeadline - Date.now());
+  const s  = Math.floor(ms / 1000);
+  const mm = String(Math.floor(s / 60)).padStart(2,'0');
+  const ss = String(s % 60).padStart(2,'0');
+  return ` — ${mm}:${ss}`;
+}
+
+function startInputCountdown(ms){
+  stopInputCountdown();
+  __inputDeadline = Date.now() + Math.max(0, Number(ms) || 0);
+  __inputCountdownTimer = setInterval(() => {
+    // Let the dots updater include this text; just poke the status again
+    if (typeof window.PolyShell?.setStatus === 'function' && typeof __statusBase !== 'undefined') {
+      // status is refreshed by startStatusDots interval; nothing else needed here
+    }
+  }, 500);
+}
+
+function stopInputCountdown(){
+  __inputDeadline = 0;
+  if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer = null; }
+}
+
+    // --- UI: Stop/Reset toggle + animated dots in status ---
+let __statusTimer = null;
+let __statusBase  = '';
+
+function startStatusDots(baseText){
+  stopStatusDots();
+  __statusBase = baseText || 'Executing';
+  let dots = 0;
+  __statusTimer = setInterval(() => {
+    dots = (dots + 1) % 4; // 0..3
+    const suffix = (typeof getCountdownText === 'function') ? getCountdownText() : '';
+    window.PolyShell?.setStatus(__statusBase + '.'.repeat(dots) + suffix, 'busy');
+  }, 400);
+}
+
+function stopStatusDots(){
+  if (__statusTimer){ clearInterval(__statusTimer); __statusTimer = null; }
+}
+
+
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
 function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
   const el = document.getElementById('jconsole');
   if (!el) return;
@@ -497,6 +566,9 @@ function detectClassToRun(code){
 
   if (e.key === 'Enter') {
     e.preventDefault();
+
+    stopInputCountdown();
+__statusBase = 'Executing';
     const line = el.textContent;
 
     
@@ -618,13 +690,32 @@ termWS = ws; // reuse it for future runs
           inputShown = true;
           window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
             //alert('input now');
+              __statusBase = 'Waiting for User Input';
+  startInputCountdown(inputWaitMs);  // <— start the mm:ss
             
             }
                                       
                                      
-            else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
-            else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
+            else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); 
+                                          
+                                          stopInputCountdown();
+stopStatusDots();
+setRunUI(false);
+                                          
+                                          }
+            else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data);
+                                              
+                                              
+                                              stopInputCountdown();
+stopStatusDots();
+setRunUI(false);
+                                              
+                                              }
             else if (m.type === 'exit') {
+
+              stopInputCountdown();
+stopStatusDots();
+setRunUI(false);
               termWS.removeEventListener('message', onMsg);
               wsRunInFlight = false;
               showInputRow(false);
@@ -651,7 +742,8 @@ termWS = ws; // reuse it for future runs
   try { stopHeartbeat?.(); } catch {}
   try { stopStatusDots?.(); } catch {}
   try { setRunUI?.(false); } catch {}
-
+ stopInputCountdown();
+          
   if (wsRunInFlight) {
     wsRunInFlight = false;
     showInputRow(false);
@@ -684,6 +776,14 @@ termWS = ws; // reuse it for future runs
       });
 
       try {
+
+        const argsStr = document.getElementById('progArgs')?.value || '';
+const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
+
+// Choose your visible input-wait time (keep in sync with backend default if you want)
+const inputWaitMs = 5 * 60 * 1000; // 5 minutes
+
+        
         termWS.send(JSON.stringify({ type:'run', className, code: raw + '' }));
       } catch {
         try { termWS.close(); } catch {}
