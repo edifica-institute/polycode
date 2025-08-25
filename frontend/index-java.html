@@ -581,13 +581,12 @@ function detectClassToRun(code){
             const m = JSON.parse(String(ev.data));
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);}
             else if (m.type === 'stdin_req') { 
-  // show input exactly when the program is waiting
-  showInputRow(true);
-  inputShown = true;
-  window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-}
+          // show input exactly when the program is waiting
+          showInputRow(true);
+          inputShown = true;
+          window.PolyShell?.setStatus('Waiting for User Input...', 'busy');}
                                       
-                                     }
+                                     
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); }
             else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data); }
             else if (m.type === 'exit') {
