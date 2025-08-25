@@ -492,7 +492,7 @@ function detectClassToRun(code){
   if (e.key === 'Enter') {
     e.preventDefault();
     const line = el.textContent;
-
+ alert(line);
     termWrite(line + '\n');   // echo what the user typed
     el.textContent = '';
 
