@@ -8,50 +8,97 @@ import path from 'path';
 const app = express();
 app.get('/health', (_req, res) => res.send('ok'));
 
-const PORT = process.env.PORT || 8081; // Render will set PORT (e.g., 10000)
+const PORT = process.env.PORT || 8081; // Render sets this (often 10000)
 const server = app.listen(PORT, () => console.log('Java runner on :' + PORT));
 
 const wss = new WebSocketServer({ server, path: '/java' });
 
 wss.on('connection', (ws) => {
-  let proc = null, workdir = null, closed = false;
+  // Per-connection mutable state
+  let proc = null;
+  let workdir = null;
+  let closed = false;
+
+  // Per-run timing + timeout state
+  let t0 = 0, t1 = 0, t2 = 0;
+  let phase = 'idle';              // 'idle' | 'running' | 'waitingInput'
+  let hardTimer = null;
+  let inputTimer = null;
+  let hardLimitMs = 15000;
+  let inputWaitMs = 300000;        // default 5 min
+
+  function clearTimers(){
+    if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; }
+    if (inputTimer) { clearTimeout(inputTimer); inputTimer = null; }
+  }
+  function armHardKill(ms){
+    if (hardTimer) clearTimeout(hardTimer);
+    if (!isFinite(ms)) return;
+    hardTimer = setTimeout(() => { try { proc?.kill('SIGKILL'); } catch {} }, ms);
+  }
+  function armInputKill(ms){
+    if (inputTimer) clearTimeout(inputTimer);
+    if (!isFinite(ms)) return;
+    inputTimer = setTimeout(() => {
+      try { ws.send(JSON.stringify({ type:'stderr', data:'Input wait timed out.\n' })); } catch {}
+      try { proc?.kill('SIGKILL'); } catch {}
+    }, ms);
+  }
 
   async function cleanup(){
-    if (proc) { try{ proc.kill('SIGKILL'); } catch {} proc = null; }
-    if (workdir) { try{ await fs.remove(workdir); } catch {} workdir = null; }
+    clearTimers();
+    if (proc) { try { proc.kill('SIGKILL'); } catch {} proc = null; }
+    if (workdir) { try { await fs.remove(workdir); } catch {} workdir = null; }
+    phase = 'idle';
   }
 
   ws.on('message', async (raw) => {
     if (closed) return;
 
-    // Parse once, then branch on msg.type
     let msg;
     try { msg = JSON.parse(String(raw)); } catch { return; }
 
-    // ✅ Ping/Pong MUST be inside message handler, after parsing
+    // Heartbeat
     if (msg.type === 'ping') {
       try { ws.send(JSON.stringify({ type:'pong' })); } catch {}
       return;
     }
 
-    // Allow client to stop current run
+    // Stop current run
     if (msg.type === 'kill') {
-      if (proc) { try { proc.kill('SIGKILL'); } catch {} }
+      try { proc?.kill('SIGKILL'); } catch {}
       return;
     }
 
+    // Send stdin into running process
+    if (msg.type === 'stdin' && proc?.stdin?.writable) {
+      if (phase === 'waitingInput') {
+        phase = 'running';
+        if (inputTimer) { clearTimeout(inputTimer); inputTimer = null; }
+        // Re-arm the overall hard limit fresh (simple policy)
+        armHardKill(hardLimitMs);
+      }
+      try { proc.stdin.write(msg.data); } catch {}
+      return;
+    }
+
+    // Run request
     if (msg.type === 'run') {
       await cleanup();
 
       const cls = (msg.className || 'Main');
 
-      // Use tmpfs (/dev/shm) if available
+      // Limits (bounded)
+      hardLimitMs = Math.min(Number(msg.timeLimitMs || process.env.JAVA_TIMEOUT_MS || 15000), 600000); // 10 min cap
+      inputWaitMs = Math.min(Number(msg.inputWaitMs || process.env.INPUT_WAIT_MS || 300000), 3600000); // 60 min cap
+
+      // Use tmpfs if available for faster I/O
       const base = (await fs.pathExists('/dev/shm')) ? '/dev/shm' : os.tmpdir();
       workdir = await fs.mkdtemp(path.join(base, 'polyjava-'));
       const file = path.join(workdir, cls + '.java');
       await fs.writeFile(file, msg.code, 'utf8');
 
-      const t0 = Date.now();
+      t0 = Date.now();
 
       // ---- compile ----
       const javac = spawn('javac', [
@@ -63,7 +110,7 @@ wss.on('connection', (ws) => {
       let cerr = '';
       javac.stderr.on('data', d => cerr += d.toString());
       javac.on('close', (code) => {
-        const t1 = Date.now();
+        t1 = Date.now();
 
         if (code !== 0) {
           ws.send(JSON.stringify({ type:'compileErr', data: cerr }));
@@ -75,8 +122,7 @@ wss.on('connection', (ws) => {
           return;
         }
 
-        // ---- run via launcher.jar (emits stdin_req on blocking reads) ----
-        const timeoutMs = Math.min(Number(msg.timeLimitMs || process.env.JAVA_TIMEOUT_MS || 15000), 60000);
+        // ---- run via launcher.jar (emits [[CTRL]]:stdin_req when blocked on input) ----
         const cpSep = process.platform === 'win32' ? ';' : ':';
         const runnerJar = path.join(process.cwd(), 'runner.jar');
         const classpath = `${runnerJar}${cpSep}${workdir}`;
@@ -91,18 +137,20 @@ wss.on('connection', (ws) => {
 
         const runArgs = Array.isArray(msg.args) ? msg.args : [];
 
-        const procStart = Date.now();
         proc = spawn('java', [
           ...jvmFlags, '-cp', classpath, 'io.polycode.Launch', cls, ...runArgs
         ], { cwd: workdir });
 
-        const t2 = Date.now();
-        const timer = setTimeout(() => { try{ proc.kill('SIGKILL'); }catch{} }, timeoutMs);
+        t2 = Date.now();
+        phase = 'running';
+        armHardKill(hardLimitMs);
 
-        proc.stdout.on('data', d =>
-          ws.send(JSON.stringify({ type:'stdout', data: d.toString() }))
-        );
+        // stdout → browser
+        proc.stdout.on('data', d => {
+          try { ws.send(JSON.stringify({ type:'stdout', data: d.toString() })); } catch {}
+        });
 
+        // stderr → detect control line OR forward as stderr (line-buffered)
         let errBuf = '';
         proc.stderr.on('data', d => {
           errBuf += d.toString();
@@ -110,34 +158,39 @@ wss.on('connection', (ws) => {
           while ((i = errBuf.indexOf('\n')) >= 0) {
             const line = errBuf.slice(0, i);
             errBuf = errBuf.slice(i + 1);
+
             if (line === '[[CTRL]]:stdin_req') {
-              ws.send(JSON.stringify({ type:'stdin_req' }));
+              // Blocked on input → pause hard timer, arm input-wait timer
+              phase = 'waitingInput';
+              if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; }
+              armInputKill(inputWaitMs);
+              try { ws.send(JSON.stringify({ type:'stdin_req' })); } catch {}
             } else if (line) {
-              ws.send(JSON.stringify({ type:'stderr', data: line + '\n' }));
+              try { ws.send(JSON.stringify({ type:'stderr', data: line + '\n' })); } catch {}
             }
           }
         });
 
+        // done
         proc.on('close', code => {
-          clearTimeout(timer);
+          clearTimers();
           const t3 = Date.now();
-          ws.send(JSON.stringify({
-            type:'exit', code,
-            metrics: {
-              compileMs: t1 - t0,
-              startMs:   t2 - t1,
-              execMs:    t3 - t2,
-              totalMs:   t3 - t0
-            }
-          }));
+          try {
+            ws.send(JSON.stringify({
+              type:'exit', code,
+              metrics: {
+                compileMs: t1 - t0,
+                startMs:   t2 - t1,
+                execMs:    t3 - t2,
+                totalMs:   t3 - t0
+              }
+            }));
+          } catch {}
           cleanup();
         });
       });
-    }
 
-    // browser → child's stdin
-    if (msg.type === 'stdin' && proc?.stdin?.writable) {
-      proc.stdin.write(msg.data);
+      return;
     }
   });
 
