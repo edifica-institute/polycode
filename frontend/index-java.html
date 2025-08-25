@@ -574,7 +574,7 @@ function detectClassToRun(code){
             const m = JSON.parse(String(ev.data));
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);
 
-                                      alert(acc.stdout + "\n\n\n\n" + m.data + "\n\n\n\n" + acc.stdout);
+                                      alert(acc.stdout + "**" + m.data + "**" + acc.stdout);
                                      //const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
 
   if (needsStdin && !inputShown ) {
