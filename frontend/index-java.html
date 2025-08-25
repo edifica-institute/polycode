@@ -567,7 +567,7 @@ function detectClassToRun(code){
     const needsStdin = codeNeedsInput(code);
 
     // Wake + connect (gentle)
-    if (needsStdin) await wakeRunner();
+    /*if (needsStdin) await wakeRunner();
     let ws = await tryConnectWS(needsStdin ? 3000 : 2500);
     if (!ws && needsStdin) {
       setConsole('Starting interactive runner…');
@@ -575,7 +575,23 @@ function detectClassToRun(code){
        window.PolyShell?.setStatus(
         needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
         'busy');
-    }
+    }*/
+
+    let ws = termWS && termWS.readyState === 1 ? termWS : null;
+if (!ws) {
+  ws = await ensureRunnerWS(20000); // up to ~20s with backoff
+}
+if (!ws) {
+  hideRunnerOverlay();
+  window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
+  setRunUI(false);
+  throw new Error('runner_unavailable');
+}
+termWS = ws; // reuse it for future runs
+
+
+
+    
 
     if (ws) {
       termWS = ws;
@@ -592,7 +608,7 @@ function detectClassToRun(code){
         const onMsg = (ev) => {
           try{
             const m = JSON.parse(String(ev.data));
-
+            if (m.type === 'pong') { /* got heartbeat response */ return; }
             //alert(m.type);
             
             if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data);}
@@ -624,18 +640,27 @@ function detectClassToRun(code){
             }
           } catch { /* ignore non-JSON */ }
         };
-       /* const onClose = () => {
-          termWS.removeEventListener('message', onMsg);
-          if (wsRunInFlight) {
-            wsRunInFlight = false;
-            showInputRow(false);
-            window.PolyShell?.setStatus('Runner disconnected','error');
-            reject(new Error('line 1: runner disconnected'));
-          }
-        };*/
+
+        
+        const onClose = () => {
+  try { termWS?.removeEventListener('message', onMsg); } catch {}
+  // If you added heartbeats / dots / Stop button, stop & revert them:
+  try { stopHeartbeat?.(); } catch {}
+  try { stopStatusDots?.(); } catch {}
+  try { setRunUI?.(false); } catch {}
+
+  if (wsRunInFlight) {
+    wsRunInFlight = false;
+    showInputRow(false);
+    window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
+    // Important: reject so the caller knows this run aborted
+    try { reject(new Error('line 1: runner disconnected')); } catch {}
+  }
+  termWS = null;
+};
 
 
-const onClose = (ev) => {
+/*const onClose = (ev) => {
   try { termWS?.removeEventListener('message', onMsg); } catch {}
   if (wsRunInFlight) {
     wsRunInFlight = false;
@@ -643,7 +668,7 @@ const onClose = (ev) => {
  window.PolyShell?.setStatus('Runner disconnected','error');
   }
  termWS = null;
-};
+};*/
 
 
 
@@ -730,6 +755,125 @@ const onClose = (ev) => {
 
 
 
+// ---------- Runner connect overlay helpers ----------
+function showRunnerOverlay(msg='Connecting to Java runner…', pct=10, hint='Warming up backend…'){
+  const ov = document.getElementById('runnerOverlay');
+  const bar = document.getElementById('runnerBar');
+  const m = document.getElementById('runnerMsg');
+  const h = document.getElementById('runnerHint');
+  if (!ov || !bar || !m || !h) return;
+  ov.style.display = 'flex';
+  m.textContent = msg;
+  h.textContent = hint;
+  bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
+}
+function updateRunnerOverlay({ msg, pct, hint }){
+  const m = document.getElementById('runnerMsg');
+  const h = document.getElementById('runnerHint');
+  const bar = document.getElementById('runnerBar');
+  if (msg && m) m.textContent = msg;
+  if (hint && h) h.textContent = hint;
+  if (typeof pct === 'number' && bar) bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
+}
+function hideRunnerOverlay(){
+  const ov = document.getElementById('runnerOverlay');
+  if (ov) ov.style.display = 'none';
+}
+
+// ---------- Heartbeat (keep WS alive, detect idle disconnects) ----------
+let hbInterval = null, hbTimeout = null;
+function startHeartbeat(ws){
+  stopHeartbeat();
+  hbInterval = setInterval(() => {
+    try {
+      if (ws.readyState !== 1) return;
+      ws.send(JSON.stringify({ type:'ping' }));
+      // expect pong within 5s
+      clearTimeout(hbTimeout);
+      hbTimeout = setTimeout(() => {
+        // No pong → likely idle disconnect soon
+        console.warn('Runner heartbeat missed; connection may drop.');
+      }, 5000);
+    } catch {}
+  }, 25000); // 25s cadence
+}
+function stopHeartbeat(){
+  if (hbInterval) clearInterval(hbInterval), hbInterval = null;
+  if (hbTimeout) clearTimeout(hbTimeout), hbTimeout = null;
+}
+
+// ---------- Robust connect with wake + retries ----------
+async function ensureRunnerWS(maxTotalMs = 20000){
+  const start = Date.now();
+  const steps = [300, 800, 1500, 2500, 4000, 5500]; // backoff steps
+  let attempt = 0;
+
+  showRunnerOverlay('Connecting to Java runner…', 8, 'Waking backend…');
+  try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+  updateRunnerOverlay({ pct: 18, hint: 'Opening WebSocket…' });
+
+  while (Date.now() - start < maxTotalMs) {
+    attempt++;
+    // Try open WS with a per-attempt timeout
+    const perTimeout = Math.min(5000, maxTotalMs - (Date.now() - start));
+    const ws = await new Promise((resolve) => {
+      let done = false;
+      let timer = setTimeout(() => { if (!done) { done = true; try{ w.close(); }catch{} resolve(null); } }, perTimeout);
+      let w;
+      try {
+        w = new WebSocket('wss://polycode-java.onrender.com/java');
+        w.onopen = () => { if (!done) { done = true; clearTimeout(timer); resolve(w); } };
+        w.onerror = () => { /* ignore; close will fire */ };
+        w.onclose = () => { if (!done) { done = true; clearTimeout(timer); resolve(null); } };
+      } catch {
+        clearTimeout(timer);
+        resolve(null);
+      }
+    });
+
+    if (ws && ws.readyState === 1) {
+      updateRunnerOverlay({ pct: 92, hint: 'Finalizing…' });
+      hideRunnerOverlay();
+      startHeartbeat(ws);
+      return ws;
+    }
+
+    // retry
+    const wait = steps[Math.min(attempt - 1, steps.length - 1)];
+    const pct = Math.min(90, 18 + Math.floor((attempt / (steps.length + 2)) * 70));
+    updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
+    await new Promise(r => setTimeout(r, wait));
+  }
+
+  // give up
+  updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
+  return null;
+}
+
+
+// ---------- Runner connect overlay helper end with Heartbeat ----------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
+
 
 
 
@@ -762,6 +906,58 @@ const onClose = (ev) => {
     start();
   }
 })();
+
+
+    document.addEventListener('DOMContentLoaded', async () => {
+  // Pre-connect quietly; do not block UI
+  try {
+    if (!termWS || termWS.readyState !== 1) {
+      const ws = await ensureRunnerWS(8000);
+      if (ws) termWS = ws;
+    }
+  } catch {}
+});
+
+    
   </script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <!-- Connecting overlay -->
+<div id="runnerOverlay" style="
+  position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.45); z-index: 9999;">
+  <div style="
+    min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px;
+    background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
+    <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to Java runner…</div>
+    <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;">
+      <div id="runnerBar" style="height:100%; width:10%; background: currentColor; opacity:0.9;"></div>
+    </div>
+    <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
+  </div>
+</div>
+
 </body>
 </html>
