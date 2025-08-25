@@ -713,26 +713,27 @@ startStatusDots(__statusBase);
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); 
                                           
                                           stopInputCountdown();
-                                stopStatusDots();
-setRunUI(false);
+                                //stopStatusDots();
+//setRunUI(false);
                                           
                                           }
             else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data);
                                               
                                               
                                               stopInputCountdown();
-stopStatusDots();
-setRunUI(false);
+//stopStatusDots();
+//setRunUI(false);
                                               
                                               }
             else if (m.type === 'exit') {
 
               stopInputCountdown();
 stopStatusDots();
-setRunUI(false);
+//setRunUI(false);
               termWS.removeEventListener('message', onMsg);
               wsRunInFlight = false;
               showInputRow(false);
+              
               if (m.code === 0) {
                 window.PolyShell?.setStatus('Execution Success','ok');
                 clearEditorMarkers();
@@ -745,6 +746,8 @@ setRunUI(false);
                 window.PolyShell?.setStatus('Execution Failed','error');
                 reject(new Error(`line ${line}: ${firstLine}`));
               }
+              setRunUI(false); // <- now it runs AFTER we set the final status
+  (m.code === 0) ? resolve() : reject(new Error('…'));
             }
           } catch { /* ignore non-JSON */ }
         };
