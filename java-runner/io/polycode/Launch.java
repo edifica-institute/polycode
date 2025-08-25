@@ -43,7 +43,7 @@ public class Launch {
       System.exit(2);
     }
 
-    // Wrap System.in so any blocking read notifies via STDERR → [[CTRL]]:stdin_req
+    // Wrap System.in so any blocking read notifies via STDERR with the marker [[CTRL]]:stdin_req
     System.setIn(new NotifyingInputStream(System.in, System.err));
 
     final String mainClass = args[0];
@@ -53,7 +53,7 @@ public class Launch {
     try {
       // Load class & find main(String[])
       Class<?> c = Class.forName(mainClass);
-      Thread.currentThread().setContextClassLoader(c.getClassLoader()); // nicer for user libraries
+      Thread.currentThread().setContextClassLoader(c.getClassLoader());
 
       Method m = c.getDeclaredMethod("main", String[].class);
       if (!Modifier.isStatic(m.getModifiers())) {
@@ -61,13 +61,12 @@ public class Launch {
         System.exit(2);
       }
 
-      // In JDK 17+ cross-package reflective calls may need this
+      // Allow reflective access across packages on JDK 17+
       m.setAccessible(true);
 
       try {
         m.invoke(null, (Object) userArgs);
       } catch (InvocationTargetException ite) {
-        // Unwrap user exception so they see *their* stack trace (not reflection)
         Throwable cause = ite.getCause();
         if (cause != null) {
           cause.printStackTrace(System.err);
@@ -95,10 +94,10 @@ public class Launch {
       e.printStackTrace(System.err);
       System.exit(2);
     } catch (Throwable t) {
-      // Any other unexpected setup error
       System.err.println("Unexpected error while launching " + mainClass + ":");
       t.printStackTrace(System.err);
       System.exit(1);
     }
   }
 }
+
