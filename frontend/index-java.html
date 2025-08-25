@@ -576,7 +576,7 @@ function detectClassToRun(code){
 
                                      //const last = (acc.stdout.replace(/[\r\n\s]+$/, '').split('\n').pop() || '');
 
-  if (needsStdin && !inputShown ) {
+  if (m.type === 'stdin_req' ) {
     showInputRow(true);
     inputShown = true;
   }
