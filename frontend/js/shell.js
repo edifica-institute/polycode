@@ -560,13 +560,13 @@ function setFootStatus(id, state){
   const label = {
     ready:   'Ready for Execution',
     waiting: 'Waiting for Execution',
-    running: 'Executing…',
+    running: 'Execution',
     success: 'Execution Success',
     error:   'Executed with Error'
   }[state] || '';
 
   // Build dots only for waiting
-  const dots = state === 'waiting'
+  const dots = (state === 'waiting' || state === 'running')
     ? '<span class="dots"><span></span><span></span><span></span></span>'
     : '';
 
