@@ -339,6 +339,8 @@
     // --- UI: animated dots in status ---
     let __statusTimer = null;
     let __statusBase  = '';
+    // Track intentional closes (Reset)
+    window.__closingByUser = false;
 
     function startStatusDots(baseText) {
       stopStatusDots();
@@ -750,7 +752,7 @@
               }
             };
 
-            const onClose = () => {
+           /* const onClose = () => {
               try { window.termWS?.removeEventListener('message', onMsg); } catch {}
               // stop heartbeat / dots / UI hooks
               try { stopHeartbeat?.(); } catch {}
@@ -767,7 +769,41 @@
                 try { reject(new Error('line 1: runner disconnected')); } catch {}
               }
               window.termWS = null;
-            };
+            };*/
+
+
+            const onClose = () => {
+  try { window.termWS?.removeEventListener('message', onMsg); } catch {}
+
+  const userClose = !!window.__closingByUser;   // snapshot & clear the flag
+  window.__closingByUser = false;
+
+  // stop timers/animations either way
+  try { stopHeartbeat?.(); } catch {}
+  try { stopStatusDots?.(); } catch {}
+  try { window.setRunUI?.(false); } catch {}
+  stopInputCountdown();
+  window.PolyShell?.stopInputTicker?.();
+
+  if (userClose) {
+    // User hit Reset: keep UI in idle state set by unfreezeUI()
+    window.wsRunInFlight = false;
+    showInputRow(false);
+    window.termWS = null;
+    return;  // <-- no error, no footer override
+  }
+
+  // Unexpected disconnect → show error
+  window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
+  if (window.wsRunInFlight) {
+    window.wsRunInFlight = false;
+    showInputRow(false);
+    window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
+    try { reject(new Error('line 1: runner disconnected')); } catch {}
+  }
+  window.termWS = null;
+};
+
 
             window.termWS.addEventListener('message', onMsg);
             window.termWS.addEventListener('close', onClose, { once: true });
@@ -842,7 +878,7 @@
       };
 
       // ---- Reset (called by shell) ----
-      window.clearLang = function () {
+      /*window.clearLang = function () {
         setConsole('');
         document.getElementById('output')?.style.setProperty('background', 'transparent', 'important');
         showInputRow(false);
@@ -852,7 +888,41 @@
         try { window.termWS?.close(); } catch {}
         window.termWS = null;
         window.wsRunInFlight = false;
-      };
+      };*/
+
+
+      window.clearLang = function () {
+  // make sure onClose knows this was user-initiated
+  window.__closingByUser = true;
+
+  setConsole('');
+  document.getElementById('output')
+    ?.style.setProperty('background', 'transparent', 'important');
+  // hide input row, clear markers, etc.
+  (function(){ try{
+    const prefix = document.getElementById('consolePrefix');
+    if (prefix) prefix.textContent = '';
+  }catch{} })();
+
+  // hide input UI + clear markers
+  (function(){ try{
+    const row = document.getElementById('consoleRow');
+    if (row) row.style.display = 'none';
+  }catch{} })();
+  (function(){ try{
+    if (window.monaco && window.editor) {
+      const model = window.editor.getModel();
+      model && monaco.editor.setModelMarkers(model, 'javac', []);
+    }
+  }catch{} })();
+
+  try { window.termWS?.close(); } catch {}
+  // DO NOT clear the flag here; let onClose consume & clear it.
+  window.termWS = null;
+  window.wsRunInFlight = false;
+};
+
+      
     })();
 
     // ---------- Runner connect overlay helpers ----------
