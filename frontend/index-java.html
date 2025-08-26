@@ -1005,6 +1005,12 @@ window.termWS = ws;
 
     // ---------- Robust connect with wake + retries ----------
 async function ensureRunnerWS(maxTotalMs = 20000, { showOverlay = false } = {}) {
+  if (showOverlay) showRunnerOverlay('Connecting to Java runner…', 8, 'Opening WebSocket…');
+
+  if (!navigator.onLine) {
+    if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'You appear to be offline.' });
+    return null;
+  }
   const start = Date.now();
   const steps = [400, 900, 1500, 2500, 4000, 6000, 8000];
   let attempt = 0;
