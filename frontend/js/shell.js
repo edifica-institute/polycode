@@ -823,7 +823,7 @@ window.addEventListener('DOMContentLoaded', () => {
     unfreezeUI(); // will set animated 'ready' + 'waiting'
   });*/
 
-  rstBtn?.addEventListener('click', () => {
+ rstBtn?.addEventListener('click', () => {
   try { window.clearLang && window.clearLang(); } catch {}
   window.PolyShell?.reapplyTheme?.();   // <-- re-apply current theme to everything
   setStatus('Reset','ok');
