@@ -1099,6 +1099,7 @@ function requestWakeSoon() {
 document.addEventListener('visibilitychange', () => { if (!document.hidden) requestWakeSoon(); });
 window.addEventListener('focus', requestWakeSoon);
 
+window.addEventListener('pageshow', (e) => { if (e.persisted) requestWakeSoon(); });
 
     
   </script>
