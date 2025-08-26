@@ -566,7 +566,10 @@ function setFootStatus(id, state){
   }[state] || '';
 
   // Build dots only for waiting
- 
+  const dots = (state === 'waiting' || state === 'running')
+    ? '<span class="dots"><span></span><span></span><span></span></span>'
+    : '';
+
   host.className = 'msg status ' + state;
   host.innerHTML = `<span class="icon" aria-hidden="true"></span><span class="text">${label}${dots}</span>`;
 }
