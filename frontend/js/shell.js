@@ -1071,19 +1071,29 @@ try {
 (function(){
   let footTick = null; // for live updates like mm:ss
 
-  function setRunnerPhase(phase, opts = {}) {
-    // phase: 'waiting', 'waiting_input', 'running', 'success', 'error'
-    // opts.detail: extra text e.g. "— 02:41"
-    if (footTick && phase !== 'waiting_input') { clearInterval(footTick); footTick = null; }
+ function setRunnerPhase(phase, opts = {}) {
+  // phase: 'waiting', 'waiting_input', 'running', 'success', 'error'
+  // opts.detail: text to show after the label (e.g., " — 02:41")
 
-    // map custom label when it's input-wait
-    const state = (phase === 'waiting_input') ? 'waiting' : phase;
-
-    // build detail (INDEX can pass countdown each tick)
-    const detail = opts.detail ? `Time left ${opts.detail}` : '';
-
-    setFootStatus('rightFoot', state, { detail: (phase === 'waiting_input') ? detail : opts.detail });
+  // Stop any input ticker once we leave the input-wait phase
+  if (typeof footTick !== 'undefined' && footTick && phase !== 'waiting_input') {
+    clearInterval(footTick);
+    footTick = null;
   }
+
+  // For the footer chip, we render "waiting_input" as "waiting"
+  const state = (phase === 'waiting_input') ? 'waiting' : phase;
+
+  // Use detail verbatim; INDEX can pass " — mm:ss"
+  const detail = opts.detail ?? '';
+
+  // When we're specifically waiting for user input,
+  // switch the footer label to "Waiting for Input"
+  const extra = (phase === 'waiting_input') ? { forceInputLabel: true } : {};
+
+  setFootStatus('rightFoot', state, { detail, ...extra });
+}
+
 
   // expose for INDEX-JAVA to call
   window.PolyShell = window.PolyShell || {};
