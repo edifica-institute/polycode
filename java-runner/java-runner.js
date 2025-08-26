@@ -21,6 +21,7 @@ const wss = new WebSocketServer({ server, path: '/java' });
 
 wss.on('connection', (ws) => {
   // Per-connection mutable state
+  console.log('[java] WS connected', req.url);
   let proc = null;
   let workdir = null;
   let closed = false;
