@@ -661,7 +661,7 @@
         // Wake + connect (gentle)
         // (kept for reference) if (needsStdin) await wakeRunner();
 
-        let ws = window.termWS && window.termWS.readyState === 1 ? window.termWS : null;
+        /*let ws = window.termWS && window.termWS.readyState === 1 ? window.termWS : null;
         if (!ws) {
           ws = await ensureRunnerWS(20000); // up to ~20s with backoff
         }
@@ -670,8 +670,34 @@
           window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
           window.setRunUI?.(false);
           throw new Error('runner_unavailable');
-        }
-        window.termWS = ws; // reuse it for future runs
+        }*/
+
+
+
+        let ws = (window.termWS && window.termWS.readyState === 1) ? window.termWS : null;
+
+if (!ws) {
+  // quick attempt without wake (shows overlay)
+  ws = await ensureRunnerWS(10000, { showOverlay: true });
+}
+
+if (!ws) {
+  // explicit wake ping (silent) then a long attempt (shows overlay)
+  try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+  ws = await ensureRunnerWS(60000, { showOverlay: true });
+}
+
+if (!ws) {
+  hideRunnerOverlay();
+  window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
+  window.setRunUI?.(false);
+  throw new Error('runner_unavailable');
+}
+
+window.termWS = ws;
+
+        
+        //window.termWS = ws; // reuse it for future runs
 
         if (ws) {
           window.wsRunInFlight = true;
@@ -976,7 +1002,54 @@
     }
 
     // ---------- Robust connect with wake + retries ----------
-    async function ensureRunnerWS(maxTotalMs = 20000) {
+
+    // ---------- Robust connect with wake + retries ----------
+async function ensureRunnerWS(maxTotalMs = 20000, { showOverlay = false } = {}) {
+  const start = Date.now();
+  const steps = [400, 900, 1500, 2500, 4000, 6000, 8000];
+  let attempt = 0;
+
+  if (showOverlay) {
+    showRunnerOverlay('Connecting to Java runner…', 8, 'Opening WebSocket…');
+  }
+
+  while (Date.now() - start < maxTotalMs) {
+    attempt++;
+    const perTimeout = Math.min(7000, maxTotalMs - (Date.now() - start));
+
+    const ws = await new Promise((resolve) => {
+      let done = false, timer, w;
+      const finish = (val) => { if (!done) { done = true; clearTimeout(timer); resolve(val); } };
+      timer = setTimeout(() => { try { w?.close(); } catch {} finish(null); }, perTimeout);
+      try {
+        w = new WebSocket('wss://polycode-java.onrender.com/java');
+        w.onopen  = () => finish(w);
+        w.onerror = () => {/* close will fire */};
+        w.onclose = () => finish(null);
+      } catch { finish(null); }
+    });
+
+    if (ws && ws.readyState === 1) {
+      if (showOverlay) { updateRunnerOverlay({ pct: 95, hint: 'Finalizing…' }); hideRunnerOverlay(); }
+      startHeartbeat(ws);
+      return ws;
+    }
+
+    const wait = steps[Math.min(attempt - 1, steps.length - 1)];
+    if (showOverlay) {
+      const pct = Math.min(92, 18 + Math.floor((attempt / (steps.length + 3)) * 70));
+      updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
+    }
+    await new Promise(r => setTimeout(r, wait));
+  }
+
+  if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
+  return null;
+}
+
+
+    
+    /*async function ensureRunnerWS(maxTotalMs = 20000) {
       const start = Date.now();
       const steps = [300, 800, 1500, 2500, 4000, 5500]; // backoff steps
       let attempt = 0;
@@ -1027,7 +1100,7 @@
       // give up
       updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
       return null;
-    }
+    }*/
 
     /* --- Start after shell.js (defer) has run --- */
     (function startWhenReady() {
@@ -1049,14 +1122,30 @@
     })();
 
     // Quiet pre-connect (optional)
-    document.addEventListener('DOMContentLoaded', async () => {
+    /*document.addEventListener('DOMContentLoaded', async () => {
       try {
         if (!window.termWS || window.termWS.readyState !== 1) {
           const ws = await ensureRunnerWS(8000);
           if (ws) window.termWS = ws;
         }
       } catch {}
-    });
+    });*/
+
+    // Gentle wake when user returns, without showing overlay
+let __wakeTimer = 0;
+function requestWakeSoon() {
+  clearTimeout(__wakeTimer);
+  __wakeTimer = setTimeout(async () => {
+    if (!window.termWS || window.termWS.readyState !== 1) {
+      try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+    }
+  }, 300);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) requestWakeSoon(); });
+window.addEventListener('focus', requestWakeSoon);
+
+
+    
   </script>
 
   <!-- Connecting overlay -->
