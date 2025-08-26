@@ -582,6 +582,11 @@ function detectClassToRun(code){
     inputShown = false;
  __statusBase = 'Executing';
  startStatusDots(__statusBase); // ✅ keep the animated dots going
+
+window.PolyShell?.stopInputTicker?.();
+window.PolyShell?.setRunnerPhase?.('running');
+
+    
     const line = el.textContent;
 
     
@@ -712,18 +717,21 @@ startStatusDots(__statusBase);
             else if (m.type === 'stdin_req') { 
                   // show input exactly when the program is waiting
                     showInputRow(true);
+              window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
                     inputShown = true;
                     window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
                     //alert('input now');
                    __statusBase = 'Waiting for User Input';
                     startStatusDots(__statusBase);      // ◀ start the animated dots
                   startInputCountdown(inputWaitMs);   // ◀ start the mm:ss countdown
+              window.PolyShell?.startInputTicker?.(getCountdownText, 500);
             
             }
                                       
                                      
             else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); 
-                                          
+                                          window.PolyShell?.stopInputTicker?.();
+window.PolyShell?.setRunnerPhase?.('error');
                                           stopInputCountdown();
                                 //stopStatusDots();
 //setRunUI(false);
@@ -731,13 +739,16 @@ startStatusDots(__statusBase);
                                           }
             else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data);
                                               
-                                              
+                                              window.PolyShell?.stopInputTicker?.();
+window.PolyShell?.setRunnerPhase?.('error');
                                               stopInputCountdown();
 //stopStatusDots();
 //setRunUI(false);
                                               
                                               }
             else if (m.type === 'exit') {
+window.PolyShell?.stopInputTicker?.();
+window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
 
               stopInputCountdown();
 stopStatusDots();
@@ -747,6 +758,8 @@ stopStatusDots();
               showInputRow(false);
               
               if (m.code === 0) {
+                window.PolyShell?.stopInputTicker?.();
+window.PolyShell?.setRunnerPhase?.('success');
                 window.PolyShell?.setStatus('Execution Success','ok');
                 clearEditorMarkers();
                 resolve();
@@ -772,7 +785,9 @@ stopStatusDots();
   try { stopStatusDots?.(); } catch {}
   try { setRunUI?.(false); } catch {}
  stopInputCountdown();
-          
+          window.PolyShell?.stopInputTicker?.();
+window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
+
   if (wsRunInFlight) {
     wsRunInFlight = false;
     showInputRow(false);
@@ -856,6 +871,8 @@ const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
 
     const ok = (data.run?.code === 0) && !compileErr;
     if (ok) {
+      window.PolyShell?.stopInputTicker?.();
+window.PolyShell?.setRunnerPhase?.('success');
       window.PolyShell?.setStatus('Execution Success','ok');
       clearEditorMarkers();
     } else {
