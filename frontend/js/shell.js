@@ -553,7 +553,7 @@ function setAttention({run=false, reset=false}={}){
 
 
 
-function setFootStatus(id, state){
+/*function setFootStatus(id, state){
   const host = document.getElementById(id);
   if (!host) return;
 
@@ -572,6 +572,28 @@ function setFootStatus(id, state){
 
   host.className = 'msg status ' + state;
   host.innerHTML = `<span class="icon" aria-hidden="true"></span><span class="text">${label}${dots}</span>`;
+}*/
+
+function setFootStatus(id, state, opts = {}){
+  const host = document.getElementById(id);
+  if (!host) return;
+
+  const label = {
+    ready:   'Ready for Execution',
+    waiting: 'Waiting for Execution',
+    running: 'Execution in Progress',
+    success: 'Executed Successfully',
+    error:   'Executed with Error'
+  }[state] || '';
+
+  const dots = (state === 'waiting' || state === 'running')
+    ? '<span class="dots"><span></span><span></span><span></span></span>'
+    : '';
+
+  const detail = opts.detail ? ` <span class="detail">— ${opts.detail}</span>` : '';
+
+  host.className = 'msg status ' + state;
+  host.innerHTML = `<span class="icon" aria-hidden="true"></span><span class="text">${label}${dots}${detail}</span>`;
 }
 
 
@@ -738,13 +760,16 @@ window.addEventListener('DOMContentLoaded', () => {
   const rstBtn = document.getElementById('btnReset');
 
   // RUN
-  runBtn?.addEventListener('click', async () => {
+  /*runBtn?.addEventListener('click', async () => {
     try {
       runBtn.classList.add('is-running');
       clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
-
+ 
+      t0 = performance.now();   
       await window.runLang();
+ const elapsed = fmtDuration(performance.now() - t0);
 
+      
       setStatus('OK','ok');
       setFootStatus('rightFoot','success');  // animated ✓
     } catch(e) {
@@ -756,7 +781,36 @@ window.addEventListener('DOMContentLoaded', () => {
       spin(false);
       runBtn.classList.remove('is-running');
     }
-  });
+  });*/
+
+
+  runBtn?.addEventListener('click', async () => {
+  let t0;
+  try {
+    runBtn.classList.add('is-running');
+    clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
+
+    t0 = performance.now();                      // start timing
+    await window.runLang();
+    const elapsed = fmtDuration(performance.now() - t0);  // end timing
+
+    setStatus('OK','ok');
+    setFootStatus('rightFoot','success', { detail: `Time: ${elapsed}` });
+  } catch(e) {
+    setStatus('Error','err');
+    if (t0) {
+      const elapsed = fmtDuration(performance.now() - t0);
+      setFootStatus('rightFoot','error', { detail: `Time: ${elapsed}` });
+    } else {
+      setFootStatus('rightFoot','error');
+    }
+    const m = /line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
+    showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
+  } finally {
+    spin(false);
+    runBtn.classList.remove('is-running');
+  }
+});
 
   // RESET
   /*rstBtn?.addEventListener('click', () => {
@@ -807,7 +861,11 @@ Object.assign(window.PolyShell || (window.PolyShell = {}), {
 });
 
 
-
+function fmtDuration(ms){
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  const s = ms / 1000;
+  return s < 10 ? `${s.toFixed(2)} s` : `${s.toFixed(1)} s`;
+}
 
 
 // 🔧 Ensure footer animations + Run glow start on first paint
