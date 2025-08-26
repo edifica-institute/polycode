@@ -7,6 +7,26 @@
   }, { capture: true });
 })();*/
 
+// ---- Reload/close confirmation (covers toolbar refresh, Cmd/Ctrl+R, tab close, back) ----
+(() => {
+  let armed = true; // set false if you ever want to disable globally
+
+  function onBeforeUnload(e) {
+    if (!armed) return;
+    // NOTE: custom text is ignored by modern browsers; setting returnValue is enough.
+    e.preventDefault();
+    e.returnValue = '';
+  }
+
+  window.enableReloadConfirm  = () => { armed = true;  window.addEventListener('beforeunload', onBeforeUnload, { capture:true }); };
+  window.disableReloadConfirm = () => { armed = false; window.removeEventListener('beforeunload', onBeforeUnload, { capture:true }); };
+
+  // arm it now
+  window.enableReloadConfirm();
+})();
+
+
+
 
 // Block Ctrl/Cmd+C & "copy" everywhere EXCEPT editor/console/inputs
 (function () {
@@ -1005,11 +1025,11 @@ try {
       return;
     }
 
-    if (e.key === 'F5') {
+    /*if (e.key === 'F5') {
       if(!confirm("Are you sure you want to reload the page?"))
       e.preventDefault();
       return;
-    }
+    }*/
 
     
     // Clear: Ctrl/Cmd+Shift+L or F10
