@@ -8,7 +8,7 @@
 })();*/
 
 // ---- Reload/close confirmation (covers toolbar refresh, Cmd/Ctrl+R, tab close, back) ----
-(() => {
+/*(() => {
   let armed = true; // set false if you ever want to disable globally
 
   function onBeforeUnload(e) {
@@ -23,7 +23,27 @@
 
   // arm it now
   window.enableReloadConfirm();
-})();
+})();*/
+
+
+// Chrome/Edge: catch toolbar Reload without prompting on tab close
+if ('navigation' in window && typeof navigation.addEventListener === 'function') {
+  navigation.addEventListener('navigate', (e) => {
+    // Only act on real reloads (toolbar button, menu -> Reload, etc.)
+    if (e.navigationType === 'reload') {
+      // decide if you want to bother the user
+      const shouldAsk = true; // or check your own flags (running/unsaved/etc.)
+      if (!shouldAsk) return;
+
+      if (!confirm('Your Data will be Lost.\nStill Reload the Page?')) {
+        e.preventDefault();   // cancel the reload
+      }
+    }
+  });
+}
+
+
+
 
 
 
@@ -1031,6 +1051,16 @@ try {
       return;
     }*/
 
+    if (e.key === 'F5' || (mod && (e.key === 'r' || e.key === 'R'))) {
+    e.preventDefault();
+    if (confirm('Your Data will be Lost.\nStill Reload the Page?')) {
+      // Do a real reload (cache-respecting)
+      location.reload();
+    }
+    return;
+  }
+
+    
     
     // Clear: Ctrl/Cmd+Shift+L or F10
     if ((mod && e.shiftKey && (e.key === 'L' || e.key === 'l')) || e.key === 'F10') {
