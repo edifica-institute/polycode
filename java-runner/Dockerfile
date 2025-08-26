@@ -1,27 +1,27 @@
 FROM node:20-bullseye
 
-# JDK (javac/java) + GCC (for C) + certs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk build-essential ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Node deps
 COPY package.json ./
-# If you have a lockfile, prefer npm ci. Fallback to npm install if not.
 RUN npm ci --omit=dev || npm install --omit=dev
+
+# --- CACHE BUST so c-plugin.js always refreshes ---
+ARG C_PLUGIN_BUILD=2025-08-26-01
 
 # App files
 COPY java-runner.js ./
 COPY c-plugin.js ./
 
-# Build launcher.jar used by Java flow
+# Java launcher
 COPY io /app/io
 RUN javac -encoding UTF-8 -d out io/polycode/*.java && \
     jar --create --file runner.jar -C out .
 
-# Build LD_PRELOAD helper for C input detection
+# Preload helper
 COPY stdin_notify.c ./
 RUN gcc -shared -fPIC -O2 -ldl -o libstdin_notify.so stdin_notify.c
 
