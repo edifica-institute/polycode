@@ -1049,58 +1049,7 @@ async function ensureRunnerWS(maxTotalMs = 20000, { showOverlay = false } = {}) 
 
 
     
-    /*async function ensureRunnerWS(maxTotalMs = 20000) {
-      const start = Date.now();
-      const steps = [300, 800, 1500, 2500, 4000, 5500]; // backoff steps
-      let attempt = 0;
-
-      showRunnerOverlay('Connecting to Java runner…', 8, 'Waking backend…');
-      try { await fetch('https://polycode-java.onrender.com/health', { cache: 'no-store', mode: 'no-cors' }); } catch {}
-      updateRunnerOverlay({ pct: 18, hint: 'Opening WebSocket…' });
-
-      while (Date.now() - start < maxTotalMs) {
-        attempt++;
-        // Try open WS with a per-attempt timeout
-        const perTimeout = Math.min(5000, maxTotalMs - (Date.now() - start));
-        const ws = await new Promise((resolve) => {
-          let done = false;
-          let timer = setTimeout(() => {
-            if (!done) {
-              done = true;
-              try { w.close(); } catch {}
-              resolve(null);
-            }
-          }, perTimeout);
-          let w;
-          try {
-            w = new WebSocket('wss://polycode-java.onrender.com/java');
-            w.onopen  = () => { if (!done) { done = true; clearTimeout(timer); resolve(w); } };
-            w.onerror = () => { /* ignore; close will fire */ };
-            w.onclose = () => { if (!done) { done = true; clearTimeout(timer); resolve(null); } };
-          } catch {
-            clearTimeout(timer);
-            resolve(null);
-          }
-        });
-
-        if (ws && ws.readyState === 1) {
-          updateRunnerOverlay({ pct: 92, hint: 'Finalizing…' });
-          hideRunnerOverlay();
-          startHeartbeat(ws);
-          return ws;
-        }
-
-        // retry
-        const wait = steps[Math.min(attempt - 1, steps.length - 1)];
-        const pct  = Math.min(90, 18 + Math.floor((attempt / (steps.length + 2)) * 70));
-        updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
-        await new Promise(r => setTimeout(r, wait));
-      }
-
-      // give up
-      updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
-      return null;
-    }*/
+    
 
     /* --- Start after shell.js (defer) has run --- */
     (function startWhenReady() {
