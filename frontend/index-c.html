@@ -325,9 +325,14 @@ int main(void){
     }
 
     // ---------- Runner endpoints ----------
-    const RUNNER_HTTP = 'https://polycode-java.onrender.com'; // update if renamed
-    const RUNNER_WS   = 'wss://polycode-java.onrender.com/term';
+  const RUNNER_HTTP = window.RUNNER_HTTP || window.location.origin;
+const RUNNER_WS =
+  window.RUNNER_WS ||
+  ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/term');
 
+
+
+    
     async function compileC(src){
       const files = [{ path:'main.c', content: src }];
       const resp  = await fetch(RUNNER_HTTP + '/api/c/prepare', {
