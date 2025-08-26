@@ -7,27 +7,37 @@
   <link rel="icon" href="./assets/logo.png" />
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-  <meta name="color-scheme" content="dark light">
+  <meta name="color-scheme" content="dark light" />
 
-<style>
-  /* kill any token-like styling on the input row */
-#consoleRow span { background: transparent !important; padding: 0 !important; border-radius: 0 !important; }
+  <style>
+    /* kill any token-like styling on the input row */
+    #consoleRow span {
+      background: transparent !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
+    }
 
-/* make the input caret clean, no borders/outline */
-#consoleInput{
-  display:inline-block; min-width:5ch;
-  background:transparent; border:0; outline:0; box-shadow:none;
-  caret-color: currentColor; user-select:text;
-  -webkit-user-modify: read-write-plaintext-only;
-}
-#consoleInput:focus{ outline:0; }
-#consoleInput::selection{ background: rgba(255,255,255,0.15); } /* optional */
-/* stop all attention animations once disabled */
-.btn[disabled], .btn.attn[disabled]{ animation: none !important; }
-  .pane-foot .msg { white-space: nowrap; }
+    /* make the input caret clean, no borders/outline */
+    #consoleInput {
+      display: inline-block;
+      min-width: 5ch;
+      background: transparent;
+      border: 0;
+      outline: 0;
+      box-shadow: none;
+      caret-color: currentColor;
+      user-select: text;
+      -webkit-user-modify: read-write-plaintext-only;
+    }
+    #consoleInput:focus { outline: 0; }
+    #consoleInput::selection { background: rgba(255, 255, 255, 0.15); } /* optional */
 
-  
-</style>
+    /* stop all attention animations once disabled */
+    .btn[disabled],
+    .btn.attn[disabled] { animation: none !important; }
+
+    .pane-foot .msg { white-space: nowrap; }
+  </style>
 </head>
 
 <body class="page-fade">
@@ -35,7 +45,13 @@
   <header class="site-header">
     <div class="brand-wrap">
       <div class="brand-grid">
-        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
+        <img
+          src="./assets/PC-Logo.png"
+          alt="polycode"
+          class="brand-logo"
+          loading="lazy"
+          decoding="async"
+        />
         <div class="brand-title2">polycode</div>
         <div class="brand-tagline2">
           learn<span class="dot">.</span>code<span class="dot">.</span>execute
@@ -56,7 +72,12 @@
       <!-- LEFT panel -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
-          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
+          <select
+            id="langSelect"
+            class="select"
+            aria-label="Choose language"
+            onchange="location.href=this.value"
+          >
             <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html" selected>Java</option>
@@ -66,49 +87,87 @@
         <div class="pane-body">
           <div id="leftContent" style="margin-top:12px;"></div>
         </div>
-        <div class="pane-foot"><span class="msg" id="leftFoot">About Java</span></div>
+        <div class="pane-foot">
+          <span class="msg" id="leftFoot">About Java</span>
+        </div>
       </section>
 
       <!-- RESIZER between left and center -->
-      <div class="v-resize"><div id="dragLeft"></div></div>
+      <div class="v-resize">
+        <div id="dragLeft"></div>
+      </div>
 
       <!-- CENTER panel (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
-          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
-            <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          <button
+            id="themeToggle"
+            class="btn theme-btn"
+            title="Toggle theme"
+            aria-label="Toggle theme"
+          >
+            <svg viewBox="0 0 24 24" id="themeIcon">
+              <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+            </svg>
           </button>
 
-          <span class="title" id="centerTitle" style="margin-left:8px;">Java – Editor | Polycode</span>
+          <span class="title" id="centerTitle" style="margin-left:8px;">
+            Java – Editor | Polycode
+          </span>
 
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-            <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
-  <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 
-  2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 
-  16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor"/></svg>
-</button>
-            
-         <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
-  <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 
-  2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 
-  5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 
-  2z" fill="currentColor"/></svg>
-</button>
+            <button
+              id="btnSaveFile"
+              class="btn"
+              title="Save (Ctrl/Cmd + S)"
+              aria-label="Save"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
 
+            <button
+              id="btnSharePdf"
+              class="btn"
+              title="Share PDF"
+              aria-label="Share PDF"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
 
-            
-  <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
-              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <button
+              id="btnRun"
+              class="btn primary attn"
+              title="Execute (Click or Press F9)"
+              aria-label="Run"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
             </button>
           </div>
         </div>
 
         <div id="editor"></div>
-        <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
+
+        <div class="pane-foot">
+          <span class="msg" id="centerFoot">Ready for Execution</span>
+        </div>
       </section>
 
       <!-- RESIZER between center and right -->
-      <div class="v-resize right"><div id="dragRight"></div></div>
+      <div class="v-resize right">
+        <div id="dragRight"></div>
+      </div>
 
       <!-- RIGHT panel (Console) -->
       <section class="panel right" id="rightPanel">
@@ -116,62 +175,106 @@
           <span class="title">Java – Console | Polycode</span>
           <span id="statusDots" style="margin-left:auto; opacity:0.7; font:12px monospace;"></span>
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px;">
-            <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
-              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
+            <button
+              id="btnReset"
+              class="btn"
+              title="Reset (Click or Press F10)"
+              aria-label="Reset"
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z" />
+              </svg>
             </button>
           </div>
         </div>
 
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <!-- Output only -->
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
 
-<div id="output" class="screen-dim" style="padding:12px;">
-  <!-- Output only -->
-  <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <!-- Input row (shown only when needed) -->
+          <div
+            id="consoleRow"
+            style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;"
+          >
+            <span id="consolePrefix"></span>
+            <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+          </div>
+        </div>
 
-  <!-- Input row (shown only when needed) -->
-  <div id="consoleRow"
-       style="display:none; margin-top:0; gap:4px; align-items:baseline;
-              font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
-    <span id="consolePrefix"></span><span id="consoleInput" contenteditable="true" spellcheck="false"></span>
-  </div>
-</div>
-
-
-        
-
-        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
+        <div class="pane-foot">
+          <span class="msg" id="rightFoot">Waiting for Execution</span>
+        </div>
       </section>
     </div>
   </div>
 
   <!-- Floating chevron for collapse/expand -->
   <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
-    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
+    <svg viewBox="0 0 24 24">
+      <path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z" />
+    </svg>
   </div>
 
   <!-- Footer -->
   <footer class="site-footer">
     <div class="footer-grid">
       <div class="footer-left">
-        <img src="./assets/logo.png" alt="Edifica" class="footer-logo" loading="lazy" decoding="async" />
+        <img
+          src="./assets/logo.png"
+          alt="Edifica"
+          class="footer-logo"
+          loading="lazy"
+          decoding="async"
+        />
         <div class="txt">
           <span class="powered">powered by edifica</span>
           <span class="subline">
             education<span class="dot">.</span>consultation<span class="dot">.</span>assistance
           </span>
-          <div class="siteurl"><a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a></div>
+          <div class="siteurl">
+            <a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a>
+          </div>
         </div>
       </div>
 
       <div class="footer-center">
         <span class="label">Follow us</span>
-        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
+        <a
+          class="social"
+          href="https://facebook.com/edifica.facebook"
+          target="_blank"
+          rel="noopener"
+          aria-label="Facebook"
+          title="Facebook"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z" />
+          </svg>
         </a>
-        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
+        <a
+          class="social"
+          href="https://instagram.com/edifica.ig"
+          target="_blank"
+          rel="noopener"
+          aria-label="Instagram"
+          title="Instagram"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z" />
+          </svg>
         </a>
-        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
+        <a
+          class="social"
+          href="https://youtube.com/@edifica.youtube"
+          target="_blank"
+          rel="noopener"
+          aria-label="YouTube"
+          title="YouTube"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18">
+            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z" />
+          </svg>
         </a>
       </div>
 
@@ -189,925 +292,719 @@
 
   <!-- Page script -->
   <script>
-/* --- Sample Java used in the editor --- */
-const SAMPLE_JAVA =
+    /* --- Sample Java used in the editor --- */
+    const SAMPLE_JAVA =
 `class Main {
   public static void main(String[] args) {
     System.out.println("Hello Java!");
   }
 }`;
 
-/* --- Make bootstrap globally visible --- */
-window.bootstrap = async function bootstrap(){
-  await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
-  window.PolyShell.setStatus('Ready','ok');
-  window.PolyShell.loadLeftContent('java');  // loads /content/java.html into left pane (optional)
-};
+    /* --- Make bootstrap globally visible --- */
+    window.bootstrap = async function bootstrap() {
+      await window.PolyShell.initMonaco({ value: SAMPLE_JAVA, language: 'java' });
+      window.PolyShell.setStatus('Ready', 'ok');
+      window.PolyShell.loadLeftContent('java'); // loads /content/java.html into left pane (optional)
+    };
 
-/* --- Console helpers --- */
-/*function setConsole(text){
-  const el = document.getElementById('jconsole');
-  if (!el) return;
-  el.textContent = text || '';
-  const out = document.getElementById('output');
-  out && (out.scrollTop = out.scrollHeight);
-}*/
+    // ===== Input-wait countdown =====
+    let __inputDeadline = 0;          // epoch ms when input wait expires
+    let __inputCountdownTimer = null; // interval handle
 
-
-// ===== Input-wait countdown =====
-let __inputDeadline = 0;           // epoch ms when input wait expires
-let __inputCountdownTimer = null;  // interval handle
-
-function getCountdownText(){
-  if (!__inputDeadline) return '';
-  const ms = Math.max(0, __inputDeadline - Date.now());
-  const s  = Math.floor(ms / 1000);
-  const mm = String(Math.floor(s / 60)).padStart(2,'0');
-  const ss = String(s % 60).padStart(2,'0');
-  return ` — ${mm}:${ss}`;
-}
-
-function startInputCountdown(ms){
-  stopInputCountdown();
-  __inputDeadline = Date.now() + Math.max(0, Number(ms) || 0);
-  __inputCountdownTimer = setInterval(() => {
-    // Let the dots updater include this text; just poke the status again
-    if (typeof window.PolyShell?.setStatus === 'function' && typeof __statusBase !== 'undefined') {
-      // status is refreshed by startStatusDots interval; nothing else needed here
-    }
-  }, 500);
-}
-
-function stopInputCountdown(){
-  __inputDeadline = 0;
-  if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer = null; }
-}
-
-    // --- UI: Stop/Reset toggle + animated dots in status ---
-let __statusTimer = null;
-let __statusBase  = '';
-
-function startStatusDots(baseText){
-  stopStatusDots();
-  __statusBase = baseText || 'Executing';
-  let dots = 0;
-  __statusTimer = setInterval(() => {
-    dots = (dots + 1) % 4; // 0..3
-    const suffix = (typeof getCountdownText === 'function') ? getCountdownText() : '';
-    //window.PolyShell?.setStatus(__statusBase + '.'.repeat(dots) + suffix, 'busy');
-
-    const statusEl = document.getElementById('statusDots');
-statusEl.textContent = __statusBase + '.'.repeat(dots) + getCountdownText();
-  }, 400);
-  //alert('started dots');
-}
-
-function stopStatusDots(){
-  if (__statusTimer){ clearInterval(__statusTimer); __statusTimer = null; }
-}
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-function printToConsole({compileErr='', stderr='', stdout='', exitCode=null}){
-  const el = document.getElementById('jconsole');
-  if (!el) return;
-  const parts = [];
-  if (compileErr.trim()) parts.push(compileErr.trim());
-  if (stderr.trim())     parts.push(stderr.trim());
-  if (stdout.trim())     parts.push(stdout.trim());
-  if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
-  el.textContent = parts.join('\n') + (parts.length ? '\n' : '');
-  document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
-}
-
-function findJavaErrorLine(text, className){
-  const fileRe = `${className}.java`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // Foo.java:5:
-  if (m) return Number(m[1]);
-  m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);     // Foo.java:12)
-  if (m) return Number(m[1]);
-  return 1;
-}
-
-let __pistonJavaVersion = null;
-async function getPistonJavaVersion(forceRefresh = false){
-  if (!forceRefresh && __pistonJavaVersion) return __pistonJavaVersion;
-  try {
-    const resp = await fetch('https://emkc.org/api/v2/piston/runtimes');
-    const runtimes = await resp.json();
-    const java = runtimes.find(r => r.language === 'java')
-             || runtimes.find(r => /open.?jdk/i.test(r.language))
-             || runtimes.find(r => /java/i.test(r.language));
-    __pistonJavaVersion = java?.version || '21';
-  } catch {
-    __pistonJavaVersion = '21';
-  }
-  return __pistonJavaVersion;
-}
-
-async function pistonExecuteJava({ code, fileName, version, stdin = '' }){
-  const body = JSON.stringify({
-    language: 'java',
-    version,
-    files: [{ name: fileName, content: code }],
-    stdin
-  });
-  const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json' },
-    body
-  });
-  const text = await resp.text();
-  let data = null;
-  try {
-    if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-      data = JSON.parse(text);
-    }
-  } catch {}
-  return { ok: resp.ok, status: resp.status, text, data };
-}
-
-// Pull stdin from special comments in the code and remove them before compile
-function extractInlineStdin(code){
-  let stdin = '';
-
-  // Multi-line /* stdin: ... */
-  const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
-  code = code.replace(block, (_, __, content) => {
-    stdin = content.replace(/^\s*\* ?/gm, '');
-    return '';
-  });
-
-  // Single-line // stdin: 42\n99
-  if (!stdin) {
-    const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
-    const m = code.match(line);
-    if (m) {
-      stdin = m[2].replace(/\\n/g, '\n');
-      code = code.replace(line, '');
-    }
-  }
-
-  return { code: code.trim(), stdin: stdin.replace(/\r\n?/g, '\n') };
-}
-
-function detectClassToRun(code){
-  let m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/);
-  if (m) return m[1];
-  m = code.match(/\bclass\s+([A-Za-z_]\w*)\b[\s\S]*?\bpublic\s+static\s+void\s+main\s*\(/);
-  if (m) return m[1];
-  return 'Main';
-}
-
-(function(){
-  const JAVA_WS_URL = 'wss://polycode-java.onrender.com/java';
-
-  // ---- Console helpers for this IIFE ----
-  function setConsole(text){
-    const el = document.getElementById('jconsole');
-    if (!el) return;
-    el.textContent = text || '';
-    document.getElementById('output')?.scrollTo({ top: 1e9 });
-  }
-  function termWrite(t){
-    const el = document.getElementById('jconsole');
-    if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 }); }
-   
-    
-  }
-
-  // ---- Minimal input line (NO '$' prompt) ----
-  function focusConsoleInput() {
-    const el = document.getElementById('consoleInput');
-    if (!el) return;
-    el.focus();
-    const r = document.createRange();
-    r.selectNodeContents(el);
-    r.collapse(false);
-    const s = window.getSelection();
-    s.removeAllRanges();
-    s.addRange(r);
-  }
-
- function showInputRow(show){
-  const row    = document.getElementById('consoleRow');
-  const pre    = document.getElementById('jconsole');
-  const prefix = document.getElementById('consolePrefix');
-
-  if (row) row.style.display = show ? 'flex' : 'none';
-
-  if (show) {
-    // Move trailing partial line from <pre> into the prefix (keeps prompt + input on one line)
-    const txt  = pre.textContent;
-    const i    = txt.lastIndexOf('\n');
-    const tail = txt.slice(i + 1);
-    if (tail && !/^\s*$/.test(tail)) {
-      prefix.textContent = tail + ' ';
-      pre.textContent = txt.slice(0, i + 1);
-    } else {
-      prefix.textContent = '';
-    }
-    // NEW: we only say this when the input row is visible
-    //window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-
-     window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-  // Always start animated dots + countdown when input is visible
-   __statusBase = 'Waiting for User Input';
-   startStatusDots(__statusBase);
-   startInputCountdown(inputWaitMs);
-
-    // focus caret
-    const el = document.getElementById('consoleInput');
-    if (el){
-      el.focus();
-      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-    }
-  } else {
-    // Hide input -> go back to Executing… if program still running
-    if (typeof wsRunInFlight !== 'undefined' && wsRunInFlight) {
-      window.PolyShell?.setStatus('Executing...', 'busy');
-    }
-    if (prefix.textContent) {
-      pre.textContent += prefix.textContent;
-      prefix.textContent = '';
-    }
-  }
-}
-
-
-  /*function showInputRow(show){
-  const row    = document.getElementById('consoleRow');
-  const pre    = document.getElementById('jconsole');
-  const prefix = document.getElementById('consolePrefix');
-
-  if (row) row.style.display = show ? 'inline-flex' : 'none';
-
-  if (show) {
-    // 1) Collapse any trailing whitespace in <pre> to exactly ONE newline
-    // (Use .replace(/\s+$/, '\n') if you want exactly one; use '' if you want none)
-    pre.textContent = (pre.textContent || '').replace(/[ \t\r]*(\r?\n)+$/, '');
-
-
-    // 2) If the last line has text (i.e., a print without newline), keep it as a prefix
-    const txt = pre.textContent;
-    const i   = txt.lastIndexOf('\n');
-    const tail = txt.slice(i + 1);
-    if (tail && !/^\s*$/.test(tail)) {
-      prefix.textContent = tail + ' ';
-      pre.textContent = txt.slice(0, i + 1);
-    } else {
-      prefix.textContent = '';
+    function getCountdownText() {
+      if (!__inputDeadline) return '';
+      const ms = Math.max(0, __inputDeadline - Date.now());
+      const s  = Math.floor(ms / 1000);
+      const mm = String(Math.floor(s / 60)).padStart(2, '0');
+      const ss = String(s % 60).padStart(2, '0');
+      return ` — ${mm}:${ss}`;
     }
 
-    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-    focusConsoleInput?.();
-  } else {
-    if (typeof wsRunInFlight !== 'undefined' && wsRunInFlight) {
-      window.PolyShell?.setStatus('Executing...', 'busy');
+    function startInputCountdown(ms) {
+      stopInputCountdown();
+      __inputDeadline = Date.now() + Math.max(0, Number(ms) || 0);
+      __inputCountdownTimer = setInterval(() => {
+        // status refreshed by startStatusDots interval
+      }, 500);
     }
-    if (prefix.textContent) {
-      pre.textContent += prefix.textContent;
-      prefix.textContent = '';
+
+    function stopInputCountdown() {
+      __inputDeadline = 0;
+      if (__inputCountdownTimer) {
+        clearInterval(__inputCountdownTimer);
+        __inputCountdownTimer = null;
+      }
     }
-  }
-}*/
 
+    // --- UI: animated dots in status ---
+    let __statusTimer = null;
+    let __statusBase  = '';
 
-  
+    function startStatusDots(baseText) {
+      stopStatusDots();
+      __statusBase = baseText || 'Executing';
+      let dots = 0;
+      __statusTimer = setInterval(() => {
+        dots = (dots + 1) % 4; // 0..3
+        const statusEl = document.getElementById('statusDots');
+        if (statusEl) statusEl.textContent = __statusBase + '.'.repeat(dots) + getCountdownText();
+      }, 400);
+    }
 
+    function stopStatusDots() {
+      if (__statusTimer) {
+        clearInterval(__statusTimer);
+        __statusTimer = null;
+      }
+    }
 
-  /* --- Monaco marker helpers --- */
-  function clearEditorMarkers() {
-    if (!window.monaco || !window.editor) return;
-    const model = window.editor.getModel();
-    if (model) window.monaco.editor.setModelMarkers(model, 'javac', []);
-  }
-  function setEditorMarker(line, message) {
-    if (!window.monaco || !window.editor) return;
-    const model = window.editor.getModel();
-    if (!model) return;
-    const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
-    window.monaco.editor.setModelMarkers(model, 'javac', [{
-      startLineNumber: line || 1,
-      endLineNumber:   line || 1,
-      startColumn:     1,
-      endColumn:       maxCol,
-      message:         String(message || 'Error'),
-      severity:        window.monaco.MarkerSeverity.Error
-    }]);
-  }
+    function printToConsole({ compileErr = '', stderr = '', stdout = '', exitCode = null }) {
+      const el = document.getElementById('jconsole');
+      if (!el) return;
+      const parts = [];
+      if (compileErr.trim()) parts.push(compileErr.trim());
+      if (stderr.trim())     parts.push(stderr.trim());
+      if (stdout.trim())     parts.push(stdout.trim());
+      if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
+      el.textContent = parts.join('\n') + (parts.length ? '\n' : '');
+      document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
+    }
 
-  // ---- Input detection ----
-  /*function codeNeedsInput(code){
-    return (
-      /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code) ||
-      /\bBufferedReader\s*\(\s*new\s+InputStreamReader\s*\(\s*System\.in\s*\)\s*\)/.test(code) ||
-      /\bSystem\.in\b/.test(code)
-    );
-  }*/
+    function findJavaErrorLine(text, className) {
+      const fileRe = `${className}.java`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let m = new RegExp(fileRe + ':(\\d+):').exec(text);   // Foo.java:5:
+      if (m) return Number(m[1]);
+      m = new RegExp(fileRe + ':(\\d+)\\)').exec(text);     // Foo.java:12)
+      if (m) return Number(m[1]);
+      return 1;
+    }
 
-  function codeNeedsInput(code){
-  const hasScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/s.test(code);
-  const usesNext   = /\b(\w+)\s*=\s*new\s+Scanner\s*\(\s*System\.in\s*\)[\s\S]*?\b\1\s*\.\s*next(?:Line|Int|Double|Long|Short|Float)?\s*\(/s.test(code)
-                  || /\bScanner\b[\s\S]*?\.\s*next(?:Line|Int|Double|Long|Short|Float)?\s*\(/s.test(code);
-  return hasScanner && usesNext;
-}
-
-
-
-  
-
-  // ---- Gentle WS connect + wake ping ----
-  async function wakeRunner(){
-    try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
-  }
-  function tryConnectWS(timeoutMs=8000){
-    return new Promise((resolve) => {
-      let done = false;
-      let timer = null;
-      let ws;
+    let __pistonJavaVersion = null;
+    async function getPistonJavaVersion(forceRefresh = false) {
+      if (!forceRefresh && __pistonJavaVersion) return __pistonJavaVersion;
       try {
-        ws = new WebSocket(JAVA_WS_URL);
+        const resp = await fetch('https://emkc.org/api/v2/piston/runtimes');
+        const runtimes = await resp.json();
+        const java = runtimes.find(r => r.language === 'java')
+          || runtimes.find(r => /open.?jdk/i.test(r.language))
+          || runtimes.find(r => /java/i.test(r.language));
+        __pistonJavaVersion = java?.version || '21';
       } catch {
-        return resolve(null);
+        __pistonJavaVersion = '21';
       }
-      const finish = (ok) => {
-        if (done) return;
-        done = true;
-        clearTimeout(timer);
-        ws.onopen = ws.onerror = ws.onclose = null; // detach early handlers
-        resolve(ok ? ws : null);
-      };
-      timer = setTimeout(() => finish(false), timeoutMs);
-      ws.onopen  = () => finish(true);
-      ws.onerror = () => finish(false);
-      ws.onclose = () => finish(false);
-    });
-  }
-
-  // ---- Send input when user presses Enter ----
-  let termWS = null, wsRunInFlight = false;
-  let inputShown = false;
-
-
-  
-
-  document.addEventListener('keydown', (e) => {
-  const el = document.getElementById('consoleInput');
-  if (!el || el.offsetParent === null) return;
-  if (e.target !== el) return;
-
-  if (e.key === 'Enter') {
-    e.preventDefault();
-
-   stopInputCountdown();          // keep the countdown paused between prompts (optional)
-    inputShown = false;
- __statusBase = 'Executing';
- startStatusDots(__statusBase); // ✅ keep the animated dots going
-
-window.PolyShell?.stopInputTicker?.();
-window.PolyShell?.setRunnerPhase?.('running');
-
-    
-    const line = el.textContent;
-
-    
-
- const pre    = document.getElementById('jconsole');
-    const prefix = document.getElementById('consolePrefix');
-
-    // 1) Merge the prompt/tail back into the <pre> BEFORE echoing
-    if (prefix && prefix.textContent) {
-      pre.textContent += prefix.textContent;  // restore moved tail
-      prefix.textContent = '';
+      return __pistonJavaVersion;
     }
 
+    async function pistonExecuteJava({ code, fileName, version, stdin = '' }) {
+      const body = JSON.stringify({
+        language: 'java',
+        version,
+        files: [{ name: fileName, content: code }],
+        stdin
+      });
+      const resp = await fetch('https://emkc.org/api/v2/piston/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+      const text = await resp.text();
+      let data = null;
+      try {
+        if ((resp.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
+          data = JSON.parse(text);
+        }
+      } catch {}
+      return { ok: resp.ok, status: resp.status, text, data };
+    }
 
-    
-    
-    termWrite(line + '\n');   // echo what the user typed
-    el.textContent = '';
+    // Pull stdin from special comments in the code and remove them before compile
+    function extractInlineStdin(code) {
+      let stdin = '';
 
-    try {
-      if (termWS && termWS.readyState === 1 && wsRunInFlight) {
-        termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
-      }
-    } catch {}
-
-    // NEW: back to Executing… until we need input again
-    //window.PolyShell?.setStatus('Executing...', 'busy');
-    inputShown = false;               // <— see next section
-    focusConsoleInput?.();
-  }
-}, { capture: true });
-
-
-
-
-
-
-
-
-
-
-
-
-
-   
-
-// Choose your visible input-wait time (keep in sync with backend default if you want)
-let inputWaitMs = 5 * 60 * 1000; // 5 minutes
-  let needsStdin = false;
-
-  // ---- MAIN: Run (interactive first; fallback to Piston) ----
-  window.runLang = async function(codeOverride){
-
-    
-    clearEditorMarkers();
-    const prefix = document.getElementById('consolePrefix');
-    if (prefix) prefix.textContent = '';
-    showInputRow(false);
-
-    inputShown = false;
-
-   
-
-
-    
-
-    const raw = (typeof codeOverride === 'string' && codeOverride.trim())
-      ? codeOverride
-      : (window.editor ? window.editor.getValue() : '');
-
-    const { code, stdin } = extractInlineStdin(raw);
-    const className = detectClassToRun(code);
-    const fileName  = `${className}.java`;
-
-    setConsole('');
-    document.getElementById('output')?.classList.remove('error');
-
-    needsStdin = codeNeedsInput(code);
-
-    // Wake + connect (gentle)
-    /*if (needsStdin) await wakeRunner();
-    let ws = await tryConnectWS(needsStdin ? 3000 : 2500);
-    if (!ws && needsStdin) {
-      setConsole('Starting interactive runner…');
-      ws = await tryConnectWS(5000);
-       window.PolyShell?.setStatus(
-        needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
-        'busy');
-    }*/
-
-    let ws = termWS && termWS.readyState === 1 ? termWS : null;
-if (!ws) {
-  ws = await ensureRunnerWS(20000); // up to ~20s with backoff
-}
-if (!ws) {
-  hideRunnerOverlay();
-  window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
-  setRunUI(false);
-  throw new Error('runner_unavailable');
-}
-termWS = ws; // reuse it for future runs
-
-
-
-    
-
-    if (ws) {
-      termWS = ws;
-      wsRunInFlight = true;
-      __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
-startStatusDots(__statusBase);
-      showInputRow(false);
-      window.PolyShell?.setStatus(
-        needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
-        'busy'
-      );
-
-      const acc = { compileErr:'', stderr:'', stdout:'' };
-
-      const waitForExit = new Promise((resolve, reject) => {
-        const onMsg = (ev) => {
-          try{
-            const m = JSON.parse(String(ev.data));
-            if (m.type === 'pong') { /* got heartbeat response */ return; }
-            //alert(m.type);
-            
-            if (m.type === 'stdout') { acc.stdout += m.data; termWrite(m.data); maybeShowInputWaitFromStdout(m.data);}
-            else if (m.type === 'stdin_req') { 
-                  // show input exactly when the program is waiting
-                    showInputRow(true);
-              window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
-                    inputShown = true;
-                    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-                    //alert('input now');
-                   __statusBase = 'Waiting for User Input';
-                    startStatusDots(__statusBase);      // ◀ start the animated dots
-                  startInputCountdown(inputWaitMs);   // ◀ start the mm:ss countdown
-              window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-            
-            }
-                                      
-                                     
-            else if (m.type === 'stderr') { acc.stderr += m.data; termWrite(m.data); 
-                                          window.PolyShell?.stopInputTicker?.();
-window.PolyShell?.setRunnerPhase?.('error');
-                                          stopInputCountdown();
-                                //stopStatusDots();
-//setRunUI(false);
-                                          
-                                          }
-            else if (m.type === 'compileErr') { acc.compileErr += m.data; termWrite(m.data);
-                                              
-                                              window.PolyShell?.stopInputTicker?.();
-window.PolyShell?.setRunnerPhase?.('error');
-                                              stopInputCountdown();
-//stopStatusDots();
-//setRunUI(false);
-                                              
-                                              }
-            else if (m.type === 'exit') {
-window.PolyShell?.stopInputTicker?.();
-window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
-
-              stopInputCountdown();
-stopStatusDots();
-//setRunUI(false);
-              termWS.removeEventListener('message', onMsg);
-              wsRunInFlight = false;
-              showInputRow(false);
-              
-              if (m.code === 0) {
-                window.PolyShell?.stopInputTicker?.();
-window.PolyShell?.setRunnerPhase?.('success');
-                window.PolyShell?.setStatus('Execution Success','ok');
-                clearEditorMarkers();
-                resolve();
-              } else {
-                const errText = (acc.compileErr || acc.stderr || 'Execution failed').trim();
-                const firstLine = (errText.split('\n')[0] || 'Execution failed');
-                const line = findJavaErrorLine(errText, className);
-                setEditorMarker(line, firstLine);
-                window.PolyShell?.setStatus('Execution Failed','error');
-                reject(new Error(`line ${line}: ${firstLine}`));
-              }
-              setRunUI(false); // <- now it runs AFTER we set the final status
-  (m.code === 0) ? resolve() : reject(new Error('…'));
-            }
-          } catch { /* ignore non-JSON */ }
-        };
-
-        
-        const onClose = () => {
-  try { termWS?.removeEventListener('message', onMsg); } catch {}
-  // If you added heartbeats / dots / Stop button, stop & revert them:
-  try { stopHeartbeat?.(); } catch {}
-  try { stopStatusDots?.(); } catch {}
-  try { setRunUI?.(false); } catch {}
- stopInputCountdown();
-          window.PolyShell?.stopInputTicker?.();
-window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
-
-  if (wsRunInFlight) {
-    wsRunInFlight = false;
-    showInputRow(false);
-    window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
-    // Important: reject so the caller knows this run aborted
-    try { reject(new Error('line 1: runner disconnected')); } catch {}
-  }
-  termWS = null;
-};
-
-
-/*const onClose = (ev) => {
-  try { termWS?.removeEventListener('message', onMsg); } catch {}
-  if (wsRunInFlight) {
-    wsRunInFlight = false;
-    showInputRow(false);
- window.PolyShell?.setStatus('Runner disconnected','error');
-  }
- termWS = null;
-};*/
-
-
-
-
-
-
-        
-        termWS.addEventListener('message', onMsg);
-        termWS.addEventListener('close', onClose, { once:true });
+      // Multi-line /* stdin: ... */
+      const block = /\/\*\s*(stdin|input)\s*[:=]\s*([\s\S]*?)\*\//i;
+      code = code.replace(block, (_, __, content) => {
+        stdin = content.replace(/^\s*\* ?/gm, '');
+        return '';
       });
 
-      try {
+      // Single-line // stdin: 42\n99
+      if (!stdin) {
+        const line = /^\s*\/\/\s*(stdin|input)\s*[:=]\s*(.*)$/mi;
+        const m = code.match(line);
+        if (m) {
+          stdin = m[2].replace(/\\n/g, '\n');
+          code = code.replace(line, '');
+        }
+      }
 
-        const argsStr = document.getElementById('progArgs')?.value || '';
-const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
+      return { code: code.trim(), stdin: stdin.replace(/\r\n?/g, '\n') };
+    }
 
-        inputWaitMs = 5 * 60 * 1000;
-        termWS.send(JSON.stringify({ type: 'run',
-  className,
-  code: raw + '',
-  args,
-  inputWaitMs }));
-      } catch {
-        try { termWS.close(); } catch {}
+    function detectClassToRun(code) {
+      let m = code.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\b/);
+      if (m) return m[1];
+      m = code.match(/\bclass\s+([A-Za-z_]\w*)\b[\s\S]*?\bpublic\s+static\s+void\s+main\s*\(/);
+      if (m) return m[1];
+      return 'Main';
+    }
+
+    (function () {
+      const JAVA_WS_URL = 'wss://polycode-java.onrender.com/java';
+
+      // Make WS handles global so pre-connect can see them safely
+      window.termWS = window.termWS || null;
+      window.wsRunInFlight = window.wsRunInFlight || false;
+
+      // ---- Console helpers for this IIFE ----
+      function setConsole(text) {
+        const el = document.getElementById('jconsole');
+        if (!el) return;
+        el.textContent = text || '';
+        document.getElementById('output')?.scrollTo({ top: 1e9 });
+      }
+
+      function termWrite(t) {
+        const el = document.getElementById('jconsole');
+        if (el) {
+          el.textContent += t;
+          document.getElementById('output')?.scrollTo({ top: 1e9 });
+        }
+      }
+
+      // ---- Minimal input line (NO '$' prompt) ----
+      function focusConsoleInput() {
+        const el = document.getElementById('consoleInput');
+        if (!el) return;
+        el.focus();
+        const r = document.createRange();
+        r.selectNodeContents(el);
+        r.collapse(false);
+        const s = window.getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+      }
+
+      function showInputRow(show) {
+        const row    = document.getElementById('consoleRow');
+        const pre    = document.getElementById('jconsole');
+        const prefix = document.getElementById('consolePrefix');
+
+        if (row) row.style.display = show ? 'flex' : 'none';
+
+        if (show) {
+          // Move trailing partial line from <pre> into the prefix (keeps prompt + input on one line)
+          const txt  = pre.textContent;
+          const i    = txt.lastIndexOf('\n');
+          const tail = txt.slice(i + 1);
+          if (tail && !/^\s*$/.test(tail)) {
+            prefix.textContent = tail + ' ';
+            pre.textContent = txt.slice(0, i + 1);
+          } else {
+            prefix.textContent = '';
+          }
+
+          window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+
+          // Always start animated dots + countdown when input is visible
+          __statusBase = 'Waiting for User Input';
+          startStatusDots(__statusBase);
+          startInputCountdown(inputWaitMs);
+
+          // focus caret
+          const el = document.getElementById('consoleInput');
+          if (el) {
+            el.focus();
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            r.collapse(false);
+            const s = window.getSelection();
+            s.removeAllRanges();
+            s.addRange(r);
+          }
+        } else {
+          // Hide input -> go back to Executing… if program still running
+          if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight) {
+            window.PolyShell?.setStatus('Executing...', 'busy');
+          }
+          if (prefix.textContent) {
+            pre.textContent += prefix.textContent;
+            prefix.textContent = '';
+          }
+        }
+      }
+
+      /* --- Monaco marker helpers --- */
+      function clearEditorMarkers() {
+        if (!window.monaco || !window.editor) return;
+        const model = window.editor.getModel();
+        if (model) window.monaco.editor.setModelMarkers(model, 'javac', []);
+      }
+
+      function setEditorMarker(line, message) {
+        if (!window.monaco || !window.editor) return;
+        const model = window.editor.getModel();
+        if (!model) return;
+        const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
+        window.monaco.editor.setModelMarkers(model, 'javac', [{
+          startLineNumber: line || 1,
+          endLineNumber:   line || 1,
+          startColumn:     1,
+          endColumn:       maxCol,
+          message:         String(message || 'Error'),
+          severity:        window.monaco.MarkerSeverity.Error
+        }]);
+      }
+
+      // ---- Input detection ----
+      function codeNeedsInput(code) {
+        const hasScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/s.test(code);
+        const usesNext   = /\b(\w+)\s*=\s*new\s+Scanner\s*\(\s*System\.in\s*\)[\s\S]*?\b\1\s*\.\s*next(?:Line|Int|Double|Long|Short|Float)?\s*\(/s.test(code)
+                        || /\bScanner\b[\s\S]*?\.\s*next(?:Line|Int|Double|Long|Short|Float)?\s*\(/s.test(code);
+        return hasScanner && usesNext;
+      }
+
+      // ---- Gentle WS connect + wake ping ----
+      async function wakeRunner() {
+        try { await fetch('https://polycode-java.onrender.com/health', { cache: 'no-store', mode: 'no-cors' }); } catch {}
+      }
+
+      function tryConnectWS(timeoutMs = 8000) {
+        return new Promise((resolve) => {
+          let done = false;
+          let timer = null;
+          let ws;
+          try {
+            ws = new WebSocket(JAVA_WS_URL);
+          } catch {
+            return resolve(null);
+          }
+          const finish = (ok) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            ws.onopen = ws.onerror = ws.onclose = null; // detach early handlers
+            resolve(ok ? ws : null);
+          };
+          timer = setTimeout(() => finish(false), timeoutMs);
+          ws.onopen  = () => finish(true);
+          ws.onerror = () => finish(false);
+          ws.onclose = () => finish(false);
+        });
+      }
+
+      // ---- Send input when user presses Enter ----
+      document.addEventListener('keydown', (e) => {
+        const el = document.getElementById('consoleInput');
+        if (!el || el.offsetParent === null) return;
+        if (e.target !== el) return;
+
+        if (e.key === 'Enter') {
+          e.preventDefault();
+
+          stopInputCountdown();        // pause countdown between prompts (optional)
+          __statusBase = 'Executing';
+          startStatusDots(__statusBase); // keep the animated dots going
+
+          window.PolyShell?.stopInputTicker?.();
+          window.PolyShell?.setRunnerPhase?.('running');
+
+          const line = el.textContent;
+
+          const pre    = document.getElementById('jconsole');
+          const prefix = document.getElementById('consolePrefix');
+
+          // Merge trailing prefix back into <pre> before echoing
+          if (prefix && prefix.textContent) {
+            pre.textContent += prefix.textContent;
+            prefix.textContent = '';
+          }
+
+          termWrite(line + '\n');   // echo what the user typed
+          el.textContent = '';
+
+          try {
+            if (window.termWS && window.termWS.readyState === 1 && window.wsRunInFlight) {
+              window.termWS.send(JSON.stringify({ type: 'stdin', data: line + '\n' }));
+            }
+          } catch {}
+
+          // back to Executing… until we need input again
+          focusConsoleInput?.();
+        }
+      }, { capture: true });
+
+      // Choose your visible input-wait time (keep in sync with backend default if you want)
+      let inputWaitMs = 5 * 60 * 1000; // 5 minutes
+      let needsStdin = false;
+
+      // ---- MAIN: Run (interactive first; fallback to Piston) ----
+      window.runLang = async function (codeOverride) {
+        clearEditorMarkers();
+        const prefix = document.getElementById('consolePrefix');
+        if (prefix) prefix.textContent = '';
         showInputRow(false);
-        window.PolyShell?.setStatus('Runner unavailable','error');
-        throw new Error('line 1: runner unavailable');
+
+        const raw = (typeof codeOverride === 'string' && codeOverride.trim())
+          ? codeOverride
+          : (window.editor ? window.editor.getValue() : '');
+
+        const { code, stdin } = extractInlineStdin(raw);
+        const className = detectClassToRun(code);
+        const fileName  = `${className}.java`;
+
+        setConsole('');
+        document.getElementById('output')?.classList.remove('error');
+
+        needsStdin = codeNeedsInput(code);
+
+        // Wake + connect (gentle)
+        // (kept for reference) if (needsStdin) await wakeRunner();
+
+        let ws = window.termWS && window.termWS.readyState === 1 ? window.termWS : null;
+        if (!ws) {
+          ws = await ensureRunnerWS(20000); // up to ~20s with backoff
+        }
+        if (!ws) {
+          hideRunnerOverlay();
+          window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
+          window.setRunUI?.(false);
+          throw new Error('runner_unavailable');
+        }
+        window.termWS = ws; // reuse it for future runs
+
+        if (ws) {
+          window.wsRunInFlight = true;
+          __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
+          startStatusDots(__statusBase);
+          showInputRow(false);
+          window.PolyShell?.setStatus(
+            needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…',
+            'busy'
+          );
+
+          const acc = { compileErr: '', stderr: '', stdout: '' };
+
+          const waitForExit = new Promise((resolve, reject) => {
+            const onMsg = (ev) => {
+              try {
+                const m = JSON.parse(String(ev.data));
+                if (m.type === 'pong') return; // heartbeat
+
+                if (m.type === 'stdout') {
+                  acc.stdout += m.data;
+                  termWrite(m.data);
+                  // optional hook; guard to avoid ReferenceError
+                  if (typeof window.maybeShowInputWaitFromStdout === 'function') {
+                    window.maybeShowInputWaitFromStdout(m.data);
+                  }
+                } else if (m.type === 'stdin_req') {
+                  // show input exactly when the program is waiting
+                  showInputRow(true);
+                  window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
+                  window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+                  __statusBase = 'Waiting for User Input';
+                  startStatusDots(__statusBase);     // start the animated dots
+                  startInputCountdown(inputWaitMs);  // start the mm:ss countdown
+                  window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+                } else if (m.type === 'stderr') {
+                  acc.stderr += m.data;
+                  termWrite(m.data);
+                  window.PolyShell?.stopInputTicker?.();
+                  window.PolyShell?.setRunnerPhase?.('error');
+                  stopInputCountdown();
+                } else if (m.type === 'compileErr') {
+                  acc.compileErr += m.data;
+                  termWrite(m.data);
+                  window.PolyShell?.stopInputTicker?.();
+                  window.PolyShell?.setRunnerPhase?.('error');
+                  stopInputCountdown();
+                } else if (m.type === 'exit') {
+                  window.PolyShell?.stopInputTicker?.();
+                  stopInputCountdown();
+                  stopStatusDots();
+
+                  window.termWS.removeEventListener('message', onMsg);
+                  window.wsRunInFlight = false;
+                  showInputRow(false);
+
+                  if (m.code === 0) {
+                    window.PolyShell?.setRunnerPhase?.('success');
+                    window.PolyShell?.setStatus('Execution Success', 'ok');
+                    clearEditorMarkers();
+                    resolve();
+                  } else {
+                    const errText   = (acc.compileErr || acc.stderr || 'Execution failed').trim();
+                    const firstLine = (errText.split('\n')[0] || 'Execution failed');
+                    const line      = findJavaErrorLine(errText, className);
+                    setEditorMarker(line, firstLine);
+                    window.PolyShell?.setStatus('Execution Failed', 'error');
+                    reject(new Error(`line ${line}: ${firstLine}`));
+                  }
+
+                  // optional UI hook
+                  window.setRunUI?.(false);
+                }
+              } catch {
+                // ignore non-JSON
+              }
+            };
+
+            const onClose = () => {
+              try { window.termWS?.removeEventListener('message', onMsg); } catch {}
+              // stop heartbeat / dots / UI hooks
+              try { stopHeartbeat?.(); } catch {}
+              try { stopStatusDots?.(); } catch {}
+              try { window.setRunUI?.(false); } catch {}
+              stopInputCountdown();
+              window.PolyShell?.stopInputTicker?.();
+              window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
+
+              if (window.wsRunInFlight) {
+                window.wsRunInFlight = false;
+                showInputRow(false);
+                window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect', 'error');
+                try { reject(new Error('line 1: runner disconnected')); } catch {}
+              }
+              window.termWS = null;
+            };
+
+            window.termWS.addEventListener('message', onMsg);
+            window.termWS.addEventListener('close', onClose, { once: true });
+          });
+
+          try {
+            const argsStr = document.getElementById('progArgs')?.value || '';
+            const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
+
+            inputWaitMs = 5 * 60 * 1000;
+            window.termWS.send(JSON.stringify({
+              type: 'run',
+              className,
+              code: raw + '',
+              args,
+              inputWaitMs
+            }));
+          } catch {
+            try { window.termWS.close(); } catch {}
+            showInputRow(false);
+            window.PolyShell?.setStatus('Runner unavailable', 'error');
+            throw new Error('line 1: runner unavailable');
+          }
+
+          await waitForExit;
+          return;
+        }
+
+        // ---- Fallback: Piston ----
+        let version = await getPistonJavaVersion();
+        let res     = await pistonExecuteJava({ code, fileName, version, stdin });
+
+        if (!res.ok && /version.*(required|unknown)/i.test(res.text || '')) {
+          version = await getPistonJavaVersion(true);
+          res     = await pistonExecuteJava({ code, fileName, version, stdin });
+        }
+        if (!res.ok) {
+          printToConsole({ compileErr: `HTTP ${res.status} — ${res.text.slice(0, 200)}` });
+          throw new Error('line 1: request failed');
+        }
+
+        const data       = res.data || {};
+        const compileErr = data.compile?.stderr || '';
+        const stderr     = data.run?.stderr || '';
+        const stdout     = data.run?.stdout || '';
+
+        const usedScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code);
+        if (usedScanner && !stdin && data.run?.code !== 0 && /NoSuchElementException/.test(stderr || '')) {
+          const tip =
+            '\nTip: Provide input using a comment:\n' +
+            '  // stdin: 2 3\n' +
+            '  /* stdin:\n2\n3\n*/\n';
+          printToConsole({ compileErr: (stderr || compileErr || 'Runtime error') + tip });
+        }
+
+        printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
+
+        const ok = (data.run?.code === 0) && !compileErr;
+        if (ok) {
+          window.PolyShell?.stopInputTicker?.();
+          window.PolyShell?.setRunnerPhase?.('success');
+          window.PolyShell?.setStatus('Execution Success', 'ok');
+          clearEditorMarkers();
+        } else {
+          const errText   = (compileErr || stderr || 'Execution failed').trim();
+          const firstLine = (errText.split('\n')[0] || 'Execution failed');
+          const line      = findJavaErrorLine(errText, className);
+          setEditorMarker(line, firstLine);
+          window.PolyShell?.setStatus('Execution Failed', 'error');
+          throw new Error(`line ${line}: ${firstLine}`);
+        }
+      };
+
+      // ---- Reset (called by shell) ----
+      window.clearLang = function () {
+        setConsole('');
+        document.getElementById('output')?.style.setProperty('background', 'transparent', 'important');
+        showInputRow(false);
+        clearEditorMarkers();
+        const prefix = document.getElementById('consolePrefix');
+        if (prefix) prefix.textContent = '';
+        try { window.termWS?.close(); } catch {}
+        window.termWS = null;
+        window.wsRunInFlight = false;
+      };
+    })();
+
+    // ---------- Runner connect overlay helpers ----------
+    function showRunnerOverlay(msg = 'Connecting to Java runner…', pct = 10, hint = 'Warming up backend…') {
+      const ov  = document.getElementById('runnerOverlay');
+      const bar = document.getElementById('runnerBar');
+      const m   = document.getElementById('runnerMsg');
+      const h   = document.getElementById('runnerHint');
+      if (!ov || !bar || !m || !h) return;
+      ov.style.display = 'flex';
+      m.textContent = msg;
+      h.textContent = hint;
+      bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
+    }
+
+    function updateRunnerOverlay({ msg, pct, hint }) {
+      const m   = document.getElementById('runnerMsg');
+      const h   = document.getElementById('runnerHint');
+      const bar = document.getElementById('runnerBar');
+      if (msg && m) m.textContent = msg;
+      if (hint && h) h.textContent = hint;
+      if (typeof pct === 'number' && bar) {
+        bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
+      }
+    }
+
+    function hideRunnerOverlay() {
+      const ov = document.getElementById('runnerOverlay');
+      if (ov) ov.style.display = 'none';
+    }
+
+    // ---------- Heartbeat (keep WS alive, detect idle disconnects) ----------
+    let hbInterval = null, hbTimeout = null;
+
+    function startHeartbeat(ws) {
+      stopHeartbeat();
+      hbInterval = setInterval(() => {
+        try {
+          if (ws.readyState !== 1) return;
+          ws.send(JSON.stringify({ type: 'ping' }));
+          // expect pong within 5s
+          clearTimeout(hbTimeout);
+          hbTimeout = setTimeout(() => {
+            console.warn('Runner heartbeat missed; connection may drop.');
+          }, 5000);
+        } catch {}
+      }, 25000); // 25s cadence
+    }
+
+    function stopHeartbeat() {
+      if (hbInterval) { clearInterval(hbInterval); hbInterval = null; }
+      if (hbTimeout)  { clearTimeout(hbTimeout);   hbTimeout  = null; }
+    }
+
+    // ---------- Robust connect with wake + retries ----------
+    async function ensureRunnerWS(maxTotalMs = 20000) {
+      const start = Date.now();
+      const steps = [300, 800, 1500, 2500, 4000, 5500]; // backoff steps
+      let attempt = 0;
+
+      showRunnerOverlay('Connecting to Java runner…', 8, 'Waking backend…');
+      try { await fetch('https://polycode-java.onrender.com/health', { cache: 'no-store', mode: 'no-cors' }); } catch {}
+      updateRunnerOverlay({ pct: 18, hint: 'Opening WebSocket…' });
+
+      while (Date.now() - start < maxTotalMs) {
+        attempt++;
+        // Try open WS with a per-attempt timeout
+        const perTimeout = Math.min(5000, maxTotalMs - (Date.now() - start));
+        const ws = await new Promise((resolve) => {
+          let done = false;
+          let timer = setTimeout(() => {
+            if (!done) {
+              done = true;
+              try { w.close(); } catch {}
+              resolve(null);
+            }
+          }, perTimeout);
+          let w;
+          try {
+            w = new WebSocket('wss://polycode-java.onrender.com/java');
+            w.onopen  = () => { if (!done) { done = true; clearTimeout(timer); resolve(w); } };
+            w.onerror = () => { /* ignore; close will fire */ };
+            w.onclose = () => { if (!done) { done = true; clearTimeout(timer); resolve(null); } };
+          } catch {
+            clearTimeout(timer);
+            resolve(null);
+          }
+        });
+
+        if (ws && ws.readyState === 1) {
+          updateRunnerOverlay({ pct: 92, hint: 'Finalizing…' });
+          hideRunnerOverlay();
+          startHeartbeat(ws);
+          return ws;
+        }
+
+        // retry
+        const wait = steps[Math.min(attempt - 1, steps.length - 1)];
+        const pct  = Math.min(90, 18 + Math.floor((attempt / (steps.length + 2)) * 70));
+        updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
+        await new Promise(r => setTimeout(r, wait));
       }
 
-      await waitForExit;
-      return;
+      // give up
+      updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
+      return null;
     }
 
-    // ---- Fallback: Piston ----
-    let version = await getPistonJavaVersion();
-    let res     = await pistonExecuteJava({ code, fileName, version, stdin });
-
-    if (!res.ok && /version.*(required|unknown)/i.test(res.text || '')) {
-      version = await getPistonJavaVersion(true);
-      res     = await pistonExecuteJava({ code, fileName, version, stdin });
-    }
-    if (!res.ok) {
-      printToConsole({ compileErr: `HTTP ${res.status} — ${res.text.slice(0,200)}` });
-      throw new Error('line 1: request failed');
-    }
-
-    const data       = res.data || {};
-    const compileErr = data.compile?.stderr || '';
-    const stderr     = data.run?.stderr || '';
-    const stdout     = data.run?.stdout || '';
-
-    const usedScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code);
-    if (usedScanner && !stdin && data.run?.code !== 0 && /NoSuchElementException/.test(stderr || '')) {
-      const tip = '\nTip: Provide input using a comment:\n' +
-                  '  // stdin: 2 3\n' +
-                  '  /* stdin:\n2\n3\n*/\n';
-      printToConsole({ compileErr: (stderr || compileErr || 'Runtime error') + tip });
-    }
-
-    printToConsole({ compileErr, stderr, stdout, exitCode: data.run?.code });
-
-    const ok = (data.run?.code === 0) && !compileErr;
-    if (ok) {
-      window.PolyShell?.stopInputTicker?.();
-window.PolyShell?.setRunnerPhase?.('success');
-      window.PolyShell?.setStatus('Execution Success','ok');
-      clearEditorMarkers();
-    } else {
-      const errText = (compileErr || stderr || 'Execution failed').trim();
-      const firstLine = (errText.split('\n')[0] || 'Execution failed');
-      const line = findJavaErrorLine(errText, className);
-      setEditorMarker(line, firstLine);
-      window.PolyShell?.setStatus('Execution Failed','error');
-      throw new Error(`line ${line}: ${firstLine}`);
-    }
-  };
-
-  // ---- Reset (called by shell) ----
-  window.clearLang = function(){
-    setConsole('');
-    document.getElementById('output')?.style.setProperty('background','transparent','important');
-    showInputRow(false);
-    clearEditorMarkers();
-    const prefix = document.getElementById('consolePrefix');
-    if (prefix) prefix.textContent = '';
-    try{ termWS?.close(); }catch{}
-    termWS = null; wsRunInFlight = false;
-  };
-})();
-
-
-
-
-
-
-
-
-// ---------- Runner connect overlay helpers ----------
-function showRunnerOverlay(msg='Connecting to Java runner…', pct=10, hint='Warming up backend…'){
-  const ov = document.getElementById('runnerOverlay');
-  const bar = document.getElementById('runnerBar');
-  const m = document.getElementById('runnerMsg');
-  const h = document.getElementById('runnerHint');
-  if (!ov || !bar || !m || !h) return;
-  ov.style.display = 'flex';
-  m.textContent = msg;
-  h.textContent = hint;
-  bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
-}
-function updateRunnerOverlay({ msg, pct, hint }){
-  const m = document.getElementById('runnerMsg');
-  const h = document.getElementById('runnerHint');
-  const bar = document.getElementById('runnerBar');
-  if (msg && m) m.textContent = msg;
-  if (hint && h) h.textContent = hint;
-  if (typeof pct === 'number' && bar) bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
-}
-function hideRunnerOverlay(){
-  const ov = document.getElementById('runnerOverlay');
-  if (ov) ov.style.display = 'none';
-}
-
-// ---------- Heartbeat (keep WS alive, detect idle disconnects) ----------
-let hbInterval = null, hbTimeout = null;
-function startHeartbeat(ws){
-  stopHeartbeat();
-  hbInterval = setInterval(() => {
-    try {
-      if (ws.readyState !== 1) return;
-      ws.send(JSON.stringify({ type:'ping' }));
-      // expect pong within 5s
-      clearTimeout(hbTimeout);
-      hbTimeout = setTimeout(() => {
-        // No pong → likely idle disconnect soon
-        console.warn('Runner heartbeat missed; connection may drop.');
-      }, 5000);
-    } catch {}
-  }, 25000); // 25s cadence
-}
-function stopHeartbeat(){
-  if (hbInterval) clearInterval(hbInterval), hbInterval = null;
-  if (hbTimeout) clearTimeout(hbTimeout), hbTimeout = null;
-}
-
-// ---------- Robust connect with wake + retries ----------
-async function ensureRunnerWS(maxTotalMs = 20000){
-  const start = Date.now();
-  const steps = [300, 800, 1500, 2500, 4000, 5500]; // backoff steps
-  let attempt = 0;
-
-  showRunnerOverlay('Connecting to Java runner…', 8, 'Waking backend…');
-  try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
-  updateRunnerOverlay({ pct: 18, hint: 'Opening WebSocket…' });
-
-  while (Date.now() - start < maxTotalMs) {
-    attempt++;
-    // Try open WS with a per-attempt timeout
-    const perTimeout = Math.min(5000, maxTotalMs - (Date.now() - start));
-    const ws = await new Promise((resolve) => {
-      let done = false;
-      let timer = setTimeout(() => { if (!done) { done = true; try{ w.close(); }catch{} resolve(null); } }, perTimeout);
-      let w;
-      try {
-        w = new WebSocket('wss://polycode-java.onrender.com/java');
-        w.onopen = () => { if (!done) { done = true; clearTimeout(timer); resolve(w); } };
-        w.onerror = () => { /* ignore; close will fire */ };
-        w.onclose = () => { if (!done) { done = true; clearTimeout(timer); resolve(null); } };
-      } catch {
-        clearTimeout(timer);
-        resolve(null);
+    /* --- Start after shell.js (defer) has run --- */
+    (function startWhenReady() {
+      function start() {
+        if (!window.PolyShell) {
+          const id = setInterval(() => {
+            if (window.PolyShell) { clearInterval(id); window.bootstrap(); }
+          }, 25);
+          setTimeout(() => clearInterval(id), 3000);
+          return;
+        }
+        window.bootstrap();
       }
-    });
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', start, { once: true });
+      } else {
+        start();
+      }
+    })();
 
-    if (ws && ws.readyState === 1) {
-      updateRunnerOverlay({ pct: 92, hint: 'Finalizing…' });
-      hideRunnerOverlay();
-      startHeartbeat(ws);
-      return ws;
-    }
-
-    // retry
-    const wait = steps[Math.min(attempt - 1, steps.length - 1)];
-    const pct = Math.min(90, 18 + Math.floor((attempt / (steps.length + 2)) * 70));
-    updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
-    await new Promise(r => setTimeout(r, wait));
-  }
-
-  // give up
-  updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
-  return null;
-}
-
-
-// ---------- Runner connect overlay helper end with Heartbeat ----------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-/* --- Start after shell.js (defer) has run --- */
-(function startWhenReady(){
-  function start(){
-    if (!window.PolyShell) {
-      const id = setInterval(() => {
-        if (window.PolyShell){ clearInterval(id); window.bootstrap(); }
-      }, 25);
-      setTimeout(() => clearInterval(id), 3000);
-      return;
-    }
-    window.bootstrap();
-  }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once:true });
-  } else {
-    start();
-  }
-})();
-
-
+    // Quiet pre-connect (optional)
     document.addEventListener('DOMContentLoaded', async () => {
-  // Pre-connect quietly; do not block UI
-  try {
-    if (!termWS || termWS.readyState !== 1) {
-      const ws = await ensureRunnerWS(8000);
-      if (ws) termWS = ws;
-    }
-  } catch {}
-});
-
-    
+      try {
+        if (!window.termWS || window.termWS.readyState !== 1) {
+          const ws = await ensureRunnerWS(8000);
+          if (ws) window.termWS = ws;
+        }
+      } catch {}
+    });
   </script>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
   <!-- Connecting overlay -->
-<div id="runnerOverlay" style="
-  position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.45); z-index: 9999;">
-  <div style="
-    min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px;
-    background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35);
-    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
-    <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to Java runner…</div>
-    <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;">
-      <div id="runnerBar" style="height:100%; width:10%; background: currentColor; opacity:0.9;"></div>
+  <div
+    id="runnerOverlay"
+    style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); z-index: 9999;"
+  >
+    <div
+      style="min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px; background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;"
+    >
+      <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to Java runner…</div>
+      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;">
+        <div id="runnerBar" style="height:100%; width:10%; background: currentColor; opacity:0.9;"></div>
+      </div>
+      <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
     </div>
-    <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
   </div>
-</div>
-
 </body>
 </html>
