@@ -176,6 +176,17 @@
         <div class="pane-head">
           <span class="title">Java – Console | Polycode</span>
            <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
+
+             <button id="btnComplexity" class="btn btn-ghost" title="Analyze Time & Space">
+  <!-- Simple O() icon to match your minimal glyph style -->
+  <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+    <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+    <text x="12" y="15" text-anchor="middle" font-size="10" font-family="ui-monospace, Menlo, Consolas" fill="currentColor">O</text>
+  </svg>
+  <span class="sr-only">Complexity</span>
+</button>
+
+             
              <button
               id="btnReset"
               class="btn"
@@ -1121,5 +1132,36 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) requestWakeSoon();
       <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
     </div>
   </div>
+
+
+
+  <div id="complexityModal" class="pc-modal" aria-hidden="true">
+  <div class="pc-modal__backdrop" data-close></div>
+  <div class="pc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
+    <div class="pc-modal__header">
+      <h3 id="cxTitle">Complexity Analysis</h3>
+      <button class="pc-modal__close" data-close aria-label="Close">×</button>
+    </div>
+    <div class="pc-modal__body">
+      <div class="cx-summary">
+        <div><strong>Final Time:</strong> <span id="cxTime">—</span></div>
+        <div><strong>Final Space:</strong> <span id="cxSpace">—</span></div>
+      </div>
+      <hr/>
+      <div class="cx-lines">
+        <table class="cx-table" id="cxTable">
+          <thead>
+            <tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="cx-notes" id="cxNotes"></div>
+    </div>
+    <div class="pc-modal__footer">
+      <button class="btn" data-close>Close</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
