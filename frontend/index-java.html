@@ -39,6 +39,40 @@
     .pane-foot .msg { white-space: nowrap; }
     .panel .pane-head { display:flex; align-items:center; }
 
+    /* --- Complexity modal + table --- */
+    .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
+    .pc-modal[aria-hidden="false"] { display:block; }
+    .pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
+    .pc-modal__dialog{
+      position:relative; margin:5vh auto; max-width:800px; background:var(--panel, #111);
+      color:inherit; border:1px solid rgba(255,255,255,.1); border-radius:14px;
+      box-shadow:0 20px 50px rgba(0,0,0,.35); padding:14px;
+    }
+    .pc-modal__header{ display:flex; align-items:center; justify-content:space-between; }
+    .pc-modal__close{ background:transparent; border:0; font-size:22px; cursor:pointer; }
+    .pc-modal__body{ max-height:60vh; overflow:auto; }
+    .pc-modal__footer{ display:flex; justify-content:flex-end; gap:8px; }
+    .cx-summary{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 10px; }
+    .cx-table{ width:100%; border-collapse: collapse; font:13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+    .cx-table th, .cx-table td{ border-bottom:1px solid rgba(127,127,127,.25); padding:6px 8px; vertical-align: top; }
+    .cx-table th{ text-align:left; position:sticky; top:0; background:inherit; }
+    .cx-notes{ opacity:.9; font-size:12px; margin-top:8px; }
+
+    /* Icon hygiene */
+    #btnComplexity svg{ display:block; }
+    #btnComplexity .sr-only{
+      position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+    }
+
+    /* One-time subtle pulse when the button first unlocks */
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes pc-pulse-brief {
+        0%   { transform: scale(1); }
+        40%  { transform: scale(1.08); }
+        100% { transform: scale(1); }
+      }
+      .btn-pulse { animation: pc-pulse-brief 0.9s ease-out; }
+    }
   </style>
 </head>
 
@@ -175,20 +209,16 @@
       <section class="panel right" id="rightPanel">
         <div class="pane-head">
           <span class="title">Java – Console | Polycode</span>
-           <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
+          <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
+            <button id="btnComplexity" class="btn btn-ghost" title="Analyze Time & Space" aria-label="Complexity" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 9.5c.9-1 2-1.5 3-1.5s2.1.5 3 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span class="sr-only">Complexity</span>
+            </button>
 
-             <button id="btnComplexity" class="btn btn-ghost" title="Analyze Time & Space" aria-label="Complexity" disabled>
-  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-    <!-- ring "O" -->
-    <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
-    <!-- subtle inner stroke to read like O() without text baseline issues -->
-    <path d="M9 9.5c.9-1 2-1.5 3-1.5s2.1.5 3 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-  </svg>
-  <span class="sr-only">Complexity</span>
-</button>
-
-             
-             <button
+            <button
               id="btnReset"
               class="btn"
               title="Reset (Click or Press F10)"
@@ -199,7 +229,7 @@
             </button>
           </div>
         </div>
-      
+
         <div id="output" class="screen-dim" style="padding:12px;">
           <!-- Output only -->
           <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
@@ -252,40 +282,19 @@
 
       <div class="footer-center">
         <span class="label">Follow us</span>
-        <a
-          class="social"
-          href="https://facebook.com/edifica.facebook"
-          target="_blank"
-          rel="noopener"
-          aria-label="Facebook"
-          title="Facebook"
-        >
+        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
           <svg viewBox="0 0 24 24" width="18" height="18">
             <path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z" />
           </svg>
         </a>
-        <a
-          class="social"
-          href="https://instagram.com/edifica.ig"
-          target="_blank"
-          rel="noopener"
-          aria-label="Instagram"
-          title="Instagram"
-        >
+        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
           <svg viewBox="0 0 24 24" width="18" height="18">
             <path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z" />
           </svg>
         </a>
-        <a
-          class="social"
-          href="https://youtube.com/@edifica.youtube"
-          target="_blank"
-          rel="noopener"
-          aria-label="YouTube"
-          title="YouTube"
-        >
+        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
           <svg viewBox="0 0 24 24" width="18" height="18">
-            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z" />
+            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z" />
           </svg>
         </a>
       </div>
@@ -470,8 +479,6 @@
       window.termWS = window.termWS || null;
       window.wsRunInFlight = window.wsRunInFlight || false;
 
-
-      
       // ---- Console helpers for this IIFE ----
       function setConsole(text) {
         const el = document.getElementById('jconsole');
@@ -480,15 +487,20 @@
         document.getElementById('output')?.scrollTo({ top: 1e9 });
       }
 
-
+      // Complexity button enable/disable with one-time pulse
       function setComplexityEnabled(on){
-  const b = document.getElementById('btnComplexity');
-  if (!b) return;
-  b.disabled = !on;
-}
+        const b = document.getElementById('btnComplexity');
+        if (!b) return;
+        const wasDisabled = b.disabled;
+        b.disabled = !on;
+        if (on && wasDisabled && !b.dataset.pulsedOnce) {
+          b.classList.add('btn-pulse');
+          b.dataset.pulsedOnce = '1';
+          setTimeout(() => b.classList.remove('btn-pulse'), 1000);
+        }
+      }
+      window.setComplexityEnabled = setComplexityEnabled;
 
-
-      
       function termWrite(t) {
         const el = document.getElementById('jconsole');
         if (el) {
@@ -518,7 +530,6 @@
         if (row) row.style.display = show ? 'flex' : 'none';
 
         if (show) {
-          // Move trailing partial line from <pre> into the prefix (keeps prompt + input on one line)
           const txt  = pre.textContent;
           const i    = txt.lastIndexOf('\n');
           const tail = txt.slice(i + 1);
@@ -531,12 +542,10 @@
 
           window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
 
-          // Always start animated dots + countdown when input is visible
           __statusBase = 'Waiting for User Input';
           startStatusDots(__statusBase);
           startInputCountdown(inputWaitMs);
 
-          // focus caret
           const el = document.getElementById('consoleInput');
           if (el) {
             el.focus();
@@ -548,7 +557,6 @@
             s.addRange(r);
           }
         } else {
-          // Hide input -> go back to Executing… if program still running
           if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight) {
             window.PolyShell?.setStatus('Executing...', 'busy');
           }
@@ -608,7 +616,7 @@
             if (done) return;
             done = true;
             clearTimeout(timer);
-            ws.onopen = ws.onerror = ws.onclose = null; // detach early handlers
+            ws.onopen = ws.onerror = ws.onclose = null;
             resolve(ok ? ws : null);
           };
           timer = setTimeout(() => finish(false), timeoutMs);
@@ -627,9 +635,9 @@
         if (e.key === 'Enter') {
           e.preventDefault();
 
-          stopInputCountdown();        // pause countdown between prompts (optional)
+          stopInputCountdown();
           __statusBase = 'Executing';
-          startStatusDots(__statusBase); // keep the animated dots going
+          startStatusDots(__statusBase);
 
           window.PolyShell?.stopInputTicker?.();
           window.PolyShell?.setRunnerPhase?.('running');
@@ -639,13 +647,12 @@
           const pre    = document.getElementById('jconsole');
           const prefix = document.getElementById('consolePrefix');
 
-          // Merge trailing prefix back into <pre> before echoing
           if (prefix && prefix.textContent) {
             pre.textContent += prefix.textContent;
             prefix.textContent = '';
           }
 
-          termWrite(line + '\n');   // echo what the user typed
+          termWrite(line + '\n');
           el.textContent = '';
 
           try {
@@ -654,12 +661,10 @@
             }
           } catch {}
 
-          // back to Executing… until we need input again
           focusConsoleInput?.();
         }
       }, { capture: true });
 
-      // Choose your visible input-wait time (keep in sync with backend default if you want)
       let inputWaitMs = 5 * 60 * 1000; // 5 minutes
       let needsStdin = false;
 
@@ -669,6 +674,9 @@
         const prefix = document.getElementById('consolePrefix');
         if (prefix) prefix.textContent = '';
         showInputRow(false);
+
+        // disable Complexity at the start of every run
+        setComplexityEnabled(false);
 
         const raw = (typeof codeOverride === 'string' && codeOverride.trim())
           ? codeOverride
@@ -683,46 +691,23 @@
 
         needsStdin = codeNeedsInput(code);
 
-        // Wake + connect (gentle)
-        // (kept for reference) if (needsStdin) await wakeRunner();
+        let ws = (window.termWS && window.termWS.readyState === 1) ? window.termWS : null;
 
-        /*let ws = window.termWS && window.termWS.readyState === 1 ? window.termWS : null;
         if (!ws) {
-          ws = await ensureRunnerWS(20000); // up to ~20s with backoff
+          ws = await ensureRunnerWS(10000, { showOverlay: true });
+        }
+        if (!ws) {
+          try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+          ws = await ensureRunnerWS(60000, { showOverlay: true });
         }
         if (!ws) {
           hideRunnerOverlay();
           window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
           window.setRunUI?.(false);
           throw new Error('runner_unavailable');
-        }*/
+        }
 
-
-
-        let ws = (window.termWS && window.termWS.readyState === 1) ? window.termWS : null;
-
-if (!ws) {
-  // quick attempt without wake (shows overlay)
-  ws = await ensureRunnerWS(10000, { showOverlay: true });
-}
-
-if (!ws) {
-  // explicit wake ping (silent) then a long attempt (shows overlay)
-  try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
-  ws = await ensureRunnerWS(60000, { showOverlay: true });
-}
-
-if (!ws) {
-  hideRunnerOverlay();
-  window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
-  window.setRunUI?.(false);
-  throw new Error('runner_unavailable');
-}
-
-window.termWS = ws;
-
-        
-        //window.termWS = ws; // reuse it for future runs
+        window.termWS = ws;
 
         if (ws) {
           window.wsRunInFlight = true;
@@ -740,23 +725,21 @@ window.termWS = ws;
             const onMsg = (ev) => {
               try {
                 const m = JSON.parse(String(ev.data));
-                if (m.type === 'pong') return; // heartbeat
+                if (m.type === 'pong') return;
 
                 if (m.type === 'stdout') {
                   acc.stdout += m.data;
                   termWrite(m.data);
-                  // optional hook; guard to avoid ReferenceError
                   if (typeof window.maybeShowInputWaitFromStdout === 'function') {
                     window.maybeShowInputWaitFromStdout(m.data);
                   }
                 } else if (m.type === 'stdin_req') {
-                  // show input exactly when the program is waiting
                   showInputRow(true);
                   window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
                   window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
                   __statusBase = 'Waiting for User Input';
-                  startStatusDots(__statusBase);     // start the animated dots
-                  startInputCountdown(inputWaitMs);  // start the mm:ss countdown
+                  startStatusDots(__statusBase);
+                  startInputCountdown(inputWaitMs);
                   window.PolyShell?.startInputTicker?.(getCountdownText, 500);
                 } else if (m.type === 'stderr') {
                   acc.stderr += m.data;
@@ -783,6 +766,7 @@ window.termWS = ws;
                     window.PolyShell?.setRunnerPhase?.('success');
                     window.PolyShell?.setStatus('Execution Success', 'ok');
                     clearEditorMarkers();
+                    setComplexityEnabled(true); // <— enable on success
                     resolve();
                   } else {
                     const errText   = (acc.compileErr || acc.stderr || 'Execution failed').trim();
@@ -790,69 +774,43 @@ window.termWS = ws;
                     const line      = findJavaErrorLine(errText, className);
                     setEditorMarker(line, firstLine);
                     window.PolyShell?.setStatus('Execution Failed', 'error');
+                    setComplexityEnabled(false); // ensure disabled on failure
                     reject(new Error(`line ${line}: ${firstLine}`));
                   }
 
-                  // optional UI hook
                   window.setRunUI?.(false);
                 }
-              } catch {
-                // ignore non-JSON
-              }
+              } catch {}
             };
 
-           /* const onClose = () => {
+            const onClose = () => {
               try { window.termWS?.removeEventListener('message', onMsg); } catch {}
-              // stop heartbeat / dots / UI hooks
+
+              const userClose = !!window.__closingByUser;
+              window.__closingByUser = false;
+
               try { stopHeartbeat?.(); } catch {}
               try { stopStatusDots?.(); } catch {}
               try { window.setRunUI?.(false); } catch {}
               stopInputCountdown();
               window.PolyShell?.stopInputTicker?.();
-              window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
 
+              if (userClose) {
+                window.wsRunInFlight = false;
+                showInputRow(false);
+                window.termWS = null;
+                return;
+              }
+
+              window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
               if (window.wsRunInFlight) {
                 window.wsRunInFlight = false;
                 showInputRow(false);
-                window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect', 'error');
+                window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
                 try { reject(new Error('line 1: runner disconnected')); } catch {}
               }
               window.termWS = null;
-            };*/
-
-
-            const onClose = () => {
-  try { window.termWS?.removeEventListener('message', onMsg); } catch {}
-
-  const userClose = !!window.__closingByUser;   // snapshot & clear the flag
-  window.__closingByUser = false;
-
-  // stop timers/animations either way
-  try { stopHeartbeat?.(); } catch {}
-  try { stopStatusDots?.(); } catch {}
-  try { window.setRunUI?.(false); } catch {}
-  stopInputCountdown();
-  window.PolyShell?.stopInputTicker?.();
-
-  if (userClose) {
-    // User hit Reset: keep UI in idle state set by unfreezeUI()
-    window.wsRunInFlight = false;
-    showInputRow(false);
-    window.termWS = null;
-    return;  // <-- no error, no footer override
-  }
-
-  // Unexpected disconnect → show error
-  window.PolyShell?.setRunnerPhase?.('error', { detail: 'Runner disconnected' });
-  if (window.wsRunInFlight) {
-    window.wsRunInFlight = false;
-    showInputRow(false);
-    window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
-    try { reject(new Error('line 1: runner disconnected')); } catch {}
-  }
-  window.termWS = null;
-};
-
+            };
 
             window.termWS.addEventListener('message', onMsg);
             window.termWS.addEventListener('close', onClose, { once: true });
@@ -874,6 +832,7 @@ window.termWS = ws;
             try { window.termWS.close(); } catch {}
             showInputRow(false);
             window.PolyShell?.setStatus('Runner unavailable', 'error');
+            setComplexityEnabled(false);
             throw new Error('line 1: runner unavailable');
           }
 
@@ -891,6 +850,7 @@ window.termWS = ws;
         }
         if (!res.ok) {
           printToConsole({ compileErr: `HTTP ${res.status} — ${res.text.slice(0, 200)}` });
+          setComplexityEnabled(false);
           throw new Error('line 1: request failed');
         }
 
@@ -916,62 +876,50 @@ window.termWS = ws;
           window.PolyShell?.setRunnerPhase?.('success');
           window.PolyShell?.setStatus('Execution Success', 'ok');
           clearEditorMarkers();
+          setComplexityEnabled(true);  // <— enable on success (Piston)
         } else {
           const errText   = (compileErr || stderr || 'Execution failed').trim();
           const firstLine = (errText.split('\n')[0] || 'Execution failed');
           const line      = findJavaErrorLine(errText, className);
           setEditorMarker(line, firstLine);
           window.PolyShell?.setStatus('Execution Failed', 'error');
+          setComplexityEnabled(false);
           throw new Error(`line ${line}: ${firstLine}`);
         }
       };
 
       // ---- Reset (called by shell) ----
-      /*window.clearLang = function () {
+      window.clearLang = function () {
+        window.__closingByUser = true;
+
         setConsole('');
-        document.getElementById('output')?.style.setProperty('background', 'transparent', 'important');
-        showInputRow(false);
-        clearEditorMarkers();
-        const prefix = document.getElementById('consolePrefix');
-        if (prefix) prefix.textContent = '';
+        document.getElementById('output')
+          ?.style.setProperty('background', 'transparent', 'important');
+
+        (function(){ try{
+          const prefix = document.getElementById('consolePrefix');
+          if (prefix) prefix.textContent = '';
+        }catch{} })();
+
+        (function(){ try{
+          const row = document.getElementById('consoleRow');
+          if (row) row.style.display = 'none';
+        }catch{} })();
+        (function(){ try{
+          if (window.monaco && window.editor) {
+            const model = window.editor.getModel();
+            model && monaco.editor.setModelMarkers(model, 'javac', []);
+          }
+        }catch{} })();
+
         try { window.termWS?.close(); } catch {}
         window.termWS = null;
         window.wsRunInFlight = false;
-      };*/
 
+        // disable Complexity on reset
+        setComplexityEnabled(false);
+      };
 
-      window.clearLang = function () {
-  // make sure onClose knows this was user-initiated
-  window.__closingByUser = true;
-
-  setConsole('');
-  document.getElementById('output')
-    ?.style.setProperty('background', 'transparent', 'important');
-  // hide input row, clear markers, etc.
-  (function(){ try{
-    const prefix = document.getElementById('consolePrefix');
-    if (prefix) prefix.textContent = '';
-  }catch{} })();
-
-  // hide input UI + clear markers
-  (function(){ try{
-    const row = document.getElementById('consoleRow');
-    if (row) row.style.display = 'none';
-  }catch{} })();
-  (function(){ try{
-    if (window.monaco && window.editor) {
-      const model = window.editor.getModel();
-      model && monaco.editor.setModelMarkers(model, 'javac', []);
-    }
-  }catch{} })();
-
-  try { window.termWS?.close(); } catch {}
-  // DO NOT clear the flag here; let onClose consume & clear it.
-  window.termWS = null;
-  window.wsRunInFlight = false;
-};
-
-      
     })();
 
     // ---------- Runner connect overlay helpers ----------
@@ -1003,84 +951,75 @@ window.termWS = ws;
       if (ov) ov.style.display = 'none';
     }
 
-    // ---------- Heartbeat (keep WS alive, detect idle disconnects) ----------
+    // ---------- Heartbeat ----------
     let hbInterval = null, hbTimeout = null;
-
     function startHeartbeat(ws) {
       stopHeartbeat();
       hbInterval = setInterval(() => {
         try {
           if (ws.readyState !== 1) return;
           ws.send(JSON.stringify({ type: 'ping' }));
-          // expect pong within 5s
           clearTimeout(hbTimeout);
           hbTimeout = setTimeout(() => {
             console.warn('Runner heartbeat missed; connection may drop.');
           }, 5000);
         } catch {}
-      }, 25000); // 25s cadence
+      }, 25000);
     }
-
     function stopHeartbeat() {
       if (hbInterval) { clearInterval(hbInterval); hbInterval = null; }
       if (hbTimeout)  { clearTimeout(hbTimeout);   hbTimeout  = null; }
     }
 
     // ---------- Robust connect with wake + retries ----------
+    async function ensureRunnerWS(maxTotalMs = 20000, { showOverlay = false } = {}) {
+      if (showOverlay) showRunnerOverlay('Connecting to Java runner…', 8, 'Opening WebSocket…');
 
-    // ---------- Robust connect with wake + retries ----------
-async function ensureRunnerWS(maxTotalMs = 20000, { showOverlay = false } = {}) {
-  if (showOverlay) showRunnerOverlay('Connecting to Java runner…', 8, 'Opening WebSocket…');
+      if (!navigator.onLine) {
+        if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'You appear to be offline.' });
+        return null;
+      }
+      const start = Date.now();
+      const steps = [400, 900, 1500, 2500, 4000, 6000, 8000];
+      let attempt = 0;
 
-  if (!navigator.onLine) {
-    if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'You appear to be offline.' });
-    return null;
-  }
-  const start = Date.now();
-  const steps = [400, 900, 1500, 2500, 4000, 6000, 8000];
-  let attempt = 0;
+      if (showOverlay) {
+        showRunnerOverlay('Connecting to Java runner…', 8, 'Opening WebSocket…');
+      }
 
-  if (showOverlay) {
-    showRunnerOverlay('Connecting to Java runner…', 8, 'Opening WebSocket…');
-  }
+      while (Date.now() - start < maxTotalMs) {
+        attempt++;
+        const perTimeout = Math.min(7000, maxTotalMs - (Date.now() - start));
 
-  while (Date.now() - start < maxTotalMs) {
-    attempt++;
-    const perTimeout = Math.min(7000, maxTotalMs - (Date.now() - start));
+        const ws = await new Promise((resolve) => {
+          let done = false, timer, w;
+          const finish = (val) => { if (!done) { done = true; clearTimeout(timer); resolve(val); } };
+          timer = setTimeout(() => { try { w?.close(); } catch {} finish(null); }, perTimeout);
+          try {
+            w = new WebSocket('wss://polycode-java.onrender.com/java');
+            w.onopen  = () => finish(w);
+            w.onerror = () => {/* close will fire */};
+            w.onclose = () => finish(null);
+          } catch { finish(null); }
+        });
 
-    const ws = await new Promise((resolve) => {
-      let done = false, timer, w;
-      const finish = (val) => { if (!done) { done = true; clearTimeout(timer); resolve(val); } };
-      timer = setTimeout(() => { try { w?.close(); } catch {} finish(null); }, perTimeout);
-      try {
-        w = new WebSocket('wss://polycode-java.onrender.com/java');
-        w.onopen  = () => finish(w);
-        w.onerror = () => {/* close will fire */};
-        w.onclose = () => finish(null);
-      } catch { finish(null); }
-    });
+        if (ws && ws.readyState === 1) {
+          if (showOverlay) { updateRunnerOverlay({ pct: 95, hint: 'Finalizing…' }); hideRunnerOverlay(); }
+          startHeartbeat(ws);
+          return ws;
+        }
 
-    if (ws && ws.readyState === 1) {
-      if (showOverlay) { updateRunnerOverlay({ pct: 95, hint: 'Finalizing…' }); hideRunnerOverlay(); }
-      startHeartbeat(ws);
-      return ws;
+        const wait = steps[Math.min(attempt - 1, steps.length - 1)];
+        if (showOverlay) {
+          const pct = Math.min(92, 18 + Math.floor((attempt / (steps.length + 3)) * 70));
+          updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
+        }
+        await new Promise(r => setTimeout(r, wait));
+      }
+
+      if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
+      return null;
     }
-
-    const wait = steps[Math.min(attempt - 1, steps.length - 1)];
-    if (showOverlay) {
-      const pct = Math.min(92, 18 + Math.floor((attempt / (steps.length + 3)) * 70));
-      updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
-    }
-    await new Promise(r => setTimeout(r, wait));
-  }
-
-  if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
-  return null;
-}
-
-
-    
-    
 
     /* --- Start after shell.js (defer) has run --- */
     (function startWhenReady() {
@@ -1101,325 +1040,21 @@ async function ensureRunnerWS(maxTotalMs = 20000, { showOverlay = false } = {}) 
       }
     })();
 
-    // Quiet pre-connect (optional)
-    /*document.addEventListener('DOMContentLoaded', async () => {
-      try {
-        if (!window.termWS || window.termWS.readyState !== 1) {
-          const ws = await ensureRunnerWS(8000);
-          if (ws) window.termWS = ws;
-        }
-      } catch {}
-    });*/
-
     // Gentle wake when user returns, without showing overlay
-let __wakeTimer = 0;
-function requestWakeSoon() {
-  clearTimeout(__wakeTimer);
-  __wakeTimer = setTimeout(async () => {
-    if (!window.termWS || window.termWS.readyState !== 1) {
-      try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+    let __wakeTimer = 0;
+    function requestWakeSoon() {
+      clearTimeout(__wakeTimer);
+      __wakeTimer = setTimeout(async () => {
+        if (!window.termWS || window.termWS.readyState !== 1) {
+          try { await fetch('https://polycode-java.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch {}
+        }
+      }, 300);
     }
-  }, 300);
-}
-document.addEventListener('visibilitychange', () => { if (!document.hidden) requestWakeSoon(); });
-window.addEventListener('focus', requestWakeSoon);
-
-window.addEventListener('pageshow', (e) => { if (e.persisted) requestWakeSoon(); });
-
-    
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) requestWakeSoon(); });
+    window.addEventListener('focus', requestWakeSoon);
+    window.addEventListener('pageshow', (e) => { if (e.persisted) requestWakeSoon(); });
   </script>
 
-
-
-
-
-
-<script>
-(function(){
-  // ---- Utilities ----------------------------------------------------
-  const simplify = {
-    // multiply factors like ['n','n','log n'] -> 'O(n^2 log n)'
-    mult(factors){
-      const cnt = {};
-      for (const f of factors){
-        const k = f.trim();
-        if (!k || k === 'O(1)') continue;
-        cnt[k] = (cnt[k]||0) + 1;
-      }
-      const parts = [];
-      const pushPow = (sym, p) => parts.push(p===1 ? sym : `${sym}^${p}`);
-      // order preference
-      if (cnt['n'])     { pushPow('n', cnt['n']);     delete cnt['n']; }
-      if (cnt['n^2'])   { pushPow('n^2', cnt['n^2']); delete cnt['n^2']; }
-      if (cnt['log n']) { pushPow('log n', cnt['log n']); delete cnt['log n']; }
-      // any other symbols
-      for (const [k,p] of Object.entries(cnt)) pushPow(k,p);
-      return parts.length ? `O(${parts.join(' ')})` : 'O(1)';
-    },
-    // choose dominant among additive terms; keep the "largest" heuristic
-    max(terms){
-      if (!terms.length) return 'O(1)';
-      // order by heuristic weight
-      const weight = v => {
-        if (/2\^n|n!/.test(v)) return 6;
-        if (/n\^3/.test(v))    return 5;
-        if (/n\^2/.test(v))    return 4;
-        if (/n\s*log/.test(v)) return 3;
-        if (/log\s*n/.test(v)) return 2;
-        if (/n/.test(v))       return 1;
-        return 0;
-      };
-      let best = terms[0]; let bw = weight(best);
-      for (const t of terms){ const w = weight(t); if (w > bw) { best=t; bw=w; } }
-      return best;
-    }
-  };
-
-  // Basic Java-ish sanitization: remove strings & comments for simpler regex passes
-  function stripNoise(src){
-    // remove strings
-    let s = src.replace(/"(?:\\.|[^"\\])*"/g, '""')
-               .replace(/'(?:\\.|[^'\\])'/g, "''");
-    // remove block comments but preserve line count
-    s = s.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g,' '));
-    // remove line comments
-    s = s.replace(/\/\/.*$/gm, '');
-    return s;
-  }
-
-  // Quick check helpers
-  const hasN = txt => /\bn\b|\.length\b|size\(\)/.test(txt);
-  const hasDivideOrDouble = txt => /[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(txt);
-
-  // Parse recursion: map function name -> { selfCalls, halves, branches }
-  function findRecursions(code){
-    const rec = {};
-    // very simple method head match
-    const methodRe = /(public|private|protected)?\s*(static\s+)?([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
-    let m;
-    while ((m = methodRe.exec(code)) !== null){
-      const name = m[4];
-      // naive body slice: find matching braces from this '{'
-      let i = methodRe.lastIndex - 1, depth = 0, start = -1, end = -1;
-      for (; i < code.length; i++){
-        if (code[i] === '{'){ depth++; if (start === -1) start = i+1; }
-        else if (code[i] === '}'){ depth--; if (depth === 0){ end = i; break; } }
-      }
-      if (start !== -1 && end !== -1){
-        const body = code.slice(start, end);
-        const calls = (body.match(new RegExp(`\\b${name}\\s*\\(`,'g'))||[]).length;
-        if (calls){
-          rec[name] = {
-            selfCalls: calls,
-            halves: /[nN]\s*(\/|>>)\s*2|\\bmid\\b/.test(body) || /\\b(n\\s*-\\s*1|n-1)\\b/.test(body) && /\\b(n\\s*\\/\\s*2|n>>1)\\b/.test(body),
-            branches: (body.match(/\breturn\b/g)||[]).length > 1 || calls >= 2
-          };
-        }
-      }
-    }
-    return rec;
-  }
-
-  // Main analyzer
-  function analyzeJavaComplexity(src){
-    const raw = src.split(/\r?\n/);
-    const code = stripNoise(src);
-    const lines = code.split(/\r?\n/);
-
-    const notes = [];         // { line, type, cx, reason }
-    const timeTerms = [];     // top-level additive terms (dominant picked)
-    let   timeStack = [];     // multiplicative factors in current nesting
-    const spaceTerms = [];    // allocations
-
-    // Track nesting with a simple brace depth and a loop stack
-    const loopStack = [];     // items: { cx: 'n'|'log n'|..., line }
-
-    // Recursion map
-    const recMap = findRecursions(code);
-    const seenFuncs = new Set();
-
-    const pushNote = (line, type, cx, reason) => {
-      notes.push({ line, type, cx, reason });
-    };
-
-    // Estimate loop cost from header
-    function loopCost(header){
-      const h = header.replace(/\s+/g,' ');
-      // O(log n) patterns: i/=2, i*=2 up to n, j<<=1, binary-search style bounds
-      if (hasDivideOrDouble(h)) return 'log n';
-      // If iterates to/from n (i<n, i<=n, size(), .length), call it linear
-      if (/\b(n|size\(\)|length)\b|<\s*n|<=\s*n|\.\s*length|size\(\)/.test(h)) return 'n';
-      // A fixed literal bound: for (int i=0;i<1000;i++) -> O(1)
-      if (/for\s*\([^;]+;[^;]*\b\d{1,5}\b[^;]*;/.test(h)) return 'O(1)';
-      // Default heuristic: linear
-      return 'n';
-    }
-
-    // Space: array and collection allocations
-    function scanSpace(lineTxt, lineNo){
-      // arrays
-      const arr1 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]/);
-      const arr2 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]\s*\[\s*([^\]]+)\s*\]/);
-      if (arr2){
-        const a = arr2[1], b = arr2[2];
-        const symA = /n|length|size\(\)/.test(a) ? 'n' : '1';
-        const symB = /n|length|size\(\)/.test(b) ? 'n' : '1';
-        const cx = (symA==='n' && symB==='n') ? 'n^2' : (symA==='n'||symB==='n') ? 'n' : 'O(1)';
-        if (cx !== 'O(1)'){ spaceTerms.push(cx); pushNote(lineNo,'alloc',`O(${cx})`,`2D array allocation`); }
-      } else if (arr1){
-        const a = arr1[1];
-        const cx = /n|length|size\(\)/.test(a) ? 'n' : 'O(1)';
-        if (cx !== 'O(1)'){ spaceTerms.push(cx); pushNote(lineNo,'alloc','O(n)',`array allocation of size ~${a.trim()}`); }
-      }
-      // collections with capacity
-      const col = lineTxt.match(/new\s+(ArrayList|LinkedList|HashMap|HashSet)\s*<[^>]*>\s*\(\s*([^)]+)\s*\)/);
-      if (col){
-        const cap = col[2]; const cx = /n|length|size\(\)/.test(cap) ? 'n' : 'O(1)';
-        if (cx !== 'O(1)'){ spaceTerms.push('n'); pushNote(lineNo,'alloc','O(n)',`${col[1]} capacity ~${cap.trim()}`); }
-      }
-    }
-
-    // Pass: line by line
-    let braceDepth = 0;
-    for (let i=0; i<lines.length; i++){
-      const ln = i+1;
-      const t = lines[i];
-
-      // Enter/exit braces first to keep stacks consistent
-      const opens  = (t.match(/{/g)||[]).length;
-      const closes = (t.match(/}/g)||[]).length;
-
-      // Look for recursion (method heads already processed for body)
-      const headMatch = t.match(/(\w+)\s*\(/);
-      if (headMatch){
-        const f = headMatch[1];
-        if (recMap[f] && !seenFuncs.has(f)){
-          seenFuncs.add(f);
-          const info = recMap[f];
-          let cx = 'n';
-          let reason = 'recursive call';
-          if (info.branches && info.selfCalls >= 2){
-            if (info.halves){
-              cx = 'n log n'; reason = 'divide & conquer (branching + halving)';
-            } else {
-              cx = '2^n'; reason = 'branching recursion (~Fibonacci-like)';
-            }
-          } else {
-            if (info.halves) { cx = 'log n'; reason = 'halving recursion'; }
-            else { cx = 'n'; reason = 'linear recursion'; }
-          }
-          timeTerms.push(`O(${cx})`);
-          pushNote(ln, 'recursion', `O(${cx})`, reason);
-        }
-      }
-
-      // Loops
-      if (/\bfor\s*\(|\bwhile\s*\(/.test(t)){
-        const cx = loopCost(t);
-        loopStack.push({ cx, line: ln });
-        timeStack.push(cx);
-        pushNote(ln, 'loop', `O(${cx})`, `loop header: ${t.trim()}`);
-      }
-
-      // Space allocations
-      scanSpace(t, ln);
-
-      // Close braces: pop loops accordingly
-      // We do it after scanning to attribute notes at opening lines.
-      braceDepth += opens;
-      if (closes){
-        while (closes-- > 0){
-          if (loopStack.length){
-            loopStack.pop();
-            timeStack.pop();
-          }
-          braceDepth = Math.max(0, braceDepth-1);
-        }
-      }
-    }
-
-    // Combine time: For each top-level region, we approx by dominant additive term.
-    // Our notes already have per-line items; we also compute a "global" multiplicative from the observed loop nestings per line.
-    // Simple approach: scan notes, rebuild a product when we see consecutive loops; else push additive.
-    // But we tracked nesting via timeStack only during parse; so we fallback to heuristic:
-    const compositeFactors = [];
-    for (const l of loopStack){ compositeFactors.push(l.cx); } // leftover (usually none)
-    // More robust: re-scan notes and multiply adjacent loop complexities if they share nesting; heuristic:
-    const loopNotes = notes.filter(n=>n.type==='loop');
-    // Multiply their cx symbols (n, log n, etc.)—since nesting was tracked during parse, order is okay.
-    const factors = loopNotes.map(n => n.cx.replace(/^O\((.*)\)$/,'$1'));
-    const finalTime = factors.length ? simplify.mult(factors) : simplify.max(timeTerms);
-
-    const finalSpace = spaceTerms.length ? simplify.max(spaceTerms.map(s => `O(${s})`)) : 'O(1)';
-
-    return { notes, finalTime: finalTime || 'O(1)', finalSpace: finalSpace || 'O(1)' };
-  }
-
-  // ---- UI wiring ----------------------------------------------------
-  const $ = sel => document.querySelector(sel);
-  const modal = $('#complexityModal');
-  const openModal = () => { modal.setAttribute('aria-hidden','false'); };
-  const closeModal = () => { modal.setAttribute('aria-hidden','true'); };
-
-  modal?.addEventListener('click', (e)=>{
-    if (e.target.hasAttribute('data-close')) closeModal();
-  });
-
-  const btn = document.getElementById('btnComplexity');
-  btn?.addEventListener('click', ()=>{
-    const code = (window.editor && window.editor.getValue)
-      ? window.editor.getValue()
-      : (document.getElementById('code')?.value || '');
-
-    const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
-
-    // Fill summary
-    document.getElementById('cxTime').textContent  = finalTime || 'O(1)';
-    document.getElementById('cxSpace').textContent = finalSpace || 'O(1)';
-
-    // Fill table
-    const tbody = document.querySelector('#cxTable tbody');
-    tbody.innerHTML = '';
-    for (const n of notes){
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${n.line}</td>
-        <td>${n.type}</td>
-        <td>${n.cx}</td>
-        <td>${n.reason.replace(/</g,'&lt;')}</td>
-      `;
-      tbody.appendChild(tr);
-    }
-
-    // Notes
-    document.getElementById('cxNotes').innerHTML =
-      `<p><strong>Heuristic:</strong> This is a static, best-effort estimate. It recognizes common patterns (loop bounds with <code>n</code>, halving/doubling, typical allocations, and recursion forms). Path-dependent conditions, complex arithmetic on bounds, and library methods are approximated.</p>`;
-
-    openModal();
-  });
-})();
-</script>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
   <!-- Connecting overlay -->
   <div
     id="runnerOverlay"
@@ -1436,35 +1071,238 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) requestWakeSoon();
     </div>
   </div>
 
-
-
+  <!-- Complexity Modal -->
   <div id="complexityModal" class="pc-modal" aria-hidden="true">
-  <div class="pc-modal__backdrop" data-close></div>
-  <div class="pc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
-    <div class="pc-modal__header">
-      <h3 id="cxTitle">Complexity Analysis</h3>
-      <button class="pc-modal__close" data-close aria-label="Close">×</button>
-    </div>
-    <div class="pc-modal__body">
-      <div class="cx-summary">
-        <div><strong>Final Time:</strong> <span id="cxTime">—</span></div>
-        <div><strong>Final Space:</strong> <span id="cxSpace">—</span></div>
+    <div class="pc-modal__backdrop" data-close></div>
+    <div class="pc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
+      <div class="pc-modal__header">
+        <h3 id="cxTitle">Complexity Analysis</h3>
+        <button class="pc-modal__close" data-close aria-label="Close">×</button>
       </div>
-      <hr/>
-      <div class="cx-lines">
-        <table class="cx-table" id="cxTable">
-          <thead>
-            <tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+      <div class="pc-modal__body">
+        <div class="cx-summary">
+          <div><strong>Final Time:</strong> <span id="cxTime">—</span></div>
+          <div><strong>Final Space:</strong> <span id="cxSpace">—</span></div>
+        </div>
+        <hr/>
+        <div class="cx-lines">
+          <table class="cx-table" id="cxTable">
+            <thead>
+              <tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="cx-notes" id="cxNotes"></div>
       </div>
-      <div class="cx-notes" id="cxNotes"></div>
-    </div>
-    <div class="pc-modal__footer">
-      <button class="btn" data-close>Close</button>
+      <div class="pc-modal__footer">
+        <button class="btn" data-close>Close</button>
+      </div>
     </div>
   </div>
-</div>
+
+  <!-- Complexity Analyzer (placed AFTER modal to ensure DOM exists) -->
+  <script>
+  (function(){
+    // ---- Utilities ----------------------------------------------------
+    const simplify = {
+      mult(factors){
+        const cnt = {};
+        for (const f of factors){
+          const k = f.trim();
+          if (!k || k === 'O(1)') continue;
+          cnt[k] = (cnt[k]||0) + 1;
+        }
+        const parts = [];
+        const pushPow = (sym, p) => parts.push(p===1 ? sym : `${sym}^${p}`);
+        if (cnt['n'])     { pushPow('n', cnt['n']);     delete cnt['n']; }
+        if (cnt['n^2'])   { pushPow('n^2', cnt['n^2']); delete cnt['n^2']; }
+        if (cnt['log n']) { pushPow('log n', cnt['log n']); delete cnt['log n']; }
+        for (const [k,p] of Object.entries(cnt)) pushPow(k,p);
+        return parts.length ? `O(${parts.join(' ')})` : 'O(1)';
+      },
+      max(terms){
+        if (!terms.length) return 'O(1)';
+        const weight = v => {
+          if (/2\^n|n!/.test(v)) return 6;
+          if (/n\^3/.test(v))    return 5;
+          if (/n\^2/.test(v))    return 4;
+          if (/n\s*log/.test(v)) return 3;
+          if (/log\s*n/.test(v)) return 2;
+          if (/n/.test(v))       return 1;
+          return 0;
+        };
+        let best = terms[0]; let bw = weight(best);
+        for (const t of terms){ const w = weight(t); if (w > bw) { best=t; bw=w; } }
+        return best;
+      }
+    };
+
+    function stripNoise(src){
+      let s = src.replace(/"(?:\\.|[^"\\])*"/g, '""')
+                 .replace(/'(?:\\.|[^'\\])'/g, "''");
+      s = s.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g,' '));
+      s = s.replace(/\/\/.*$/gm, '');
+      return s;
+    }
+
+    const hasDivideOrDouble = txt => /[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(txt);
+
+    function findRecursions(code){
+      const rec = {};
+      const methodRe = /(public|private|protected)?\s*(static\s+)?([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
+      let m;
+      while ((m = methodRe.exec(code)) !== null){
+        const name = m[4];
+        let i = methodRe.lastIndex - 1, depth = 0, start = -1, end = -1;
+        for (; i < code.length; i++){
+          if (code[i] === '{'){ depth++; if (start === -1) start = i+1; }
+          else if (code[i] === '}'){ depth--; if (depth === 0){ end = i; break; } }
+        }
+        if (start !== -1 && end !== -1){
+          const body = code.slice(start, end);
+          const calls = (body.match(new RegExp(`\\b${name}\\s*\\(`,'g'))||[]).length;
+          if (calls){
+            rec[name] = {
+              selfCalls: calls,
+              halves: /[nN]\s*(\/|>>)\s*2|\\bmid\\b/.test(body) || (/\bn-1\b/.test(body) && /\bn\s*\/\s*2\b/.test(body)),
+              branches: (body.match(/\breturn\b/g)||[]).length > 1 || calls >= 2
+            };
+          }
+        }
+      }
+      return rec;
+    }
+
+    function analyzeJavaComplexity(src){
+      const code = stripNoise(src);
+      const lines = code.split(/\r?\n/);
+
+      const notes = [];
+      const timeTerms = [];
+      const spaceTerms = [];
+      const loopStack = [];
+      const recMap = findRecursions(code);
+      const seenFuncs = new Set();
+      const pushNote = (line, type, cx, reason) => notes.push({ line, type, cx, reason });
+
+      function loopCost(header){
+        const h = header.replace(/\s+/g,' ');
+        if (hasDivideOrDouble(h)) return 'log n';
+        if (/\b(n|size\(\)|length)\b|<\s*n|<=\s*n|\.\s*length|size\(\)/.test(h)) return 'n';
+        if (/for\s*\([^;]+;[^;]*\b\d{1,5}\b[^;]*;/.test(h)) return 'O(1)';
+        return 'n';
+      }
+
+      function scanSpace(lineTxt, lineNo){
+        const arr2 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]\s*\[\s*([^\]]+)\s*\]/);
+        const arr1 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]/);
+        if (arr2){
+          const a = arr2[1], b = arr2[2];
+          const symA = /n|length|size\(\)/.test(a) ? 'n' : '1';
+          const symB = /n|length|size\(\)/.test(b) ? 'n' : '1';
+          const cx = (symA==='n' && symB==='n') ? 'n^2' : (symA==='n'||symB==='n') ? 'n' : 'O(1)';
+          if (cx !== 'O(1)'){ spaceTerms.push(cx); pushNote(lineNo,'alloc',`O(${cx})`,`2D array allocation`); }
+        } else if (arr1){
+          const a = arr1[1];
+          const cx = /n|length|size\(\)/.test(a) ? 'n' : 'O(1)';
+          if (cx !== 'O(1)'){ spaceTerms.push('n'); pushNote(lineNo,'alloc','O(n)',`array allocation of size ~${a.trim()}`); }
+        }
+        const col = lineTxt.match(/new\s+(ArrayList|LinkedList|HashMap|HashSet)\s*<[^>]*>\s*\(\s*([^)]+)\s*\)/);
+        if (col){
+          const cap = col[2]; const cx = /n|length|size\(\)/.test(cap) ? 'n' : 'O(1)';
+          if (cx !== 'O(1)'){ spaceTerms.push('n'); pushNote(lineNo,'alloc','O(n)',`${col[1]} capacity ~${cap.trim()}`); }
+        }
+      }
+
+      for (let i=0; i<lines.length; i++){
+        const ln = i+1;
+        const t = lines[i];
+
+        const headMatch = t.match(/(\w+)\s*\(/);
+        if (headMatch){
+          const f = headMatch[1];
+          if (recMap[f] && !seenFuncs.has(f)){
+            seenFuncs.add(f);
+            const info = recMap[f];
+            let cx = 'n';
+            let reason = 'recursive call';
+            if (info.branches && info.selfCalls >= 2){
+              if (info.halves){ cx = 'n log n'; reason = 'divide & conquer (branching + halving)'; }
+              else { cx = '2^n'; reason = 'branching recursion (~Fibonacci-like)'; }
+            } else {
+              if (info.halves) { cx = 'log n'; reason = 'halving recursion'; }
+              else { cx = 'n'; reason = 'linear recursion'; }
+            }
+            timeTerms.push(`O(${cx})`);
+            pushNote(ln, 'recursion', `O(${cx})`, reason);
+          }
+        }
+
+        if (/\bfor\s*\(|\bwhile\s*\(/.test(t)){
+          const cx = loopCost(t);
+          loopStack.push({ cx, line: ln });
+          pushNote(ln, 'loop', `O(${cx})`, `loop header: ${t.trim()}`);
+        }
+
+        scanSpace(t, ln);
+      }
+
+      const loopNotes = notes.filter(n=>n.type==='loop');
+      const factors = loopNotes.map(n => n.cx.replace(/^O\((.*)\)$/,'$1'));
+      const finalTime = factors.length ? simplify.mult(factors) : simplify.max(timeTerms);
+      const finalSpace = spaceTerms.length ? simplify.max(spaceTerms.map(s => `O(${s})`)) : 'O(1)';
+
+      return { notes, finalTime: finalTime || 'O(1)', finalSpace: finalSpace || 'O(1)' };
+    }
+
+    // ---- SAFE UI wiring ------------------------------------------------
+    function openCxModal(){ const m = document.getElementById('complexityModal'); if (m) m.setAttribute('aria-hidden','false'); }
+    function closeCxModal(){ const m = document.getElementById('complexityModal'); if (m) m.setAttribute('aria-hidden','true'); }
+
+    function bindComplexity(){
+      const modal = document.getElementById('complexityModal');
+      if (modal){
+        modal.addEventListener('click', (e)=>{ if (e.target && e.target.hasAttribute && e.target.hasAttribute('data-close')) closeCxModal(); });
+      }
+
+      const btn = document.getElementById('btnComplexity');
+      if (!btn) return;
+
+      btn.addEventListener('click', ()=>{
+        const code = (window.editor && window.editor.getValue)
+          ? window.editor.getValue()
+          : (document.getElementById('code')?.value || '');
+
+        const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
+
+        const tEl = document.getElementById('cxTime');
+        const sEl = document.getElementById('cxSpace');
+        const tb  = document.querySelector('#cxTable tbody');
+        const nt  = document.getElementById('cxNotes');
+        if (!tEl || !sEl || !tb || !nt) return;
+
+        tEl.textContent = finalTime || 'O(1)';
+        sEl.textContent = finalSpace || 'O(1)';
+
+        tb.innerHTML = '';
+        for (const n of notes){
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${n.reason.replace(/</g,'&lt;')}</td>`;
+          tb.appendChild(tr);
+        }
+        nt.innerHTML = `<p><strong>Heuristic:</strong> Static estimate; recognizes loops, halving/doubling, typical allocations, and basic recursion. Path-dependent bounds and complex math are approximated.</p>`;
+
+        openCxModal();
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bindComplexity, { once:true });
+    } else {
+      bindComplexity();
+    }
+  })();
+  </script>
 </body>
 </html>
