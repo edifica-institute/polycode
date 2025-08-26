@@ -57,7 +57,8 @@ export function register(app, { server }) {
 
       // Build bash script (normalize & de-dupe file paths)
       const cd = "cd '" + dir.replace(/'/g, "'\\''") + "'";
-      const bash = [
+     
+  const bash = [
   cd,
   'shopt -s nullglob globstar',
   'files=( ./**/*.c *.c )',
@@ -68,6 +69,7 @@ export function register(app, { server }) {
   'printf "$ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main"; for f in "${uniq[@]}"; do printf " %q" "$f"; done; printf " -lm\n"',
   'gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "${uniq[@]}" -lm'
 ].join(' && ');
+
 
 
       const proc = spawn("bash", ["-lc", bash + " 2>&1"]);
