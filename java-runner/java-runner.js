@@ -10,14 +10,15 @@ const app = express();
 app.get('/health', (_req, res) => res.send('ok'));
 
 const PORT = process.env.PORT || 8081; // Render sets this (often 10000)
+
+
 const server = app.listen(PORT, () => console.log('Java runner on :' + PORT));
-
-
 registerC(app, { server });
-
-
-
 const wss = new WebSocketServer({ server, path: '/java' });
+
+
+
+
 
 wss.on('connection', (ws) => {
   // Per-connection mutable state
