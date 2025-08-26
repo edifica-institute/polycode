@@ -1865,3 +1865,109 @@ html, body { height: 100%; }
   }
 }
 
+/* Modal footer button consistency */
+.pc-modal__footer .btn {
+  background: transparent;
+  border: 1px solid rgba(127,127,127,.4);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background .2s, color .2s;
+}
+.pc-modal__footer .btn:hover {
+  background: rgba(127,127,127,.15);
+  color: var(--accent, #4da3ff);
+}
+
+/* Space between Complexity + Reset buttons */
+#btnComplexity {
+  margin-right: 8px;
+}
+
+/* Align summary: Time left, Space right */
+.cx-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+
+
+/* Top-right "X" = ghost icon button w/ hover + focus like the rest */
+.pc-modal__close{
+  width: 32px; height: 32px;
+  display: inline-grid; place-items: center;
+  background: transparent;
+  border: 1px solid rgba(127,127,127,.35);
+  border-radius: 8px;
+  color: inherit;
+  cursor: pointer;
+  transition: background .2s, border-color .2s, color .2s, transform .08s;
+}
+.pc-modal__close:hover{
+  background: rgba(127,127,127,.15);
+  border-color: rgba(127,127,127,.55);
+  color: var(--accent, #4da3ff);
+}
+.pc-modal__close:active{ transform: translateY(1px); }
+.pc-modal__close:focus-visible{
+  outline: 2px solid var(--accent, #4da3ff);
+  outline-offset: 2px;
+}
+
+
+
+
+/* Space between Complexity & Reset (you already added, keeping it) */
+#btnComplexity{ margin-right: 8px; }
+
+/* Ghost look when disabled */
+#btnComplexity[disabled]{
+  opacity: .6;
+  pointer-events: none;
+}
+
+/* When enabled, match theme color like other action buttons */
+#btnComplexity:not([disabled]){
+  border: 1px solid rgba(127,127,127,.35);
+  border-radius: 8px;
+}
+#btnComplexity:not([disabled]):hover{
+  background: rgba(127,127,127,.15);
+  color: var(--accent, #4da3ff);
+  border-color: rgba(127,127,127,.55);
+}
+
+
+
+/* Center the modal both axes */
+.pc-modal{
+  position: fixed; inset: 0;
+  display: none;            /* hidden by default */
+  place-items: center;      /* grid centering */
+  z-index: 1000;
+}
+.pc-modal[aria-hidden="false"]{ display: grid; }
+
+/* Dialog sizing for centered layout */
+.pc-modal__dialog{
+  margin: 0;                          /* no top margin */
+  width: min(90vw, 820px);
+  max-height: 80vh;
+  overflow: hidden;                   /* header/footer fixed; body scrolls */
+  display: flex; flex-direction: column;
+}
+.pc-modal__body{ overflow: auto; }    /* keep your table scrollable */
+
+/* Summary row: time left, space right */
+.cx-summary{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+
+
