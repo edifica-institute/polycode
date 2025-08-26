@@ -470,6 +470,8 @@
       window.termWS = window.termWS || null;
       window.wsRunInFlight = window.wsRunInFlight || false;
 
+
+      
       // ---- Console helpers for this IIFE ----
       function setConsole(text) {
         const el = document.getElementById('jconsole');
@@ -478,6 +480,15 @@
         document.getElementById('output')?.scrollTo({ top: 1e9 });
       }
 
+
+      function setComplexityEnabled(on){
+  const b = document.getElementById('btnComplexity');
+  if (!b) return;
+  b.disabled = !on;
+}
+
+
+      
       function termWrite(t) {
         const el = document.getElementById('jconsole');
         if (el) {
