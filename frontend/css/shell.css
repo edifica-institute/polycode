@@ -1799,3 +1799,30 @@ html, body { height: 100%; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+
+
+
+/* Modal */
+.pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
+.pc-modal[aria-hidden="false"]{ display:block; }
+.pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
+.pc-modal__dialog{
+  position:relative; margin:5vh auto; max-width:800px; background:var(--bg, #111);
+  color:inherit; border:1px solid rgba(255,255,255,.1); border-radius:14px;
+  box-shadow:0 20px 50px rgba(0,0,0,.35); padding:14px;
+}
+.pc-modal__header{ display:flex; align-items:center; justify-content:space-between; }
+.pc-modal__close{ background:transparent; border:0; font-size:22px; cursor:pointer; }
+.pc-modal__body{ max-height:60vh; overflow:auto; }
+.pc-modal__footer{ display:flex; justify-content:flex-end; gap:8px; }
+
+.cx-summary{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 10px; }
+.cx-table{ width:100%; border-collapse: collapse; font:13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+.cx-table th, .cx-table td{ border-bottom:1px solid rgba(127,127,127,.25); padding:6px 8px; vertical-align: top; }
+.cx-table th{ text-align:left; position:sticky; top:0; background:inherit; }
+.cx-notes{ opacity:.9; font-size:12px; margin-top:8px; }
+
+/* Optional: align with your ghost buttons */
+.btn.btn-ghost{ background:transparent; border:1px solid rgba(127,127,127,.3); }
+
