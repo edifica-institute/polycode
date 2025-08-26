@@ -560,8 +560,8 @@ function setFootStatus(id, state){
   const label = {
     ready:   'Ready for Execution',
     waiting: 'Waiting for Execution',
-    running: 'Execution',
-    success: 'Execution Success',
+    running: 'Execution in Progress',
+    success: 'Executed Successfully',
     error:   'Executed with Error'
   }[state] || '';
 
