@@ -580,7 +580,8 @@ function setFootStatus(id, state, opts = {}){
 
   const label = {
     ready:   'Ready for Execution',
-    waiting: 'Waiting for Execution',
+    waiting: (state === 'waiting' && opts?.forceInputLabel) ? 'Waiting for Input' : 'Waiting for Execution',
+    //waiting: 'Waiting for Execution',
     running: 'Execution in Progress',
     success: 'Executed Successfully',
     error:   'Executed with Error'
@@ -1060,6 +1061,58 @@ try {
   // If your page creates the editor later, run again then:
   window.addEventListener('polycode-editor-ready', tryBind);
 })();
+
+
+
+
+
+
+// --- footer driver for runner phases ---
+(function(){
+  let footTick = null; // for live updates like mm:ss
+
+  function setRunnerPhase(phase, opts = {}) {
+    // phase: 'waiting', 'waiting_input', 'running', 'success', 'error'
+    // opts.detail: extra text e.g. "— 02:41"
+    if (footTick && phase !== 'waiting_input') { clearInterval(footTick); footTick = null; }
+
+    // map custom label when it's input-wait
+    const state = (phase === 'waiting_input') ? 'waiting' : phase;
+
+    // build detail (INDEX can pass countdown each tick)
+    const detail = opts.detail ? `Time left ${opts.detail}` : '';
+
+    setFootStatus('rightFoot', state, { detail: (phase === 'waiting_input') ? detail : opts.detail });
+  }
+
+  // expose for INDEX-JAVA to call
+  window.PolyShell = window.PolyShell || {};
+  window.PolyShell.setRunnerPhase = setRunnerPhase;
+
+  // optional: allow INDEX to provide a ticker callback for mm:ss
+  window.PolyShell.startInputTicker = (fnGetDetail, ms=500) => {
+    clearInterval(footTick);
+    footTick = setInterval(() => {
+      const d = fnGetDetail?.();
+      setRunnerPhase('waiting_input', { detail: d ? d : '' });
+    }, ms);
+  };
+  window.PolyShell.stopInputTicker = () => { clearInterval(footTick); footTick = null; };
+})();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
