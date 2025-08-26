@@ -1768,3 +1768,28 @@ body:not(.light) .footer-left .footer-logo{
 html, body { height: 100%; }
 .stage, .app { block-size: auto; }
 
+
+
+
+
+/* Reuse the same 3-dot animation for waiting AND running */
+@keyframes dot {
+  0%,20% { opacity:.2; transform: translateY(0); }
+  50%    { opacity:1;  transform: translateY(-2px); }
+  80%,100%{ opacity:.2; transform: translateY(0); }
+}
+
+.pane-foot .status.waiting .dots span,
+.pane-foot .status.running .dots span{
+  display:inline-block;
+  width:4px; height:4px; margin-left:3px; border-radius:999px;
+  background: currentColor;
+  animation: dot 1.2s ease-in-out infinite;
+}
+
+.pane-foot .status.waiting .dots span:nth-child(2),
+.pane-foot .status.running .dots span:nth-child(2){ animation-delay:.2s; }
+
+.pane-foot .status.waiting .dots span:nth-child(3),
+.pane-foot .status.running .dots span:nth-child(3){ animation-delay:.4s; }
+
