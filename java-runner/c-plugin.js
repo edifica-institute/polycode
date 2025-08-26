@@ -23,7 +23,7 @@ function parseGcc(out) {
 }
 
 export function register(app, { server }) {
-  // CORS + JSON only for /api/c  (keeps rest of app as-is)
+  // CORS + JSON only for /api/c
   app.use('/api/c', (req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -50,12 +50,12 @@ export function register(app, { server }) {
         await fs.writeFile(full, f?.content ?? '', 'utf8');
       }
 
-      // IMPORTANT: build file list WITHOUT embedding quotes; quote only at expansion time.
+      // SAFE file collection: no embedded quotes; quote only at expansion.
       const bash = [
         `cd '${dir.replace(/'/g, "'\\''")}'`,
-        `shopt -s nullglob`,
-        `mapfile -t files < <(find . -type f -name '*.c' -print)`,
-        `if (( \${#files[@]} )); then gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${files[@]}" -lm; else echo 'No .c files'; false; fi`
+        `shopt -s nullglob globstar`,
+        `files=( **/*.c )`,
+        `if (( \\${#files[@]} )); then gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\\${files[@]}" -lm; else echo 'No .c files'; false; fi`
       ].join(' && ');
 
       const proc = spawn('bash', ['-lc', `${bash} 2>&1`]);
@@ -66,7 +66,8 @@ export function register(app, { server }) {
         const diagnostics = parseGcc(log);
         const ok = code === 0 && !diagnostics.some(d => d.severity === 'error' || /fatal/i.test(d.message));
         const token = uid();
-        const preload = path.join(process.cwd(), 'libstdin_notify.so'); // emits [[CTRL]]:stdin_req
+        // announce input waits via LD_PRELOAD helper
+        const preload = path.join(process.cwd(), 'libstdin_notify.so');
         SESSIONS.set(token, { cwd: dir, cmd: `LD_PRELOAD='${preload.replace(/'/g,"'\\''")}' timeout 10s ./main` });
         res.json({ token, ok, diagnostics, compileLog: log });
       });
@@ -76,13 +77,13 @@ export function register(app, { server }) {
     }
   });
 
-  // ---- Run: WS JSON, **noServer** so we never interfere with /java ----
+  // ---- Run: JSON WS, use noServer so we NEVER intercept /java ----
   const wssC = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   server.on('upgrade', (req, socket, head) => {
     try {
       const { pathname } = new URL(req.url, 'http://x');
-      if (pathname !== '/term') return;              // only claim /term
+      if (pathname !== '/term') return;       // only claim /term
       wssC.handleUpgrade(req, socket, head, (ws) => {
         wssC.emit('connection', ws, req);
       });
