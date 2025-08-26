@@ -13,6 +13,9 @@
   --shadow-3d: 0 24px 60px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.22);
    --outer-gap: 8px; 
 }
+
+
+
 body.light{
   color-scheme: light;
   --bg:#eef2f7;
