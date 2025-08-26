@@ -1117,6 +1117,297 @@ window.addEventListener('pageshow', (e) => { if (e.persisted) requestWakeSoon();
     
   </script>
 
+
+
+
+
+
+<script>
+(function(){
+  // ---- Utilities ----------------------------------------------------
+  const simplify = {
+    // multiply factors like ['n','n','log n'] -> 'O(n^2 log n)'
+    mult(factors){
+      const cnt = {};
+      for (const f of factors){
+        const k = f.trim();
+        if (!k || k === 'O(1)') continue;
+        cnt[k] = (cnt[k]||0) + 1;
+      }
+      const parts = [];
+      const pushPow = (sym, p) => parts.push(p===1 ? sym : `${sym}^${p}`);
+      // order preference
+      if (cnt['n'])     { pushPow('n', cnt['n']);     delete cnt['n']; }
+      if (cnt['n^2'])   { pushPow('n^2', cnt['n^2']); delete cnt['n^2']; }
+      if (cnt['log n']) { pushPow('log n', cnt['log n']); delete cnt['log n']; }
+      // any other symbols
+      for (const [k,p] of Object.entries(cnt)) pushPow(k,p);
+      return parts.length ? `O(${parts.join(' ')})` : 'O(1)';
+    },
+    // choose dominant among additive terms; keep the "largest" heuristic
+    max(terms){
+      if (!terms.length) return 'O(1)';
+      // order by heuristic weight
+      const weight = v => {
+        if (/2\^n|n!/.test(v)) return 6;
+        if (/n\^3/.test(v))    return 5;
+        if (/n\^2/.test(v))    return 4;
+        if (/n\s*log/.test(v)) return 3;
+        if (/log\s*n/.test(v)) return 2;
+        if (/n/.test(v))       return 1;
+        return 0;
+      };
+      let best = terms[0]; let bw = weight(best);
+      for (const t of terms){ const w = weight(t); if (w > bw) { best=t; bw=w; } }
+      return best;
+    }
+  };
+
+  // Basic Java-ish sanitization: remove strings & comments for simpler regex passes
+  function stripNoise(src){
+    // remove strings
+    let s = src.replace(/"(?:\\.|[^"\\])*"/g, '""')
+               .replace(/'(?:\\.|[^'\\])'/g, "''");
+    // remove block comments but preserve line count
+    s = s.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g,' '));
+    // remove line comments
+    s = s.replace(/\/\/.*$/gm, '');
+    return s;
+  }
+
+  // Quick check helpers
+  const hasN = txt => /\bn\b|\.length\b|size\(\)/.test(txt);
+  const hasDivideOrDouble = txt => /[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(txt);
+
+  // Parse recursion: map function name -> { selfCalls, halves, branches }
+  function findRecursions(code){
+    const rec = {};
+    // very simple method head match
+    const methodRe = /(public|private|protected)?\s*(static\s+)?([\w<>\[\]]+)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
+    let m;
+    while ((m = methodRe.exec(code)) !== null){
+      const name = m[4];
+      // naive body slice: find matching braces from this '{'
+      let i = methodRe.lastIndex - 1, depth = 0, start = -1, end = -1;
+      for (; i < code.length; i++){
+        if (code[i] === '{'){ depth++; if (start === -1) start = i+1; }
+        else if (code[i] === '}'){ depth--; if (depth === 0){ end = i; break; } }
+      }
+      if (start !== -1 && end !== -1){
+        const body = code.slice(start, end);
+        const calls = (body.match(new RegExp(`\\b${name}\\s*\\(`,'g'))||[]).length;
+        if (calls){
+          rec[name] = {
+            selfCalls: calls,
+            halves: /[nN]\s*(\/|>>)\s*2|\\bmid\\b/.test(body) || /\\b(n\\s*-\\s*1|n-1)\\b/.test(body) && /\\b(n\\s*\\/\\s*2|n>>1)\\b/.test(body),
+            branches: (body.match(/\breturn\b/g)||[]).length > 1 || calls >= 2
+          };
+        }
+      }
+    }
+    return rec;
+  }
+
+  // Main analyzer
+  function analyzeJavaComplexity(src){
+    const raw = src.split(/\r?\n/);
+    const code = stripNoise(src);
+    const lines = code.split(/\r?\n/);
+
+    const notes = [];         // { line, type, cx, reason }
+    const timeTerms = [];     // top-level additive terms (dominant picked)
+    let   timeStack = [];     // multiplicative factors in current nesting
+    const spaceTerms = [];    // allocations
+
+    // Track nesting with a simple brace depth and a loop stack
+    const loopStack = [];     // items: { cx: 'n'|'log n'|..., line }
+
+    // Recursion map
+    const recMap = findRecursions(code);
+    const seenFuncs = new Set();
+
+    const pushNote = (line, type, cx, reason) => {
+      notes.push({ line, type, cx, reason });
+    };
+
+    // Estimate loop cost from header
+    function loopCost(header){
+      const h = header.replace(/\s+/g,' ');
+      // O(log n) patterns: i/=2, i*=2 up to n, j<<=1, binary-search style bounds
+      if (hasDivideOrDouble(h)) return 'log n';
+      // If iterates to/from n (i<n, i<=n, size(), .length), call it linear
+      if (/\b(n|size\(\)|length)\b|<\s*n|<=\s*n|\.\s*length|size\(\)/.test(h)) return 'n';
+      // A fixed literal bound: for (int i=0;i<1000;i++) -> O(1)
+      if (/for\s*\([^;]+;[^;]*\b\d{1,5}\b[^;]*;/.test(h)) return 'O(1)';
+      // Default heuristic: linear
+      return 'n';
+    }
+
+    // Space: array and collection allocations
+    function scanSpace(lineTxt, lineNo){
+      // arrays
+      const arr1 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]/);
+      const arr2 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]\s*\[\s*([^\]]+)\s*\]/);
+      if (arr2){
+        const a = arr2[1], b = arr2[2];
+        const symA = /n|length|size\(\)/.test(a) ? 'n' : '1';
+        const symB = /n|length|size\(\)/.test(b) ? 'n' : '1';
+        const cx = (symA==='n' && symB==='n') ? 'n^2' : (symA==='n'||symB==='n') ? 'n' : 'O(1)';
+        if (cx !== 'O(1)'){ spaceTerms.push(cx); pushNote(lineNo,'alloc',`O(${cx})`,`2D array allocation`); }
+      } else if (arr1){
+        const a = arr1[1];
+        const cx = /n|length|size\(\)/.test(a) ? 'n' : 'O(1)';
+        if (cx !== 'O(1)'){ spaceTerms.push(cx); pushNote(lineNo,'alloc','O(n)',`array allocation of size ~${a.trim()}`); }
+      }
+      // collections with capacity
+      const col = lineTxt.match(/new\s+(ArrayList|LinkedList|HashMap|HashSet)\s*<[^>]*>\s*\(\s*([^)]+)\s*\)/);
+      if (col){
+        const cap = col[2]; const cx = /n|length|size\(\)/.test(cap) ? 'n' : 'O(1)';
+        if (cx !== 'O(1)'){ spaceTerms.push('n'); pushNote(lineNo,'alloc','O(n)',`${col[1]} capacity ~${cap.trim()}`); }
+      }
+    }
+
+    // Pass: line by line
+    let braceDepth = 0;
+    for (let i=0; i<lines.length; i++){
+      const ln = i+1;
+      const t = lines[i];
+
+      // Enter/exit braces first to keep stacks consistent
+      const opens  = (t.match(/{/g)||[]).length;
+      const closes = (t.match(/}/g)||[]).length;
+
+      // Look for recursion (method heads already processed for body)
+      const headMatch = t.match(/(\w+)\s*\(/);
+      if (headMatch){
+        const f = headMatch[1];
+        if (recMap[f] && !seenFuncs.has(f)){
+          seenFuncs.add(f);
+          const info = recMap[f];
+          let cx = 'n';
+          let reason = 'recursive call';
+          if (info.branches && info.selfCalls >= 2){
+            if (info.halves){
+              cx = 'n log n'; reason = 'divide & conquer (branching + halving)';
+            } else {
+              cx = '2^n'; reason = 'branching recursion (~Fibonacci-like)';
+            }
+          } else {
+            if (info.halves) { cx = 'log n'; reason = 'halving recursion'; }
+            else { cx = 'n'; reason = 'linear recursion'; }
+          }
+          timeTerms.push(`O(${cx})`);
+          pushNote(ln, 'recursion', `O(${cx})`, reason);
+        }
+      }
+
+      // Loops
+      if (/\bfor\s*\(|\bwhile\s*\(/.test(t)){
+        const cx = loopCost(t);
+        loopStack.push({ cx, line: ln });
+        timeStack.push(cx);
+        pushNote(ln, 'loop', `O(${cx})`, `loop header: ${t.trim()}`);
+      }
+
+      // Space allocations
+      scanSpace(t, ln);
+
+      // Close braces: pop loops accordingly
+      // We do it after scanning to attribute notes at opening lines.
+      braceDepth += opens;
+      if (closes){
+        while (closes-- > 0){
+          if (loopStack.length){
+            loopStack.pop();
+            timeStack.pop();
+          }
+          braceDepth = Math.max(0, braceDepth-1);
+        }
+      }
+    }
+
+    // Combine time: For each top-level region, we approx by dominant additive term.
+    // Our notes already have per-line items; we also compute a "global" multiplicative from the observed loop nestings per line.
+    // Simple approach: scan notes, rebuild a product when we see consecutive loops; else push additive.
+    // But we tracked nesting via timeStack only during parse; so we fallback to heuristic:
+    const compositeFactors = [];
+    for (const l of loopStack){ compositeFactors.push(l.cx); } // leftover (usually none)
+    // More robust: re-scan notes and multiply adjacent loop complexities if they share nesting; heuristic:
+    const loopNotes = notes.filter(n=>n.type==='loop');
+    // Multiply their cx symbols (n, log n, etc.)—since nesting was tracked during parse, order is okay.
+    const factors = loopNotes.map(n => n.cx.replace(/^O\((.*)\)$/,'$1'));
+    const finalTime = factors.length ? simplify.mult(factors) : simplify.max(timeTerms);
+
+    const finalSpace = spaceTerms.length ? simplify.max(spaceTerms.map(s => `O(${s})`)) : 'O(1)';
+
+    return { notes, finalTime: finalTime || 'O(1)', finalSpace: finalSpace || 'O(1)' };
+  }
+
+  // ---- UI wiring ----------------------------------------------------
+  const $ = sel => document.querySelector(sel);
+  const modal = $('#complexityModal');
+  const openModal = () => { modal.setAttribute('aria-hidden','false'); };
+  const closeModal = () => { modal.setAttribute('aria-hidden','true'); };
+
+  modal?.addEventListener('click', (e)=>{
+    if (e.target.hasAttribute('data-close')) closeModal();
+  });
+
+  const btn = document.getElementById('btnComplexity');
+  btn?.addEventListener('click', ()=>{
+    const code = (window.editor && window.editor.getValue)
+      ? window.editor.getValue()
+      : (document.getElementById('code')?.value || '');
+
+    const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
+
+    // Fill summary
+    document.getElementById('cxTime').textContent  = finalTime || 'O(1)';
+    document.getElementById('cxSpace').textContent = finalSpace || 'O(1)';
+
+    // Fill table
+    const tbody = document.querySelector('#cxTable tbody');
+    tbody.innerHTML = '';
+    for (const n of notes){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${n.line}</td>
+        <td>${n.type}</td>
+        <td>${n.cx}</td>
+        <td>${n.reason.replace(/</g,'&lt;')}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    // Notes
+    document.getElementById('cxNotes').innerHTML =
+      `<p><strong>Heuristic:</strong> This is a static, best-effort estimate. It recognizes common patterns (loop bounds with <code>n</code>, halving/doubling, typical allocations, and recursion forms). Path-dependent conditions, complex arithmetic on bounds, and library methods are approximated.</p>`;
+
+    openModal();
+  });
+})();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
   <!-- Connecting overlay -->
   <div
     id="runnerOverlay"
