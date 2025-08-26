@@ -1974,28 +1974,7 @@ html, body { height: 100%; }
 /* ====== POLYCODE QUICK FIXES (append at end) ====== */
 
 /* 1) Complexity + Reset buttons: square + brand color when enabled */
-#btnComplexity,
-#btnReset{
-  border-radius: 0 !important;                 /* square like Run */
-}
-#btnComplexity{ margin-right: 8px; }           /* spacing b/w Complexity & Reset */
 
-/* when enabled -> theme (brand) look like Run */
-#btnComplexity:not([disabled]),
-#btnReset:not([disabled]){
-  background: var(--brand) !important;
-  color: #fff !important;
-  border-color: transparent !important;
-}
-#btnComplexity:not([disabled]):hover,
-#btnReset:not([disabled]):hover{
-  filter: brightness(1.06);
-}
-#btnComplexity:disabled,
-#btnReset:disabled{
-  opacity: .6;                                  /* same disabled tone */
-  cursor: not-allowed;
-}
 
 /* 2) Modal: center on screen */
 .pc-modal{
