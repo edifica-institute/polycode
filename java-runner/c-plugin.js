@@ -58,7 +58,7 @@ export function register(app, { server }) {
       const bash = [
         cd,
         'shopt -s nullglob globstar',
-        'files=( **/*.c )',
+        'files=( ./**/*.c *.c )',
         // Quote array ONLY at expansion time to preserve spaces
         'if (( ${#files[@]} )); then gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "${files[@]}" -lm; else echo \'No .c files\'; false; fi'
       ].join(' && ');
@@ -72,8 +72,8 @@ export function register(app, { server }) {
         const ok = code === 0 && !diagnostics.some(d => d.severity === 'error' || /fatal/i.test(d.message));
         const token = uid();
         const preload = path.join(process.cwd(), 'libstdin_notify.so');
-const cmd = "LD_PRELOAD='" + preload.replace(/'/g,"'\\''") + "' timeout 10s stdbuf -o0 -e0 ./main";
-SESSIONS.set(token, { cwd: dir, cmd });
+        const cmd = "LD_PRELOAD='" + preload.replace(/'/g,"'\\''") + "' timeout 10s stdbuf -oL -eL ./main";
+        SESSIONS.set(token, { cwd: dir, cmd });
         
         res.json({ token, ok, diagnostics, compileLog: log });
       });
