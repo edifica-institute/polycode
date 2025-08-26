@@ -60,12 +60,13 @@ export function register(app, { server }) {
       }
 
       // compile all .c
-      const bash = [
-        `cd '${dir.replace(/'/g, "'\\''")}'`,
-        `shopt -s nullglob`,
-        `files=( $(find . -type f -name '*.c' -printf '"%p" ') )`,
-        `if (( \${#files[@]} )); then gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main \${files[@]} -lm; else echo 'No .c files'; false; fi`,
-      ].join(' && ');
+     const bash = [
+  `cd '${dir.replace(/'/g, "'\\''")}'`,
+  `shopt -s nullglob`,
+  // collect paths WITHOUT adding quotes into the strings
+  `mapfile -t files < <(find . -type f -name '*.c' -print)`,
+  `if (( \${#files[@]} )); then gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${files[@]}" -lm; else echo 'No .c files'; false; fi`,
+].join(' && ');
 
       const proc = spawn('bash', ['-lc', `${bash} 2>&1`]);
       let log = '';
