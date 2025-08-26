@@ -590,7 +590,7 @@ function setFootStatus(id, state, opts = {}){
     ? '<span class="dots"><span></span><span></span><span></span></span>'
     : '';
 
-  const detail = opts.detail ? ` <span class="detail"> - ${opts.detail}</span>` : '';
+  const detail = opts.detail ? `<span class="detail">${opts.detail}</span>` : '';
 
   host.className = 'msg status ' + state;
   host.innerHTML = `<span class="icon" aria-hidden="true"></span><span class="text">${label}${dots}${detail}</span>`;
