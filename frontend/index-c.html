@@ -1,25 +1,55 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>C | EDIFICA PolyCode</title>
-  <link rel="stylesheet" href="css/app.css">
-  <script type="module" src="js/shared/dropdown.js"></script>
+  <meta charset="utf-8" />
+  <title>polycode | C</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="./assets/logo.png" />
+  <link rel="stylesheet" href="./css/shell.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <meta name="color-scheme" content="dark light">
 </head>
-<body>
-  <header>
-    <img src="assets/logo.png" alt="EDIFICA Logo" class="logo"/>
-    <h1>C - EDIFICA PolyCode</h1>
-    <select id="langSelect">
-      <option value="">-- Select Language --</option>
-      <option value="java">Java</option>
-      <option value="c">C</option>
-      <option value="web">HTML/CSS/JS</option>
-      <option value="sql">SQL</option>
-    </select>
+<body class="page-fade">
+
+  <header class="site-header">
+    <div class="brand-wrap">
+      <div class="brand-grid">
+        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
+        <div class="brand-title2">polycode</div>
+        <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
+      </div>
+    </div>
+
+    <div class="top-controls">
+      <div class="status-wrap">
+        <span id="status" class="ok">Ready.</span>
+        <span id="spinner" class="spinner" style="display:none"></span>
+      </div>
+      <div class="button-row">
+        <button id="runBtn" class="btn primary">Run (F9)</button>
+        <button id="stopBtn" class="btn ghost">Stop</button>
+      </div>
+    </div>
   </header>
-  <main>
-    <p>Welcome to C environment. Editor goes here.</p>
+
+  <main class="layout">
+    <section class="panel center" id="centerPanel">
+      <div class="pane-head"><div class="title">Editor — C</div></div>
+      <div id="editor"></div>
+      <div class="pane-foot"><span class="msg" id="centerFoot">Write C code. Pointers and file I/O are supported.</span></div>
+    </section>
+
+    <div class="v-resize right"><div id="dragRight"></div></div>
+
+    <section class="panel right" id="rightPanel">
+      <div class="pane-head"><div class="title">Terminal</div></div>
+      <div id="term" class="term"></div>
+      <div class="pane-foot"><span class="msg">Your program's output appears here.</span></div>
+    </section>
   </main>
+
+  <!-- Monaco AMD loader should already be present in other pages; include if needed -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+  <script type="module" src="./js/lang/c.js"></script>
 </body>
 </html>
