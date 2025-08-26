@@ -1793,3 +1793,9 @@ html, body { height: 100%; }
 .pane-foot .status.waiting .dots span:nth-child(3),
 .pane-foot .status.running .dots span:nth-child(3){ animation-delay:.4s; }
 
+.pane-foot .status .detail{
+  opacity:.85;
+  margin-left:6px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
