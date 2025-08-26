@@ -11,6 +11,8 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev
 
+
+
 # App files
 COPY java-runner.js ./
 # ⬅️ IMPORTANT: copy the new C plugin into the image
@@ -20,6 +22,10 @@ COPY c-plugin.js ./
 COPY io /app/io
 RUN javac -encoding UTF-8 -d out io/polycode/*.java && \
     jar --create --file runner.jar -C out .
+
+COPY stdin_notify.c ./
+RUN gcc -shared -fPIC -O2 -ldl -o libstdin_notify.so stdin_notify.c
+
 
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
