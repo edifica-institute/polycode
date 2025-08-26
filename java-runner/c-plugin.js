@@ -55,19 +55,17 @@ export function register(app, { server }) {
         await fs.writeFile(full, f?.content ?? "", "utf8");
       }
 
-      // Build a bash script that:
-      //  - finds all .c files (recursively),
-      //  - de-duplicates them,
-      //  - compiles a single binary "main".
+      // Build bash script (normalize & de-dupe file paths)
       const cd = "cd '" + dir.replace(/'/g, "'\\''") + "'";
       const bash = [
         cd,
         "shopt -s nullglob globstar",
         'files=( ./**/*.c *.c )',
-        // de-dupe
-        'declare -A seen; uniq=(); for f in "${files[@]}"; do [[ -n "${seen[$f]}" ]] && continue; seen[$f]=1; uniq+=("$f"); done',
+        // normalize (strip leading ./) and de-dupe
+        'declare -A seen; uniq=();',
+        'for f in "${files[@]}"; do nf="${f#./}"; [[ -n "${seen[$nf]}" ]] && continue; seen[$nf]=1; uniq+=("$nf"); done',
         'if (( ${#uniq[@]} == 0 )); then echo "No .c files found"; exit 1; fi',
-        // echo the exact command so it appears in the compile log
+        // echo the exact gcc command so users see it
         'printf "$ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main"; for f in "${uniq[@]}"; do printf " %q" "$f"; done; printf " -lm\\n"',
         'gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "${uniq[@]}" -lm'
       ].join(" && ");
@@ -82,12 +80,9 @@ export function register(app, { server }) {
         const compileOk = code === 0 && !diagnostics.some(d => d.severity === "error" || /fatal/i.test(d.message));
         const token = uid();
 
-        // Optional: preload helper so the client knows when to show stdin
-        // If the .so isn't present, the loader will ignore it (not fatal).
         const preload = path.join(process.cwd(), "libstdin_notify.so");
         const preloadQuoted = preload.replace(/'/g, "'\\''");
 
-        // Run command for this session
         const cmdParts = [
           `LD_PRELOAD='${preloadQuoted}'`,
           "timeout 10s",
@@ -96,12 +91,7 @@ export function register(app, { server }) {
         ];
         SESSIONS.set(token, { cwd: dir, cmd: cmdParts.join(" ") });
 
-        res.json({
-          token,
-          ok: compileOk,
-          diagnostics,
-          compileLog: log
-        });
+        res.json({ token, ok: compileOk, diagnostics, compileLog: log });
       });
     } catch (e) {
       console.error("[c-plugin] prepare error", e);
@@ -109,13 +99,13 @@ export function register(app, { server }) {
     }
   });
 
-  // ---------- Run: WS on /term-c ----------
+  // ---------- Run: WS on /term-c (matches your page) ----------
   const wssC = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   server.on("upgrade", (req, socket, head) => {
     try {
       const { pathname } = new URL(req.url, "http://x");
-      if (pathname !== "/term-c") return; // *** IMPORTANT: unique path for C ***
+      if (pathname !== "/term-c") return;
       wssC.handleUpgrade(req, socket, head, (ws) => {
         wssC.emit("connection", ws, req);
       });
