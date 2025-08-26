@@ -71,8 +71,10 @@ export function register(app, { server }) {
         const diagnostics = parseGcc(log);
         const ok = code === 0 && !diagnostics.some(d => d.severity === 'error' || /fatal/i.test(d.message));
         const token = uid();
-        const preload = path.join(process.cwd(), 'libstdin_notify.so'); // emits [[CTRL]]:stdin_req
-        SESSIONS.set(token, { cwd: dir, cmd: "LD_PRELOAD='" + preload.replace(/'/g, "'\\''") + "' timeout 10s ./main" });
+        const preload = path.join(process.cwd(), 'libstdin_notify.so');
+const cmd = "LD_PRELOAD='" + preload.replace(/'/g,"'\\''") + "' timeout 10s stdbuf -o0 -e0 ./main";
+SESSIONS.set(token, { cwd: dir, cmd });
+        
         res.json({ token, ok, diagnostics, compileLog: log });
       });
     } catch (e) {
