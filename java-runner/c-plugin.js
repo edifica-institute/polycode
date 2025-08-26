@@ -78,46 +78,47 @@ export function register(app, { server }) {
   });
 
   // --- Run (JSON WS, same protocol as Java) ---
-  const wssC = new WebSocketServer({ server, path: '/term' });
-  wssC.on('connection', (ws, req) => {
-    const url = new URL(req.url, 'http://x');
-    const token = url.searchParams.get('token') || url.searchParams.get('t');
-    const sess  = token && SESSIONS.get(token);
-    if (!sess) { try{ ws.close(); }catch{} return; }
+// --- Run (JSON WS) — use noServer so we don't intercept /java ---
+const wssC = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
-    const child = spawn('bash', ['-lc', sess.cmd], { cwd: sess.cwd });
-
-    child.stdout.on('data', d => {
-      try { ws.send(JSON.stringify({ type:'stdout', data: d.toString() })); } catch {}
-    });
-
-    let errBuf = '';
-    child.stderr.on('data', d => {
-      errBuf += d.toString();
-      let i;
-      while ((i = errBuf.indexOf('\n')) >= 0) {
-        const line = errBuf.slice(0, i); errBuf = errBuf.slice(i + 1);
-        if (line === '[[CTRL]]:stdin_req') {
-          try { ws.send(JSON.stringify({ type:'stdin_req' })); } catch {}
-        } else if (line) {
-          try { ws.send(JSON.stringify({ type:'stderr', data: line + '\n' })); } catch {}
-        }
-      }
-    });
-
-    child.on('close', code => {
-      try { ws.send(JSON.stringify({ type:'exit', code })); } catch {}
-      try { ws.close(); } catch {}
-    });
-
-    ws.on('message', raw => {
-      let m; try { m = JSON.parse(String(raw)); } catch { return; }
-      if (m.type === 'stdin') { try { child.stdin.write(m.data); } catch {} }
-      if (m.type === 'kill')  { try { child.kill('SIGKILL'); } catch {} }
-    });
-
-    ws.on('close', () => { try { child.kill('SIGKILL'); } catch {} });
+server.on('upgrade', (req, socket, head) => {
+  // only claim /term — let /java flow to your existing WSS
+  const { pathname } = new URL(req.url, 'http://x');
+  if (pathname !== '/term') return;            // IMPORTANT: don't touch other paths
+  wssC.handleUpgrade(req, socket, head, (ws) => {
+    wssC.emit('connection', ws, req);
   });
+});
+
+wssC.on('connection', (ws, req) => {
+  const url   = new URL(req.url, 'http://x');
+  const token = url.searchParams.get('token') || url.searchParams.get('t');
+  const sess  = token && SESSIONS.get(token);
+  if (!sess) { try { ws.close(); } catch {} return; }
+
+  const child = spawn('bash', ['-lc', sess.cmd], { cwd: sess.cwd });
+
+  child.stdout.on('data', d => { try { ws.send(JSON.stringify({ type:'stdout', data: d.toString() })); } catch {} });
+
+  let errBuf = '';
+  child.stderr.on('data', d => {
+    errBuf += d.toString();
+    let i;
+    while ((i = errBuf.indexOf('\n')) >= 0) {
+      const line = errBuf.slice(0, i); errBuf = errBuf.slice(i + 1);
+      if (line === '[[CTRL]]:stdin_req') { try { ws.send(JSON.stringify({ type:'stdin_req' })); } catch {} }
+      else if (line) { try { ws.send(JSON.stringify({ type:'stderr', data: line + '\n' })); } catch {} }
+    }
+  });
+
+  child.on('close', code => { try { ws.send(JSON.stringify({ type:'exit', code })); } catch {}; try { ws.close(); } catch {} });
+  ws.on('message', raw => { let m; try { m = JSON.parse(String(raw)); } catch { return; }
+    if (m.type === 'stdin') { try { child.stdin.write(m.data); } catch {} }
+    if (m.type === 'kill')  { try { child.kill('SIGKILL'); } catch {} }
+  });
+  ws.on('close', () => { try { child.kill('SIGKILL'); } catch {} });
+});
+
 
   console.log('[polycode] C plugin loaded (HTTP: /api/c/prepare, WS: /term)');
 }
