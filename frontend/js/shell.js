@@ -566,7 +566,7 @@ function setFootStatus(id, state){
   }[state] || '';
 
   // Build dots only for waiting
-  const dots = (state === 'waiting' || state === 'running')
+  const dots = (state === 'running')
     ? '<span class="dots"><span></span><span></span><span></span></span>'
     : '';
 
