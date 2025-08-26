@@ -33,6 +33,16 @@
     .pane-foot .msg { white-space: nowrap; }
     .panel .pane-head { display:flex; align-items:center; }
   </style>
+
+  <script>
+  // Runner lives on Render:
+  window.POLY = window.POLY || {};
+  window.POLY.RUNNER_HTTP = 'https://polycode-java.onrender.com';
+  window.POLY.RUNNER_WS   = 'wss://polycode-java.onrender.com/term';
+</script>
+
+
+  
 </head>
 
 <body class="page-fade">
@@ -329,9 +339,16 @@ int main(void){
 window.POLY = window.POLY || {};
 
 // Runner endpoints: default to same origin, allow overrides
-const RUNNER_HTTP = window.POLY.RUNNER_HTTP = (window.RUNNER_HTTP || location.origin);
-const RUNNER_WS   = window.POLY.RUNNER_WS   =
-  (window.RUNNER_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/term'));
+const RUNNER_HTTP = (window.POLY && window.POLY.RUNNER_HTTP) || location.origin;
+const RUNNER_WS   = (window.POLY && window.POLY.RUNNER_WS)   ||
+  ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/term');
+
+// keep them mirrored on POLY so DevTools can see current values
+window.POLY = window.POLY || {};
+window.POLY.RUNNER_HTTP = RUNNER_HTTP;
+window.POLY.RUNNER_WS   = RUNNER_WS;
+
+
 
 
 
