@@ -325,10 +325,14 @@ int main(void){
     }
 
     // ---------- Runner endpoints ----------
-  const RUNNER_HTTP = window.RUNNER_HTTP || window.location.origin;
-const RUNNER_WS =
-  window.RUNNER_WS ||
-  ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/term');
+  // Make a global right away so DevTools can use it
+window.POLY = window.POLY || {};
+
+// Runner endpoints: default to same origin, allow overrides
+const RUNNER_HTTP = window.POLY.RUNNER_HTTP = (window.RUNNER_HTTP || location.origin);
+const RUNNER_WS   = window.POLY.RUNNER_WS   =
+  (window.RUNNER_WS || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/term'));
+
 
 
 
@@ -343,6 +347,11 @@ const RUNNER_WS =
       return { ok: resp.ok, data };
     }
 
+    window.POLY.compileC = compileC;
+window.POLY.openCWS  = openCWS;
+
+
+    
     // ---------- WebSocket run (JSON protocol like Java) ----------
     window.termWS = window.termWS || null;
     window.wsRunInFlight = window.wsRunInFlight || false;
@@ -476,12 +485,8 @@ const RUNNER_WS =
       stopStatusDots();
     };
 
-    window.POLY = {
-  RUNNER_HTTP, RUNNER_WS,
-  compileC, openCWS,
-  run: window.runLang,
-  clear: window.clearLang
-};
+   window.POLY.run   = window.runLang;
+window.POLY.clear = window.clearLang;
 
     // Start after shell is ready
     (function startWhenReady(){
