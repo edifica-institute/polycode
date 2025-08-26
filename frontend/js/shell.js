@@ -590,7 +590,7 @@ function setFootStatus(id, state, opts = {}){
     ? '<span class="dots"><span></span><span></span><span></span></span>'
     : '';
 
-  const detail = opts.detail ? ` <span class="detail">— ${opts.detail}</span>` : '';
+  const detail = opts.detail ? ` <span class="detail"> - ${opts.detail}</span>` : '';
 
   host.className = 'msg status ' + state;
   host.innerHTML = `<span class="icon" aria-hidden="true"></span><span class="text">${label}${dots}${detail}</span>`;
@@ -862,9 +862,9 @@ Object.assign(window.PolyShell || (window.PolyShell = {}), {
 
 
 function fmtDuration(ms){
-  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 1000) return `${Math.round(ms)} second(s)`;
   const s = ms / 1000;
-  return s < 10 ? `${s.toFixed(2)} s` : `${s.toFixed(1)} s`;
+  return s < 10 ? `${s.toFixed(2)} second(s)` : `${s.toFixed(1)} second(s)`;
 }
 
 
