@@ -58,17 +58,17 @@ export function register(app, { server }) {
       // Build bash script (normalize & de-dupe file paths)
       const cd = "cd '" + dir.replace(/'/g, "'\\''") + "'";
       const bash = [
-        cd,
-        "shopt -s nullglob globstar",
-        'files=( ./**/*.c *.c )',
-        // normalize (strip leading ./) and de-dupe
-        'declare -A seen; uniq=();',
-        'for f in "${files[@]}"; do nf="${f#./}"; [[ -n "${seen[$nf]}" ]] && continue; seen[$nf]=1; uniq+=("$nf"); done',
-        'if (( ${#uniq[@]} == 0 )); then echo "No .c files found"; exit 1; fi',
-        // echo the exact gcc command so users see it
-        'printf "$ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main"; for f in "${uniq[@]}"; do printf " %q" "$f"; done; printf " -lm\\n"',
-        'gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "${uniq[@]}" -lm'
-      ].join(" && ");
+  cd,
+  'shopt -s nullglob globstar',
+  'files=( ./**/*.c *.c )',
+  // normalize & de-dupe
+  'declare -A seen; uniq=()',
+  'for f in "${files[@]}"; do nf="${f#./}"; [[ -n "${seen[$nf]}" ]] && continue; seen[$nf]=1; uniq+=("$nf"); done',
+  'if (( ${#uniq[@]} == 0 )); then echo "No .c files found"; exit 1; fi',
+  'printf "$ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main"; for f in "${uniq[@]}"; do printf " %q" "$f"; done; printf " -lm\n"',
+  'gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "${uniq[@]}" -lm'
+].join(' && ');
+
 
       const proc = spawn("bash", ["-lc", bash + " 2>&1"]);
       let log = "";
