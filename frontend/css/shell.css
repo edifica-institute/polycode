@@ -1971,3 +1971,88 @@ html, body { height: 100%; }
 
 
 
+/* ====== POLYCODE QUICK FIXES (append at end) ====== */
+
+/* 1) Complexity + Reset buttons: square + brand color when enabled */
+#btnComplexity,
+#btnReset{
+  border-radius: 0 !important;                 /* square like Run */
+}
+#btnComplexity{ margin-right: 8px; }           /* spacing b/w Complexity & Reset */
+
+/* when enabled -> theme (brand) look like Run */
+#btnComplexity:not([disabled]),
+#btnReset:not([disabled]){
+  background: var(--brand) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+}
+#btnComplexity:not([disabled]):hover,
+#btnReset:not([disabled]):hover{
+  filter: brightness(1.06);
+}
+#btnComplexity:disabled,
+#btnReset:disabled{
+  opacity: .6;                                  /* same disabled tone */
+  cursor: not-allowed;
+}
+
+/* 2) Modal: center on screen */
+.pc-modal{
+  position: fixed !important;
+  inset: 0 !important;
+  display: none;
+  place-items: center !important;              /* true centering */
+  z-index: 1000;
+}
+.pc-modal[aria-hidden="false"]{ display: grid !important; }
+.pc-modal__dialog{
+  margin: 0 !important;                        /* no top offset */
+  width: min(90vw, 820px);
+  max-height: 80vh;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  background: var(--panel, #111);
+  border: 1px solid var(--panel-border, rgba(255,255,255,.1));
+  border-radius: 0 !important;                 /* square dialog */
+}
+
+/* 3) Close “X” looks like our buttons */
+.pc-modal__close{
+  width: 36px; height: 36px;
+  display: inline-grid; place-items: center;
+  background: var(--btn-bg, #000) !important;
+  color: var(--btn-fg, #fff) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 0 !important;
+  font: inherit;                                /* match font */
+  line-height: 1;                               
+  cursor: pointer;
+  transition: background .2s, filter .2s;
+}
+.pc-modal__close:hover{ filter: brightness(1.08); }
+
+/* Footer Close button style & sizing (no overflow) */
+.pc-modal__footer .btn{
+  border-radius: 0 !important;
+  padding: 6px 14px;
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  border: 1px solid var(--panel-border);
+}
+.pc-modal__footer .btn:hover{ filter: brightness(1.08); }
+
+/* 4) Summary row: time on left, space on right */
+.cx-summary{
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 20px;
+}
+.cx-summary > :last-child{
+  margin-left: auto; text-align: right;        /* “Final Space” to the right */
+}
+
+/* 5) Make sure the table/header fonts stay tidy in the modal */
+.pc-modal__header h3{ margin: 0; font-weight: 600; }
+.cx-table{ font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
