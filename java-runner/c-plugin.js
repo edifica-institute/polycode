@@ -25,6 +25,16 @@ function parseGcc(out) {
   return markers;
 }
 
+function run(cmd, args, opts = {}) {
+  return new Promise((resolve) => {
+    const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], ...opts });
+    let out = '', err = '';
+    p.stdout.on('data', d => out += d.toString());
+    p.stderr.on('data', d => err += d.toString());
+    p.on('close', code => resolve({ code, out, err }));
+  });
+}
+
 export function register(app, { server }) {
   // CORS + JSON only for /api/c
   app.use('/api/c', (req, res, next) => {
@@ -42,41 +52,70 @@ export function register(app, { server }) {
       const files = Array.isArray(req.body?.files) ? req.body.files : [];
       if (!files.length) return res.status(400).json({ error: 'No files' });
 
-      const id = uid();
+      const id  = uid();
       const dir = path.join(JOB_ROOT, 'c', id);
       await fs.mkdir(dir, { recursive: true });
 
+      // Write uploaded files (sanitize relative paths)
+      const writtenPaths = [];
       for (const f of files) {
-        const rel = (f?.path || 'main.c').replace(/^\/*/, '');
+        const rel = String(f?.path || 'main.c')
+          .replace(/^\/+/, '')                      // strip leading slashes
+          .replace(/(\.\.(\/|\\|$))/g, '');         // drop any parent traversals
         const full = path.join(dir, rel);
         await fs.mkdir(path.dirname(full), { recursive: true });
         await fs.writeFile(full, f?.content ?? '', 'utf8');
+        writtenPaths.push(rel);
       }
 
-      // Build bash script WITHOUT JS template literals.
-      const cd = "cd '" + dir.replace(/'/g, "'\\''") + "'";
-      const bash = [
-        cd,
-        'shopt -s nullglob globstar',
-        'files=( ./**/*.c *.c )',
-        // Quote array ONLY at expansion time to preserve spaces
-        'if (( ${#files[@]} )); then gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "${files[@]}" -lm; else echo \'No .c files\'; false; fi'
-      ].join(' && ');
+      // Build a **unique** list of .c sources strictly from the upload
+      const cSources = [...new Set(
+        writtenPaths.filter(p => /\.c$/i.test(p))
+      )];
 
-      const proc = spawn('bash', ['-lc', bash + ' 2>&1']);
-      let log = '';
-      proc.stdout.on('data', d => { log += d.toString(); });
-      proc.stderr.on('data', d => { log += d.toString(); });
-      proc.on('close', (code) => {
-        const diagnostics = parseGcc(log);
-        const ok = code === 0 && !diagnostics.some(d => d.severity === 'error' || /fatal/i.test(d.message));
-        const token = uid();
-        const preload = path.join(process.cwd(), 'libstdin_notify.so');
-        const cmd = "LD_PRELOAD='" + preload.replace(/'/g,"'\\''") + "' timeout 10s stdbuf -oL -eL ./main";
-        SESSIONS.set(token, { cwd: dir, cmd });
-        
-        res.json({ token, ok, diagnostics, compileLog: log });
-      });
+      let compileLog = '';
+      const logCmd = (cmd, args) => { compileLog += `$ ${cmd} ${args.join(' ')}\n`; };
+
+      if (cSources.length === 0) {
+        return res.json({ ok: false, diagnostics: [], compileLog: 'No .c files were provided.\n' });
+      }
+
+      // Compile each translation unit to an object file
+      const objs = [];
+      for (const src of cSources) {
+        const obj = src.replace(/\.c$/i, '.o');
+        const args = ['-std=c17', '-O2', '-pipe', '-Wall', '-Wextra', '-Wno-unused-result', '-c', src, '-o', obj];
+        logCmd('gcc', args);
+        const { code, out, err } = await run('gcc', args, { cwd: dir });
+        compileLog += out + err;
+        if (code !== 0) {
+          const diagnostics = parseGcc(compileLog);
+          return res.json({ ok: false, diagnostics, compileLog });
+        }
+        objs.push(obj);
+      }
+
+      // Link once (objects only)
+      const linkArgs = ['-o', 'main', ...objs, '-lm'];
+      logCmd('gcc', linkArgs);
+      const linkRes = await run('gcc', linkArgs, { cwd: dir });
+      compileLog += linkRes.out + linkRes.err;
+
+      const diagnostics = parseGcc(compileLog);
+      const ok = linkRes.code === 0 && !diagnostics.some(d => d.severity === 'error' || /fatal/i.test(d.message));
+
+      if (!ok) {
+        return res.json({ ok: false, diagnostics, compileLog });
+      }
+
+      // Prepare session for interactive run
+      const token   = uid();
+      const preload = path.join(process.cwd(), 'libstdin_notify.so');
+      // Keep your existing bash chain for timeout/stdout line buffering + stdin notifications
+      const cmd = "LD_PRELOAD='" + preload.replace(/'/g, "'\\''") + "' timeout 10s stdbuf -oL -eL ./main";
+      SESSIONS.set(token, { cwd: dir, cmd });
+
+      res.json({ token, ok: true, diagnostics, compileLog });
     } catch (e) {
       console.error('[c-plugin] prepare error', e);
       res.status(500).json({ error: 'Server error' });
