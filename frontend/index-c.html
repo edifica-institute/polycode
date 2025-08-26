@@ -476,6 +476,13 @@ const RUNNER_WS =
       stopStatusDots();
     };
 
+    window.POLY = {
+  RUNNER_HTTP, RUNNER_WS,
+  compileC, openCWS,
+  run: window.runLang,
+  clear: window.clearLang
+};
+
     // Start after shell is ready
     (function startWhenReady(){
       function start(){
