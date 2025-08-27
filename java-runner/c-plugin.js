@@ -89,7 +89,7 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
       proc.stdout.on("data", d => { log += d.toString(); });
       proc.stderr.on("data", d => { log += d.toString(); });
 
-      proc.on("close", () => {
+      proc.on("close", async () => {
         const diagnostics = parseGcc(log);
         const compileOk = !diagnostics.some(
           d => d.severity === "error" || /fatal/i.test(d.message)
