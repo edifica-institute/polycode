@@ -1,4 +1,6 @@
 (function () {
+  'use strict';
+
   /* =================== Utilities & Normalization =================== */
 
   // Strip strings + comments (Java/C/C++)
@@ -12,7 +14,6 @@
   }
 
   const simplify = {
-    // multiply symbolic costs (e.g., 'n', 'log n', 'n log n')
     mult(a, b) {
       if (a === '1') return b;
       if (b === '1') return a;
@@ -35,7 +36,6 @@
       for (const [k, p] of Object.entries(count)) out.push(mk(k, p));
       return out.length ? out.join(' ') : '1';
     },
-    // max of two complexities (coarse asymptotic order)
     max(a, b) {
       if (a === '1') return b;
       if (b === '1') return a;
@@ -55,7 +55,6 @@
 
   /* =================== Loop Body Discovery (Nesting) =================== */
 
-  // find matching '}' for a '{' starting at idx
   function matchBrace(src, openIdx){
     let depth = 0;
     for (let i=openIdx; i<src.length; i++){
@@ -66,13 +65,11 @@
     return -1;
   }
 
-  // collect all loops with exact body ranges
   function findLoopsWithBodies(code){
     const out = [];
     const re = /\b(for|while)\s*\(/g;
     let m;
     while ((m = re.exec(code))){
-      const kind = m[1];
       const headStart = m.index;
       // scan to header end ')'
       let i = re.lastIndex, par=1;
@@ -89,8 +86,7 @@
         bodyStart = i;
         bodyEnd   = matchBrace(code, i);
       } else {
-        // single statement loop: treat next ';' or next block as body
-        const semi = code.indexOf(';', i);
+        const semi  = code.indexOf(';', i);
         const brace = code[i] === '{' ? matchBrace(code, i) : -1;
         if (semi !== -1 && (brace === -1 || semi < brace)){
           bodyStart = i; bodyEnd = semi;
@@ -99,17 +95,11 @@
         }
       }
       if (bodyStart !== -1 && bodyEnd !== -1){
-        out.push({
-          kind,
-          headStart, headEnd,
-          bodyStart, bodyEnd,
-        });
+        out.push({ headStart, headEnd, bodyStart, bodyEnd });
       }
       re.lastIndex = headEnd;
     }
-    // sort by range start so we can nest
     out.sort((a,b)=> a.bodyStart - b.bodyStart);
-    // build nesting: a node's children are loops fully inside its body
     const stack = [];
     for (const node of out){
       node.children = [];
@@ -119,12 +109,10 @@
       if (stack.length) stack.at(-1).children.push(node);
       stack.push(node);
     }
-    // roots = nodes not contained by any parent
     const isChild = new Set(out.flatMap(p => p.children));
     return out.filter(n => !isChild.has(n));
   }
 
-  // quick helpers
   function posToLineMap(src){
     const lines = src.split(/\r?\n/);
     const acc = []; let pos=0;
@@ -135,7 +123,6 @@
     return acc;
   }
   function lineFromPos(map, idx){
-    // binary scan
     let lo=0, hi=map.length-1, ans=1;
     while (lo<=hi){
       const mid = (lo+hi)>>1;
@@ -153,35 +140,28 @@
     const h = header.replace(/\s+/g,' ');
     const b = (body || '').replace(/\s+/g,' ');
 
-    // Binary-search style (mid and narrowing via low/high)
     const looksLikeBS =
       /while\s*\(\s*\w+\s*<=\s*\w+\s*\)/i.test(h) &&
       /\bmid\s*=\s*\w+\s*\+\s*\(\s*\w+\s*-\s*\w+\s*\)\s*\/\s*2\b/i.test(b) &&
       (/\b(low|left)\s*=\s*mid\s*\+\s*1\b/i.test(b) || /\b(high|right)\s*=\s*mid\s*-\s*1\b/i.test(b) || /\b(low|left)\s*=\s*mid\b/i.test(b) || /\b(high|right)\s*=\s*mid\b/i.test(b));
     if (looksLikeBS) return 'log n';
 
-    // Halving/doubling induction in header updates
     if (/[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(h)) return 'log n';
 
-    // Two-pointer shrinking (common in arrays)
     const twoPtr = /\bwhile\s*\(\s*\w+\s*<\s*\w+\s*\)/.test(h) &&
                    /\b\w+\s*\+\+/.test(b) && /\b\w+\s*--/.test(b);
     if (twoPtr) return 'n';
 
-    // Canonical for(...) over array length / n
     if (/for\s*\([^;]*;\s*[^;]*\b(length|size\(\)|n)\b[^;]*;/.test(h)) return 'n';
 
-    // While with counter++ until < n
     if (/while\s*\(\s*\w+\s*[<≤]\s*(\w+|n|\.length|size\(\))\s*\)/.test(h)) return 'n';
 
-    // Fallback
     return 'n';
   }
 
   /* =================== Analyzer (Nested, Library-aware) =================== */
 
   function analyzeJavaComplexity(src){
-    // 1) Strip strings/comments
     const code = stripNoise(src);
     const lines = code.split(/\r?\n/);
     const linemap = posToLineMap(code);
@@ -189,7 +169,7 @@
     const notes = [];
     const pushNote = (line, type, cx, reason) => notes.push({ line, type, cx: `O(${cx})`, reason });
 
-    // 2) Space: detect allocations (tweaked)
+    // Space: detect allocations
     let spaceTerms = [];
     function scanSpace(lineTxt, ln){
       const arr2 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]\s*\[\s*([^\]]+)\s*\]/);
@@ -211,55 +191,47 @@
     }
     lines.forEach((t,i)=> scanSpace(t, i+1));
 
-    // 3) Build loop nest forest
     const roots = findLoopsWithBodies(code);
 
-    // helper to compute cost string for a loop subtree
     function costOfLoop(node){
       const header = code.slice(node.headStart, node.headEnd);
       const body   = code.slice(node.bodyStart, node.bodyEnd+1);
 
-      // children are nested loops; siblings inside the same body should contribute via MAX
       let bodyCost = '1';
       if (node.children.length){
         let best = '1';
         for (const ch of node.children){
-          const c = costOfLoop(ch); // includes its own nested body
+          const c = costOfLoop(ch);
           best = simplify.max(best, c);
         }
         bodyCost = best;
       }
 
-      const selfTrip = loopCost(header, body); // 'n' or 'log n' …
-      const total = simplify.mult(selfTrip, bodyCost); // multiply nested
+      const selfTrip = loopCost(header, body);
+      const total = simplify.mult(selfTrip, bodyCost);
 
-      // annotate
       const ln = lineFromPos(linemap, node.headStart);
       pushNote(ln, 'loop', selfTrip, `loop header: ${header.trim().slice(0,100)}`);
 
       return total;
     }
 
-    // 4) Combine top-level pieces: MAX across roots (sequential blocks)
     let finalTimeCore = '1';
     for (const root of roots){
       const c = costOfLoop(root);
       finalTimeCore = simplify.max(finalTimeCore, c);
     }
 
-    // 5) Known library calls
     const libCosts = [];
     if (/Arrays\.sort\s*\(/.test(code)) libCosts.push('n log n');
     if (/Collections\.sort\s*\(/.test(code)) libCosts.push('n log n');
     if (/System\.arraycopy\s*\(/.test(code)) libCosts.push('n');
     if (/Arrays\.binarySearch\s*\(/.test(code)) libCosts.push('log n');
 
-    let libTime = libCosts.reduce((acc,cur)=> simplify.max(acc, cur), '1');
+    const libTime = libCosts.reduce((acc,cur)=> simplify.max(acc, cur), '1');
 
-    // 6) If no loops/library at all, keep O(1)
-    let finalTime = simplify.max(finalTimeCore, libTime);
+    const finalTime = simplify.max(finalTimeCore, libTime);
 
-    // 7) Space result
     const finalSpace = spaceTerms.length
       ? spaceTerms.reduce((acc,cur)=> simplify.max(acc, cur), '1')
       : '1';
@@ -271,7 +243,32 @@
     };
   }
 
-  /* =================== Modal Wiring =================== */
+  /* =================== Modal: inject on demand =================== */
+
+  const PARTIAL_PATH = './partials/complexity-modal.html';
+
+  async function ensureModalInserted() {
+    if (document.getElementById('complexityModal')) return 'exists';
+    try {
+      const r = await fetch(PARTIAL_PATH, { cache: 'no-store' });
+      const html = await r.text();
+      document.body.insertAdjacentHTML('beforeend', html);
+      // wire close buttons
+      const modal = document.getElementById('complexityModal');
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          const t = e.target;
+          if (t && t.hasAttribute && t.hasAttribute('data-close')) {
+            closeModal();
+          }
+        });
+      }
+      return 'inserted';
+    } catch (e) {
+      console.warn('[PolyComplexity] Could not load modal partial:', e);
+      return 'failed';
+    }
+  }
 
   function openModal() {
     const m = document.getElementById('complexityModal');
@@ -282,71 +279,58 @@
     if (m) m.setAttribute('aria-hidden', 'true');
   }
 
-  function initUI({ getCode, lang = 'java' } = {}) {
-    // idempotent guard
-    if (initUI._bound) return;
-    initUI._bound = true;
+  /* =================== UI Binding =================== */
 
-    // Close hooks
-    const modal = document.getElementById('complexityModal');
-    if (modal) {
-      modal.addEventListener('click', (e) => {
-        const t = e.target;
-        if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
-      });
+  async function handleAnalyzeClick(getCode) {
+    // Get code from Monaco/editor/textarea
+    const code =
+      (window.editor && window.editor.getValue && window.editor.getValue()) ||
+      (typeof getCode === 'function' ? getCode() : '') ||
+      (document.getElementById('code')?.value || '');
+
+    const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
+
+    await ensureModalInserted();
+
+    const tEl = document.getElementById('cxTime');
+    const sEl = document.getElementById('cxSpace');
+    const tb  = document.querySelector('#cxTable tbody');
+    const nt  = document.getElementById('cxNotes');
+    if (!tEl || !sEl || !tb || !nt) return;
+
+    tEl.textContent = finalTime || 'O(1)';
+    sEl.textContent = finalSpace || 'O(1)';
+
+    tb.innerHTML = '';
+    for (const n of notes) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
+      tb.appendChild(tr);
     }
+    nt.innerHTML =
+      `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
 
-    // Button
+    openModal();
+  }
+
+  function initUI({ getCode } = {}) {
+    if (initUI._bound) return;
     const btn = document.getElementById('btnComplexity');
-    if (!btn) return;
-
-    btn.addEventListener('click', () => {
-      const code =
-        (window.editor && window.editor.getValue && window.editor.getValue()) ||
-        (typeof getCode === 'function' ? getCode() : '') ||
-        (document.getElementById('code')?.value || '');
-
-      const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
-
-      const tEl = document.getElementById('cxTime');
-      const sEl = document.getElementById('cxSpace');
-      const tb  = document.querySelector('#cxTable tbody');
-      const nt  = document.getElementById('cxNotes');
-      if (!tEl || !sEl || !tb || !nt) return;
-
-      tEl.textContent = finalTime || 'O(1)';
-      sEl.textContent = finalSpace || 'O(1)';
-
-      tb.innerHTML = '';
-      for (const n of notes) {
-        const tr = document.createElement('tr');
-        tr.innerHTML =
-          `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
-        tb.appendChild(tr);
-      }
-      nt.innerHTML =
-        `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
-
-      openModal();
-    });
+    if (!btn) return; // try again later if needed
+    initUI._bound = true;
+    btn.addEventListener('click', () => handleAnalyzeClick(getCode));
   }
 
   // Public API
   window.PolyComplexity = {
-    analyze: (code/*, {lang}*/) => analyzeJavaComplexity(code),
-    initUI,           // ({ getCode, lang })
-    open: openModal,  // programmatic open
+    analyze: (code) => analyzeJavaComplexity(code),
+    initUI,           // ({ getCode })
+    open: async () => { await ensureModalInserted(); openModal(); },
     close: closeModal
   };
 
-  /* =================== Auto-bind =================== */
-
-  // If the modal gets injected later by index page, init then
-  document.addEventListener('pc:modal-ready', () => {
-    if (document.getElementById('btnComplexity')) initUI({});
-  });
-
-  // Also try once on DOM ready (covers SSR or already-present modal)
+  // Auto-bind once DOM is parsed if the button is present
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       if (document.getElementById('btnComplexity')) initUI({});
