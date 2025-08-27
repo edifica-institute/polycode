@@ -382,7 +382,8 @@ window.POLY.openCWS  = openCWS;
         const ws = await new Promise((resolve) => {
           let done = false, timer, w;
           function finish(v){ if(!done){ done = true; clearTimeout(timer); resolve(v);} }
-          try { w = new WebSocket(RUNNER_WS + '?token=' + encodeURIComponent(token)); } catch { return resolve(null); }
+          try { const url = token ? (RUNNER_WS + '?token=' + encodeURIComponent(token)) : RUNNER_WS;
+w = new WebSocket(url); } catch { return resolve(null); }
           timer = setTimeout(() => { try{ w?.close(); }catch{} finish(null); }, perTimeout);
           w.onopen  = () => finish(w);
           w.onerror = () => {/* close follows */};
@@ -422,62 +423,45 @@ window.POLY.openCWS  = openCWS;
 
     // ---------- Hook into shell.js API ----------
     window.runLang = async function runLang(codeOverride){
-      clearCMarkers();
-      setConsole('');
-      const code = (typeof codeOverride === 'string' && codeOverride.trim())
-        ? codeOverride : (window.editor ? window.editor.getValue() : '');
+     clearCMarkers();
+setConsole('');
 
-      // compile first
-      window.PolyShell.setStatus('Compiling…', 'busy');
-      startStatusDots('Compiling');
-      const { ok, data } = await compileC(code).catch(() => ({ ok:false, data:{ error:'network' } }));
-      stopStatusDots();
+const code = window.editor ? window.editor.getValue() : '';
+window.PolyShell.setStatus('Running (interactive)…', 'busy');
+startStatusDots('Running');
 
-      const compileLog = (data && data.compileLog) ? String(data.compileLog) : '';
-      if (compileLog) termWrite(compileLog + (compileLog.endsWith('\n') ? '' : '\n'));
-      if (Array.isArray(data?.diagnostics)) setCMarkers(data.diagnostics);
+const ws = await openCWS(null, 20000); // no token
+if (!ws){
+  stopStatusDots();
+  window.PolyShell.setStatus('Runner unavailable — please retry', 'error');
+  return;
+}
+window.termWS = ws;
+window.wsRunInFlight = true;
 
-      if (!ok || !data || data.ok === false){
-        window.PolyShell.setStatus('Compilation Failed', 'error');
-        return;
-      }
+const onMsg = (ev) => {
+  try {
+    const m = JSON.parse(String(ev.data));
+    if (m.type === 'stdout')        termWrite(m.data);
+    else if (m.type === 'stderr')   termWrite(m.data);
+    else if (m.type === 'stdin_req'){ showInputRow(true); focusConsoleInput(); }
+    else if (m.type === 'diagnostics'){ setCMarkers(m.data || []); }
+    else if (m.type === 'exit'){
+      stopStatusDots(); window.wsRunInFlight = false; showInputRow(false);
+      window.PolyShell.setStatus(m.code === 0 ? 'Execution Success' : 'Execution Failed', m.code === 0 ? 'ok' : 'error');
+      try { ws.removeEventListener('message', onMsg); } catch {}
+    }
+  } catch {}
+};
+ws.addEventListener('message', onMsg);
 
-      // run via WS
-      const token = data.token;
-      window.PolyShell.setStatus('Running (interactive)…', 'busy');
-      startStatusDots('Running');
-      const ws = await openCWS(token, 20000);
-      if (!ws){
-        stopStatusDots();
-        window.PolyShell.setStatus('Runner unavailable — please retry', 'error');
-        return;
-      }
-      window.termWS = ws;
-      window.wsRunInFlight = true;
+// send files to compile+run
+const files = [{ path:'main.c', content: code }];
+try { ws.send(JSON.stringify({ type:'start', files })); } catch {}
 
-      const onMsg = (ev) => {
-        try {
-          const m = JSON.parse(String(ev.data));
-          if (m.type === 'stdout'){ termWrite(m.data); }
-          else if (m.type === 'stderr'){ termWrite(m.data); }
-          else if (m.type === 'stdin_req'){
-            showInputRow(true);
-            focusConsoleInput();
-          } else if (m.type === 'exit'){
-            stopStatusDots();
-            window.wsRunInFlight = false;
-            showInputRow(false);
-            if (m.code === 0){
-              window.PolyShell.setStatus('Execution Success', 'ok');
-            } else {
-              window.PolyShell.setStatus('Execution Failed', 'error');
-            }
-            try { window.termWS?.removeEventListener('message', onMsg); } catch {}
-          }
-        } catch {}
-      };
-      ws.addEventListener('message', onMsg);
-      try { ws.send(JSON.stringify({ type: 'start' })); } catch {}
+
+
+      
       
       ws.addEventListener('close', () => {
         try { ws.removeEventListener('message', onMsg); } catch {}
