@@ -12,7 +12,10 @@
   <style>
     /* Match Java page input row look */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
-    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only; }
+    #consoleInput{
+      display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
+      caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only;
+    }
     #consoleInput:focus{ outline:0 }
     #consoleInput::selection{ background:rgba(255,255,255,.15) }
 
@@ -21,6 +24,13 @@
 
     .pane-foot .msg{ white-space:nowrap }
     .panel .pane-head{ display:flex; align-items:center }
+
+    /* Console: allow horizontal scroll + no wrapping */
+    #output{ padding:12px; overflow:auto; -webkit-overflow-scrolling:touch; }
+    #jconsole{
+      margin:0; white-space:pre !important; word-break:normal !important; overflow-wrap:normal !important;
+      line-height:1.25;
+    }
 
     /* Complexity modal (same tokens as Java) */
     .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
@@ -70,17 +80,14 @@
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
           <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
-           <option value="./index-c.html" selected>C</option>
+            <option value="./index-c.html" selected>C</option>
             <option value="./index-cpp.html">C++</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html">Java</option>
             <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
-            
           </select>
         </div>
-        <div class="pane-body">
-          <div id="leftContent" style="margin-top:12px;"></div>
-        </div>
+        <div class="pane-body"><div id="leftContent" style="margin-top:12px;"></div></div>
         <div class="pane-foot"><span class="msg" id="leftFoot">About C</span></div>
       </section>
 
@@ -141,9 +148,9 @@
           </div>
         </div>
 
-        <div id="output" class="screen-dim" style="padding:12px;">
+        <div id="output" class="screen-dim">
           <!-- Output only -->
-          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <pre id="jconsole" class="console"></pre>
 
           <!-- Inline input row (shown only when needed) -->
           <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
@@ -200,51 +207,129 @@
   <!-- Page script: C runner wired to shell-style UI -->
   <script>
     // ---- Sample C for editor ----
-    const SAMPLE_C = `#include <stdio.h>\n\nint main(){\n    int n;\n    printf("Enter a number: ");\n    if (scanf("%d", &n) != 1) return 0;\n    printf("Square = %d\\n", n*n);\n    return 0;\n}`;
+    const SAMPLE_C =
+`#include <stdio.h>
 
-    // Make bootstrap globally visible (shell.js waits for this in some cases)
+int main(){
+    int n;
+    printf("Enter a number: ");
+    if (scanf("%d", &n) != 1) return 0;
+    printf("Square = %d\\n", n*n);
+    return 0;
+}`;
+
+    /* ===== Bootstrap ===== */
     window.bootstrap = async function bootstrap(){
       await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
       window.PolyShell.setStatus('Ready', 'ok');
-      // Optional: load left-pane content (create /content/c.html if you want)
-      window.PolyShell.loadLeftContent?.('c');
-      // Complexity stays disabled until a successful run
+      window.PolyShell.loadLeftContent?.('c');  // optional /content/c.html
       window.setComplexityEnabled?.(false);
     };
 
-    // ===== Console helpers (match Java IDs) =====
-    function setConsole(text){ const el = document.getElementById('jconsole'); if (el){ el.textContent = text || ''; document.getElementById('output')?.scrollTo({top:1e9}); } }
-    function termWrite(t){ const el = document.getElementById('jconsole'); if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({top:1e9}); } }
+    // ===== Console helpers =====
+    function setConsole(text){
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent = text || '';
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
+    }
+    function termWrite(t){
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent += t;
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
+    }
 
-    // Show inline input row, preserving any prompt text on the last line
+    // ===== Input row =====
+    function focusConsoleInput(){
+      const el = document.getElementById('consoleInput'); if (!el) return;
+      el.focus();
+      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
     function showInputRow(show){
       const row = document.getElementById('consoleRow');
       const pre = document.getElementById('jconsole');
       const prefix = document.getElementById('consolePrefix');
       if (!row || !pre || !prefix) return;
+
       row.style.display = show ? 'flex' : 'none';
+
       if (show){
         const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
         if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
         else { prefix.textContent = ''; }
-        const el = document.getElementById('consoleInput');
-        if (el){ el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
-        window.PolyShell.setStatus('Waiting for User Input...', 'busy');
+
+        focusConsoleInput();
+        window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+        startStatusDots('Waiting for User Input');
+        startInputCountdown(inputWaitMs);
+        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
       } else {
         if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
+
+        if (window.wsRunInFlight){
+          window.PolyShell?.setStatus('Executing...', 'busy');
+          startStatusDots('Executing');
+        } else {
+          stopStatusDots();
+        }
+        stopInputCountdown();
+        window.PolyShell?.stopInputTicker?.();
       }
     }
 
-    // ===== Complexity button enable/disable (one-time pulse) =====
+    // ===== Complexity button enable/disable =====
     function setComplexityEnabled(on){
       const b = document.getElementById('btnComplexity'); if (!b) return;
       const wasDisabled = b.disabled; b.disabled = !on;
-      if (on && wasDisabled && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce = '1'; setTimeout(()=> b.classList.remove('btn-pulse'), 1000); }
+      if (on && wasDisabled && !b.dataset.pulsedOnce){
+        b.classList.add('btn-pulse'); b.dataset.pulsedOnce = '1';
+        setTimeout(()=> b.classList.remove('btn-pulse'), 1000);
+      }
     }
     window.setComplexityEnabled = setComplexityEnabled;
 
+    // ===== Input-wait countdown & animated status dots (like Java) =====
+    let __inputDeadline = 0;          // epoch ms when input wait expires
+    let __inputCountdownTimer = null; // interval handle
+    let __statusTimer = null;
+    let __statusBase  = 'Executing';
+    let inputWaitMs   = 5 * 60 * 1000; // 5 minutes
+
+    function getCountdownText(){
+      if (!__inputDeadline) return '';
+      const ms = Math.max(0, __inputDeadline - Date.now());
+      const s  = Math.floor(ms / 1000);
+      const mm = String(Math.floor(s / 60)).padStart(2, '0');
+      const ss = String(s % 60).padStart(2, '0');
+      return ` — ${mm}:${ss}`;
+    }
+    function startInputCountdown(ms){
+      stopInputCountdown();
+      __inputDeadline = Date.now() + Math.max(0, Number(ms) || 0);
+      __inputCountdownTimer = setInterval(() => {
+        const el = document.getElementById('statusDots');
+        if (el) el.textContent = __statusBase + getCountdownText();
+      }, 500);
+    }
+    function stopInputCountdown(){
+      __inputDeadline = 0;
+      if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer = null; }
+    }
+    function startStatusDots(baseText){
+      stopStatusDots();
+      __statusBase = baseText || 'Executing';
+      let dots = 0;
+      __statusTimer = setInterval(() => {
+        dots = (dots + 1) % 4;
+        const el = document.getElementById('statusDots');
+        const txt = __statusBase + '.'.repeat(dots) + getCountdownText();
+        if (el) el.textContent = txt; else window.PolyShell?.setStatus(txt, 'busy');
+      }, 400);
+    }
+    function stopStatusDots(){ if (__statusTimer){ clearInterval(__statusTimer); __statusTimer = null; } }
+
     // ===== C runner endpoints =====
-    const C_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/cc/prepare {lang:'c', files:[], entry:'main.c'}
+    const C_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/cc/prepare
     const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';  // WS /cc?token=...
 
     // Prepare step: compile + get token
@@ -259,7 +344,8 @@
       return res.json();
     }
 
-    function codeNeedsInput(src){ return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(|\bfscanf\s*\(/.test(src); }
+    // Detect if code likely needs stdin (scanf/fgets/getchar/gets/getline/read)
+    function codeNeedsInput(src){ return /\b(scanf|fscanf|fgets|getchar|gets|getline|read)\b\s*\(/i.test(src); }
 
     // Keyboard: send on Enter when input row is visible
     document.addEventListener('keydown', (e)=>{
@@ -275,60 +361,181 @@
         termWrite(line);
         el.textContent = '';
         window.PolyShell.setStatus('Executing…', 'busy');
+        stopInputCountdown();
+        window.PolyShell?.stopInputTicker?.();
+        startStatusDots('Executing');
+        __cFlags.inputProvided = true;
       }
     }, true);
 
-    // Heartbeat helpers (optional safety)
+    // ===== Runner connecting overlay (helpers) =====
+    function showRunnerOverlay(msg = 'Connecting to C runner…', pct = 10, hint = 'Opening WebSocket…') {
+      const ov  = document.getElementById('runnerOverlay');
+      const bar = document.getElementById('runnerBar');
+      const m   = document.getElementById('runnerMsg');
+      const h   = document.getElementById('runnerHint');
+      if (!ov || !bar || !m || !h) return;
+      ov.style.display = 'flex';
+      m.textContent = msg;
+      h.textContent = hint;
+      bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
+    }
+    function updateRunnerOverlay({ msg, pct, hint }) {
+      const m   = document.getElementById('runnerMsg');
+      const h   = document.getElementById('runnerHint');
+      const bar = document.getElementById('runnerBar');
+      if (msg && m) m.textContent = msg;
+      if (hint && h) h.textContent = hint;
+      if (typeof pct === 'number' && bar) {
+        bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
+      }
+    }
+    function hideRunnerOverlay(){ const ov = document.getElementById('runnerOverlay'); if (ov) ov.style.display = 'none'; }
+
+    // ===== Heartbeat helpers =====
     let hbInterval = null, hbTimeout = null;
     function startHeartbeat(ws){
       stopHeartbeat();
-      hbInterval = setInterval(()=>{ try{ if (ws.readyState===1){ ws.send(JSON.stringify({type:'ping'})); clearTimeout(hbTimeout); hbTimeout = setTimeout(()=>{ console.warn('Runner heartbeat missed'); }, 5000); } }catch{} }, 25000);
+      hbInterval = setInterval(()=>{
+        try{
+          if (ws.readyState===1){
+            ws.send(JSON.stringify({type:'ping'}));
+            clearTimeout(hbTimeout);
+            hbTimeout = setTimeout(()=>{ console.warn('Runner heartbeat missed'); }, 5000);
+          }
+        }catch{}
+      }, 25000);
     }
     function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
-    // ===== Main run wired to shell.js (use same name as Java page) =====
+    // ===== Status flags & finalization =====
+    let __cFlags = {
+      sawCompileErr:false, sawRuntimeErr:false, exitCode:null,
+      sawAnyOutput:false, inputProvided:false, needsStdin:false
+    };
+
+    function finalizeStatus(){
+      stopHeartbeat();
+      stopStatusDots();
+      stopInputCountdown();
+      window.PolyShell?.stopInputTicker?.();
+
+      window.wsRunInFlight = false;
+      showInputRow(false);
+      hideRunnerOverlay();
+
+      // 1) If exit code present (structured runner), trust it
+      if (__cFlags.exitCode !== null){
+        const ok = (__cFlags.exitCode === 0) && !__cFlags.sawCompileErr && !__cFlags.sawRuntimeErr;
+        if (ok){ window.PolyShell.setStatus('Execution Success', 'ok'); setComplexityEnabled(true); }
+        else   { window.PolyShell.setStatus(__cFlags.sawCompileErr ? 'Compilation Failed' : 'Execution Failed', 'error'); setComplexityEnabled(false); }
+        return;
+      }
+
+      // 2) Plain text fallback heuristics
+      const txt = (document.getElementById('jconsole')?.textContent || '');
+
+      if (__cFlags.sawCompileErr || /(^|\n).*?:\d+:\d+:\s*error:/i.test(txt) || /\berror:\s/i.test(txt)) {
+        window.PolyShell.setStatus('Compilation Failed', 'error'); setComplexityEnabled(false); return;
+      }
+      if (/undefined reference|segmentation fault|abort|stack smashing|fault/i.test(txt)) {
+        window.PolyShell.setStatus('Execution Failed', 'error'); setComplexityEnabled(false); return;
+      }
+      if (__cFlags.needsStdin && !__cFlags.inputProvided){
+        window.PolyShell.setStatus('Execution ended (no input / timeout)', 'error'); setComplexityEnabled(false); return;
+      }
+
+      window.PolyShell.setStatus('Execution Finished', 'ok');
+      setComplexityEnabled(true);
+    }
+
+    // ===== Main run wired to shell.js (same name as Java page) =====
     window.runLang = async function runLang(){
       // Reset console + state
-      setConsole(''); document.getElementById('output')?.classList.remove('error');
+      setConsole('');
+      document.getElementById('output')?.classList.remove('error');
       setComplexityEnabled(false);
 
       // Close any previous session
-      try{ window.termWS?.close(); }catch{} window.termWS = null; window.wsRunInFlight = false;
+      try{ window.termWS?.close(); }catch{}
+      window.termWS = null; window.wsRunInFlight = false;
 
-      // Status
+      // Reset timers + flags
+      stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
+      __cFlags = { sawCompileErr:false, sawRuntimeErr:false, exitCode:null, sawAnyOutput:false, inputProvided:false, needsStdin:false };
+
+      // Status + overlay: compile step
       window.PolyShell.setStatus('Compiling…', 'busy');
+      showRunnerOverlay('Compiling C program…', 12, 'Sending source to backend…');
 
       // Prepare/compile
-      let prep; try{ prep = await prepare(); } catch(e){ setConsole((e&&e.message)||'Prepare failed'); window.PolyShell.setStatus('Execution Failed','error'); return; }
+      let prep;
+      try {
+        updateRunnerOverlay({ pct: 28, hint: 'Building with gcc…' });
+        prep = await prepare();
+        updateRunnerOverlay({ pct: 45, hint: 'Checking build artifacts…' });
+      } catch(e){
+        updateRunnerOverlay({ pct: 100, hint: 'Compilation failed' });
+        setTimeout(hideRunnerOverlay, 300);
+        setConsole((e && e.message) || 'Prepare failed');
+        window.PolyShell.setStatus('Compilation Failed','error');
+        return;
+      }
+
       if (!prep || !prep.ok || !prep.token){
         const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
         setConsole((log||'').trim());
-        window.PolyShell.setStatus('Execution Failed','error');
+        updateRunnerOverlay({ pct: 100, hint: 'Compilation failed' });
+        setTimeout(hideRunnerOverlay, 300);
+        window.PolyShell.setStatus('Compilation Failed','error');
         return;
       }
 
       // Open WS
-      const token = prep.token; const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
-      window.termWS = ws; window.wsRunInFlight = true; window.PolyShell.setStatus('Running (interactive)…','busy');
+      const token = prep.token;
+      updateRunnerOverlay({ msg:'Connecting to C runner…', pct: 65, hint:'Opening WebSocket…' });
+      const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
+      window.termWS = ws; window.wsRunInFlight = true;
+      window.PolyShell.setStatus('Running (interactive)…','busy');
 
-      const needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
-      showInputRow(needsStdin);
+      __cFlags.needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
+      showInputRow(__cFlags.needsStdin);
 
-      ws.addEventListener('open', ()=>{ startHeartbeat(ws); });
-      ws.addEventListener('message', (ev)=>{
-        const data = String(ev.data||'');
-        termWrite(data);
-        // If backend explicitly asks for input (optional future event), we could show row here
+      ws.addEventListener('open', ()=>{
+        updateRunnerOverlay({ pct: 95, hint:'Finalizing…' });
+        setTimeout(hideRunnerOverlay, 150);
+        startHeartbeat(ws);
       });
+
+      ws.addEventListener('message', (ev)=>{
+        const raw = String(ev.data || '');
+
+        // Try structured JSON messages first
+        let m = null;
+        try { m = JSON.parse(raw); } catch { m = null; }
+
+        if (m && typeof m === 'object' && m.type){
+          if (m.type === 'stdout'){ termWrite(m.data || ''); if ((m.data||'').trim()) __cFlags.sawAnyOutput = true; return; }
+          if (m.type === 'stderr'){ termWrite(m.data || ''); __cFlags.sawRuntimeErr = true; return; }
+          if (m.type === 'compileErr'){ termWrite(m.data || ''); __cFlags.sawCompileErr = true; return; }
+          if (m.type === 'exit'){ __cFlags.exitCode = Number(m.code); finalizeStatus(); return; }
+          // ignore pong/other types
+          return;
+        }
+
+        // Plain text fallback
+        termWrite(raw);
+        if (raw.trim()) __cFlags.sawAnyOutput = true;
+
+        if (/(^|\n).*?:\d+:\d+:\s*error:/i.test(raw) || /\berror:\s/i.test(raw)) __cFlags.sawCompileErr = true;
+        if (/undefined reference|segmentation fault|abort|stack smashing|fault/i.test(raw)) __cFlags.sawRuntimeErr = true;
+
+        const ex = raw.match(/exit\s*code\s*[:=]\s*(-?\d+)/i) || raw.match(/\bEXIT[:=]\s*(-?\d+)/i);
+        if (ex) __cFlags.exitCode = Number(ex[1]);
+      });
+
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
-      ws.addEventListener('close', ()=>{
-        stopHeartbeat();
-        window.wsRunInFlight = false; showInputRow(false);
-        // Heuristic: consider non-empty output as success
-        const txt = document.getElementById('jconsole')?.textContent || '';
-        if (txt.trim().length){ window.PolyShell.setStatus('Execution Success','ok'); setComplexityEnabled(true); }
-        else { window.PolyShell.setStatus('Execution Finished','ok'); setComplexityEnabled(true); }
-      }, { once:true });
+      ws.addEventListener('close', finalizeStatus, { once:true });
     };
 
     // Reset hook used by shell.js
@@ -338,13 +545,26 @@
       window.termWS = null; window.wsRunInFlight = false;
       showInputRow(false);
       setComplexityEnabled(false);
+      stopStatusDots();
+      stopInputCountdown();
+      window.PolyShell?.stopInputTicker?.();
+      hideRunnerOverlay();
       window.PolyShell.setStatus('Ready','ok');
     };
 
     // Start after shell.js (defer) has executed
     (function startWhenReady(){
-      function start(){ if (!window.PolyShell){ const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25); setTimeout(()=>clearInterval(id), 3000); return; } window.bootstrap(); }
-      if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
+      function start(){
+        if (!window.PolyShell){
+          const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
+          setTimeout(()=>clearInterval(id), 3000);
+          return;
+        }
+        window.bootstrap();
+      }
+      if (document.readyState === 'loading'){
+        document.addEventListener('DOMContentLoaded', start, { once:true });
+      } else { start(); }
     })();
   </script>
 
@@ -352,7 +572,9 @@
   <div id="runnerOverlay" style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); z-index: 9999;">
     <div style="min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px; background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
       <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to C runner…</div>
-      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:0.9;"></div></div>
+      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;">
+        <div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:0.9;"></div>
+      </div>
       <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
     </div>
   </div>
@@ -377,7 +599,11 @@
   <script>
     // Simple close handlers for modal
     document.addEventListener('click', (e)=>{ const t = e.target; if (t && t.matches('[data-close]')){ const m = document.getElementById('cxModal'); if (m) m.setAttribute('aria-hidden','true'); } });
-    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{ document.getElementById('cxModal')?.setAttribute('aria-hidden','false'); window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400); });
+    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{
+      document.getElementById('cxModal')?.setAttribute('aria-hidden','false');
+      window.PolyShell?.setStatus('Analyzing…');
+      setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
+    });
   </script>
 
   <!-- Complexity engine -->
