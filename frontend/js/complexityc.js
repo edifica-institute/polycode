@@ -361,18 +361,21 @@
 </div>
 `;
 
-  function ensureModalInserted() {
-    if (document.getElementById('complexityModal')) return 'exists';
+ function ensureModalInserted() {
+  let modal = document.getElementById('complexityModal');
+  if (!modal) {
     document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
-    const modal = document.getElementById('complexityModal');
+    modal = document.getElementById('complexityModal');
     if (modal) {
       modal.addEventListener('click', (e) => {
         const t = e.target;
         if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
       });
     }
-    return 'inserted';
   }
+  return modal; // <-- return the element
+}
+
 
   function openModal() {
     const m = document.getElementById('complexityModal');
@@ -386,36 +389,39 @@
   /* =================== UI Binding (unchanged) =================== */
 
   async function handleAnalyzeClick(getCode) {
-    const code =
-      (window.editor && window.editor.getValue && window.editor.getValue()) ||
-      (typeof getCode === 'function' ? getCode() : '') ||
-      (document.getElementById('code')?.value || '');
+  const code =
+    (window.editor && window.editor.getValue && window.editor.getValue()) ||
+    (typeof getCode === 'function' ? getCode() : '') ||
+    (document.getElementById('code')?.value || '');
 
-    const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
+  const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
 
-    await ensureModalInserted();
+  const modal = ensureModalInserted();              // <-- get the element
+  if (!modal) return;
 
-    const tEl = document.getElementById('cxTime');
-    const sEl = document.getElementById('cxSpace');
-    const tb  = document.querySelector('#cxTable tbody');
-    const nt  = document.getElementById('cxNotes');
-    if (!tEl || !sEl || !tb || !nt) return;
+  const tEl = modal.querySelector('#cxTime');       // <-- scope to modal
+  const sEl = modal.querySelector('#cxSpace');
+  const tb  = modal.querySelector('#cxTable tbody');
+  const nt  = modal.querySelector('#cxNotes');
+  if (!tEl || !sEl || !tb || !nt) return;
 
-    tEl.textContent = finalTime || 'O(1)';
-    sEl.textContent = finalSpace || 'O(1)';
+  tEl.textContent = finalTime || 'O(1)';
+  sEl.textContent = finalSpace || 'O(1)';
 
-    tb.innerHTML = '';
-    for (const n of notes) {
-      const tr = document.createElement('tr');
-      tr.innerHTML =
-        `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
-      tb.appendChild(tr);
-    }
-    nt.innerHTML =
-      `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
-
-    openModal();
+  tb.innerHTML = '';
+  for (const n of notes) {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
+    tb.appendChild(tr);
   }
+
+  nt.innerHTML =
+    `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
+
+  openModal();
+}
+
 
   function initUI({ getCode } = {}) {
     if (initUI._bound) return;
