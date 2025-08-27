@@ -1075,23 +1075,6 @@
 
 <script src="./js/complexity.js" defer></script>
 
-<script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    try {
-      const resp = await fetch('./partials/complexity-modal.html', { cache: 'no-store' });
-      const html = await resp.text();
-      document.body.insertAdjacentHTML('beforeend', html);
-      // Bind (idempotent) after modal exists so click handler is guaranteed
-      window.PolyComplexity?.initUI({});
-    } catch (e) {
-      console.warn('Failed to load complexity modal:', e);
-    }
-  });
-</script>
-  
-
-
-
   
 </body>
 </html>
