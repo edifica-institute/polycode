@@ -98,17 +98,17 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
           (d) => d.severity === "error" || /fatal/i.test(d.message)
         );
 
-        // Build run command (no stdbuf; ensure our preload is honored)
+        // Build run command (prefer PTY via `script`, else plain exec)
         const preload = path.join(process.cwd(), "libstdin_notify.so");
         const preloadQuoted = preload.replace(/'/g, "'\\''");
 
-        // Give a generous timeout for interactive runs
         const cmd = [
           `export LD_PRELOAD='${preloadQuoted}'`,
-          // If you later want PTY-style behavior (prompts auto-flush),
-          // you can replace the next line with:
-          // `exec timeout 60s script -qfec "./main" /dev/null`
-          `exec timeout 60s ./main`,
+          `if command -v script >/dev/null 2>&1; then`,
+          `  exec timeout 60s script -qfec "./main" /dev/null`,
+          `else`,
+          `  exec timeout 60s ./main`,
+          `fi`,
         ].join("; ");
 
         const token = uid();
@@ -122,7 +122,7 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
     }
   });
 
-  // ---------- Run: WS on /term-c ----------
+  // ---------- Run: WS on /term-c (handshake-start) ----------
   const wssC = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   server.on("upgrade", (req, socket, head) => {
@@ -143,42 +143,52 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
     const sess = token && SESSIONS.get(token);
     if (!sess) { try { ws.close(); } catch {} return; }
 
-    // Explicit pipes for stdio
-    const child = spawn("bash", ["-lc", sess.cmd], {
-      cwd: sess.cwd,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    let started = false;
+    let child = null;
 
-    child.stdout.on("data", (d) => {
-      try { ws.send(JSON.stringify({ type: "stdout", data: d.toString() })); } catch {}
-    });
+    const startChild = () => {
+      if (started) return;
+      started = true;
+      child = spawn("bash", ["-lc", sess.cmd], {
+        cwd: sess.cwd,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
 
-    let errBuf = "";
-    child.stderr.on("data", (d) => {
-      errBuf += d.toString();
-      let i;
-      while ((i = errBuf.indexOf("\n")) >= 0) {
-        const line = errBuf.slice(0, i); errBuf = errBuf.slice(i + 1);
-        if (line === "[[CTRL]]:stdin_req") {
-          try { ws.send(JSON.stringify({ type: "stdin_req" })); } catch {}
-        } else if (line) {
-          try { ws.send(JSON.stringify({ type: "stderr", data: line + "\n" })); } catch {}
+      child.stdout.on("data", (d) => {
+        try { ws.send(JSON.stringify({ type: "stdout", data: d.toString() })); } catch {}
+      });
+
+      let errBuf = "";
+      child.stderr.on("data", (d) => {
+        errBuf += d.toString();
+        let i;
+        while ((i = errBuf.indexOf("\n")) >= 0) {
+          const line = errBuf.slice(0, i); errBuf = errBuf.slice(i + 1);
+          if (line === "[[CTRL]]:stdin_req") {
+            try { ws.send(JSON.stringify({ type: "stdin_req" })); } catch {}
+          } else if (line) {
+            try { ws.send(JSON.stringify({ type: "stderr", data: line + "\n" })); } catch {}
+          }
         }
-      }
-    });
+      });
 
-    child.on("close", (code) => {
-      try { ws.send(JSON.stringify({ type: "exit", code })); } catch {}
-      try { ws.close(); } catch {}
-    });
+      child.on("close", (code) => {
+        try { ws.send(JSON.stringify({ type: "exit", code })); } catch {}
+        try { ws.close(); } catch {}
+      });
+    };
+
+    // Auto-start after a short delay in case client forgets to send "start"
+    const safetyTimer = setTimeout(startChild, 250);
 
     ws.on("message", (raw) => {
       let m; try { m = JSON.parse(String(raw)); } catch { return; }
-      if (m.type === "stdin") { try { child.stdin.write(m.data); } catch {} }
-      if (m.type === "kill")  { try { child.kill("SIGKILL"); } catch {} }
+      if (m.type === "start") { clearTimeout(safetyTimer); startChild(); return; }
+      if (m.type === "stdin") { try { child?.stdin?.write(m.data); } catch {} return; }
+      if (m.type === "kill")  { try { child?.kill("SIGKILL"); } catch {} return; }
     });
 
-    ws.on("close", () => { try { child.kill("SIGKILL"); } catch {} });
+    ws.on("close", () => { try { child?.kill("SIGKILL"); } catch {} });
   });
 
   console.log("[polycode] C plugin loaded (HTTP: /api/c/prepare, WS: /term-c)");
