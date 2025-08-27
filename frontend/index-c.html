@@ -426,6 +426,7 @@ w = new WebSocket(url); } catch { return resolve(null); }
        
      clearCMarkers();
 setConsole('');
+      try { if (window.termWS && window.termWS.readyState === 1) window.termWS.close(); } catch {}
 
 const code = window.editor ? window.editor.getValue() : '';
 window.PolyShell.setStatus('Running (interactive)…', 'busy');
