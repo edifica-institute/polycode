@@ -25,13 +25,7 @@
     .pane-foot .msg{ white-space:nowrap }
     .panel .pane-head{ display:flex; align-items:center }
 
-    /* Console: allow horizontal scroll + no wrapping */
-    #output{ padding:12px; overflow:auto; -webkit-overflow-scrolling:touch; }
-    #jconsole{
-      margin:0; white-space:pre !important; word-break:normal !important; overflow-wrap:normal !important;
-      line-height:1.25;
-    }
-
+  
     /* Complexity modal (same tokens as Java) */
     .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
     .pc-modal[aria-hidden="false"] { display:block; }
@@ -148,9 +142,9 @@
           </div>
         </div>
 
-        <div id="output" class="screen-dim">
+        <div id="output" class="screen-dim" style="padding:12px;">
           <!-- Output only -->
-          <pre id="jconsole" class="console"></pre>
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
 
           <!-- Inline input row (shown only when needed) -->
           <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
