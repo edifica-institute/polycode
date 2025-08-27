@@ -29,12 +29,12 @@ async function writeFiles(base, files) {
 }
 
 async function runCompileAndExecute(ws, msg) {
-  const startTs = Date.now();
+  const t0 = Date.now();
 
-  // pick tmpfs if available (fast)
+  // prefer tmpfs for speed
   const base = (await fs.pathExists('/dev/shm')) ? '/dev/shm' : os.tmpdir();
   const work = await fs.mkdtemp(path.join(base, 'poly-c-'));
-  const mainOut = path.join(work, 'a.out');
+  const exe  = path.join(work, 'a.out');
 
   let child = null;
   let closed = false;
@@ -42,9 +42,9 @@ async function runCompileAndExecute(ws, msg) {
   const hardLimitMs = Math.min(Number(msg?.timeLimitMs || process.env.C_TIMEOUT_MS || 15000), 600000);
   const inputWaitMs = Math.min(Number(msg?.inputWaitMs || process.env.INPUT_WAIT_MS || 300000), 3600000);
 
-  function send(json) {
+  function send(obj) {
     if (ws.readyState === ws.OPEN) {
-      try { ws.send(JSON.stringify(json)); } catch {}
+      try { ws.send(JSON.stringify(obj)); } catch {}
     }
   }
 
@@ -60,78 +60,69 @@ async function runCompileAndExecute(ws, msg) {
   try {
     await writeFiles(work, msg.files);
   } catch (e) {
-    send({ type:'stderr', data: `write error: ${String(e)}\n` });
-    send({ type:'exit', code: 1, metrics: { totalMs: Date.now() - startTs, compileMs: 0, startMs: 0, execMs: 0 } });
+    send({ type:'stderr', data:`write error: ${String(e)}\n` });
+    send({ type:'exit', code:1, metrics:{ totalMs: Date.now()-t0, compileMs:0, startMs:0, execMs:0 }});
     cleanup();
     return;
   }
 
-  // figure out main file (default: main.c)
   const mainFile = (msg.files?.find(f => /(^|\/)main\.c$/.test(f.path))?.path) || 'main.c';
 
   // 2) compile
-  let tCompileStart = Date.now();
-  let tRunStart = 0;
-
+  const tC0 = Date.now();
   const gcc = spawn('bash', ['-lc',
-    // use -pipe, unbuffered prog later via stdbuf; no -static to keep image small
     `set -e
-     cd ${work@Q}
-     gcc -std=c17 -O2 -pipe -Wall -Wextra -o a.out ${mainFile@Q}
-    `
-  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+     cd "${work}"
+     gcc -std=c17 -O2 -pipe -Wall -Wextra -o a.out "${mainFile}"`
+  ], { stdio: ['ignore','pipe','pipe'] });
 
   gcc.stdout.on('data', d => send({ type:'stdout', data: d.toString() }));
   gcc.stderr.on('data', d => send({ type:'stderr', data: d.toString() }));
 
   gcc.on('close', code => {
-    const tCompileEnd = Date.now();
+    const tC1 = Date.now();
     if (code !== 0) {
-      send({ type:'diagnostics', data: [] }); // placeholder if you ever map gcc errors to Monaco markers
+      send({ type:'diagnostics', data: [] });
       send({ type:'exit', code, metrics:{
-        compileMs: tCompileEnd - tCompileStart, startMs: 0, execMs: 0, totalMs: tCompileEnd - startTs
+        compileMs: tC1 - tC0, startMs: 0, execMs: 0, totalMs: tC1 - t0
       }});
       cleanup();
       return;
     }
 
-    // 3) run
     if (closed) { cleanup(); return; }
 
-    // Use LD_PRELOAD hook to detect blocking reads and notify the UI
+    // 3) run
     const env = {
       PATH: process.env.PATH,
       HOME: '/tmp',
       LANG: 'C.UTF-8',
       LC_ALL: 'C.UTF-8',
-      LD_PRELOAD: '/app/libstdin_notify.so',   // built in your Dockerfile
+      LD_PRELOAD: '/app/libstdin_notify.so'
     };
 
-    // stdbuf => unbuffered stdout/stderr so prompts show immediately
-    child = spawn('bash', ['-lc', `cd ${work@Q}; stdbuf -o0 -e0 ./a.out`], {
-      env, stdio: ['pipe', 'pipe', 'pipe']
+    child = spawn('bash', ['-lc', `cd "${work}"; stdbuf -o0 -e0 ./a.out`], {
+      env, stdio: ['pipe','pipe','pipe']
     });
 
-    tRunStart = Date.now();
+    const tR0 = Date.now();
 
     let hardTimer = setTimeout(() => { try { child?.kill('SIGKILL'); } catch {} }, hardLimitMs);
     let inputTimer = null;
-    const armInput = () => {
+    const armInputTimer = () => {
       clearTimeout(inputTimer);
       inputTimer = setTimeout(() => {
-        send({ type:'stderr', data: 'Input wait timed out.\n' });
+        send({ type:'stderr', data:'Input wait timed out.\n' });
         try { child?.kill('SIGKILL'); } catch {}
       }, inputWaitMs);
     };
 
-    // stdout
     child.stdout.on('data', d => send({ type:'stdout', data: d.toString() }));
 
-    // stderr: detect control lines from libstdin_notify.so
     const onErrLine = line => {
       if (line === '[[CTRL]]:stdin_req') {
         clearTimeout(hardTimer);
-        armInput();
+        armInputTimer();
         send({ type:'stdin_req' });
       } else if (line) {
         send({ type:'stderr', data: line + '\n' });
@@ -139,12 +130,9 @@ async function runCompileAndExecute(ws, msg) {
     };
     child.stderr.on('data', lineSplitStream(onErrLine));
 
-    // accept stdin from client
-    function onMsg(raw) {
-      let m;
-      try { m = JSON.parse(String(raw)); } catch { return; }
+    function onClientMsg(raw) {
+      let m; try { m = JSON.parse(String(raw)); } catch { return; }
       if (m.type === 'stdin' && child?.stdin?.writable) {
-        // when user provides input, re-arm hard limit and cancel input timer
         clearTimeout(inputTimer);
         hardTimer = setTimeout(() => { try { child?.kill('SIGKILL'); } catch {} }, hardLimitMs);
         try { child.stdin.write(m.data); } catch {}
@@ -154,17 +142,17 @@ async function runCompileAndExecute(ws, msg) {
         send({ type:'pong' });
       }
     }
-    ws.on('message', onMsg);
+    ws.on('message', onClientMsg);
 
     child.on('close', code2 => {
       clearTimeout(hardTimer);
       clearTimeout(inputTimer);
-      const tEnd = Date.now();
+      const tR1 = Date.now();
       send({ type:'exit', code: code2, metrics:{
-        compileMs: tCompileEnd - tCompileStart,
-        startMs:   tRunStart - tCompileEnd,
-        execMs:    tEnd - tRunStart,
-        totalMs:   tEnd - startTs
+        compileMs: tC1 - tC0,
+        startMs:   tR0 - tC1,
+        execMs:    tR1 - tR0,
+        totalMs:   tR1 - t0
       }});
       cleanup();
     });
@@ -172,25 +160,20 @@ async function runCompileAndExecute(ws, msg) {
 }
 
 export function register(app, { server }) {
-  // small HTTP helper to keep your existing /api/c/prepare endpoint alive (optional)
   const router = express.Router();
   router.use(express.json({ limit: '1mb' }));
-  router.post('/prepare', async (req, res) => {
+  router.post('/prepare', async (_req, res) => {
     res.json({ ok: true, ts: Date.now() });
   });
   app.use('/api/c', router);
 
-  // WebSocket runner
   const wss = new WebSocketServer({
     server,
     path: '/term-c',
-    // Disable compression to avoid Cloudflare issues; we'll keep frames tiny anyway.
-    perMessageDeflate: false,
-    // Let proxies pass through
+    perMessageDeflate: false,   // important with Cloudflare
     clientTracking: true,
   });
 
-  // Heartbeats so Cloudflare doesn’t idle the socket
   function heartbeat() { this.isAlive = true; }
   wss.on('connection', (ws, req) => {
     ws.isAlive = true;
@@ -198,20 +181,16 @@ export function register(app, { server }) {
 
     console.log('[c-plugin] WS /term-c connected');
 
-    // banner
-    try { ws.send(JSON.stringify({ type:'stdout', data: '[c-runner] ready\\n' })); } catch {}
+    try { ws.send(JSON.stringify({ type:'stdout', data:'[c-runner] ready\n' })); } catch {}
 
     ws.on('message', async raw => {
-      let msg;
-      try { msg = JSON.parse(String(raw)); } catch { return; }
-
+      let msg; try { msg = JSON.parse(String(raw)); } catch { return; }
       if (msg.type === 'start') {
         console.log('[c-plugin] start received with', (msg.files||[]).length, 'file(s)');
-        try {
-          await runCompileAndExecute(ws, msg);
-        } catch (e) {
-          try { ws.send(JSON.stringify({ type:'stderr', data: `internal error: ${String(e)}\\n` })); } catch {}
-          try { ws.send(JSON.stringify({ type:'exit', code: 1, metrics:{ totalMs: 0, compileMs: 0, startMs: 0, execMs: 0 } })); } catch {}
+        try { await runCompileAndExecute(ws, msg); }
+        catch (e) {
+          try { ws.send(JSON.stringify({ type:'stderr', data:`internal error: ${String(e)}\n` })); } catch {}
+          try { ws.send(JSON.stringify({ type:'exit', code:1, metrics:{ totalMs:0, compileMs:0, startMs:0, execMs:0 } })); } catch {}
         }
       } else if (msg.type === 'ping') {
         try { ws.send(JSON.stringify({ type:'pong' })); } catch {}
