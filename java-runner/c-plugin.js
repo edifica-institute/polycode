@@ -55,7 +55,7 @@ export function register(app, { server }) {
         await fs.writeFile(full, f?.content ?? "", "utf8");
       }
 
-      // Build a robust multiline bash script for compilation
+      // Robust multiline compile script (no fragile '&&' seams)
       const cd = "cd '" + dir.replace(/'/g, "'\\''") + "'";
       const bash = `
 ${cd}
@@ -63,7 +63,6 @@ set -e
 shopt -s nullglob globstar
 files=( ./**/*.c *.c )
 
-# normalize & de-dupe
 declare -A seen
 uniq=()
 for f in "\${files[@]}"; do
@@ -78,37 +77,34 @@ if (( \${#uniq[@]} == 0 )); then
   exit 1
 fi
 
-# show gcc line like a shell prompt
 printf '$ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main'
 for f in "\${uniq[@]}"; do printf " %q" "$f"; done
 printf ' -lm\\n'
 
-# compile
 gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -lm
 `.trim();
 
       const proc = spawn("bash", ["-lc", bash + " 2>&1"]);
       let log = "";
-      proc.stdout.on("data", (d) => (log += d.toString()));
-      proc.stderr.on("data", (d) => (log += d.toString()));
+      proc.stdout.on("data", d => { log += d.toString(); });
+      proc.stderr.on("data", d => { log += d.toString(); });
 
       proc.on("close", () => {
         const diagnostics = parseGcc(log);
         const compileOk = !diagnostics.some(
-          (d) => d.severity === "error" || /fatal/i.test(d.message)
+          d => d.severity === "error" || /fatal/i.test(d.message)
         );
 
-        // Build run command (prefer PTY via `script`, else plain exec)
-        const preload = path.join(process.cwd(), "libstdin_notify.so");
-        const preloadQuoted = preload.replace(/'/g, "'\\''");
+        // --- Run command (NO `script`): combine stdbuf + stdin-notify ---
+        // Debian/Ubuntu path for libstdbuf:
+        const stdbufLib = "/usr/lib/coreutils/libstdbuf.so";
+        const notifyLib = path.join(process.cwd(), "libstdin_notify.so").replace(/'/g, "'\\''");
+        const preloadChain = `${stdbufLib}:${notifyLib}`;
 
         const cmd = [
-          `export LD_PRELOAD='${preloadQuoted}'`,
-          `if command -v script >/dev/null 2>&1; then`,
-          `  exec timeout 60s script -qfec "./main" /dev/null`,
-          `else`,
-          `  exec timeout 60s ./main`,
-          `fi`,
+          `export LD_PRELOAD='${preloadChain}'`,
+          `export STDBUF='o0:eL'`,   // unbuffer stdout, line-buffer stderr
+          `exec timeout 60s ./main`
         ].join("; ");
 
         const token = uid();
@@ -122,7 +118,7 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
     }
   });
 
-  // ---------- Run: WS on /term-c (handshake-start) ----------
+  // ---------- Run: WS on /term-c (auto-start after connect) ----------
   const wssC = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   server.on("upgrade", (req, socket, head) => {
@@ -143,52 +139,42 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
     const sess = token && SESSIONS.get(token);
     if (!sess) { try { ws.close(); } catch {} return; }
 
-    let started = false;
-    let child = null;
-
-    const startChild = () => {
-      if (started) return;
-      started = true;
-      child = spawn("bash", ["-lc", sess.cmd], {
-        cwd: sess.cwd,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-
-      child.stdout.on("data", (d) => {
-        try { ws.send(JSON.stringify({ type: "stdout", data: d.toString() })); } catch {}
-      });
-
-      let errBuf = "";
-      child.stderr.on("data", (d) => {
-        errBuf += d.toString();
-        let i;
-        while ((i = errBuf.indexOf("\n")) >= 0) {
-          const line = errBuf.slice(0, i); errBuf = errBuf.slice(i + 1);
-          if (line === "[[CTRL]]:stdin_req") {
-            try { ws.send(JSON.stringify({ type: "stdin_req" })); } catch {}
-          } else if (line) {
-            try { ws.send(JSON.stringify({ type: "stderr", data: line + "\n" })); } catch {}
-          }
-        }
-      });
-
-      child.on("close", (code) => {
-        try { ws.send(JSON.stringify({ type: "exit", code })); } catch {}
-        try { ws.close(); } catch {}
-      });
-    };
-
-    // Auto-start after a short delay in case client forgets to send "start"
-    const safetyTimer = setTimeout(startChild, 250);
-
-    ws.on("message", (raw) => {
-      let m; try { m = JSON.parse(String(raw)); } catch { return; }
-      if (m.type === "start") { clearTimeout(safetyTimer); startChild(); return; }
-      if (m.type === "stdin") { try { child?.stdin?.write(m.data); } catch {} return; }
-      if (m.type === "kill")  { try { child?.kill("SIGKILL"); } catch {} return; }
+    // Start immediately (no handshake needed)
+    const child = spawn("bash", ["-lc", sess.cmd], {
+      cwd: sess.cwd,
+      stdio: ["pipe", "pipe", "pipe"],
     });
 
-    ws.on("close", () => { try { child?.kill("SIGKILL"); } catch {} });
+    child.stdout.on("data", d => {
+      try { ws.send(JSON.stringify({ type: "stdout", data: d.toString() })); } catch {}
+    });
+
+    let errBuf = "";
+    child.stderr.on("data", d => {
+      errBuf += d.toString();
+      let i;
+      while ((i = errBuf.indexOf("\n")) >= 0) {
+        const line = errBuf.slice(0, i); errBuf = errBuf.slice(i + 1);
+        if (line === "[[CTRL]]:stdin_req") {
+          try { ws.send(JSON.stringify({ type: "stdin_req" })); } catch {}
+        } else if (line) {
+          try { ws.send(JSON.stringify({ type: "stderr", data: line + "\n" })); } catch {}
+        }
+      }
+    });
+
+    child.on("close", code => {
+      try { ws.send(JSON.stringify({ type: "exit", code })); } catch {}
+      try { ws.close(); } catch {}
+    });
+
+    ws.on("message", raw => {
+      let m; try { m = JSON.parse(String(raw)); } catch { return; }
+      if (m.type === "stdin") { try { child.stdin.write(m.data); } catch {} }
+      if (m.type === "kill")  { try { child.kill("SIGKILL"); } catch {} }
+    });
+
+    ws.on("close", () => { try { child.kill("SIGKILL"); } catch {} });
   });
 
   console.log("[polycode] C plugin loaded (HTTP: /api/c/prepare, WS: /term-c)");
