@@ -11,35 +11,22 @@
 
   <style>
     /* Match the Java console input UX */
-    #consoleRow span {
-      background: transparent !important;
-      padding: 0 !important;
-      border-radius: 0 !important;
+    #consoleRow span{background:transparent!important;padding:0!important;border-radius:0!important;}
+    #consoleInput{
+      display:inline-block;min-width:5ch;background:transparent;border:0;outline:0;box-shadow:none;
+      caret-color:currentColor;user-select:text;-webkit-user-modify:read-write-plaintext-only;
     }
-    #consoleInput {
-      display: inline-block;
-      min-width: 5ch;
-      background: transparent;
-      border: 0;
-      outline: 0;
-      box-shadow: none;
-      caret-color: currentColor;
-      user-select: text;
-      -webkit-user-modify: read-write-plaintext-only;
-    }
-    #consoleInput:focus { outline: 0; }
-    #consoleInput::selection { background: rgba(255, 255, 255, 0.15); }
-
-    .pane-foot .msg { white-space: nowrap; }
-    .panel .pane-head { display:flex; align-items:center; }
+    #consoleInput:focus{outline:0;}
+    #consoleInput::selection{background:rgba(255,255,255,.15);}
+    .pane-foot .msg{white-space:nowrap;}
+    .panel .pane-head{display:flex;align-items:center;}
   </style>
 
- <script>
-  window.RUNNER_HTTP = 'https://polycode-java.onrender.com';
-  window.RUNNER_WS   = 'wss://polycode-java.onrender.com/term-c';
-</script>
-
-  
+  <!-- Override these if your runner lives elsewhere -->
+  <script>
+    window.RUNNER_HTTP = 'https://polycode-java.onrender.com';
+    window.RUNNER_WS   = 'wss://polycode-java.onrender.com/term-c';
+  </script>
 </head>
 
 <body class="page-fade">
@@ -52,7 +39,6 @@
         <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
       </div>
     </div>
-
     <nav class="site-nav">
       <a href="./index.html">Home</a>
       <a href="./about.html">About</a>
@@ -63,106 +49,72 @@
   <!-- App -->
   <div class="stage">
     <div class="app">
-      <!-- LEFT panel -->
+      <!-- LEFT -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
-          <select
-            id="langSelect"
-            class="select"
-            aria-label="Choose language"
-            onchange="location.href=this.value"
-          >
+          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
             <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html">Java</option>
             <option value="./index-c.html" selected>C</option>
           </select>
         </div>
-        <div class="pane-body">
-          <div id="leftContent" style="margin-top:12px;"></div>
-        </div>
-        <div class="pane-foot">
-          <span class="msg" id="leftFoot">About C</span>
-        </div>
+        <div class="pane-body"><div id="leftContent" style="margin-top:12px;"></div></div>
+        <div class="pane-foot"><span class="msg" id="leftFoot">About C</span></div>
       </section>
 
-      <!-- RESIZER between left and center -->
-      <div class="v-resize">
-        <div id="dragLeft"></div>
-      </div>
+      <div class="v-resize"><div id="dragLeft"></div></div>
 
-      <!-- CENTER panel (Editor) -->
+      <!-- CENTER (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
           <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
-            <svg viewBox="0 0 24 24" id="themeIcon">
-              <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-            </svg>
+            <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
           </button>
           <span class="title" id="centerTitle" style="margin-left:8px;">C – Editor | Polycode</span>
-          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+          <div class="right-controls" style="margin-left:auto;display:flex;gap:8px;align-items:center;">
             <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
-              <svg viewBox="0 0 24 24">
-                <path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor" />
-              </svg>
+              <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor"/></svg>
             </button>
-
             <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
-              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
           </div>
         </div>
-
         <div id="editor"></div>
-
-        <div class="pane-foot">
-          <span class="msg" id="centerFoot">Ready for Execution</span>
-        </div>
+        <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
       </section>
 
-      <!-- RESIZER between center and right -->
-      <div class="v-resize right">
-        <div id="dragRight"></div>
-      </div>
+      <div class="v-resize right"><div id="dragRight"></div></div>
 
-      <!-- RIGHT panel (Console) -->
+      <!-- RIGHT (Console) -->
       <section class="panel right" id="rightPanel">
         <div class="pane-head">
           <span class="title">C – Console | Polycode</span>
-          <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
+          <div class="right-controls" style="margin-left:auto;display:flex;align-items:center;">
             <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
-              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z" /></svg>
+              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
             </button>
           </div>
         </div>
 
         <div id="output" class="screen-dim" style="padding:12px;">
-          <!-- Output -->
-          <pre id="cconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-
-          <!-- Input row (only when needed) -->
-          <div id="consoleRow"
-               style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+          <pre id="cconsole" class="console" style="margin:0;white-space:pre-wrap;"></pre>
+          <div id="consoleRow" style="display:none;margin-top:0;gap:4px;align-items:baseline;font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;">
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
           </div>
         </div>
 
-        <div class="pane-foot">
-          <span class="msg" id="rightFoot">Waiting for Execution</span>
-        </div>
+        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
     </div>
   </div>
 
-  <!-- Floating chevron for collapse/expand -->
   <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
-    <svg viewBox="0 0 24 24">
-      <path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z" />
-    </svg>
+    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
   </div>
 
-  <!-- Footer -->
   <footer class="site-footer">
     <div class="footer-grid">
       <div class="footer-left">
@@ -170,25 +122,21 @@
         <div class="txt">
           <span class="powered">powered by edifica</span>
           <span class="subline">education<span class="dot">.</span>consultation<span class="dot">.</span>assistance</span>
-          <div class="siteurl">
-            <a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a>
-          </div>
+          <div class="siteurl"><a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a></div>
         </div>
       </div>
-
       <div class="footer-center">
         <span class="label">Follow us</span>
         <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z" /></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
         </a>
         <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z" /></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
         </a>
         <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c.4-1.9.6-3.9.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z" /></svg>
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c.4-1.9.6-3.9.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
         </a>
       </div>
-
       <div class="footer-right">
         <a href="./privacy.html">Privacy Policy</a>
         <a href="./terms.html">Terms &amp; Conditions</a>
@@ -197,16 +145,15 @@
     </div>
   </footer>
 
-  <!-- Monaco + Shell -->
+  <!-- Monaco + shell -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
-  <!-- Page script -->
-
-<script>
-(function(){
-  /* --- Sample C in the editor --- */
-  const SAMPLE_C =
+  <!-- Page logic -->
+  <script>
+  (function(){
+    /* ---------- sample C ---------- */
+    const SAMPLE_C =
 `#include <stdio.h>
 #include <stdlib.h>
 
@@ -215,242 +162,267 @@ int main(void){
   fflush(stdout);
   int n;
   if (scanf("%d", &n) != 1) return 0;
-  printf("You typed: %d\\n", n);
+
+  int *a = malloc((size_t)n * sizeof(int));
+  if (!a){ perror("malloc"); return 1; }
+  for (int i=0;i<n;i++) a[i] = (i+1)*(i+1);
+
+  FILE *fp = fopen("out.txt","w");
+  if (!fp){ perror("fopen"); free(a); return 1; }
+  for (int i=0;i<n;i++) fprintf(fp, "%d\\n", a[i]);
+  fclose(fp);
+
+  long sum = 0; int *p = a;
+  for (int i=0;i<n;i++,p++) sum += *p;
+  printf("Sum: %ld\\n", sum);
+
+  free(a);
   return 0;
 }`;
 
-  // ---- bootstrap editor ----
-  window.bootstrap = async function bootstrap(){
-    await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
-    window.PolyShell.setStatus('Ready', 'ok');
-    window.PolyShell.loadLeftContent('c');
-  };
-
-  // ---- console helpers ----
-  function setConsole(t){ const el = document.getElementById('cconsole'); if (el){ el.textContent = t||''; document.getElementById('output')?.scrollTo({top:1e9}); } }
-  function termWrite(t){ const el = document.getElementById('cconsole'); if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({top:1e9}); } }
-
-  // ---- input row helpers ----
-  function focusConsoleInput(){
-    const el = document.getElementById('consoleInput'); if(!el) return;
-    el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
-    const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
-  }
-  function showInputRow(show){
-    const row = document.getElementById('consoleRow');
-    const pre = document.getElementById('cconsole');
-    const prefix = document.getElementById('consolePrefix');
-    if (row) row.style.display = show ? 'flex' : 'none';
-    if (show){
-      const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
-      if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-      else { prefix.textContent = ''; }
-      window.PolyShell?.setStatus('Waiting for User Input', 'busy');
-    } else if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
-  }
-  // Prompt fallback (works even if libstdin_notify isn’t available)
-  let _promptTimer=null;
-  function maybePromptFromStdout(s){
-    s = String(s||''); if(!s) return;
-    if (/[>:?]\s*$/.test(s) || !s.endsWith('\n')) { showInputRow(true); focusConsoleInput(); }
-    clearTimeout(_promptTimer);
-    _promptTimer = setTimeout(() => {
-      const txt = document.getElementById('cconsole')?.textContent || '';
-      if (!/\n$/.test(txt)) { showInputRow(true); focusConsoleInput(); }
-    }, 250);
-  }
-
-  // ---- Monaco diagnostics ----
-  function clearCMarkers(){
-    if (!window.monaco || !window.editor) return;
-    const model = window.editor.getModel();
-    if (model) window.monaco.editor.setModelMarkers(model, 'gcc', []);
-  }
-  function setCMarkers(diag){
-    if (!Array.isArray(diag) || !window.monaco || !window.editor) return;
-    const model = window.editor.getModel(); if(!model) return;
-    const markers = diag.map(d=>({
-      startLineNumber: d.line||1, endLineNumber: d.line||1,
-      startColumn: 1, endColumn: Math.max(1, model.getLineMaxColumn(d.line||1)),
-      message: String(d.message||'error'),
-      severity: /warn/i.test(d.severity) ? window.monaco.MarkerSeverity.Warning : window.monaco.MarkerSeverity.Error
-    }));
-    window.monaco.editor.setModelMarkers(model, 'gcc', markers);
-  }
-
-  // ---- endpoints ----
-  const RUNNER_HTTP = window.RUNNER_HTTP || window.location.origin;
-  const RUNNER_WS   =
-    window.RUNNER_WS ||
-    ((location.protocol==='https:'?'wss://':'ws://') + location.host + '/term-c');
-
-  async function compileC(src){
-    const files = [{ path:'main.c', content: src }];
-    const resp  = await fetch(RUNNER_HTTP + '/api/c/prepare', {
-      method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ files })
-    });
-    const data = await resp.json().catch(()=>({}));
-    return { ok: resp.ok, data };
-  }
-
-  async function openCWS(token, maxTotalMs=20000){
-    const start=Date.now(); const steps=[300,700,1200,2000,3200]; let attempt=0;
-    while (Date.now()-start < maxTotalMs){
-      attempt++;
-      const perTimeout = Math.min(7000, maxTotalMs-(Date.now()-start));
-      const ws = await new Promise((resolve)=>{
-        let done=false, timer, w;
-        function finish(v){ if(!done){ done=true; clearTimeout(timer); resolve(v); } }
-        try { const url = token ? (RUNNER_WS+'?token='+encodeURIComponent(token)) : RUNNER_WS; w = new WebSocket(url); }
-        catch { return resolve(null); }
-        timer = setTimeout(()=>{ try{w?.close();}catch{} finish(null); }, perTimeout);
-        w.onopen = ()=>finish(w); w.onerror=()=>{}; w.onclose=()=>finish(null);
-      });
-      if (ws && ws.readyState===1) return ws;
-      await new Promise(r=>setTimeout(r, steps[Math.min(attempt-1, steps.length-1)]));
-    }
-    return null;
-  }
-
-  // Enter submits to stdin
-  document.addEventListener('keydown', (e)=>{
-    const el = document.getElementById('consoleInput');
-    if (!el || el.offsetParent===null) return;
-    if (e.target!==el) return;
-    if (e.key==='Enter'){
-      e.preventDefault();
-      const line = el.textContent; const pre = document.getElementById('cconsole');
-      const pref = document.getElementById('consolePrefix');
-      if (pref && pref.textContent){ pre.textContent += pref.textContent; pref.textContent=''; }
-      termWrite(line+'\n'); el.textContent='';
-      try { if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){
-        window.termWS.send(JSON.stringify({ type:'stdin', data: line+'\n' }));
-      }} catch {}
-      focusConsoleInput();
-    }
-  }, { capture:true });
-
-  // ---- one listener we can attach to either WS mode ----
-  function attachHandlers(ws, opts={}){
-    const { onFirstStdout } = opts;
-    const onMsg = (ev)=>{
-      try{
-        const m = JSON.parse(String(ev.data));
-        if (m.type==='stdout'){ termWrite(m.data); maybePromptFromStdout(m.data); onFirstStdout?.(m.data); }
-        else if (m.type==='stderr'){ termWrite(m.data); /* maybePromptFromStdout(m.data); */ }
-        else if (m.type==='stdin_req'){ showInputRow(true); focusConsoleInput(); }
-        else if (m.type==='diagnostics'){ setCMarkers(m.data||[]); }
-        else if (m.type==='exit'){
-          stopStatusDots(); window.wsRunInFlight=false; showInputRow(false);
-          window.PolyShell.setStatus(m.code===0 ? 'Execution Success' : 'Execution Failed', m.code===0 ? 'ok' : 'error');
-          try{ ws.removeEventListener('message', onMsg); }catch{}
-        }
-      }catch{}
+    /* ---------- boot editor ---------- */
+    window.bootstrap = async function(){
+      await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
+      window.PolyShell.setStatus('Ready', 'ok');
+      window.PolyShell.loadLeftContent('c');
     };
-    ws.addEventListener('message', onMsg);
-    ws.addEventListener('close', ()=>{
-      try{ ws.removeEventListener('message', onMsg); }catch{}
-      stopStatusDots();
-      if (window.wsRunInFlight){
-        window.wsRunInFlight = false;
-        window.PolyShell.setStatus('Runner disconnected', 'error');
-      }
-      showInputRow(false);
-    }, { once:true });
-  }
 
-  // ---- status dots ----
-  let __statusTimer=null;
-  function startStatusDots(txt){ clearInterval(__statusTimer); let dots=0; __statusTimer=setInterval(()=>{ dots=(dots+1)%4; window.PolyShell?.setStatus((txt||'Running')+'.'.repeat(dots),'busy'); },400); }
-  function stopStatusDots(){ if (__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
+    /* ---------- console helpers ---------- */
+    const conEl = () => document.getElementById('cconsole');
+    function setConsole(text=''){ const el=conEl(); if(!el) return; el.textContent=text; document.getElementById('output')?.scrollTo({top:1e9}); }
+    function termWrite(t=''){ const el=conEl(); if(!el) return; el.textContent += t; document.getElementById('output')?.scrollTo({top:1e9}); }
 
-  // ---- RUN (single-WS with automatic legacy fallback) ----
-  window.termWS = null;
-  window.wsRunInFlight = false;
-
-  window.runLang = async function runLang(){
-    clearCMarkers(); setConsole('');
-    try{ if (window.termWS && window.termWS.readyState===1) window.termWS.close(); }catch{}
-    const code = window.editor ? window.editor.getValue() : '';
-    window.PolyShell.setStatus('Running (interactive)…','busy'); startStatusDots('Running');
-
-    // 1) try single-WS
-    const ws = await openCWS(null, 20000);
-    if (!ws){ stopStatusDots(); window.PolyShell.setStatus('Runner unavailable — please retry','error'); return; }
-    window.termWS = ws; window.wsRunInFlight = true;
-
-    let sawCompile=false;
-    const firstStdout = (s)=>{ if(/\bgcc\b/.test(s) || /^\$ gcc\b/.test(s)) sawCompile=true; };
-    attachHandlers(ws, { onFirstStdout: firstStdout });
-
-    termWrite('⏳ compiling…\n');
-    await new Promise(r=>setTimeout(r,15));
-    try{ ws.send(JSON.stringify({ type:'start', files:[{ path:'main.c', content: code }] })); }catch{}
-
-    // 2) fallback to legacy if gcc output doesn’t appear quickly
-    setTimeout(async ()=>{
-      if (sawCompile || !window.wsRunInFlight || ws.readyState!==1) return;
-      // Legacy path: HTTP compile ➜ WS with token
-      termWrite('\n(no compile output yet — falling back to legacy mode)\n');
-      try{ ws.close(); }catch{}
-      const prep = await compileC(code);
-      const token = prep?.data?.token;
-      const diags = prep?.data?.diagnostics || [];
-      if (diags.length) setCMarkers(diags);
-      if (!token){ stopStatusDots(); window.PolyShell.setStatus('Compile failed', 'error'); return; }
-      const lws = await openCWS(token, 15000);
-      if (!lws){ stopStatusDots(); window.PolyShell.setStatus('Runner unavailable (legacy)', 'error'); return; }
-      window.termWS = lws; window.wsRunInFlight = true;
-      attachHandlers(lws);
-    }, 800);
-  };
-
-  window.clearLang = function(){
-    setConsole(''); try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
-    clearCMarkers(); showInputRow(false); stopStatusDots();
-  };
-
-  // expose to shell.js
-  window.run = window.runLang;
-  window.clear = window.clearLang;
-
-  // start when shell is ready
-  (function startWhenReady(){
-    function start(){
-      if (!window.PolyShell){
-        const id = setInterval(()=>{ if(window.PolyShell){ clearInterval(id); window.bootstrap(); } },25);
-        setTimeout(()=>clearInterval(id),3000);
-        return;
-      }
-      window.bootstrap();
+    /* ---------- input row helpers ---------- */
+    function focusConsoleInput(){
+      const el = document.getElementById('consoleInput'); if(!el) return;
+      el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
     }
-    if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', start, { once:true });
-    else start();
+    function showInputRow(show){
+      const row=document.getElementById('consoleRow'); const pre=document.getElementById('cconsole'); const prefix=document.getElementById('consolePrefix');
+      if (row) row.style.display = show ? 'flex' : 'none';
+      if (show){
+        const txt=pre.textContent, i=txt.lastIndexOf('\n'), tail=txt.slice(i+1);
+        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); } else { prefix.textContent = ''; }
+        window.PolyShell?.setStatus('Waiting for User Input…', 'busy'); __statusBase='Waiting for User Input'; startStatusDots(__statusBase);
+      } else {
+        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
+      }
+    }
+
+    /* ---------- status dots ---------- */
+    let __statusTimer=null, __statusBase='';
+    function startStatusDots(base){ stopStatusDots(); __statusBase=base||'Running'; let dots=0;
+      __statusTimer=setInterval(()=>{ dots=(dots+1)%4; window.PolyShell?.setStatus(__statusBase+'.'.repeat(dots),'busy'); },400);
+    }
+    function stopStatusDots(){ if(__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
+
+    /* ---------- Monaco markers for GCC ---------- */
+    function clearCMarkers(){
+      if(!window.monaco || !window.editor) return; const model=window.editor.getModel(); if(model) window.monaco.editor.setModelMarkers(model,'gcc',[]);
+    }
+    function setCMarkers(diags){
+      if(!Array.isArray(diags) || !window.monaco || !window.editor) return; const model=window.editor.getModel(); if(!model) return;
+      const markers = diags.map(d=>({
+        startLineNumber:d.line||1, endLineNumber:d.line||1, startColumn:1,
+        endColumn:Math.max(1, model.getLineMaxColumn(d.line||1)),
+        message:String(d.message||'error'),
+        severity:/warn/i.test(d.severity)?window.monaco.MarkerSeverity.Warning:window.monaco.MarkerSeverity.Error
+      }));
+      window.monaco.editor.setModelMarkers(model,'gcc',markers);
+    }
+
+    /* ---------- runner endpoints ---------- */
+    const RUNNER_HTTP = window.RUNNER_HTTP || window.location.origin;
+    const RUNNER_WS   = window.RUNNER_WS   || ((location.protocol==='https:'?'wss://':'ws://')+location.host+'/term-c');
+
+    async function compileC(src){
+      const files=[{path:'main.c',content:src}];
+      const resp = await fetch(RUNNER_HTTP+'/api/c/prepare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files})});
+      const data = await resp.json().catch(()=>({}));
+      return { ok: resp.ok, data };
+    }
+    async function openCWS(token, maxTotalMs=20000){
+      const start=Date.now(), backoff=[300,700,1200,2000,3200]; let attempt=0;
+      while(Date.now()-start<maxTotalMs){
+        attempt++; const perTimeout=Math.min(7000, maxTotalMs-(Date.now()-start));
+        const ws = await new Promise(resolve=>{
+          let done=false, timer, w;
+          function finish(v){ if(!done){ done=true; clearTimeout(timer); resolve(v); } }
+          try {
+            const url = token ? (RUNNER_WS+'?token='+encodeURIComponent(token)) : RUNNER_WS;
+            w = new WebSocket(url);
+          } catch { return resolve(null); }
+          timer=setTimeout(()=>{ try{ w?.close(); }catch{} finish(null); }, perTimeout);
+          w.onopen = ()=>finish(w);
+          w.onerror= ()=>{/* close follows */};
+          w.onclose= ()=>finish(null);
+        });
+        if(ws && ws.readyState===WebSocket.OPEN) return ws;
+        await new Promise(r=>setTimeout(r, backoff[Math.min(attempt-1, backoff.length-1)]));
+      }
+      return null;
+    }
+
+    /* ---------- safe send helper ---------- */
+    function safeSend(ws, obj){
+      try { if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify(obj)); } catch {}
+    }
+
+    /* ---------- stdin Enter handler ---------- */
+    document.addEventListener('keydown', (e)=>{
+      const el=document.getElementById('consoleInput'); if(!el || el.offsetParent===null) return; if(e.target!==el) return;
+      if(e.key==='Enter'){
+        e.preventDefault();
+        const line=el.textContent; const pre=document.getElementById('cconsole'); const pref=document.getElementById('consolePrefix');
+        if(pref && pref.textContent){ pre.textContent += pref.textContent; pref.textContent = ''; }
+        termWrite(line+'\n'); el.textContent='';
+        if (window.wsRunInFlight) safeSend(window.termWS, { type:'stdin', data: line+'\n' });
+        focusConsoleInput();
+      }
+    }, { capture:true });
+
+    /* ---------- run / clear ---------- */
+    window.termWS=null; window.wsRunInFlight=false;
+
+    async function runSingleWS(code){
+      const ws = await openCWS(null, 20000);
+      if(!ws) return { ok:false, reason:'no-ws' };
+
+      let closedByUs=false;
+      window.termWS = ws;
+      window.wsRunInFlight = true;
+
+      const onMsg = (ev)=>{
+        try{
+          const m=JSON.parse(String(ev.data));
+          if (m.type==='stdout') termWrite(m.data);
+          else if (m.type==='stderr') termWrite(m.data);
+          else if (m.type==='stdin_req'){ showInputRow(true); focusConsoleInput(); }
+          else if (m.type==='diagnostics'){ setCMarkers(m.data||[]); }
+          else if (m.type==='exit'){
+            stopStatusDots(); window.wsRunInFlight=false; showInputRow(false);
+            window.PolyShell.setStatus(m.code===0?'Execution Success':'Execution Failed', m.code===0?'ok':'error');
+            try{ ws.removeEventListener('message', onMsg); }catch{}
+          }
+        }catch{}
+      };
+      ws.addEventListener('message', onMsg);
+
+      // send files
+      const files=[{path:'main.c',content:code}];
+      termWrite('⏳ compiling…\n');
+      await new Promise(r=>setTimeout(r,15));
+      safeSend(ws, { type:'start', files });
+
+      ws.addEventListener('close', ()=>{
+        try{ ws.removeEventListener('message', onMsg); }catch{}
+        stopStatusDots();
+        if (window.wsRunInFlight && !closedByUs){
+          window.wsRunInFlight=false;
+          window.PolyShell.setStatus('Runner disconnected', 'error');
+        }
+        showInputRow(false);
+      }, { once:true });
+
+      return { ok:true, ws, close:()=>{ closedByUs=true; try{ ws.close(); }catch{} } };
+    }
+
+    async function runLegacy(code){
+      // HTTP compile -> token -> WS attach (runner auto-starts)
+      const { ok, data } = await compileC(code);
+      if (!ok || !data?.token){ return { ok:false, reason:'compile-failed', data }; }
+      const ws = await openCWS(data.token, 15000);
+      if(!ws) return { ok:false, reason:'ws-token' };
+
+      window.termWS = ws;
+      window.wsRunInFlight = true;
+
+      const onMsg = (ev)=>{
+        try{
+          const m=JSON.parse(String(ev.data));
+          if (m.type==='stdout') termWrite(m.data);
+          else if (m.type==='stderr') termWrite(m.data);
+          else if (m.type==='stdin_req'){ showInputRow(true); focusConsoleInput(); }
+          else if (m.type==='diagnostics'){ setCMarkers(m.data||[]); }
+          else if (m.type==='exit'){
+            stopStatusDots(); window.wsRunInFlight=false; showInputRow(false);
+            window.PolyShell.setStatus(m.code===0?'Execution Success':'Execution Failed', m.code===0?'ok':'error');
+            try{ ws.removeEventListener('message', onMsg); }catch{}
+          }
+        }catch{}
+      };
+      ws.addEventListener('message', onMsg);
+      ws.addEventListener('close', ()=>{
+        try{ ws.removeEventListener('message', onMsg); }catch{}
+        stopStatusDots();
+        if (window.wsRunInFlight){
+          window.wsRunInFlight=false;
+          window.PolyShell.setStatus('Runner disconnected', 'error');
+        }
+        showInputRow(false);
+      }, { once:true });
+
+      return { ok:true, ws };
+    }
+
+    window.runLang = async function(){
+      clearCMarkers();
+      setConsole('');
+
+      // close an old socket (if any) before starting
+      try{ if(window.termWS && window.termWS.readyState!==WebSocket.CLOSED) window.termWS.close(); }catch{}
+
+      const code = window.editor ? window.editor.getValue() : '';
+      window.PolyShell.setStatus('Running (interactive)…', 'busy');
+      startStatusDots('Running');
+
+      // try single-WS; if it fails quickly, fallback to legacy
+      const single = await runSingleWS(code);
+      if (!single.ok){
+        // fallback
+        setConsole('');
+        termWrite('⏳ compiling (fallback)…\n');
+        const legacy = await runLegacy(code);
+        if (!legacy.ok){
+          stopStatusDots();
+          window.PolyShell.setStatus('Runner unavailable — please retry', 'error');
+        }
+      }
+    };
+
+    window.clearLang = function(){
+      setConsole('');
+      try{ window.termWS?.close(); }catch{}
+      window.termWS=null;
+      window.wsRunInFlight=false;
+      clearCMarkers();
+      const row=document.getElementById('consoleRow'); if(row) row.style.display='none';
+      const prefix=document.getElementById('consolePrefix'); if(prefix) prefix.textContent='';
+      stopStatusDots();
+    };
+
+    // expose to shell.js buttons & for debugging
+    window.run = window.runLang;
+    window.clear = window.clearLang;
+    window.POLY = Object.assign(window.POLY||{}, {
+      RUNNER_HTTP, RUNNER_WS, compileC, openCWS, run: window.runLang, clear: window.clearLang
+    });
+
+    // start after shell is ready
+    (function startWhenReady(){
+      function start(){
+        if (!window.PolyShell){
+          const id=setInterval(()=>{ if(window.PolyShell){ clearInterval(id); window.bootstrap(); } },25);
+          setTimeout(()=>clearInterval(id),3000);
+          return;
+        }
+        window.bootstrap();
+      }
+      if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
+      else { start(); }
+    })();
   })();
-})();
-</script>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
+  </script>
 </body>
 </html>
