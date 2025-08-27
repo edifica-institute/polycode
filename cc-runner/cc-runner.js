@@ -1,28 +1,145 @@
+// cc-runner.js — C & C++ runner with CORS + WebSocket
 import express from "express";
-import cors from "cors";           // <— add this
-// ... other imports
+import cors from "cors";
+import { WebSocketServer } from "ws";
+import { spawn } from "node:child_process";
+import * as fs from "node:fs/promises";
+import fssync from "node:fs";
+import path from "node:path";
+import { nanoid } from "nanoid";
+
+const PORT = process.env.PORT || 8083;
+const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 const app = express();
 
-// allow your page origins (add any others you use)
+// ---- CORS allowlist ----
 const ALLOW_ORIGINS = [
   "https://polycode.pages.dev",
   "https://edifica-polycode.pages.dev",
-  "https://polycode.cc",          // add if you have custom domains
+  "https://polycode.cc",
+  "http://localhost:3000",   // optional for local dev
 ];
-
 app.use(cors({
   origin: (origin, cb) => {
-    // allow same-origin / curl / server-to-server (no origin header)
-    if (!origin) return cb(null, true);
+    if (!origin) return cb(null, true); // server-to-server / curl
     cb(null, ALLOW_ORIGINS.includes(origin));
   },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
   maxAge: 86400,
 }));
-
-app.options("*", cors());          // <— handle preflight for all routes
+app.options("*", cors());
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/health", (_, res) => res.json({ ok: true }));  // optional, helpful
+// ---- Health check ----
+app.get("/health", (_, res) => res.json({ ok: true }));
+
+// ---- helpers ----
+async function ensureDir(p) { await fs.mkdir(p, { recursive: true }); }
+function parseGcc(out) {
+  const lines = out.split(/\r?\n/), ds = [];
+  for (const line of lines) {
+    const m = line.match(/^(.*?):(\d+):(\d+):\s+(error|warning|note):\s+(.*)$/i);
+    if (m) ds.push({ file:m[1], line:+m[2], column:+m[3], severity:m[4].toLowerCase(), message:m[5] });
+  }
+  return ds;
+}
+function runWithLimits(cmd, args, cwd) {
+  const bash = `ulimit -t 10 -v 262144 -f 1048576; timeout 10s ${[cmd,...args].map(a=>`'${a.replace(/'/g,"'\\''")}'`).join(" ")}`;
+  return spawn("bash", ["-lc", bash], { cwd });
+}
+function compilerFor(lang, entry) {
+  if (lang === "c") return { cc: "gcc", std: "-std=c11" };
+  if (lang === "cpp") return { cc: "g++", std: "-std=c++17" };
+  const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entry || "");
+  return isCpp ? { cc: "g++", std: "-std=c++17" } : { cc: "gcc", std: "-std=c11" };
+}
+
+// ---- in-memory sessions ----
+const SESSIONS = new Map();
+
+// ---- compile endpoint ----
+app.post("/api/cc/prepare", async (req, res) => {
+  try {
+    const { files = [], lang, entry, output = "a.out" } = req.body || {};
+    if (!Array.isArray(files) || files.length === 0)
+      return res.status(400).json({ error: "No files" });
+
+    const id = nanoid();
+    const dir = path.join(JOB_ROOT, id);
+    await ensureDir(dir);
+
+    await Promise.all(files.map(async f => {
+      const full = path.join(dir, path.normalize(f.path));
+      await ensureDir(path.dirname(full));
+      await fs.writeFile(full, f.content ?? "", "utf8");
+    }));
+
+    const entryFile = entry || files[0].path;
+    const { cc, std } = compilerFor(lang, entryFile);
+    const srcs = files.map(f => path.join(dir, f.path));
+    const exePath = path.join(dir, output);
+
+    const child = spawn(cc, [...srcs, std, "-O2", "-o", exePath], { cwd: dir });
+    let out="", err="";
+    child.stdout.on("data", d => out += d.toString());
+    child.stderr.on("data", d => err += d.toString());
+    child.on("close", (code) => {
+      const compileLog = out + (err ? "\n"+err : "");
+      if (code !== 0) {
+        res.json({ token:null, ok:false, compileLog, diagnostics: parseGcc(compileLog) });
+        return;
+      }
+      const token = nanoid();
+      SESSIONS.set(token, { dir, exePath });
+      res.json({ token, ok:true, compileLog, diagnostics: [] });
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message || "internal error" });
+  }
+});
+
+// ---- WebSocket run endpoint ----
+const wss = new WebSocketServer({ noServer: true });
+const server = app.listen(PORT, () => console.log(`[cc-runner] listening on :${PORT}`));
+
+server.on("upgrade", (req, socket, head) => {
+  const url = new URL(req.url, "http://localhost");
+  if (url.pathname === "/cc") {
+    wss.handleUpgrade(req, socket, head, ws => wss.emit("connection", ws, req));
+  } else socket.destroy();
+});
+
+wss.on("connection", (ws, req) => {
+  const url = new URL(req.url, "http://localhost");
+  const token = url.searchParams.get("token");
+  const sess = token && SESSIONS.get(token);
+  if (!sess) return ws.close(1008, "invalid token");
+
+  const { dir, exePath } = sess;
+  const child = runWithLimits(exePath, [], dir);
+
+  child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
+  child.stderr.on("data", d => { try { ws.send(d.toString()); } catch {} });
+  child.on("close", code => {
+    try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
+    try { ws.close(); } catch {}
+    cleanup();
+  });
+
+  ws.on("message", m => {
+    try {
+      const msg = JSON.parse(m.toString());
+      if (msg.type === "stdin") child.stdin.write(msg.data);
+    } catch {}
+  });
+
+  ws.on("close", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
+
+  function cleanup() {
+    try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
+    SESSIONS.delete(token);
+  }
+});
