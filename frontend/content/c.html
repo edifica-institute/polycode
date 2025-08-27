@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C Standard Library — Functions • Use • Syntax • Examples</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: system-ui, sans-serif; line-height:1.5; margin:20px; max-width:900px; }
+  h1 { font-size: 1.8em; margin-top:0; }
+  h2 { font-size: 1.3em; margin-top:1.5em; color:#0b3b6a; }
+  pre { background:#f5f5f5; padding:8px; border-radius:6px; overflow-x:auto; }
+  code { background:#eef3ff; padding:2px 4px; border-radius:4px; }
+</style>
+</head>
+<body>
+
+<h1>C Standard Library — Functions • Use • Syntax • Examples</h1>
+<p>This reference covers common <b>C standard headers</b>. Each section shows description, key functions, syntax, and short example programs. Row-wise layout for easy reading/printing.</p>
+
+<!-- ========================================================= -->
+<h2>stdio.h — Standard I/O</h2>
+<p><b>Description:</b> Input/output functions for console and file operations.</p>
+<p><b>Syntax:</b> <code>printf</code>, <code>scanf</code>, <code>getchar</code>, <code>putchar</code>, <code>fopen</code>, <code>fclose</code>, <code>fread</code>, <code>fwrite</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;stdio.h&gt;
+int main() {
+    printf("Enter number: ");
+    int n; scanf("%d", &n);
+    printf("You entered %d\n", n);
+    return 0;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>stdlib.h — Utilities</h2>
+<p><b>Description:</b> Memory allocation, conversions, random numbers, program control.</p>
+<p><b>Syntax:</b> <code>malloc</code>, <code>calloc</code>, <code>free</code>, <code>rand</code>, <code>srand</code>, <code>exit</code>, <code>atoi</code>, <code>atof</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;stdlib.h&gt;
+#include &lt;stdio.h&gt;
+int main() {
+    int *arr = malloc(5 * sizeof(int));
+    for(int i=0;i&lt;5;i++) arr[i] = rand()%10;
+    free(arr);
+    return 0;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>string.h — String handling</h2>
+<p><b>Description:</b> Functions for manipulating strings and memory blocks.</p>
+<p><b>Syntax:</b> <code>strlen</code>, <code>strcpy</code>, <code>strcat</code>, <code>strcmp</code>, <code>memcpy</code>, <code>memset</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;string.h&gt;
+#include &lt;stdio.h&gt;
+int main() {
+    char s1[20] = "Hello", s2[] = "World";
+    strcat(s1, s2);
+    printf("%s\n", s1); // HelloWorld
+    return 0;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>math.h — Math library</h2>
+<p><b>Description:</b> Standard math functions.</p>
+<p><b>Syntax:</b> <code>sqrt</code>, <code>pow</code>, <code>sin</code>, <code>cos</code>, <code>log</code>, <code>fabs</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;math.h&gt;
+#include &lt;stdio.h&gt;
+int main() {
+    double r = sqrt(25.0) + pow(2,3);
+    printf("%f\n", r); // 13.000000
+    return 0;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>time.h — Date & Time</h2>
+<p><b>Description:</b> Get current time, measure intervals.</p>
+<p><b>Syntax:</b> <code>time</code>, <code>difftime</code>, <code>clock</code>, <code>localtime</code>, <code>strftime</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;time.h&gt;
+#include &lt;stdio.h&gt;
+int main() {
+    time_t now = time(NULL);
+    printf("Now: %s", ctime(&now));
+    return 0;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>ctype.h — Character handling</h2>
+<p><b>Description:</b> Character classification and conversion.</p>
+<p><b>Syntax:</b> <code>isalpha</code>, <code>isdigit</code>, <code>isspace</code>, <code>toupper</code>, <code>tolower</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;ctype.h&gt;
+#include &lt;stdio.h&gt;
+int main() {
+    char c = 'a';
+    if(isalpha(c)) printf("%c is alphabet\n", c);
+    printf("Upper: %c\n", toupper(c));
+    return 0;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>Others</h2>
+<p><b>errno.h</b> — Error codes<br>
+<b>assert.h</b> — Assertions<br>
+<b>signal.h</b> — Signal handling<br>
+<b>float.h</b> / <b>limits.h</b> — Constant limits of types<br>
+<b>stdbool.h</b> — Boolean type (<code>true</code>/<code>false</code>)</p>
+
+</body>
+</html>
