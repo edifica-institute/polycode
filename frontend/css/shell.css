@@ -2011,3 +2011,11 @@ html, body { height: 100%; }
 .pc-modal__footer .btn{
   display: none !important
 }
+
+
+ #output{ overflow:auto; -webkit-overflow-scrolling:touch; }
+#jconsole{
+  white-space: pre !important;     /* disable wrapping */
+  word-break: normal !important;    /* don’t break long tokens */
+  overflow-wrap: normal !important; /* same */
+}
