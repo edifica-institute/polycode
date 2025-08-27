@@ -454,56 +454,63 @@ int main(){
     function finishUI(){ window.setRunUI?.(false); }
 
     function finalizeStatus(){
-      stopHeartbeat(); stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-      window.wsRunInFlight=false; showInputRow(false); hideRunnerOverlay(); finishUI();
+  stopHeartbeat();
+  stopStatusDots();
+  stopInputCountdown();
+  window.PolyShell?.stopInputTicker?.();
+  window.wsRunInFlight = false;
+  showInputRow(false);
+  hideRunnerOverlay();
 
-      const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
-      const hasCompileErr = __cFlags.sawCompileErr
-         || /(^|\n).*?:\d+:\d+:\s*error:/i.test(cleanLog) || /\berror:\s/i.test(cleanLog);
-      const hasRuntimeErr = __cFlags.sawRuntimeErr
-         || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
+  const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
+  const hasCompileErr = __cFlags.sawCompileErr
+    || /(^|\n).*?\bmain\.c:\d+(?::\d+)?:\s*error:/i.test(cleanLog)
+    || /(^|\n).*?\berror\s*:\s*/i.test(cleanLog);
+  const hasRuntimeErr = __cFlags.sawRuntimeErr
+    || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
 
-      if (__cFlags.exitCode !== null){
-        const ok = (__cFlags.exitCode===0) && !hasCompileErr && !hasRuntimeErr;
-        if (ok){
-          window.PolyShell?.setRunnerPhase?.('success');
-          window.PolyShell.setStatus('Execution Success','ok');
-          setComplexityEnabled(true);
-          clearEditorMarkers();
-        } else {
-          window.PolyShell?.setRunnerPhase?.('error');
-          window.PolyShell.setStatus(hasCompileErr ? 'Compilation Failed' : 'Execution Failed','error');
-          setComplexityEnabled(false);
-          markFirstErrorFromLog();
-        }
-        return;
-      }
-
-      if (hasCompileErr){
-        window.PolyShell?.setRunnerPhase?.('error');
-        window.PolyShell.setStatus('Compilation Failed','error');
-        setComplexityEnabled(false);
-        markFirstErrorFromLog();
-        return;
-      }
-      if (hasRuntimeErr){
-        window.PolyShell?.setRunnerPhase?.('error');
-        window.PolyShell.setStatus('Execution Failed','error');
-        setComplexityEnabled(false);
-        return;
-      }
-      if (__cFlags.needsStdin && !__cFlags.inputProvided){
-        window.PolyShell?.setRunnerPhase?.('error');
-        window.PolyShell.setStatus('Execution ended (no input / timeout)','error');
-        setComplexityEnabled(false);
-        return;
-      }
-
+  // Decide outcome
+  if (__cFlags.exitCode !== null) {
+    const ok = (__cFlags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr;
+    if (ok) {
       window.PolyShell?.setRunnerPhase?.('success');
-      window.PolyShell.setStatus('Execution Finished','ok');
-      setComplexityEnabled(true);
+      window.PolyShell.setStatus('Execution Success', 'ok');
       clearEditorMarkers();
+      setComplexityEnabled(true);
+    } else {
+      window.PolyShell?.setRunnerPhase?.('error');
+      window.PolyShell.setStatus(hasCompileErr ? 'Compilation Failed' : 'Execution Failed', 'error');
+      markFirstErrorFromLog();
+      setComplexityEnabled(false);
     }
+    window.setRunUI?.(false);  // <-- close AFTER status/phase is set
+    return;
+  }
+
+  // No explicit exit code — infer
+  if (hasCompileErr) {
+    window.PolyShell?.setRunnerPhase?.('error');
+    window.PolyShell.setStatus('Compilation Failed', 'error');
+    markFirstErrorFromLog();
+    setComplexityEnabled(false);
+  } else if (hasRuntimeErr) {
+    window.PolyShell?.setRunnerPhase?.('error');
+    window.PolyShell.setStatus('Execution Failed', 'error');
+    setComplexityEnabled(false);
+  } else if (__cFlags.needsStdin && !__cFlags.inputProvided) {
+    window.PolyShell?.setRunnerPhase?.('error');
+    window.PolyShell.setStatus('Execution ended (no input / timeout)', 'error');
+    setComplexityEnabled(false);
+  } else {
+    window.PolyShell?.setRunnerPhase?.('success');
+    window.PolyShell.setStatus('Execution Finished', 'ok');
+    clearEditorMarkers();
+    setComplexityEnabled(true);
+  }
+
+  window.setRunUI?.(false);    // <-- close AFTER phase/status
+}
+
 
     /* ===== Send input on Enter, clear "waiting" ===== */
     document.addEventListener('keydown',(e)=>{
@@ -530,6 +537,7 @@ int main(){
 
     /* ===== Main run ===== */
     window.runLang = async function(){
+      window.setRunUI?.(true); 
       setConsole(''); document.getElementById('outV')?.classList.remove('error');
       setComplexityEnabled(false); clearEditorMarkers();
       try{ window.termWS?.close(); }catch{}
@@ -606,24 +614,24 @@ int main(){
 
 
 // Plain text fallback
+// Plain text fallback
 termWrite(raw);
 
 const clean = stripAnsi(raw);
 __aggLog += clean;
-
 if (clean.trim()) __cFlags.sawAnyOutput = true;
 
-/* --- Detect compile errors immediately (gcc/clang) --- */
-const gcc = /(?:^|\n).*?\bmain\.c:(\d+)(?::(\d+))?\s*:\s*error\s*:\s*([^\n]+)/m.exec(__aggLog)
-         || /(?:^|\n).*?error\s*:\s*([^\n]+)/m.exec(__aggLog);
-if (gcc) {
+// Detect gcc/clang errors immediately
+const m = /(^|\n).*?\bmain\.c:(\d+)(?::\d+)?:\s*error\s*:\s*([^\n]+)/m.exec(__aggLog)
+       || /(^|\n).*?\berror\s*:\s*([^\n]+)/m.exec(__aggLog);
+if (m) {
   __cFlags.sawCompileErr = true;
   const e = findFirstGccError(__aggLog);
-  if (e) setEditorMarker(e.line, e.msg);
-  // Flip UI right away so shell.js can't show success later
-  window.PolyShell?.setRunnerPhase?.('error');
-  window.PolyShell.setStatus('Compilation Failed','error');
+  if (e) setEditorMarker(e.line, e.msg);      // <-- puts the red squiggle
+  window.PolyShell?.setRunnerPhase?.('error'); // <-- so shell knows it’s an error run
+  window.PolyShell.setStatus('Compilation Failed', 'error');
 }
+
 
 /* --- Runtime crash patterns --- */
 if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) {
