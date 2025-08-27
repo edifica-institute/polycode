@@ -248,33 +248,46 @@
     const roots = findLoopsWithBodies(code);
 
     function costOfLoop(node){
-      const header = code.slice(node.headStart, node.headEnd);
-      const body   = code.slice(node.bodyStart, node.bodyEnd+1);
+  const header = code.slice(node.headStart, node.headEnd);
+  const body   = code.slice(node.bodyStart, node.bodyEnd + 1);
 
-      let bodyCost = '1';
-      if (node.children.length){
-        let best = '1';
-        for (const ch of node.children){
-          const c = costOfLoop(ch);
-          best = simplify.max(best, c);
-        }
-        bodyCost = best;
-      }
-
-      const selfTrip = loopCost(header, body);
-      const total = simplify.mult(selfTrip, bodyCost);
-
-      const ln = lineFromPos(linemap, node.headStart);
-      notes.push({ line: ln, type: 'loop', cx: `O(${selfTrip})`, reason: `loop header: ${header.trim().slice(0,100)}`});
-
-      return total;
+  let bodyCost = '1';
+  if (node.children.length){
+    let best = '1';
+    for (const ch of node.children){
+      const c = costOfLoop(ch);
+      best = simplify.max(best, c);
     }
+    bodyCost = best;
+  }
+
+  const selfTrip = loopCost(header, body);
+  const total = simplify.mult(selfTrip, bodyCost);
+
+  // Robust line computation (never undefined)
+  let ln = lineFromPos(linemap, node.headStart);
+  if (!Number.isFinite(ln) || ln < 1) ln = 1;
+
+  // Ensure a note row is always produced
+  pushNote(ln, 'loop', selfTrip, `loop header: ${header.trim().slice(0,100)}`);
+
+  return total;
+}
+
 
     let finalTimeCore = '1';
     for (const root of roots){
       const c = costOfLoop(root);
       finalTimeCore = simplify.max(finalTimeCore, c);
     }
+
+    if ((!notes || notes.length === 0) && roots && roots.length) {
+  for (const r of roots) {
+    const header = code.slice(r.headStart, r.headEnd);
+    const ln = Math.max(1, lineFromPos(linemap, r.headStart) || 1);
+    pushNote(ln, 'loop', 'n', `loop header: ${header.trim().slice(0,100)}`);
+  }
+}
 
     // ---- Library time costs (C/C++ + keep Java arraycopy/sort checks) ----
     const libCosts = [];
