@@ -11,7 +11,6 @@
     return s;
   }
 
-  // ---- replace existing `simplify` with this ----
   const simplify = {
     // multiply symbolic costs (e.g., 'n', 'log n', 'n log n')
     mult(a, b) {
@@ -55,7 +54,6 @@
   };
 
   /* =================== Loop Body Discovery (Nesting) =================== */
-  // ---- add BELOW stripNoise(), ABOVE analyzeJavaComplexity() ----
 
   // find matching '}' for a '{' starting at idx
   function matchBrace(src, openIdx){
@@ -151,7 +149,6 @@
 
   /* =================== Loop Cost Heuristics =================== */
 
-  // ---- replace your loopCost() with this version ----
   function loopCost(header, body){
     const h = header.replace(/\s+/g,' ');
     const b = (body || '').replace(/\s+/g,' ');
@@ -183,7 +180,6 @@
 
   /* =================== Analyzer (Nested, Library-aware) =================== */
 
-  // ---- FULL replacement for analyzeJavaComplexity() ----
   function analyzeJavaComplexity(src){
     // 1) Strip strings/comments
     const code = stripNoise(src);
@@ -275,7 +271,7 @@
     };
   }
 
-  /* =================== Modal Wiring (unchanged API) =================== */
+  /* =================== Modal Wiring =================== */
 
   function openModal() {
     const m = document.getElementById('complexityModal');
@@ -287,6 +283,10 @@
   }
 
   function initUI({ getCode, lang = 'java' } = {}) {
+    // idempotent guard
+    if (initUI._bound) return;
+    initUI._bound = true;
+
     // Close hooks
     const modal = document.getElementById('complexityModal');
     if (modal) {
@@ -306,7 +306,6 @@
         (typeof getCode === 'function' ? getCode() : '') ||
         (document.getElementById('code')?.value || '');
 
-      // For now, we run the Java analyzer for all (heuristics fit C/C++ too).
       const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
 
       const tEl = document.getElementById('cxTime');
@@ -332,7 +331,7 @@
     });
   }
 
-  // Public API (kept the same)
+  // Public API
   window.PolyComplexity = {
     analyze: (code/*, {lang}*/) => analyzeJavaComplexity(code),
     initUI,           // ({ getCode, lang })
@@ -340,125 +339,19 @@
     close: closeModal
   };
 
-  // Auto-bind once DOM ready if #btnComplexity exists
+  /* =================== Auto-bind =================== */
+
+  // If the modal gets injected later by index page, init then
+  document.addEventListener('pc:modal-ready', () => {
+    if (document.getElementById('btnComplexity')) initUI({});
+  });
+
+  // Also try once on DOM ready (covers SSR or already-present modal)
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      if (document.getElementById('btnComplexity')) {
-        const lang = document.documentElement?.dataset?.lang || 'java';
-        initUI({ lang });
-      }
+      if (document.getElementById('btnComplexity')) initUI({});
     }, { once: true });
   } else {
-    if (document.getElementById('btnComplexity')) {
-      const lang = document.documentElement?.dataset?.lang || 'java';
-      initUI({ lang });
-    }
+    if (document.getElementById('btnComplexity')) initUI({});
   }
 })();
-
-
-
-
-(() => {
-  // --- Config: path to your partial (can be overridden before this script loads) ---
-  const PARTIAL_PATH = window.POLY_COMPLEXITY_PARTIAL || './partials/complexity-modal.html';
-
-  // Namespace (exported)
-  window.PolyComplexity = window.PolyComplexity || {
-    inited: false,
-
-    function initUI({ getCode, lang = 'java' } = {}) {
-  if (initUI._bound) return;   // <-- guard
-  initUI._bound = true;        // <-- guard
-
-  // Close hooks
-  const modal = document.getElementById('complexityModal');
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      const t = e.target;
-      if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
-    });
-  }
-
-  // Button
-  const btn = document.getElementById('btnComplexity');
-  if (!btn) return;
-
-  btn.addEventListener('click', () => {
-    const code =
-      (window.editor?.getValue?.() ?? '') ||
-      (typeof getCode === 'function' ? getCode() : '') ||
-      (document.getElementById('code')?.value || '');
-
-    const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
-
-    const tEl = document.getElementById('cxTime');
-    const sEl = document.getElementById('cxSpace');
-    const tb  = document.querySelector('#cxTable tbody');
-    const nt  = document.getElementById('cxNotes');
-    if (!tEl || !sEl || !tb || !nt) return;
-
-    tEl.textContent = finalTime || 'O(1)';
-    sEl.textContent = finalSpace || 'O(1)';
-
-    tb.innerHTML = '';
-    for (const n of notes) {
-      const tr = document.createElement('tr');
-      tr.innerHTML =
-        `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
-      tb.appendChild(tr);
-    }
-    nt.innerHTML =
-      `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
-
-    openModal();
-  });
-}
-
-  };
-
-  // --- Helpers ---
-  function insertModalIfMissing() {
-    if (document.getElementById('complexityModal')) return Promise.resolve('exists');
-
-    return fetch(PARTIAL_PATH, { cache: 'no-store' })
-      .then(r => {
-        if (!r.ok) throw new Error(`Failed to load partial: ${r.status}`);
-        return r.text();
-      })
-      .then(html => {
-        document.body.insertAdjacentHTML('beforeend', html);
-        // Let listeners know the modal just arrived
-        document.dispatchEvent(new Event('pc:modal-ready'));
-        return 'inserted';
-      })
-      .catch(err => {
-        // Fail gracefully (button will remain inert, console shows why)
-        console.warn('[PolyComplexity] Could not load modal partial:', err);
-        return 'failed';
-      });
-  }
-
-  function initWhenReady() {
-    // 1) If modal is already in DOM (SSR or extremely fast load), init now
-    if (document.getElementById('complexityModal')) {
-      window.PolyComplexity.initUI();
-    }
-
-    // 2) Or initialize after we hear it was injected
-    document.addEventListener('pc:modal-ready', () => {
-      window.PolyComplexity.initUI();
-    });
-
-    // 3) As a fallback (e.g., scripts executed out of order), try once after DOM is ready
-    //    and also try to fetch/insert it if missing.
-    document.addEventListener('DOMContentLoaded', async () => {
-      await insertModalIfMissing();
-      window.PolyComplexity.initUI();
-    });
-  }
-
-  // Kick off
-  initWhenReady();
-})();
-
