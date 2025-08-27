@@ -132,9 +132,11 @@
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
-  <script>
-  (function(){
-    const SAMPLE_C =
+
+
+<script>
+(function(){
+  const SAMPLE_C =
 `#include <stdio.h>
 #include <stdlib.h>
 int main(void){
@@ -142,181 +144,146 @@ int main(void){
   fflush(stdout);
   int n;
   if (scanf("%d", &n) != 1) return 0;
-
-  int *a = malloc((size_t)n * sizeof(int));
-  if (!a){ perror("malloc"); return 1; }
-  for (int i=0;i<n;i++) a[i] = (i+1)*(i+1);
-
-  FILE *fp = fopen("out.txt","w");
-  if (!fp){ perror("fopen"); free(a); return 1; }
-  for (int i=0;i<n;i++) fprintf(fp, "%d\\n", a[i]);
-  fclose(fp);
-
-  long sum = 0; int *p = a;
-  for (int i=0;i<n;i++,p++) sum += *p;
-  printf("Sum: %ld\\n", sum);
-  free(a);
+  printf("You typed: %d\\n", n);
   return 0;
 }`;
 
-    // ---- bootstrap editor ----
-    window.bootstrap = async function(){
-      await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
-      window.PolyShell.setStatus('Ready', 'ok');
-      window.PolyShell.loadLeftContent('c');
-    };
+  window.bootstrap = async function(){
+    await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
+    window.PolyShell.setStatus('Ready', 'ok');
+    window.PolyShell.loadLeftContent('c');
+  };
 
-    // ---- console helpers ----
-    function setConsole(text){
-      const el = document.getElementById('cconsole');
-      el.textContent = text || '';
-      document.getElementById('output')?.scrollTo({ top: 1e9 });
-    }
-    function termWrite(t){
-      const el = document.getElementById('cconsole');
-      el.textContent += t;
-      document.getElementById('output')?.scrollTo({ top: 1e9 });
-    }
+  function setConsole(t){ const el=document.getElementById('cconsole'); el.textContent=t||''; document.getElementById('output')?.scrollTo({top:1e9}); }
+  function termWrite(t){ const el=document.getElementById('cconsole'); el.textContent+=t; document.getElementById('output')?.scrollTo({top:1e9}); }
 
-    // input row
-    function showInputRow(show){
-      const row = document.getElementById('consoleRow');
-      const pre = document.getElementById('cconsole');
-      const pref= document.getElementById('consolePrefix');
-      row.style.display = show ? 'flex' : 'none';
-      if (show){
-        const txt = pre.textContent;
-        const i   = txt.lastIndexOf('\n');
-        const tail= txt.slice(i+1);
-        if (tail && !/^\s*$/.test(tail)){ pref.textContent = tail + ' '; pre.textContent = txt.slice(0,i+1); }
-        setTimeout(() => {
-          const el = document.getElementById('consoleInput');
-          el.focus();
-          const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-          const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-        }, 0);
-      } else {
-        if (pref.textContent){ pre.textContent += pref.textContent; pref.textContent = ''; }
-      }
+  function showInputRow(show){
+    const row=document.getElementById('consoleRow');
+    const pre=document.getElementById('cconsole');
+    const pref=document.getElementById('consolePrefix');
+    row.style.display=show?'flex':'none';
+    if (show){
+      const txt=pre.textContent, i=txt.lastIndexOf('\n'), tail=txt.slice(i+1);
+      if (tail && !/^\s*$/.test(tail)){ pref.textContent=tail+' '; pre.textContent=txt.slice(0,i+1); }
+      setTimeout(()=>{ const el=document.getElementById('consoleInput'); el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); const s=getSelection(); s.removeAllRanges(); s.addRange(r); },0);
+    } else {
+      if (pref.textContent){ pre.textContent+=pref.textContent; pref.textContent=''; }
     }
+  }
 
-    // status dots
-    let __timer=null, __base='';
-    function startDots(base){ stopDots(); __base=base||'Running'; let d=0;
-      __timer=setInterval(()=>window.PolyShell?.setStatus(__base+'.'.repeat((d=(d+1)%4)), 'busy'), 400);
+  let timer=null, base='';
+  function startDots(b){ stopDots(); base=b||'Running'; let d=0; timer=setInterval(()=>window.PolyShell?.setStatus(base+'.'.repeat((d=(d+1)%4)),'busy'),400); }
+  function stopDots(){ if (timer){ clearInterval(timer); timer=null; } }
+
+  async function openCWS(maxMs=20000){
+    const url = window.RUNNER_WS || ((location.protocol==='https:'?'wss://':'ws://')+location.host+'/term-c');
+    const start=Date.now(), steps=[300,700,1200,2000,3200];
+    let attempt=0;
+    while (Date.now()-start<maxMs){
+      attempt++;
+      const per=Math.min(7000,maxMs-(Date.now()-start));
+      const ws=await new Promise(resolve=>{
+        let done=false, t, w;
+        function doneWith(v){ if(!done){ done=true; clearTimeout(t); resolve(v);} }
+        try{ w=new WebSocket(url); }catch{ return resolve(null); }
+        t=setTimeout(()=>{ try{w?.close();}catch{} doneWith(null); }, per);
+        w.onopen=()=>doneWith(w);
+        w.onerror=()=>{};
+        w.onclose=()=>doneWith(null);
+      });
+      if (ws && ws.readyState===WebSocket.OPEN) return ws;
+      await new Promise(r=>setTimeout(r, steps[Math.min(attempt-1,steps.length-1)]));
     }
-    function stopDots(){ if(__timer){ clearInterval(__timer); __timer=null; } }
+    return null;
+  }
 
-    // --- WebSocket open (single WS) ---
-    async function openCWS(maxMs=20000){
-      const url = window.RUNNER_WS || ((location.protocol==='https:'?'wss://':'ws://')+location.host+'/term-c');
-      const start = Date.now(), steps=[300,700,1200,2000,3200];
-      let attempt=0;
-      while (Date.now()-start < maxMs){
-        attempt++;
-        const per = Math.min(7000, maxMs-(Date.now()-start));
-        const ws = await new Promise(resolve=>{
-          let done=false, timer, w;
-          function finish(v){ if(!done){ done=true; clearTimeout(timer); resolve(v);} }
-          try{ w=new WebSocket(url);}catch{ return resolve(null); }
-          timer=setTimeout(()=>{ try{w?.close();}catch{} finish(null); }, per);
-          w.onopen = ()=>finish(w);
-          w.onerror= ()=>{};
-          w.onclose= ()=>finish(null);
-        });
-        if (ws && ws.readyState===1) return ws;
-        await new Promise(r=>setTimeout(r, steps[Math.min(attempt-1, steps.length-1)]));
-      }
-      return null;
+  window.termWS=null; window.wsRunInFlight=false;
+
+  document.addEventListener('keydown',(e)=>{
+    const el=document.getElementById('consoleInput');
+    if (!el || el.offsetParent===null) return;
+    if (e.target!==el) return;
+    if (e.key==='Enter'){
+      e.preventDefault();
+      const line=el.textContent, pre=document.getElementById('cconsole'), pref=document.getElementById('consolePrefix');
+      if (pref && pref.textContent){ pre.textContent+=pref.textContent; pref.textContent=''; }
+      termWrite(line+'\n'); el.textContent='';
+      try{ if (window.termWS && window.termWS.readyState===WebSocket.OPEN && window.wsRunInFlight){
+        window.termWS.send(JSON.stringify({type:'stdin', data: line+'\n'}));
+      }}catch{}
     }
+  },{capture:true});
 
-    // visible globals
+  window.runLang = async function(){
+    try{ if (window.termWS){ window.termWS.onmessage=null; window.termWS.onclose=null; window.termWS.close(); } }catch{}
     window.termWS=null; window.wsRunInFlight=false;
 
-    // send input on Enter
-    document.addEventListener('keydown', (e)=>{
-      const el = document.getElementById('consoleInput');
-      if (!el || el.offsetParent===null) return;
-      if (e.target!==el) return;
-      if (e.key==='Enter'){
-        e.preventDefault();
-        const line = el.textContent;
-        const pre  = document.getElementById('cconsole');
-        const pref = document.getElementById('consolePrefix');
-        if (pref && pref.textContent){ pre.textContent += pref.textContent; pref.textContent=''; }
-        termWrite(line+'\n'); el.textContent='';
-        try{ if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){
-          window.termWS.send(JSON.stringify({type:'stdin', data: line+'\n'}));
-        }}catch{}
+    setConsole(''); showInputRow(false);
+    const code = window.editor ? window.editor.getValue() : '';
+    window.PolyShell.setStatus('Running (interactive)…','busy'); startDots('Running');
+
+    const ws = await openCWS(20000);
+    if (!ws){ stopDots(); window.PolyShell.setStatus('Runner unavailable — please retry','error'); return; }
+    window.termWS=ws; window.wsRunInFlight=true;
+
+    ws.addEventListener('close', ev => console.warn('WS closed', ev.code, ev.reason||'(no reason)'));
+
+    const onMsg = (ev)=>{
+      let m; try{ m=JSON.parse(String(ev.data)); }catch{ return; }
+      if      (m.type==='stdout')      termWrite(m.data);
+      else if (m.type==='stderr')      termWrite(m.data);
+      else if (m.type==='stdin_req')   showInputRow(true);
+      else if (m.type==='exit'){
+        stopDots(); window.wsRunInFlight=false; showInputRow(false);
+        window.PolyShell.setStatus(m.code===0?'Execution Success':'Execution Failed', m.code===0?'ok':'error');
       }
-    }, {capture:true});
-
-    // ---- RUN language (single WS path only) ----
-    window.runLang = async function(){
-      // hard close any prior WS
-      try{ if (window.termWS){ window.termWS.onmessage=null; window.termWS.onclose=null; window.termWS.close(); } }catch{}
-      window.termWS=null; window.wsRunInFlight=false;
-
-      setConsole(''); showInputRow(false);
-      const code = window.editor ? window.editor.getValue() : '';
-      window.PolyShell.setStatus('Running (interactive)…', 'busy');
-      startDots('Running');
-
-      const ws = await openCWS(20000);
-      if (!ws){ stopDots(); window.PolyShell.setStatus('Runner unavailable — please retry','error'); return; }
-      window.termWS = ws; window.wsRunInFlight = true;
-
-      const onMsg = (ev)=>{
-        let m; try{ m = JSON.parse(String(ev.data)); }catch{ return; }
-        if      (m.type==='stdout')      termWrite(m.data);
-        else if (m.type==='stderr')      termWrite(m.data);
-        else if (m.type==='stdin_req')   showInputRow(true);
-        else if (m.type==='diagnostics') {/* optionally highlight in Monaco */}
-        else if (m.type==='exit'){
-          stopDots(); window.wsRunInFlight=false; showInputRow(false);
-          window.PolyShell.setStatus(m.code===0?'Execution Success':'Execution Failed', m.code===0?'ok':'error');
-          try{ ws.onmessage=null; }catch{}
-        }
-      };
-      ws.onmessage = onMsg;
-
-      // small tick prevents races in some proxies
-      termWrite('⏳ compiling…\n');
-      await new Promise(r=>setTimeout(r, 25));
-
-      // ALWAYS show input row (works even if libstdin_notify.so is unavailable)
-      showInputRow(true);
-
-      const files = [{ path:'main.c', content: code }];
-      try{ ws.send(JSON.stringify({type:'start', files})); }catch{}
-
-      ws.onclose = ()=>{
-        stopDots();
-        if (window.wsRunInFlight){
-          window.wsRunInFlight=false;
-          window.PolyShell.setStatus('Runner disconnected','error');
-        }
-        showInputRow(false);
-      };
     };
+    ws.addEventListener('message', onMsg);
 
-    window.clearLang = function(){
-      setConsole(''); showInputRow(false);
-      try{ window.termWS?.close(); }catch{}
-      window.termWS=null; window.wsRunInFlight=false; stopDots();
-    };
+    const files = [{ path:'main.c', content: code }];
 
-    // expose to shell.js buttons
-    window.run   = window.runLang;
-    window.clear = window.clearLang;
+    termWrite('⏳ compiling…\n');
+    await new Promise(r=>setTimeout(r,25));
 
-    // start after shell ready
-    (function startWhenReady(){
-      const boot = ()=> window.bootstrap();
-      if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', boot, {once:true}); }
-      else boot();
-    })();
+    const payload = JSON.stringify({ type:'start', files });
+    if (!ws || ws.readyState!==WebSocket.OPEN){
+      stopDots(); window.wsRunInFlight=false; window.PolyShell.setStatus('Runner disconnected (socket closed before start)','error'); showInputRow(false); return;
+    }
+    ws.send(payload);
+
+    ws.addEventListener('close', ()=>{
+      stopDots();
+      if (window.wsRunInFlight){
+        window.wsRunInFlight=false;
+        window.PolyShell.setStatus('Runner disconnected','error');
+      }
+      showInputRow(false);
+    });
+  };
+
+  window.clearLang = function(){
+    setConsole(''); showInputRow(false);
+    try{ window.termWS?.close(); }catch{}
+    window.termWS=null; window.wsRunInFlight=false; stopDots();
+  };
+
+  window.run   = window.runLang;
+  window.clear = window.clearLang;
+
+  (function startWhenReady(){
+    const boot=()=>window.bootstrap();
+    if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', boot, {once:true}); }
+    else boot();
   })();
-  </script>
+})();
+</script>
+
+
+
+
+
+
+
+  
 </body>
 </html>
