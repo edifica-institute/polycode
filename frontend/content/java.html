@@ -5,6 +5,66 @@
 <title>Java Core Packages — Packages • Functions • Use • Syntax • Examples</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
+  <style>
+/* Row-wise cards for any table.resp (print-friendly, no JS) */
+.resp { width: 100%; border-collapse: collapse; }
+.resp thead { display: none; }                /* hide column headers */
+.resp tbody { display: block; }
+.resp tbody tr {
+  display: block;
+  margin: 12px 0;
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+}
+.resp td {
+  display: block;
+  padding: .35rem 0;
+}
+
+/* 1) Heading (first cell) */
+.resp td:first-child {
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: .15rem;
+}
+
+/* 2) Label + content for the rest, using your data-label */
+.resp td:not(:first-child)::before {
+  content: attr(data-label);
+  display: block;
+  font-weight: 600;
+  font-size: .85rem;
+  color: #6b7280; /* slate-500 */
+  margin-bottom: .15rem;
+}
+
+/* Code blocks look nicer & wrap */
+.resp pre {
+  margin: .25rem 0;
+  padding: .5rem .75rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  white-space: pre-wrap;     /* wrap long code */
+  word-break: break-word;
+}
+
+/* Optional: only stack on small screens.  If you want this,
+   wrap everything above (except .resp base rules) inside this media query. */
+/*
+@media (max-width: 900px) {
+  ...same rules as above...
+}
+*/
+
+/* Print tweaks */
+@media print {
+  .resp tbody tr { page-break-inside: avoid; box-shadow: none; }
+}
+</style>
+
+  
 </head>
 <body>
 <div class="wrap">
