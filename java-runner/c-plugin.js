@@ -89,11 +89,11 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
       proc.stdout.on("data", d => { log += d.toString(); });
       proc.stderr.on("data", d => { log += d.toString(); });
 
-      proc.on("close", async () => {
-        const diagnostics = parseGcc(log);
-        const compileOk = !diagnostics.some(
-          d => d.severity === "error" || /fatal/i.test(d.message)
-        );
+      proc.on("close", async (code) => {
+  const diagnostics = parseGcc(log);
+  const compileOk = (code === 0) && !diagnostics.some(
+    d => d.severity === "error" || /fatal/i.test(d.message)
+  );
 
         // --- Run command (NO `script`): combine stdbuf + stdin-notify ---
         // Debian/Ubuntu path for libstdbuf:
