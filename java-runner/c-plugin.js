@@ -55,43 +55,64 @@ export function register(app, { server }) {
         await fs.writeFile(full, f?.content ?? "", "utf8");
       }
 
-      // Build bash script (normalize & de-dupe file paths)
+      // Build a robust multiline bash script for compilation
       const cd = "cd '" + dir.replace(/'/g, "'\\''") + "'";
-     
-  const bash = [
-  cd,
-  'shopt -s nullglob globstar',
-  'files=( ./**/*.c *.c )',
-  // normalize & de-dupe
-  'declare -A seen; uniq=()',
-  'for f in "${files[@]}"; do nf="${f#./}"; [[ -n "${seen[$nf]}" ]] && continue; seen[$nf]=1; uniq+=("$nf"); done',
-  'if (( ${#uniq[@]} == 0 )); then echo "No .c files found"; exit 1; fi',
-  'printf "$ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main"; for f in "${uniq[@]}"; do printf " %q" "$f"; done; printf " -lm\n"',
-  'gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "${uniq[@]}" -lm'
-].join(' && ');
+      const bash = `
+${cd}
+set -e
+shopt -s nullglob globstar
+files=( ./**/*.c *.c )
 
+# normalize & de-dupe
+declare -A seen
+uniq=()
+for f in "\${files[@]}"; do
+  nf="\${f#./}"
+  [[ -n "\${seen[$nf]}" ]] && continue
+  seen[$nf]=1
+  uniq+=("$nf")
+done
 
+if (( \${#uniq[@]} == 0 )); then
+  echo "No .c files found"
+  exit 1
+fi
+
+# show gcc line like a shell prompt
+printf '$ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main'
+for f in "\${uniq[@]}"; do printf " %q" "$f"; done
+printf ' -lm\\n'
+
+# compile
+gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -lm
+`.trim();
 
       const proc = spawn("bash", ["-lc", bash + " 2>&1"]);
       let log = "";
-      proc.stdout.on("data", d => { log += d.toString(); });
-      proc.stderr.on("data", d => { log += d.toString(); });
+      proc.stdout.on("data", (d) => (log += d.toString()));
+      proc.stderr.on("data", (d) => (log += d.toString()));
 
-      proc.on("close", (code) => {
+      proc.on("close", () => {
         const diagnostics = parseGcc(log);
-        const compileOk = code === 0 && !diagnostics.some(d => d.severity === "error" || /fatal/i.test(d.message));
-        const token = uid();
+        const compileOk = !diagnostics.some(
+          (d) => d.severity === "error" || /fatal/i.test(d.message)
+        );
 
+        // Build run command (no stdbuf; ensure our preload is honored)
         const preload = path.join(process.cwd(), "libstdin_notify.so");
         const preloadQuoted = preload.replace(/'/g, "'\\''");
 
-        const cmdParts = [
-          `LD_PRELOAD='${preloadQuoted}'`,
-          "timeout 10s",
-          "stdbuf -oL -eL",
-          "./main"
-        ];
-        SESSIONS.set(token, { cwd: dir, cmd: cmdParts.join(" ") });
+        // Give a generous timeout for interactive runs
+        const cmd = [
+          `export LD_PRELOAD='${preloadQuoted}'`,
+          // If you later want PTY-style behavior (prompts auto-flush),
+          // you can replace the next line with:
+          // `exec timeout 60s script -qfec "./main" /dev/null`
+          `exec timeout 60s ./main`,
+        ].join("; ");
+
+        const token = uid();
+        SESSIONS.set(token, { cwd: dir, cmd });
 
         res.json({ token, ok: compileOk, diagnostics, compileLog: log });
       });
@@ -101,7 +122,7 @@ export function register(app, { server }) {
     }
   });
 
-  // ---------- Run: WS on /term-c (matches your page) ----------
+  // ---------- Run: WS on /term-c ----------
   const wssC = new WebSocketServer({ noServer: true, perMessageDeflate: false });
 
   server.on("upgrade", (req, socket, head) => {
@@ -122,14 +143,18 @@ export function register(app, { server }) {
     const sess = token && SESSIONS.get(token);
     if (!sess) { try { ws.close(); } catch {} return; }
 
-    const child = spawn("bash", ["-lc", sess.cmd], { cwd: sess.cwd });
+    // Explicit pipes for stdio
+    const child = spawn("bash", ["-lc", sess.cmd], {
+      cwd: sess.cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
 
-    child.stdout.on("data", d => {
+    child.stdout.on("data", (d) => {
       try { ws.send(JSON.stringify({ type: "stdout", data: d.toString() })); } catch {}
     });
 
     let errBuf = "";
-    child.stderr.on("data", d => {
+    child.stderr.on("data", (d) => {
       errBuf += d.toString();
       let i;
       while ((i = errBuf.indexOf("\n")) >= 0) {
@@ -142,12 +167,12 @@ export function register(app, { server }) {
       }
     });
 
-    child.on("close", code => {
+    child.on("close", (code) => {
       try { ws.send(JSON.stringify({ type: "exit", code })); } catch {}
       try { ws.close(); } catch {}
     });
 
-    ws.on("message", raw => {
+    ws.on("message", (raw) => {
       let m; try { m = JSON.parse(String(raw)); } catch { return; }
       if (m.type === "stdin") { try { child.stdin.write(m.data); } catch {} }
       if (m.type === "kill")  { try { child.kill("SIGKILL"); } catch {} }
