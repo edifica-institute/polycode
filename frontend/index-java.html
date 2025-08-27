@@ -1080,9 +1080,11 @@
     .then(r => r.text())
     .then(html => {
       document.body.insertAdjacentHTML('beforeend', html);
+      document.dispatchEvent(new Event('pc:modal-ready')); // optional signal
     });
 </script>
 <script src="./js/complexity.js" defer></script>
+
 
   
 
