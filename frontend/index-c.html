@@ -258,15 +258,19 @@ int main(){
       }]);
     }
     function findFirstGccError(text){
-      if (!text) return null;
-      // main.c:7:33: error: ...
-      let m = /(^|\n)[^\n]*?\bmain\.c:(\d+):\d+:\s*error:\s*([^\n]+)/i.exec(text);
-      if (m) return { line: Number(m[2]), msg: m[3] };
-      // main.c:7: error: ...
-      m = /(^|\n)[^\n]*?\bmain\.c:(\d+):\s*error:\s*([^\n]+)/i.exec(text);
-      if (m) return { line: Number(m[2]), msg: m[3] };
-      return null;
-    }
+  if (!text) return null;
+  const clean = text.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+  // /tmp/.../main.c:7:33: error: ...
+  let m = /(?:^|\n).*?\bmain\.c:(\d+)(?::(\d+))?\s*:\s*error\s*:\s*([^\n]+)/m.exec(clean);
+  if (m) return { line: Number(m[1]), msg: m[3] };
+
+  // Fallback: any "error: ..." line—use line 1 so user still gets a marker
+  m = /(?:^|\n).*?error\s*:\s*([^\n]+)/m.exec(clean);
+  if (m) return { line: 1, msg: m[1] };
+
+  return null;
+}
+
 
     /* ===== Console helpers ===== */
     function refreshHWidth(){
@@ -598,13 +602,45 @@ int main(){
           return;
         }
         // Plain text fallback
-        termWrite(raw);
-        const clean = stripAnsi(raw); __aggLog += clean;
-        if (clean.trim()) __cFlags.sawAnyOutput = true;
-        if (/(^|\n).*?:\d+:\d+:\s*error:/i.test(clean) || /\berror:\s/i.test(clean)) { __cFlags.sawCompileErr = true; const e=findFirstGccError(__aggLog); if(e) setEditorMarker(e.line, e.msg); }
-        if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) __cFlags.sawRuntimeErr = true;
-        const ex = clean.match(/exit\s*code\s*[:=]\s*(-?\d+)/i) || clean.match(/\bEXIT[:=]\s*(-?\d+)/i);
-        if (ex) __cFlags.exitCode = Number(ex[1]);
+
+
+
+// Plain text fallback
+termWrite(raw);
+
+const clean = stripAnsi(raw);
+__aggLog += clean;
+
+if (clean.trim()) __cFlags.sawAnyOutput = true;
+
+/* --- Detect compile errors immediately (gcc/clang) --- */
+const gcc = /(?:^|\n).*?\bmain\.c:(\d+)(?::(\d+))?\s*:\s*error\s*:\s*([^\n]+)/m.exec(__aggLog)
+         || /(?:^|\n).*?error\s*:\s*([^\n]+)/m.exec(__aggLog);
+if (gcc) {
+  __cFlags.sawCompileErr = true;
+  const e = findFirstGccError(__aggLog);
+  if (e) setEditorMarker(e.line, e.msg);
+  // Flip UI right away so shell.js can't show success later
+  window.PolyShell?.setRunnerPhase?.('error');
+  window.PolyShell.setStatus('Compilation Failed','error');
+}
+
+/* --- Runtime crash patterns --- */
+if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) {
+  __cFlags.sawRuntimeErr = true;
+}
+
+/* --- Exit code sniff (if your backend prints it inline) --- */
+const ex = clean.match(/\b(?:exit\s*code|EXIT)\s*[:=]\s*(-?\d+)/i);
+if (ex) __cFlags.exitCode = Number(ex[1]);
+
+
+
+
+
+
+
+        
       });
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
