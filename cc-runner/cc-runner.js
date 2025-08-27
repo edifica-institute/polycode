@@ -1,6 +1,6 @@
 // cc-runner.js — C & C++ runner with CORS + WebSocket
 import express from "express";
-import cors from "cors";
+import cors from "cors";                  // <= must exist in package.json
 import { WebSocketServer } from "ws";
 import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
