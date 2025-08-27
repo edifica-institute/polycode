@@ -245,40 +245,72 @@
 
   /* =================== Modal: inject on demand =================== */
 
-  const PARTIAL_PATH = './partials/complexity-modal.html';
 
-  async function ensureModalInserted() {
-    if (document.getElementById('complexityModal')) return 'exists';
-    try {
-      const r = await fetch(PARTIAL_PATH, { cache: 'no-store' });
-      const html = await r.text();
-      document.body.insertAdjacentHTML('beforeend', html);
-      // wire close buttons
-      const modal = document.getElementById('complexityModal');
-      if (modal) {
-        modal.addEventListener('click', (e) => {
-          const t = e.target;
-          if (t && t.hasAttribute && t.hasAttribute('data-close')) {
-            closeModal();
-          }
-        });
-      }
-      return 'inserted';
-    } catch (e) {
-      console.warn('[PolyComplexity] Could not load modal partial:', e);
-      return 'failed';
-    }
-  }
+/* =================== Modal: inline, no fetch =================== */
 
-  function openModal() {
-    const m = document.getElementById('complexityModal');
-    if (m) m.setAttribute('aria-hidden', 'false');
-  }
-  function closeModal() {
-    const m = document.getElementById('complexityModal');
-    if (m) m.setAttribute('aria-hidden', 'true');
-  }
+// 🔧 replace any PARTIAL_PATH/ensureModalInserted you have with this:
 
+const MODAL_HTML = `
+<div id="complexityModal" class="pc-modal" aria-hidden="true">
+  <div class="pc-modal__backdrop" data-close></div>
+  <div class="pc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
+    <div class="pc-modal__header">
+      <h3 id="cxTitle">Complexity Analysis</h3>
+      <button class="pc-modal__close" data-close aria-label="Close">×</button>
+    </div>
+    <div class="pc-modal__body">
+      <div class="cx-summary">
+        <div><strong>Final Time:</strong> <span id="cxTime">—</span></div>
+        <div><strong>Final Space:</strong> <span id="cxSpace">—</span></div>
+      </div>
+      <hr/>
+      <table class="cx-table" id="cxTable">
+        <thead>
+          <tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="cx-notes" id="cxNotes"></div>
+    </div>
+    <div class="pc-modal__footer">
+      <button class="btn" data-close>Close</button>
+    </div>
+  </div>
+</div>
+`;
+
+function ensureModalInserted() {
+  if (document.getElementById('complexityModal')) return 'exists';
+  document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
+  const modal = document.getElementById('complexityModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
+    });
+  }
+  return 'inserted';
+}
+
+function openModal() {
+  const m = document.getElementById('complexityModal');
+  if (m) m.setAttribute('aria-hidden', 'false');
+}
+function closeModal() {
+  const m = document.getElementById('complexityModal');
+  if (m) m.setAttribute('aria-hidden', 'true');
+}
+
+
+
+
+
+
+
+
+
+
+  
   /* =================== UI Binding =================== */
 
   async function handleAnalyzeClick(getCode) {
