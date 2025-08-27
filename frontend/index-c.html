@@ -1,15 +1,335 @@
-<!doctype html><meta charset="utf-8">
-<pre id="log" style="font:14px/1.35 ui-monospace,monospace;white-space:pre-wrap"></pre>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>polycode | C</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="./assets/logo.png" />
+  <link rel="stylesheet" href="./css/shell.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <meta name="color-scheme" content="dark light" />
 
-<script>
-const ws = new WebSocket('wss://polycode-java.onrender.com/term-c');
-ws.onopen = () => {
-  console.log('[client] open');
-  ws.send(JSON.stringify({
-    type:'start',
-    files:[{ path:'main.c', content:'#include <stdio.h>\nint main(){ puts("hi"); return 0; }\n' }]
-  }));
-};
-ws.onmessage = (e) => console.log('[server]', e.data);
-ws.onclose   = (e) => console.log('[client] close', e.code, e.reason || '');
-</script>
+  <style>
+    /* Keep the console input row crisp */
+    #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
+    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; }
+    #consoleInput::selection{ background:rgba(255,255,255,.18) }
+
+    /* Small pulse when Complexity becomes enabled */
+    .btn-pulse{ animation: btnPulse .9s ease-out 1 }
+    @keyframes btnPulse{ 0%{ transform:scale(1.03) } 100%{ transform:scale(1) } }
+
+    /* Optional: stricter dialog centering */
+    .pc-modal{ position: fixed; inset: 0; display: none; place-items: center; z-index: 1000; }
+    .pc-modal[aria-hidden="false"]{ display: grid; }
+    .pc-modal__dialog{ margin:0; }
+  </style>
+</head>
+
+<body class="page-fade">
+  <!-- Header -->
+  <header class="site-header">
+    <div class="brand-wrap">
+      <div class="brand-grid">
+        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
+        <div class="brand-title2">polycode</div>
+        <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
+      </div>
+    </div>
+
+    <div class="top-controls">
+      <div class="toolbar">
+        <!-- left cluster (editor-related) -->
+        <div class="btn-group">
+          <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button id="btnStop" class="btn" title="Stop (Ctrl+.)" aria-label="Stop" disabled>
+            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+          </button>
+          <button id="btnReset" class="btn" title="Reset (Ctrl+R)" aria-label="Reset">
+            <svg viewBox="0 0 24 24"><path d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5 0 1.1-.36 2.11-.97 2.94l1.46 1.46A6.963 6.963 0 0 0 19 13c0-3.87-3.13-7-7-7z"/></svg>
+          </button>
+          <button id="btnComplexity" class="btn" title="Analyze Time Complexity" aria-label="Complexity" disabled>
+            <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm4 0h14v-2H7v2z"/></svg>
+          </button>
+          <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
+            <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-3v8H7v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/></svg>
+          </button>
+        </div>
+
+        <!-- center status -->
+        <div class="toolbar-status"><span id="status" class="ok">Ready</span> <span id="spinner" style="display:none">⏳</span></div>
+
+        <!-- theme + language switcher -->
+        <div class="btn-group">
+          <button id="themeToggle" class="btn" title="Toggle Theme" aria-label="Theme">
+            <svg id="themeIcon" viewBox="0 0 24 24"></svg>
+          </button>
+          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
+            <option value="./index-java.html">Java</option>
+            <option value="./index-c.html" selected>C</option>
+            <option value="./index-sql.html">SQL</option>
+            <option value="./index-web.html">HTML/CSS/JS</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- App -->
+  <div class="stage">
+    <div class="app">
+      <!-- LEFT/center panel: editor -->
+      <section class="panel left" id="leftPanel">
+        <div class="pane-head">
+          <div class="pane-title">Editor</div>
+        </div>
+        <div id="editor"></div>
+        <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
+      </section>
+
+      <!-- RESIZER -->
+      <div class="resizer" data-dir="x" aria-hidden="true"></div>
+
+      <!-- RIGHT panel: console -->
+      <section class="panel right" id="rightPanel">
+        <div class="pane-head"><div class="pane-title">Console</div></div>
+        <pre id="output" class="output" aria-live="polite"></pre>
+        <div id="consoleRow" class="console-row" style="display:none">
+          <span id="consolePrefix"></span>
+          <span id="consoleInput" contenteditable="true" spellcheck="false" aria-label="Console Input"></span>
+        </div>
+        <div class="pane-foot"><span class="msg" id="rightFoot"></span></div>
+      </section>
+    </div>
+
+    <footer class="site-foot">
+      <div>Powered by <strong>polycode</strong></div>
+      <nav>
+        <a href="./index.html">Home</a>
+        <a href="./about.html">About</a>
+        <a href="./contact.html">Contact</a>
+      </nav>
+    </footer>
+  </div>
+
+  <!-- Monaco loader + site shell -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
+  <script src="./js/shell.js" defer></script>
+
+  <script>
+    // ==== C runner endpoints (move to js/config.js if you like) ====
+    const C_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/c/prepare (if using cc-runner: /api/cc/prepare with lang:'c')
+    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';   // WS /c?token=...
+
+    // --- Sample C code ---
+    const SAMPLE_C = `#include <stdio.h>\n\nint main(){\n    int n;\n    printf("Enter a number: ");\n    if (scanf("%d", &n) != 1) return 0;\n    printf("Square = %d\\n", n*n);\n    return 0;\n}`;
+
+    // Expose for complexity.js compatibility
+    window.getEditorCode = () => (window.editor ? window.editor.getValue() : '');
+
+    // ===== Console helpers =====
+    function setConsole(t){ const el = document.getElementById('output'); if (el) el.textContent = t ?? ''; }
+    function appendConsole(t){ const el = document.getElementById('output'); if (el) { el.textContent += t; el.scrollTop = el.scrollHeight; } }
+
+    // Input row helpers
+    let inputShown = false; let inputArmTimer = null;
+    function showInputRow(on){
+      const row = document.getElementById('consoleRow');
+      if (!row) return; row.style.display = on ? 'flex' : 'none';
+      inputShown = !!on; if (on){ const i = document.getElementById('consoleInput'); i.textContent=''; i.focus(); }
+    }
+
+    // Heuristic: does code likely need input?
+    function codeNeedsInput(src){
+      return /\bscanf\s*\(|\bgetchar\s*\(|\bgets\s*\(|\bfgets\s*\(|\bfscanf\s*\(/.test(src);
+    }
+
+    // Complexity button enable pulse
+    function setComplexityEnabled(on){
+      const b = document.getElementById('btnComplexity'); if (!b) return;
+      const was = b.disabled; b.disabled = !on;
+      if (on && was && !b.dataset.pulsed){ b.classList.add('btn-pulse'); b.dataset.pulsed='1'; setTimeout(()=>b.classList.remove('btn-pulse'), 900); }
+    }
+    window.setComplexityEnabled = setComplexityEnabled;
+
+    // ===== Runner state =====
+    let runWS = null;           // active websocket
+    let runToken = null;        // token from prepare
+    let isRunning = false;
+
+    function setRunnerPhase(phase){ // 'idle' | 'compile' | 'run' | 'waiting'
+      const s = window.PolyShell?.setStatus || (()=>{});
+      if (phase==='idle') s('Ready','ok');
+      if (phase==='compile') s('Compiling…');
+      if (phase==='run') s('Executing…');
+      if (phase==='waiting') s('Waiting for Input…');
+    }
+
+    function setButtons({running}){
+      const bRun = document.getElementById('btnRun');
+      const bStop = document.getElementById('btnStop');
+      const bReset = document.getElementById('btnReset');
+      if (bRun) bRun.disabled = running;
+      if (bStop) bStop.disabled = !running;
+      if (bReset) bReset.disabled = running;
+    }
+
+    function connectOverlay(show, msg='Connecting to C runner…'){
+      const ov = document.getElementById('runnerOverlay');
+      if (!ov) return; ov.style.display = show ? 'flex' : 'none';
+      const m = document.getElementById('runnerMsg'); if (m) m.textContent = msg;
+    }
+
+    async function prepare(){
+      const code = window.editor ? window.editor.getValue() : '';
+      if (!code.trim()){ setConsole(''); return null; }
+      const files = [{ path: 'main.c', content: code }];
+      // If you deployed cc-runner (C + C++ in one):
+      // POST C_API_BASE + '/api/cc/prepare' with { lang:'c', files }
+      const url = C_API_BASE + '/api/c/prepare';
+      const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ files, main:'main.c', output:'a.out' }) });
+      if (!res.ok) throw new Error('Prepare failed: ' + res.status);
+      return res.json();
+    }
+
+    function attachInputHandlers(send){
+      const input = document.getElementById('consoleInput');
+      if (!input) return;
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const text = input.textContent + '\n';
+          send(text);
+          input.textContent = '';
+        }
+      };
+    }
+
+    async function runC(){
+      if (isRunning) return; isRunning = true; setButtons({running:true}); setRunnerPhase('compile'); setConsole('');
+      try {
+        connectOverlay(true);
+        const prep = await prepare();
+        connectOverlay(false);
+        if (!prep || !prep.ok || !prep.token){
+          setConsole((prep && prep.compileLog) ? prep.compileLog : 'Compilation failed.');
+          isRunning = false; setButtons({running:false}); setRunnerPhase('idle'); return;
+        }
+        runToken = prep.token;
+        const needsStdin = codeNeedsInput(window.editor.getValue());
+        showInputRow(needsStdin);
+        if (needsStdin) setRunnerPhase('waiting'); else setRunnerPhase('run');
+
+        // Connect WS
+        runWS = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(runToken));
+        runWS.onopen = () => { /* ready */ };
+        runWS.onmessage = (ev) => {
+          appendConsole(typeof ev.data === 'string' ? ev.data : '');
+        };
+        runWS.onerror = () => { appendConsole('\n[connection error]\n'); };
+        runWS.onclose = () => {
+          isRunning = false; setButtons({running:false}); setRunnerPhase('idle'); showInputRow(false);
+        };
+
+        // Hook input
+        attachInputHandlers((text) => {
+          if (runWS && runWS.readyState === 1) {
+            runWS.send(JSON.stringify({ type:'stdin', data:text }));
+            setRunnerPhase('run');
+          }
+        });
+      } catch (e){
+        connectOverlay(false);
+        setConsole((e && e.message) ? e.message : 'Error');
+        isRunning = false; setButtons({running:false}); setRunnerPhase('idle');
+      }
+    }
+
+    function stopRun(){ try{ runWS?.close(); }catch{} }
+    function resetAll(){ if (isRunning) return; setConsole(''); showInputRow(false); setRunnerPhase('idle'); }
+
+    // ===== Wire UI =====
+    function wireUI(){
+      document.getElementById('btnRun')?.addEventListener('click', runC);
+      document.getElementById('btnStop')?.addEventListener('click', stopRun);
+      document.getElementById('btnReset')?.addEventListener('click', resetAll);
+      document.addEventListener('keydown', (e)=>{
+        if (e.key === 'F9'){ e.preventDefault(); runC(); }
+        if ((e.ctrlKey || e.metaKey) && e.key === '.') { e.preventDefault(); stopRun(); }
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'r')) { e.preventDefault(); resetAll(); }
+      }, true);
+
+      // Complexity
+      const btnCx = document.getElementById('btnComplexity');
+      if (btnCx) {
+        btnCx.addEventListener('click', () => {
+          // complexity.js expects window.getEditorCode() and the markup below
+          const m = document.getElementById('cxModal');
+          if (m) m.setAttribute('aria-hidden','false');
+          if (window.PolyShell?.setStatus) window.PolyShell.setStatus('Analyzing…');
+          // complexity.js will fill #cxTable / #cxNotes via its own logic
+          setTimeout(() => window.PolyShell?.setStatus('Ready','ok'), 400);
+        });
+      }
+
+      // Enable complexity once Monaco is ready
+      setComplexityEnabled(true);
+    }
+
+    // ===== Bootstrap =====
+    window.bootstrap = async function bootstrap(){
+      await window.PolyShell?.initMonaco?.({ value:SAMPLE_C, language:'cpp' });
+      window.PolyShell?.setStatus?.('Ready','ok');
+      wireUI();
+    };
+
+    // Start once shell.js has loaded & DOM is ready
+    document.addEventListener('DOMContentLoaded', () => { try{ window.bootstrap(); }catch(e){ console.error(e); } });
+  </script>
+
+  <!-- Connecting overlay -->
+  <div id="runnerOverlay" style="position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999;">
+    <div style="min-width:280px; max-width:420px; padding:16px 18px; border-radius:16px; background:rgba(20,22,25,.9); color:#e9edf3; border:1px solid rgba(255,255,255,.12); box-shadow: var(--shadow-3d); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
+      <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to C runner…</div>
+      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius:999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:.9;"></div></div>
+      <div id="runnerHint" style="margin-top:8px; opacity:.8;">Warming up backend…</div>
+    </div>
+  </div>
+
+  <!-- Complexity modal (same structure as Java page) -->
+  <div class="pc-modal" id="cxModal" aria-hidden="true">
+    <div class="pc-modal__backdrop" data-close></div>
+    <div class="pc-modal__dialog">
+      <div class="pc-modal__header">
+        <div class="pc-modal__title">Time Complexity (C)</div>
+        <button class="pc-modal__x" data-close aria-label="Close">×</button>
+      </div>
+      <div class="pc-modal__body">
+        <div class="cx-summary" id="cxSummary"></div>
+        <hr/>
+        <table class="cx-table" id="cxTable">
+          <thead><tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="cx-notes" id="cxNotes"></div>
+      </div>
+      <div class="pc-modal__footer"><button class="btn" data-close>Close</button></div>
+    </div>
+  </div>
+
+  <script>
+    // simple close handlers for modal
+    document.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t?.matches('[data-close]')){
+        const m = document.getElementById('cxModal'); if (m) m.setAttribute('aria-hidden','true');
+      }
+    });
+  </script>
+
+  <!-- Complexity engine -->
+  <script src="./js/complexity.js" defer></script>
+</body>
+</html>
