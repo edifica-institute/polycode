@@ -96,7 +96,6 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
         );
 
         // --- Run command: preload stdbuf + stdin-notify (no `script`) ---
-        // Find libstdbuf.so across common Debian/Ubuntu paths; fall back if missing.
         const notifyLibAbs = path.resolve(process.cwd(), "libstdin_notify.so");
         const notifyLibAbsQ = notifyLibAbs.replace(/'/g, "'\\''");
 
@@ -106,7 +105,6 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
           }
           return "";
         }
-
         const stdbufCandidates = [
           "/usr/lib/coreutils/libstdbuf.so",
           "/usr/lib/x86_64-linux-gnu/coreutils/libstdbuf.so",
@@ -123,10 +121,8 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
         const cmd = [
           `export LD_PRELOAD='${preloadChain}'`,
           stdbufLibQ ? `export STDBUF='o0:eL'` : `:`,
-          // Debug banner so we can verify the exact environment at runtime
           `echo "[dbg] using stdbufLib=${stdbufFound || "(none)"} notifyLib=${notifyLibAbs} LD_PRELOAD=$LD_PRELOAD STDBUF=$STDBUF" 1>&2`,
           `ls -l '${notifyLibAbsQ}' 1>&2 || true`,
-          // Run the compiled program
           `exec timeout 60s ./main`
         ].join("; ");
 
@@ -135,6 +131,13 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
           token = uid();
           SESSIONS.set(token, { cwd: dir, cmd });
         }
+
+        console.log("[c] prepare done",
+          "compileOk=", compileOk,
+          "token=", token || "(none)",
+          "dir=", dir
+        );
+
         res.json({ token, ok: compileOk, diagnostics, compileLog: log });
       });
     } catch (e) {
@@ -148,8 +151,9 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
 
   server.on("upgrade", (req, socket, head) => {
     try {
-      const { pathname } = new URL(req.url, "http://x");
-      if (pathname !== "/term-c") return;
+      const u = new URL(req.url, "http://x");
+      console.log("[c] WS upgrade", u.pathname, "rawQuery=", u.search);
+      if (u.pathname !== "/term-c") return;
       wssC.handleUpgrade(req, socket, head, (ws) => {
         wssC.emit("connection", ws, req);
       });
@@ -161,8 +165,15 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
   wssC.on("connection", (ws, req) => {
     const url = new URL(req.url, "http://x");
     const token = url.searchParams.get("token") || url.searchParams.get("t");
-    const sess = token && SESSIONS.get(token);
-    if (!sess) { try { ws.close(); } catch {} return; }
+    const has = token && SESSIONS.has(token);
+    console.log("[c] WS connection token=", token, "sessionPresent=", !!has);
+
+    const sess = has && SESSIONS.get(token);
+    if (!sess) {
+      try { ws.send(JSON.stringify({ type: "stderr", data: "No session (invalid/expired token)\n" })); } catch {}
+      try { ws.close(); } catch {}
+      return;
+    }
 
     // Start immediately (no handshake needed)
     const child = spawn("bash", ["-lc", sess.cmd], {
@@ -208,3 +219,4 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
 
   console.log("[polycode] C plugin loaded (HTTP: /api/c/prepare, WS: /term-c)");
 }
+
