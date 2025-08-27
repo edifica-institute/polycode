@@ -496,9 +496,13 @@ try {
     };
 
 <script>
-// hook the runner/clear used by shell.js buttons
-window.run   = window.runLang;
-window.clear = window.clearLang;
+  // expose to shell.js buttons
+  window.run   = window.runLang;
+  window.clear = window.clearLang;
+
+  // (keep these if you want them for debugging)
+  window.POLY.run   = window.runLang;
+  window.POLY.clear = window.clearLang;
 </script>
 
     // Start after shell is ready
