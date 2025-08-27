@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>C++ Standard Library — Functions • Use • Syntax • Examples</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font-family: system-ui, sans-serif; line-height:1.5; margin:20px; max-width:900px; }
+  h1 { font-size: 1.8em; margin-top:0; }
+  h2 { font-size: 1.3em; margin-top:1.5em; color:#0b3b6a; }
+  pre { padding:8px; border-radius:6px; overflow-x:auto; }
+  code { padding:2px 4px; border-radius:4px; }
+</style>
+</head>
+<body>
+
+<h1>C++ Standard Library — Functions • Use • Syntax • Examples</h1>
+<p>This reference covers common <b>C++ standard headers</b>. Each section shows description, key classes/functions, syntax, and short examples. Row-wise layout for easy reading/printing.</p>
+
+<!-- ========================================================= -->
+<h2>iostream — Standard I/O</h2>
+<p><b>Description:</b> Console input/output streams.</p>
+<p><b>Syntax:</b> <code>std::cout</code>, <code>std::cin</code>, <code>std::cerr</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    int x; 
+    cout &lt;&lt; "Enter number: ";
+    cin &gt;&gt; x;
+    cout &lt;&lt; "You entered " &lt;&lt; x &lt;&lt; endl;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>fstream — File I/O</h2>
+<p><b>Description:</b> File input/output using stream classes.</p>
+<p><b>Syntax:</b> <code>std::ifstream</code>, <code>std::ofstream</code>, <code>std::fstream</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;fstream&gt;
+#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    ofstream out("data.txt");
+    out &lt;&lt; "Hello File";
+    out.close();
+
+    ifstream in("data.txt");
+    string s; in &gt;&gt; s;
+    cout &lt;&lt; s;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>string — Strings</h2>
+<p><b>Description:</b> The <code>std::string</code> class for text handling.</p>
+<p><b>Syntax:</b> <code>length()</code>, <code>substr()</code>, <code>find()</code>, <code>replace()</code>, concatenation with <code>+</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;string&gt;
+#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    string s = "Hello";
+    s += " World";
+    cout &lt;&lt; s.substr(0,5); // Hello
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>vector — Dynamic arrays</h2>
+<p><b>Description:</b> Resizable array container.</p>
+<p><b>Syntax:</b> <code>push_back()</code>, <code>at()</code>, <code>size()</code>, range-based for</p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;vector&gt;
+#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    vector&lt;int&gt; v = {1,2,3};
+    v.push_back(4);
+    for(int x : v) cout &lt;&lt; x &lt;&lt; " ";
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>map / set — Associative containers</h2>
+<p><b>Description:</b> Ordered collections: <code>map</code> stores key-value, <code>set</code> stores unique values.</p>
+<p><b>Syntax:</b> <code>insert()</code>, <code>find()</code>, <code>erase()</code>, range iteration</p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;map&gt;
+#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    map&lt;string,int&gt; m;
+    m["a"] = 1; m["b"] = 2;
+    for(auto &p : m) cout &lt;&lt; p.first &lt;&lt; ":" &lt;&lt; p.second &lt;&lt; endl;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>algorithm — Algorithms</h2>
+<p><b>Description:</b> Generic algorithms for containers.</p>
+<p><b>Syntax:</b> <code>sort()</code>, <code>find()</code>, <code>for_each()</code>, <code>count()</code>, <code>max_element()</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;algorithm&gt;
+#include &lt;vector&gt;
+#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    vector&lt;int&gt; v = {5,2,9,1};
+    sort(v.begin(), v.end());
+    for(int x : v) cout &lt;&lt; x &lt;&lt; " ";
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>utility — Pairs & Tuples</h2>
+<p><b>Description:</b> Helper types for grouping values.</p>
+<p><b>Syntax:</b> <code>std::pair</code>, <code>std::tuple</code>, <code>std::make_pair</code>, <code>std::tie</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;utility&gt;
+#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    pair&lt;int,string&gt; p = {1, "one"};
+    cout &lt;&lt; p.first &lt;&lt; "-" &lt;&lt; p.second;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>memory — Smart Pointers</h2>
+<p><b>Description:</b> Automatic memory management.</p>
+<p><b>Syntax:</b> <code>unique_ptr</code>, <code>shared_ptr</code>, <code>make_unique</code>, <code>make_shared</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;memory&gt;
+#include &lt;iostream&gt;
+using namespace std;
+int main() {
+    auto p = make_unique&lt;int&gt;(42);
+    cout &lt;&lt; *p;
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>chrono — Time</h2>
+<p><b>Description:</b> Measure time, durations, clocks.</p>
+<p><b>Syntax:</b> <code>steady_clock</code>, <code>system_clock</code>, <code>duration</code>, <code>now()</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;chrono&gt;
+#include &lt;iostream&gt;
+using namespace std;
+using namespace std::chrono;
+int main() {
+    auto start = steady_clock::now();
+    // ... work ...
+    auto end = steady_clock::now();
+    cout &lt;&lt; duration_cast&lt;milliseconds&gt;(end-start).count();
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>thread / future / mutex — Concurrency</h2>
+<p><b>Description:</b> Multithreading utilities.</p>
+<p><b>Syntax:</b> <code>std::thread</code>, <code>std::mutex</code>, <code>std::lock_guard</code>, <code>std::async</code>, <code>std::future</code></p>
+<p><b>Example:</b></p>
+<pre><code>#include &lt;thread&gt;
+#include &lt;iostream&gt;
+using namespace std;
+void task(){ cout &lt;&lt; "Hello from thread"; }
+int main() {
+    thread t(task);
+    t.join();
+}
+</code></pre>
+
+<!-- ========================================================= -->
+<h2>Other Useful Headers</h2>
+<p><b>&lt;deque&gt;</b> — Double-ended queue<br>
+<b>&lt;stack&gt;</b> / <b>&lt;queue&gt;</b> — Adapters over containers<br>
+<b>&lt;regex&gt;</b> — Regular expressions<br>
+<b>&lt;optional&gt;</b> — Optional values (C++17)<br>
+<b>&lt;variant&gt;</b> — Type-safe union (C++17)<br>
+<b>&lt;filesystem&gt;</b> — File system operations (C++17)</p>
+
+</body>
+</html>
