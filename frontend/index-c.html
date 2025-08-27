@@ -10,24 +10,43 @@
   <meta name="color-scheme" content="dark light" />
 
   <style>
-    /* Keep the console input row crisp */
+    /* Match Java page input row look */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
-    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; }
-    #consoleInput::selection{ background:rgba(255,255,255,.18) }
+    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only; }
+    #consoleInput:focus{ outline:0 }
+    #consoleInput::selection{ background:rgba(255,255,255,.15) }
 
-    /* Small pulse when Complexity becomes enabled */
-    .btn-pulse{ animation: btnPulse .9s ease-out 1 }
-    @keyframes btnPulse{ 0%{ transform:scale(1.03) } 100%{ transform:scale(1) } }
+    /* Disable attention animation when disabled */
+    .btn[disabled], .btn.attn[disabled]{ animation:none!important }
 
-    /* Optional: stricter dialog centering */
-    .pc-modal{ position: fixed; inset: 0; display: none; place-items: center; z-index: 1000; }
-    .pc-modal[aria-hidden="false"]{ display: grid; }
-    .pc-modal__dialog{ margin:0; }
+    .pane-foot .msg{ white-space:nowrap }
+    .panel .pane-head{ display:flex; align-items:center }
+
+    /* Complexity modal (same tokens as Java) */
+    .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
+    .pc-modal[aria-hidden="false"] { display:block; }
+    .pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
+    .pc-modal__dialog{ position:relative; margin:5vh auto; max-width:800px; background:var(--panel, #111); color:inherit; border:1px solid rgba(255,255,255,.1); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.35); padding:14px; }
+    .pc-modal__header{ display:flex; align-items:center; justify-content:space-between; }
+    .pc-modal__close{ background:transparent; border:0; font-size:22px; cursor:pointer; }
+    .pc-modal__body{ max-height:60vh; overflow:auto; }
+    .pc-modal__footer{ display:flex; justify-content:flex-end; gap:8px; }
+    .cx-summary{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 10px; }
+    .cx-table{ width:100%; border-collapse: collapse; font:13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+    .cx-table th, .cx-table td{ border-bottom:1px solid rgba(127,127,127,.25); padding:6px 8px; vertical-align: top; }
+    .cx-table th{ text-align:left; position:sticky; top:0; background:inherit; }
+    .cx-notes{ opacity:.9; font-size:12px; margin-top:8px; }
+
+    /* One-time brief pulse when Complexity is enabled */
+    @media (prefers-reduced-motion: no-preference) {
+      @keyframes pc-pulse-brief { 0%{transform:scale(1)} 40%{transform:scale(1.08)} 100%{transform:scale(1)} }
+      .btn-pulse { animation: pc-pulse-brief 0.9s ease-out; }
+    }
   </style>
 </head>
 
 <body class="page-fade">
-  <!-- Header -->
+  <!-- Header (mirrors Java layout) -->
   <header class="site-header">
     <div class="brand-wrap">
       <div class="brand-grid">
@@ -37,268 +56,306 @@
       </div>
     </div>
 
-    <div class="top-controls">
-      <div class="toolbar">
-        <!-- left cluster (editor-related) -->
-        <div class="btn-group">
-          <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
-            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <button id="btnStop" class="btn" title="Stop (Ctrl+.)" aria-label="Stop" disabled>
-            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
-          </button>
-          <button id="btnReset" class="btn" title="Reset (Ctrl+R)" aria-label="Reset">
-            <svg viewBox="0 0 24 24"><path d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5 0 1.1-.36 2.11-.97 2.94l1.46 1.46A6.963 6.963 0 0 0 19 13c0-3.87-3.13-7-7-7z"/></svg>
-          </button>
-          <button id="btnComplexity" class="btn" title="Analyze Time Complexity" aria-label="Complexity" disabled>
-            <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm4 0h14v-2H7v2z"/></svg>
-          </button>
-          <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
-            <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-3v8H7v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/></svg>
-          </button>
-        </div>
-
-        <!-- center status -->
-        <div class="toolbar-status"><span id="status" class="ok">Ready</span> <span id="spinner" style="display:none">⏳</span></div>
-
-        <!-- theme + language switcher -->
-        <div class="btn-group">
-          <button id="themeToggle" class="btn" title="Toggle Theme" aria-label="Theme">
-            <svg id="themeIcon" viewBox="0 0 24 24"></svg>
-          </button>
-          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
-            <option value="./index-java.html">Java</option>
-            <option value="./index-c.html" selected>C</option>
-            <option value="./index-sql.html">SQL</option>
-            <option value="./index-web.html">HTML/CSS/JS</option>
-          </select>
-        </div>
-      </div>
-    </div>
+    <nav class="site-nav">
+      <a href="./index.html">Home</a>
+      <a href="./about.html">About</a>
+      <a href="./contact.html">Contact</a>
+    </nav>
   </header>
 
-  <!-- App -->
+  <!-- App (3-panel layout to match Java) -->
   <div class="stage">
     <div class="app">
-      <!-- LEFT/center panel: editor -->
+      <!-- LEFT panel -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
-          <div class="pane-title">Editor</div>
+          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
+            <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
+            <option value="./index-web.html">HTML/CSS/JS</option>
+            <option value="./index-java.html">Java</option>
+            <option value="./index-c.html" selected>C</option>
+          </select>
         </div>
+        <div class="pane-body">
+          <div id="leftContent" style="margin-top:12px;"></div>
+        </div>
+        <div class="pane-foot"><span class="msg" id="leftFoot">About C</span></div>
+      </section>
+
+      <!-- RESIZER between left and center -->
+      <div class="v-resize"><div id="dragLeft"></div></div>
+
+      <!-- CENTER panel (Editor) -->
+      <section class="panel center" id="centerPanel">
+        <div class="pane-head">
+          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+
+          <span class="title" id="centerTitle" style="margin-left:8px;">C – Editor | Polycode</span>
+
+          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+            <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
+              <svg viewBox="0 0 24 24">
+                <path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor"/>
+              </svg>
+            </button>
+
+            <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
+              <svg viewBox="0 0 24 24">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/>
+              </svg>
+            </button>
+
+            <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          </div>
+        </div>
+
         <div id="editor"></div>
+
         <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
       </section>
 
-      <!-- RESIZER -->
-      <div class="resizer" data-dir="x" aria-hidden="true"></div>
+      <!-- RESIZER between center and right -->
+      <div class="v-resize right"><div id="dragRight"></div></div>
 
-      <!-- RIGHT panel: console -->
+      <!-- RIGHT panel (Console) -->
       <section class="panel right" id="rightPanel">
-        <div class="pane-head"><div class="pane-title">Console</div></div>
-        <pre id="output" class="output" aria-live="polite"></pre>
-        <div id="consoleRow" class="console-row" style="display:none">
-          <span id="consolePrefix"></span>
-          <span id="consoleInput" contenteditable="true" spellcheck="false" aria-label="Console Input"></span>
+        <div class="pane-head">
+          <span class="title">C – Console | Polycode</span>
+          <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
+            <button id="btnComplexity" class="btn" title="Analyze Time & Space" aria-label="Complexity" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 9.5c.9-1 2-1.5 3-1.5s2.1.5 3 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span class="sr-only">Complexity</span>
+            </button>
+            <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
+              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="pane-foot"><span class="msg" id="rightFoot"></span></div>
+
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <!-- Output only -->
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+
+          <!-- Inline input row (shown only when needed) -->
+          <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+            <span id="consolePrefix"></span>
+            <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+          </div>
+        </div>
+
+        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
     </div>
-
-    <footer class="site-foot">
-      <div>Powered by <strong>polycode</strong></div>
-      <nav>
-        <a href="./index.html">Home</a>
-        <a href="./about.html">About</a>
-        <a href="./contact.html">Contact</a>
-      </nav>
-    </footer>
   </div>
 
-  <!-- Monaco loader + site shell -->
+  <!-- Collapser chevron -->
+  <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
+    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
+  </div>
+
+  <!-- Footer (same as Java) -->
+  <footer class="site-footer">
+    <div class="footer-grid">
+      <div class="footer-left">
+        <img src="./assets/logo.png" alt="Edifica" class="footer-logo" loading="lazy" decoding="async" />
+        <div class="txt">
+          <span class="powered">powered by edifica</span>
+          <span class="subline">education<span class="dot">.</span>consultation<span class="dot">.</span>assistance</span>
+          <div class="siteurl"><a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a></div>
+        </div>
+      </div>
+      <div class="footer-center">
+        <span class="label">Follow us</span>
+        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
+        </a>
+        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
+        </a>
+        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
+        </a>
+      </div>
+      <div class="footer-right">
+        <a href="./privacy.html">Privacy Policy</a>
+        <a href="./terms.html">Terms &amp; Conditions</a>
+        <a href="./legal.html">Legal Information</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts (Monaco + site shell) -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
+  <!-- Page script: C runner wired to shell-style UI -->
   <script>
-    // ==== C runner endpoints (move to js/config.js if you like) ====
-    const C_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/c/prepare (if using cc-runner: /api/cc/prepare with lang:'c')
-    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';   // WS /cc?token=...
-
-    // --- Sample C code ---
+    // ---- Sample C for editor ----
     const SAMPLE_C = `#include <stdio.h>\n\nint main(){\n    int n;\n    printf("Enter a number: ");\n    if (scanf("%d", &n) != 1) return 0;\n    printf("Square = %d\\n", n*n);\n    return 0;\n}`;
 
-    // Expose for complexity.js compatibility
-    window.getEditorCode = () => (window.editor ? window.editor.getValue() : '');
+    // Make bootstrap globally visible (shell.js waits for this in some cases)
+    window.bootstrap = async function bootstrap(){
+      await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
+      window.PolyShell.setStatus('Ready', 'ok');
+      // Optional: load left-pane content (create /content/c.html if you want)
+      window.PolyShell.loadLeftContent?.('c');
+      // Complexity stays disabled until a successful run
+      window.setComplexityEnabled?.(false);
+    };
 
-    // ===== Console helpers =====
-    function setConsole(t){ const el = document.getElementById('output'); if (el) el.textContent = t ?? ''; }
-    function appendConsole(t){ const el = document.getElementById('output'); if (el) { el.textContent += t; el.scrollTop = el.scrollHeight; } }
+    // ===== Console helpers (match Java IDs) =====
+    function setConsole(text){ const el = document.getElementById('jconsole'); if (el){ el.textContent = text || ''; document.getElementById('output')?.scrollTo({top:1e9}); } }
+    function termWrite(t){ const el = document.getElementById('jconsole'); if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({top:1e9}); } }
 
-    // Input row helpers
-    let inputShown = false; let inputArmTimer = null;
-    function showInputRow(on){
+    // Show inline input row, preserving any prompt text on the last line
+    function showInputRow(show){
       const row = document.getElementById('consoleRow');
-      if (!row) return; row.style.display = on ? 'flex' : 'none';
-      inputShown = !!on; if (on){ const i = document.getElementById('consoleInput'); i.textContent=''; i.focus(); }
+      const pre = document.getElementById('jconsole');
+      const prefix = document.getElementById('consolePrefix');
+      if (!row || !pre || !prefix) return;
+      row.style.display = show ? 'flex' : 'none';
+      if (show){
+        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
+        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+        else { prefix.textContent = ''; }
+        const el = document.getElementById('consoleInput');
+        if (el){ el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+        window.PolyShell.setStatus('Waiting for User Input...', 'busy');
+      } else {
+        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
+      }
     }
 
-    // Heuristic: does code likely need input?
-    function codeNeedsInput(src){
-      return /\bscanf\s*\(|\bgetchar\s*\(|\bgets\s*\(|\bfgets\s*\(|\bfscanf\s*\(/.test(src);
-    }
-
-    // Complexity button enable pulse
+    // ===== Complexity button enable/disable (one-time pulse) =====
     function setComplexityEnabled(on){
       const b = document.getElementById('btnComplexity'); if (!b) return;
-      const was = b.disabled; b.disabled = !on;
-      if (on && was && !b.dataset.pulsed){ b.classList.add('btn-pulse'); b.dataset.pulsed='1'; setTimeout(()=>b.classList.remove('btn-pulse'), 900); }
+      const wasDisabled = b.disabled; b.disabled = !on;
+      if (on && wasDisabled && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce = '1'; setTimeout(()=> b.classList.remove('btn-pulse'), 1000); }
     }
     window.setComplexityEnabled = setComplexityEnabled;
 
-    // ===== Runner state =====
-    let runWS = null;           // active websocket
-    let runToken = null;        // token from prepare
-    let isRunning = false;
+    // ===== C runner endpoints =====
+    const C_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/cc/prepare {lang:'c', files:[], entry:'main.c'}
+    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';  // WS /cc?token=...
 
-    function setRunnerPhase(phase){ // 'idle' | 'compile' | 'run' | 'waiting'
-      const s = window.PolyShell?.setStatus || (()=>{});
-      if (phase==='idle') s('Ready','ok');
-      if (phase==='compile') s('Compiling…');
-      if (phase==='run') s('Executing…');
-      if (phase==='waiting') s('Waiting for Input…');
-    }
-
-    function setButtons({running}){
-      const bRun = document.getElementById('btnRun');
-      const bStop = document.getElementById('btnStop');
-      const bReset = document.getElementById('btnReset');
-      if (bRun) bRun.disabled = running;
-      if (bStop) bStop.disabled = !running;
-      if (bReset) bReset.disabled = running;
-    }
-
-    function connectOverlay(show, msg='Connecting to C runner…'){
-      const ov = document.getElementById('runnerOverlay');
-      if (!ov) return; ov.style.display = show ? 'flex' : 'none';
-      const m = document.getElementById('runnerMsg'); if (m) m.textContent = msg;
-    }
-
+    // Prepare step: compile + get token
     async function prepare(){
       const code = window.editor ? window.editor.getValue() : '';
-      if (!code.trim()){ setConsole(''); return null; }
       const files = [{ path: 'main.c', content: code }];
-      // If you deployed cc-runner (C + C++ in one):
-      // POST C_API_BASE + '/api/cc/prepare' with { lang:'c', files }
-      const url = C_API_BASE + '/api/cc/prepare';
-      const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' }) });
+      const res = await fetch(C_API_BASE + '/api/cc/prepare', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
+      });
       if (!res.ok) throw new Error('Prepare failed: ' + res.status);
       return res.json();
     }
 
-    function attachInputHandlers(send){
-      const input = document.getElementById('consoleInput');
-      if (!input) return;
-      input.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const text = input.textContent + '\n';
-          send(text);
-          input.textContent = '';
+    function codeNeedsInput(src){ return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(|\bfscanf\s*\(/.test(src); }
+
+    // Keyboard: send on Enter when input row is visible
+    document.addEventListener('keydown', (e)=>{
+      const el = document.getElementById('consoleInput');
+      if (!el || el.offsetParent === null) return;   // not visible
+      if (e.target !== el) return;
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        const line = el.textContent + '\n';
+        if (window.termWS && window.termWS.readyState === 1 && window.wsRunInFlight){
+          try{ window.termWS.send(JSON.stringify({ type:'stdin', data: line })); }catch{}
         }
-      };
-    }
-
-    async function runC(){
-      if (isRunning) return; isRunning = true; setButtons({running:true}); setRunnerPhase('compile'); setConsole('');
-      try {
-        connectOverlay(true);
-        const prep = await prepare();
-        connectOverlay(false);
-        if (!prep || !prep.ok || !prep.token){
-          setConsole((prep && prep.compileLog) ? prep.compileLog : 'Compilation failed.');
-          isRunning = false; setButtons({running:false}); setRunnerPhase('idle'); return;
-        }
-        runToken = prep.token;
-        const needsStdin = codeNeedsInput(window.editor.getValue());
-        showInputRow(needsStdin);
-        if (needsStdin) setRunnerPhase('waiting'); else setRunnerPhase('run');
-
-        // Connect WS
-        runWS = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(runToken));
-        runWS.onopen = () => { /* ready */ };
-        runWS.onmessage = (ev) => {
-          appendConsole(typeof ev.data === 'string' ? ev.data : '');
-        };
-        runWS.onerror = () => { appendConsole('\n[connection error]\n'); };
-        runWS.onclose = () => {
-          isRunning = false; setButtons({running:false}); setRunnerPhase('idle'); showInputRow(false);
-        };
-
-        // Hook input
-        attachInputHandlers((text) => {
-          if (runWS && runWS.readyState === 1) {
-            runWS.send(JSON.stringify({ type:'stdin', data:text }));
-            setRunnerPhase('run');
-          }
-        });
-      } catch (e){
-        connectOverlay(false);
-        setConsole((e && e.message) ? e.message : 'Error');
-        isRunning = false; setButtons({running:false}); setRunnerPhase('idle');
+        termWrite(line);
+        el.textContent = '';
+        window.PolyShell.setStatus('Executing…', 'busy');
       }
+    }, true);
+
+    // Heartbeat helpers (optional safety)
+    let hbInterval = null, hbTimeout = null;
+    function startHeartbeat(ws){
+      stopHeartbeat();
+      hbInterval = setInterval(()=>{ try{ if (ws.readyState===1){ ws.send(JSON.stringify({type:'ping'})); clearTimeout(hbTimeout); hbTimeout = setTimeout(()=>{ console.warn('Runner heartbeat missed'); }, 5000); } }catch{} }, 25000);
     }
+    function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
-    function stopRun(){ try{ runWS?.close(); }catch{} }
-    function resetAll(){ if (isRunning) return; setConsole(''); showInputRow(false); setRunnerPhase('idle'); }
+    // ===== Main run wired to shell.js (use same name as Java page) =====
+    window.runLang = async function runLang(){
+      // Reset console + state
+      setConsole(''); document.getElementById('output')?.classList.remove('error');
+      setComplexityEnabled(false);
 
-    // ===== Wire UI =====
-    function wireUI(){
-      document.getElementById('btnRun')?.addEventListener('click', runC);
-      document.getElementById('btnStop')?.addEventListener('click', stopRun);
-      document.getElementById('btnReset')?.addEventListener('click', resetAll);
-      document.addEventListener('keydown', (e)=>{
-        if (e.key === 'F9'){ e.preventDefault(); runC(); }
-        if ((e.ctrlKey || e.metaKey) && e.key === '.') { e.preventDefault(); stopRun(); }
-        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'r')) { e.preventDefault(); resetAll(); }
-      }, true);
+      // Close any previous session
+      try{ window.termWS?.close(); }catch{} window.termWS = null; window.wsRunInFlight = false;
 
-      // Complexity
-      const btnCx = document.getElementById('btnComplexity');
-      if (btnCx) {
-        btnCx.addEventListener('click', () => {
-          // complexity.js expects window.getEditorCode() and the markup below
-          const m = document.getElementById('cxModal');
-          if (m) m.setAttribute('aria-hidden','false');
-          if (window.PolyShell?.setStatus) window.PolyShell.setStatus('Analyzing…');
-          // complexity.js will fill #cxTable / #cxNotes via its own logic
-          setTimeout(() => window.PolyShell?.setStatus('Ready','ok'), 400);
-        });
+      // Status
+      window.PolyShell.setStatus('Compiling…', 'busy');
+
+      // Prepare/compile
+      let prep; try{ prep = await prepare(); } catch(e){ setConsole((e&&e.message)||'Prepare failed'); window.PolyShell.setStatus('Execution Failed','error'); return; }
+      if (!prep || !prep.ok || !prep.token){
+        const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
+        setConsole((log||'').trim());
+        window.PolyShell.setStatus('Execution Failed','error');
+        return;
       }
 
-      // Enable complexity once Monaco is ready
-      setComplexityEnabled(true);
-    }
+      // Open WS
+      const token = prep.token; const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
+      window.termWS = ws; window.wsRunInFlight = true; window.PolyShell.setStatus('Running (interactive)…','busy');
 
-    // ===== Bootstrap =====
-    window.bootstrap = async function bootstrap(){
-      await window.PolyShell?.initMonaco?.({ value:SAMPLE_C, language:'c' });
-      window.PolyShell?.setStatus?.('Ready','ok');
-      wireUI();
+      const needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
+      showInputRow(needsStdin);
+
+      ws.addEventListener('open', ()=>{ startHeartbeat(ws); });
+      ws.addEventListener('message', (ev)=>{
+        const data = String(ev.data||'');
+        termWrite(data);
+        // If backend explicitly asks for input (optional future event), we could show row here
+      });
+      ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
+      ws.addEventListener('close', ()=>{
+        stopHeartbeat();
+        window.wsRunInFlight = false; showInputRow(false);
+        // Heuristic: consider non-empty output as success
+        const txt = document.getElementById('jconsole')?.textContent || '';
+        if (txt.trim().length){ window.PolyShell.setStatus('Execution Success','ok'); setComplexityEnabled(true); }
+        else { window.PolyShell.setStatus('Execution Finished','ok'); setComplexityEnabled(true); }
+      }, { once:true });
     };
 
-    // Start once shell.js has loaded & DOM is ready
-    document.addEventListener('DOMContentLoaded', () => { try{ window.bootstrap(); }catch(e){ console.error(e); } });
+    // Reset hook used by shell.js
+    window.clearLang = function clearLang(){
+      setConsole('');
+      try{ window.termWS?.close(); }catch{}
+      window.termWS = null; window.wsRunInFlight = false;
+      showInputRow(false);
+      setComplexityEnabled(false);
+      window.PolyShell.setStatus('Ready','ok');
+    };
+
+    // Start after shell.js (defer) has executed
+    (function startWhenReady(){
+      function start(){ if (!window.PolyShell){ const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25); setTimeout(()=>clearInterval(id), 3000); return; } window.bootstrap(); }
+      if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
+    })();
   </script>
 
-  <!-- Connecting overlay -->
-  <div id="runnerOverlay" style="position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999;">
-    <div style="min-width:280px; max-width:420px; padding:16px 18px; border-radius:16px; background:rgba(20,22,25,.9); color:#e9edf3; border:1px solid rgba(255,255,255,.12); box-shadow: var(--shadow-3d); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
+  <!-- Runner connecting overlay (same visual as Java) -->
+  <div id="runnerOverlay" style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); z-index: 9999;">
+    <div style="min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px; background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
       <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to C runner…</div>
-      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius:999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:.9;"></div></div>
-      <div id="runnerHint" style="margin-top:8px; opacity:.8;">Warming up backend…</div>
+      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:0.9;"></div></div>
+      <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
     </div>
   </div>
 
-  <!-- Complexity modal (same structure as Java page) -->
+  <!-- Complexity modal -->
   <div class="pc-modal" id="cxModal" aria-hidden="true">
     <div class="pc-modal__backdrop" data-close></div>
     <div class="pc-modal__dialog">
@@ -309,24 +366,16 @@
       <div class="pc-modal__body">
         <div class="cx-summary" id="cxSummary"></div>
         <hr/>
-        <table class="cx-table" id="cxTable">
-          <thead><tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr></thead>
-          <tbody></tbody>
-        </table>
+        <table class="cx-table" id="cxTable"><thead><tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr></thead><tbody></tbody></table>
         <div class="cx-notes" id="cxNotes"></div>
       </div>
       <div class="pc-modal__footer"><button class="btn" data-close>Close</button></div>
     </div>
   </div>
-
   <script>
-    // simple close handlers for modal
-    document.addEventListener('click', (e) => {
-      const t = e.target;
-      if (t?.matches('[data-close]')){
-        const m = document.getElementById('cxModal'); if (m) m.setAttribute('aria-hidden','true');
-      }
-    });
+    // Simple close handlers for modal
+    document.addEventListener('click', (e)=>{ const t = e.target; if (t && t.matches('[data-close]')){ const m = document.getElementById('cxModal'); if (m) m.setAttribute('aria-hidden','true'); } });
+    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{ document.getElementById('cxModal')?.setAttribute('aria-hidden','false'); window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400); });
   </script>
 
   <!-- Complexity engine -->
