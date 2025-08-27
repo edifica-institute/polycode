@@ -202,7 +202,9 @@ async function singleWsFlow(ws) {
 
     if (msg.type !== "start" || started) return;
     started = true;
+try { ws.send(JSON.stringify({ type: "stdout", data: "[c-runner] start received\n" })); } catch {}
 
+    
     const files = Array.isArray(msg.files) ? msg.files : [];
     if (!files.length) {
       try { ws.send(JSON.stringify({ type: "stderr", data: "No files to compile.\n" })); } catch {}
