@@ -121,7 +121,7 @@
   <script>
     // ==== C runner endpoints (move to js/config.js if you like) ====
     const C_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/c/prepare (if using cc-runner: /api/cc/prepare with lang:'c')
-    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';   // WS /c?token=...
+    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';   // WS /cc?token=...
 
     // --- Sample C code ---
     const SAMPLE_C = `#include <stdio.h>\n\nint main(){\n    int n;\n    printf("Enter a number: ");\n    if (scanf("%d", &n) != 1) return 0;\n    printf("Square = %d\\n", n*n);\n    return 0;\n}`;
@@ -188,8 +188,8 @@
       const files = [{ path: 'main.c', content: code }];
       // If you deployed cc-runner (C + C++ in one):
       // POST C_API_BASE + '/api/cc/prepare' with { lang:'c', files }
-      const url = C_API_BASE + '/api/c/prepare';
-      const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ files, main:'main.c', output:'a.out' }) });
+      const url = C_API_BASE + '/api/cc/prepare';
+      const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' }) });
       if (!res.ok) throw new Error('Prepare failed: ' + res.status);
       return res.json();
     }
@@ -280,7 +280,7 @@
 
     // ===== Bootstrap =====
     window.bootstrap = async function bootstrap(){
-      await window.PolyShell?.initMonaco?.({ value:SAMPLE_C, language:'cpp' });
+      await window.PolyShell?.initMonaco?.({ value:SAMPLE_C, language:'c' });
       window.PolyShell?.setStatus?.('Ready','ok');
       wireUI();
     };
