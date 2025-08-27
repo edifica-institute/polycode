@@ -1,0 +1,12 @@
+{
+  "name": "cc-runner",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node cc-runner.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.18.0",
+    "fs-extra": "^11.2.0",
+    "nanoid": "^5.0.7"
+  }
+}
