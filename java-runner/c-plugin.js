@@ -121,10 +121,12 @@ const cmd = [
 ].join("; ");
 
 
-        const token = uid();
-        SESSIONS.set(token, { cwd: dir, cmd });
-
-        res.json({ token, ok: compileOk, diagnostics, compileLog: log });
+ let token = null;
+      if (compileOk) {
+         token = uid();
+         SESSIONS.set(token, { cwd: dir, cmd });
+       }
+       res.json({ token, ok: compileOk, diagnostics, compileLog: log });
       });
     } catch (e) {
       console.error("[c-plugin] prepare error", e);
@@ -178,6 +180,7 @@ const cmd = [
     });
 
     child.on("close", code => {
+      try { SESSIONS.delete(token); } catch {}
       try { ws.send(JSON.stringify({ type: "exit", code })); } catch {}
       try { ws.close(); } catch {}
     });
@@ -188,7 +191,7 @@ const cmd = [
       if (m.type === "kill")  { try { child.kill("SIGKILL"); } catch {} }
     });
 
-    ws.on("close", () => { try { child.kill("SIGKILL"); } catch {} });
+    ws.on("close", () => { try { SESSIONS.delete(token); } catch {} try { child.kill("SIGKILL"); } catch {} });
   });
 
   console.log("[polycode] C plugin loaded (HTTP: /api/c/prepare, WS: /term-c)");
