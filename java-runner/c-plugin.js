@@ -97,15 +97,29 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
 
         // --- Run command (NO `script`): combine stdbuf + stdin-notify ---
         // Debian/Ubuntu path for libstdbuf:
-        const stdbufLib = "/usr/lib/coreutils/libstdbuf.so";
-        const notifyLib = path.join(process.cwd(), "libstdin_notify.so").replace(/'/g, "'\\''");
-        const preloadChain = `${stdbufLib}:${notifyLib}`;
+       // --- Run command: preload stdbuf + stdin-notify, no `script` ---
+let stdbufLib = "/usr/lib/coreutils/libstdbuf.so";      // Debian/Ubuntu path
+try {
+  // If the lib isn't there (different distro), fall back gracefully
+  await fs.access(stdbufLib);
+} catch {
+  stdbufLib = ""; // we'll skip stdbuf if not present
+}
 
-        const cmd = [
-          `export LD_PRELOAD='${preloadChain}'`,
-          `export STDBUF='o0:eL'`,   // unbuffer stdout, line-buffer stderr
-          `exec timeout 60s ./main`
-        ].join("; ");
+const notifyLib = path
+  .join(process.cwd(), "libstdin_notify.so")
+  .replace(/'/g, "'\\''");
+
+const preloadChain = stdbufLib
+  ? `${stdbufLib}:${notifyLib}`
+  : `${notifyLib}`;
+
+const cmd = [
+  `export LD_PRELOAD='${preloadChain}'`,
+  stdbufLib ? `export STDBUF='o0:eL'` : `:`,   // unbuffer stdout if stdbuf is available
+  `exec timeout 60s ./main`
+].join("; ");
+
 
         const token = uid();
         SESSIONS.set(token, { cwd: dir, cmd });
