@@ -355,3 +355,91 @@
     }
   }
 })();
+
+
+
+
+(() => {
+  // --- Config: path to your partial (can be overridden before this script loads) ---
+  const PARTIAL_PATH = window.POLY_COMPLEXITY_PARTIAL || './partials/complexity-modal.html';
+
+  // Namespace (exported)
+  window.PolyComplexity = window.PolyComplexity || {
+    inited: false,
+
+    initUI() {
+      const modal = document.getElementById('complexityModal');
+      const btn   = document.getElementById('btnComplexity');
+      if (!modal || !btn) return;       // wait until both exist
+      if (this.inited) return;           // prevent double-binding
+      this.inited = true;
+
+      // open/close helpers
+      const open  = () => modal.setAttribute('aria-hidden', 'false');
+      const close = () => modal.setAttribute('aria-hidden', 'true');
+
+      // open on button click
+      btn.addEventListener('click', open);
+
+      // close on [x], footer button, or backdrop
+      modal.addEventListener('click', (e) => {
+        const isCloseBtn = e.target.matches('[data-close], [data-close] *');
+        const isBackdrop = e.target.classList?.contains('pc-modal__backdrop');
+        if (isCloseBtn || isBackdrop) close();
+      });
+
+      // close on Escape
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') close();
+      });
+
+      // TODO: hook your analyzer wiring here if not already elsewhere
+      // e.g., fill #cxTable, #cxTime, #cxSpace, #cxNotes from your analyze function
+    }
+  };
+
+  // --- Helpers ---
+  function insertModalIfMissing() {
+    if (document.getElementById('complexityModal')) return Promise.resolve('exists');
+
+    return fetch(PARTIAL_PATH, { cache: 'no-store' })
+      .then(r => {
+        if (!r.ok) throw new Error(`Failed to load partial: ${r.status}`);
+        return r.text();
+      })
+      .then(html => {
+        document.body.insertAdjacentHTML('beforeend', html);
+        // Let listeners know the modal just arrived
+        document.dispatchEvent(new Event('pc:modal-ready'));
+        return 'inserted';
+      })
+      .catch(err => {
+        // Fail gracefully (button will remain inert, console shows why)
+        console.warn('[PolyComplexity] Could not load modal partial:', err);
+        return 'failed';
+      });
+  }
+
+  function initWhenReady() {
+    // 1) If modal is already in DOM (SSR or extremely fast load), init now
+    if (document.getElementById('complexityModal')) {
+      window.PolyComplexity.initUI();
+    }
+
+    // 2) Or initialize after we hear it was injected
+    document.addEventListener('pc:modal-ready', () => {
+      window.PolyComplexity.initUI();
+    });
+
+    // 3) As a fallback (e.g., scripts executed out of order), try once after DOM is ready
+    //    and also try to fetch/insert it if missing.
+    document.addEventListener('DOMContentLoaded', async () => {
+      await insertModalIfMissing();
+      window.PolyComplexity.initUI();
+    });
+  }
+
+  // Kick off
+  initWhenReady();
+})();
+
