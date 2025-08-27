@@ -4,25 +4,17 @@ import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
-import { register as registerC } from './c-plugin.js';  // +++ add
 
 const app = express();
 app.get('/health', (_req, res) => res.send('ok'));
 
 const PORT = process.env.PORT || 8081; // Render sets this (often 10000)
-
-
 const server = app.listen(PORT, () => console.log('Java runner on :' + PORT));
-registerC(app, { server });
+
 const wss = new WebSocketServer({ server, path: '/java' });
 
-
-
-
-
-wss.on('connection', (ws, req) => {
+wss.on('connection', (ws) => {
   // Per-connection mutable state
-  console.log('[java] WS connected', req?.url || '');
   let proc = null;
   let workdir = null;
   let closed = false;
