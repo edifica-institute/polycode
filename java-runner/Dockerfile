@@ -1,7 +1,7 @@
 FROM node:20-bullseye
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    openjdk-17-jdk build-essential ca-certificates util-linux \
+    openjdk-17-jdk build-essential ca-certificates coreutils util-linux \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -21,7 +21,7 @@ COPY io /app/io
 RUN javac -encoding UTF-8 -d out io/polycode/*.java && \
     jar --create --file runner.jar -C out .
 
-# Preload helper
+# Preload helper (harmless to keep even if not used)
 COPY stdin_notify.c ./
 RUN gcc -shared -fPIC -O2 -ldl -o libstdin_notify.so stdin_notify.c
 
