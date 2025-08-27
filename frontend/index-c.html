@@ -423,6 +423,7 @@ w = new WebSocket(url); } catch { return resolve(null); }
 
     // ---------- Hook into shell.js API ----------
     window.runLang = async function runLang(codeOverride){
+       window.run = window.runLang;
      clearCMarkers();
 setConsole('');
 
@@ -457,7 +458,14 @@ ws.addEventListener('message', onMsg);
 
 // send files to compile+run
 const files = [{ path:'main.c', content: code }];
-try { ws.send(JSON.stringify({ type:'start', files })); } catch {}
+
+// small tick prevents any race with server’s message handler
+termWrite('⏳ compiling…\n');
+await new Promise(r => setTimeout(r, 15));
+
+try {
+  ws.send(JSON.stringify({ type: 'start', files }));
+} catch {}
 
 
 
