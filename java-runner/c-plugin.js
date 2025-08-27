@@ -1,4 +1,4 @@
-// java-runner/c-plugin.js — ESM, single-WS compile+run (also keeps legacy token mode)
+// java-runner/c-plugin.js — ESM, single-WS compile+run (streams), legacy token kept
 import express from "express";
 import { WebSocketServer } from "ws";
 import { spawn } from "child_process";
@@ -6,7 +6,7 @@ import * as fs from "node:fs/promises";
 import path from "node:path";
 
 const JOB_ROOT = process.env.JOB_ROOT || "/tmp/polycode";
-const SESSIONS = new Map();                 // legacy token mode
+const SESSIONS = new Map(); // legacy token sessions
 const uid = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 
 function parseGcc(out) {
@@ -28,7 +28,7 @@ function parseGcc(out) {
 }
 
 export function register(app, { server }) {
-  // ---------- (optional) legacy HTTP prepare endpoint ----------
+  // ---------- (optional) legacy HTTP prepare ----------
   app.use("/api/c", (req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -69,7 +69,7 @@ printf ' -lm\\n'
 gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -lm
 `.trim();
 
-      const proc = spawn("bash", ["-lc", bash + " 2>&1"]);
+      const proc = spawn("bash", ["-lc", bash]);
       let log = "";
       proc.stdout.on("data", d => (log += d.toString()));
       proc.stderr.on("data", d => (log += d.toString()));
@@ -77,7 +77,7 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
         const diagnostics = parseGcc(log);
         const compileOk = (code === 0) && !diagnostics.some(d => d.severity === "error" || /fatal/i.test(d.message));
 
-        // Compose run command (legacy run-by-token)
+        // run command (legacy token mode)
         let stdbufLib = "/usr/lib/coreutils/libstdbuf.so";
         try { await fs.access(stdbufLib); } catch { stdbufLib = ""; }
         const notifyLib = path.join(process.cwd(), "libstdin_notify.so").replace(/'/g, "'\\''");
@@ -101,9 +101,8 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
     }
   });
 
-  // ---------- WebSocket: /term-c ----------
+  // ---------- WebSocket: /term-c (single WS + legacy token) ----------
   const wss = new WebSocketServer({ noServer: true, perMessageDeflate: false });
-
   server.on("upgrade", (req, socket, head) => {
     try {
       const { pathname } = new URL(req.url, "http://x");
@@ -117,16 +116,18 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
   wss.on("connection", (ws, req) => {
     const url = new URL(req.url, "http://x");
     const token = url.searchParams.get("token") || url.searchParams.get("t");
-    // If a token is present → legacy run-only mode
+
     if (token && SESSIONS.has(token)) {
       const sess = SESSIONS.get(token);
-      runExistingSession(ws, sess.cwd, sess.cmd, () => { try { SESSIONS.delete(token); } catch {} });
+      runExisting(ws, sess.cwd, sess.cmd, () => { try { SESSIONS.delete(token); } catch {} });
       return;
     }
 
-    // No token → single-WS compile+run mode
+    // single-WS: say hello so you always see *something* immediately
+    try { ws.send(JSON.stringify({ type: "stdout", data: "[c-runner] ready\\n" })); } catch {}
+
     singleWsFlow(ws).catch((e) => {
-      try { ws.send(JSON.stringify({ type: "stderr", data: String(e?.message || e) + "\n" })); } catch {}
+      try { ws.send(JSON.stringify({ type: "stderr", data: String(e?.message || e) + "\\n" })); } catch {}
       try { ws.send(JSON.stringify({ type: "exit", code: 1 })); } catch {}
       try { ws.close(); } catch {}
     });
@@ -137,7 +138,7 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
 
 /* ---------------- helpers ---------------- */
 
-async function runExistingSession(ws, cwd, cmd, onFinish) {
+async function runExisting(ws, cwd, cmd, onFinish) {
   const child = spawn("bash", ["-lc", cmd], { cwd, stdio: ["pipe", "pipe", "pipe"] });
 
   child.stdout.on("data", d => {
@@ -174,7 +175,6 @@ async function runExistingSession(ws, cwd, cmd, onFinish) {
 }
 
 async function singleWsFlow(ws) {
-  // Wait for a {type:"start", files:[...]} message
   let started = false;
   let child = null;
   let workdir = null;
@@ -210,7 +210,7 @@ async function singleWsFlow(ws) {
       return;
     }
 
-    // Write files to a fresh workspace
+    // write workspace
     const id = uid();
     workdir = path.join(JOB_ROOT, "c", id);
     await fs.mkdir(workdir, { recursive: true });
@@ -221,7 +221,7 @@ async function singleWsFlow(ws) {
       await fs.writeFile(full, f?.content ?? "", "utf8");
     }
 
-    // ---- compile ----
+    // compile (STREAM the output)
     const cd = "cd '" + workdir.replace(/'/g, "'\\''") + "'";
     const bash = `
 ${cd}
@@ -237,16 +237,23 @@ printf ' -lm\\n'
 gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -lm
 `.trim();
 
-    const compile = spawn("bash", ["-lc", bash + " 2>&1"]);
+    const compile = spawn("bash", ["-lc", bash], { stdio: ["ignore", "pipe", "pipe"] });
     let clog = "";
-    compile.stdout.on("data", d => (clog += d.toString()));
-    compile.stderr.on("data", d => (clog += d.toString()));
+
+    compile.stdout.on("data", d => {
+      const s = d.toString();
+      clog += s;
+      try { ws.send(JSON.stringify({ type: "stdout", data: s })); } catch {}
+    });
+    compile.stderr.on("data", d => {
+      const s = d.toString();
+      clog += s;
+      try { ws.send(JSON.stringify({ type: "stdout", data: s })); } catch {} // show gcc lines the same way
+    });
 
     const code = await new Promise(resolve => compile.on("close", resolve));
     const diagnostics = parseGcc(clog);
-    try { ws.send(JSON.stringify({ type: "stdout", data: clog.endsWith("\n") ? clog : (clog + "\n") })); } catch {}
     if (diagnostics.length) { try { ws.send(JSON.stringify({ type: "diagnostics", data: diagnostics })); } catch {} }
-
     const ok = (code === 0) && !diagnostics.some(d => d.severity === "error" || /fatal/i.test(d.message));
     if (!ok) {
       try { ws.send(JSON.stringify({ type: "exit", code: 1 })); } catch {}
@@ -254,7 +261,7 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
       return;
     }
 
-    // ---- run ----
+    // run
     let stdbufLib = "/usr/lib/coreutils/libstdbuf.so";
     try { await fs.access(stdbufLib); } catch { stdbufLib = ""; }
     const notifyLib = path.join(process.cwd(), "libstdin_notify.so").replace(/'/g, "'\\''");
