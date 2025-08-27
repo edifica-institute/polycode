@@ -2019,3 +2019,27 @@ html, body { height: 100%; }
   word-break: normal !important;    /* don’t break long tokens */
   overflow-wrap: normal !important; /* same */
 }
+
+
+.footer-icons img,
+.footer-icons svg,
+.footer-icons i {
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;      /* reset */
+  height: 24px;        /* or your icon size */
+  width: 24px;
+}
+
+.footer-icons {
+  display: flex;
+  align-items: center; /* vertically center */
+  gap: 10px;           /* spacing between icons */
+  padding-bottom: 5px; /* prevent clipping */
+}
+
+
+.footer-icons .fa {
+  line-height: 1; 
+}
+
