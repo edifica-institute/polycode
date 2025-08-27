@@ -23,12 +23,16 @@
     .pane-foot .msg{ white-space:nowrap }
     .panel .pane-head{ display:flex; align-items:center }
 
-    /* Console: no wrapping + pinned horizontal scrollbar at bottom */
+    /* Output pane: single pinned horizontal scrollbar */
     #output{ position:relative; padding:0; }
+    /* Vertical scroller only; hide native horizontal bar */
     #outV{
-      position:absolute; inset:0 0 16px 0; /* leave room for the bottom h-scroll bar */
-      padding:12px; overflow:auto; -webkit-overflow-scrolling:touch;
+      position:absolute; inset:0 0 16px 0; /* leave room for pinned h-scroll */
+      overflow-y:auto; overflow-x:hidden; padding:12px;
+      -webkit-overflow-scrolling:touch;
     }
+    /* This wrapper moves horizontally via transform so we don't need a native h-scroll */
+    #outH{ position:relative; display:inline-block; transform:translateX(0); will-change:transform; }
     #jconsole{
       margin:0; white-space:pre !important; word-break:normal !important; overflow-wrap:normal !important;
       line-height:1.25;
@@ -155,12 +159,14 @@
         <div id="output" class="screen-dim">
           <!-- Scrollable output + pinned bottom h-scroll -->
           <div id="outV">
-            <pre id="jconsole" class="console"></pre>
+            <div id="outH">
+              <pre id="jconsole" class="console"></pre>
 
-            <!-- Inline input row -->
-            <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
-              <span id="consolePrefix"></span>
-              <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+              <!-- Inline input row -->
+              <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+                <span id="consolePrefix"></span>
+                <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+              </div>
             </div>
           </div>
           <div id="hbar"><div id="hbarInner"></div></div>
@@ -236,13 +242,13 @@ int main(){
     function clearEditorMarkers(){
       if (!window.monaco || !window.editor) return;
       const model = window.editor.getModel();
-      if (model) window.monaco.editor.setModelMarkers(model, 'gcc', []);
+      if (model) window.monaco.editor.setModelMarkers(model, 'c-compile', []);
     }
     function setEditorMarker(line, message){
       if (!window.monaco || !window.editor) return;
       const model = window.editor.getModel(); if (!model) return;
       const maxCol = Math.max(1, model.getLineMaxColumn(line || 1));
-      window.monaco.editor.setModelMarkers(model, 'gcc', [{
+      window.monaco.editor.setModelMarkers(model, 'c-compile', [{
         startLineNumber: line || 1,
         endLineNumber:   line || 1,
         startColumn:     1,
@@ -251,17 +257,24 @@ int main(){
         severity:        window.monaco.MarkerSeverity.Error
       }]);
     }
-    function findFirstGccErrorLine(text){
-      const m = /(^|\n).*?main\.c:(\d+)(?::\d+)?:\s*error:\s*([^\n]+)/i.exec(text||'');
-      return m ? { line: Number(m[2]), msg: m[3] } : null;
+    function findFirstGccError(text){
+      if (!text) return null;
+      // main.c:7:33: error: ...
+      let m = /(^|\n)[^\n]*?\bmain\.c:(\d+):\d+:\s*error:\s*([^\n]+)/i.exec(text);
+      if (m) return { line: Number(m[2]), msg: m[3] };
+      // main.c:7: error: ...
+      m = /(^|\n)[^\n]*?\bmain\.c:(\d+):\s*error:\s*([^\n]+)/i.exec(text);
+      if (m) return { line: Number(m[2]), msg: m[3] };
+      return null;
     }
 
     /* ===== Console helpers ===== */
     function refreshHWidth(){
-      const pre = document.getElementById('jconsole');
+      const outV = document.getElementById('outV');
+      const outH = document.getElementById('outH');
       const inner = document.getElementById('hbarInner');
-      if (pre && inner){
-        inner.style.width = Math.max(pre.scrollWidth, pre.clientWidth) + 'px';
+      if (outV && outH && inner){
+        inner.style.width = Math.max(outH.scrollWidth, outV.clientWidth) + 'px';
       }
     }
     function setConsole(text){
@@ -276,13 +289,16 @@ int main(){
       document.getElementById('outV')?.scrollTo({ top: 1e9 });
       refreshHWidth();
     }
-    // Sync horizontal scroll between content and bottom bar
+    // Keep the content horizontally in sync with the pinned scrollbar
     (function hsync(){
       const outV = document.getElementById('outV');
+      const outH = document.getElementById('outH');
       const hbar = document.getElementById('hbar');
-      if (!outV || !hbar) return;
-      outV.addEventListener('scroll', ()=>{ hbar.scrollLeft = outV.scrollLeft; });
-      hbar.addEventListener('scroll', ()=>{ outV.scrollLeft = hbar.scrollLeft; });
+      if (!outV || !outH || !hbar) return;
+      const sync = ()=>{ outH.style.transform = 'translateX(' + (-hbar.scrollLeft) + 'px)'; };
+      hbar.addEventListener('scroll', sync);
+      window.addEventListener('resize', ()=>{ refreshHWidth(); sync(); });
+      refreshHWidth(); sync();
     })();
 
     /* ===== Input row ===== */
@@ -428,13 +444,14 @@ int main(){
     const stripAnsi = (s)=> s.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 
     function markFirstErrorFromLog(){
-      const e = findFirstGccErrorLine(__aggLog);
+      const e = findFirstGccError(stripAnsi(__aggLog));
       if (e){ setEditorMarker(e.line, e.msg); }
     }
+    function finishUI(){ window.setRunUI?.(false); }
 
     function finalizeStatus(){
       stopHeartbeat(); stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-      window.wsRunInFlight=false; showInputRow(false); hideRunnerOverlay();
+      window.wsRunInFlight=false; showInputRow(false); hideRunnerOverlay(); finishUI();
 
       const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
       const hasCompileErr = __cFlags.sawCompileErr
@@ -531,8 +548,11 @@ int main(){
         updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
         setTimeout(hideRunnerOverlay, 300);
         setConsole((e && e.message) || 'Prepare failed');
+        __aggLog += String((e && e.message) || '');
         window.PolyShell?.setRunnerPhase?.('error');
         window.PolyShell.setStatus('Compilation Failed','error');
+        setComplexityEnabled(false);
+        finishUI();
         return;
       }
 
@@ -540,11 +560,13 @@ int main(){
         const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
         setConsole((log||'').trim());
         __aggLog += String(log||'');
-        markFirstErrorFromLog();
+        const e = findFirstGccError(__aggLog); if (e) setEditorMarker(e.line, e.msg);
         updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
         setTimeout(hideRunnerOverlay, 300);
         window.PolyShell?.setRunnerPhase?.('error');
         window.PolyShell.setStatus('Compilation Failed','error');
+        setComplexityEnabled(false);
+        finishUI();
         return;
       }
 
@@ -566,26 +588,21 @@ int main(){
 
       ws.addEventListener('message',(ev)=>{
         const raw = String(ev.data || '');
-        let msg = null; try{ msg = JSON.parse(raw); }catch{ msg = null; }
-
+        let msg = null; try{ msg = JSON.parse(raw); }catch{}
         if (msg && typeof msg==='object' && msg.type){
           if (msg.type==='stdout'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); if ((msg.data||'').trim()) __cFlags.sawAnyOutput = true; return; }
           if (msg.type==='stderr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawRuntimeErr = true; return; }
-          if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; markFirstErrorFromLog(); return; }
+          if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; const e=findFirstGccError(__aggLog); if(e) setEditorMarker(e.line, e.msg); return; }
           if (msg.type==='stdin_req'){ showInputRow(true); return; }
           if (msg.type==='exit'){ __cFlags.exitCode = Number(msg.code); finalizeStatus(); return; }
           return;
         }
-
         // Plain text fallback
         termWrite(raw);
-        const clean = stripAnsi(raw);
-        __aggLog += clean;
+        const clean = stripAnsi(raw); __aggLog += clean;
         if (clean.trim()) __cFlags.sawAnyOutput = true;
-
-        if (/(^|\n).*?:\d+:\d+:\s*error:/i.test(clean) || /\berror:\s/i.test(clean)) { __cFlags.sawCompileErr = true; markFirstErrorFromLog(); }
+        if (/(^|\n).*?:\d+:\d+:\s*error:/i.test(clean) || /\berror:\s/i.test(clean)) { __cFlags.sawCompileErr = true; const e=findFirstGccError(__aggLog); if(e) setEditorMarker(e.line, e.msg); }
         if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) __cFlags.sawRuntimeErr = true;
-
         const ex = clean.match(/exit\s*code\s*[:=]\s*(-?\d+)/i) || clean.match(/\bEXIT[:=]\s*(-?\d+)/i);
         if (ex) __cFlags.exitCode = Number(ex[1]);
       });
@@ -601,8 +618,7 @@ int main(){
       window.termWS=null; window.wsRunInFlight=false;
       showInputRow(false); setComplexityEnabled(false);
       stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-      hideRunnerOverlay(); clearEditorMarkers();
-      window.PolyShell?.setRunnerPhase?.('success'); // neutral ready state
+      hideRunnerOverlay(); clearEditorMarkers(); finishUI();
       window.PolyShell.setStatus('Ready','ok');
     };
 
