@@ -423,7 +423,7 @@ w = new WebSocket(url); } catch { return resolve(null); }
 
     // ---------- Hook into shell.js API ----------
     window.runLang = async function runLang(codeOverride){
-       window.run = window.runLang;
+       
      clearCMarkers();
 setConsole('');
 
@@ -495,8 +495,11 @@ try {
       stopStatusDots();
     };
 
-   window.POLY.run   = window.runLang;
-window.POLY.clear = window.clearLang;
+<script>
+// hook the runner/clear used by shell.js buttons
+window.run   = window.runLang;
+window.clear = window.clearLang;
+</script>
 
     // Start after shell is ready
     (function startWhenReady(){
