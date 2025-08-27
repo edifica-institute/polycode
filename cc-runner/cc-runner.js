@@ -46,9 +46,15 @@ function parseGcc(out) {
   return ds;
 }
 function runWithLimits(cmd, args, cwd) {
-  const bash = `ulimit -t 10 -v 262144 -f 1048576; timeout 10s ${[cmd,...args].map(a=>`'${a.replace(/'/g,"'\\''")}'`).join(" ")}`;
+  // CPU 10s, ~256MB vmem, 1GB file size; hard timeout 30s
+  // stdbuf -o0 -e0 => unbuffer stdout/stderr so prompts appear immediately
+  const bash = `
+    ulimit -t 10 -v 262144 -f 1048576;
+    timeout 30s stdbuf -o0 -e0 ${[cmd, ...args].map(a => `'${a.replace(/'/g,"'\\''")}'`).join(' ')}
+  `;
   return spawn("bash", ["-lc", bash], { cwd });
 }
+
 function compilerFor(lang, entry) {
   if (lang === "c") return { cc: "gcc", std: "-std=c11" };
   if (lang === "cpp") return { cc: "g++", std: "-std=c++17" };
