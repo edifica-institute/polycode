@@ -10,7 +10,7 @@ COPY package.json ./
 RUN npm ci --omit=dev || npm install --omit=dev
 
 # --- CACHE BUST so c-plugin.js always refreshes ---
-ARG C_PLUGIN_BUILD=2025-08-26-01
+ARG C_PLUGIN_BUILD=2025-08-27-02
 
 # App files
 COPY java-runner.js ./
