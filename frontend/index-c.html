@@ -477,6 +477,8 @@ window.POLY.openCWS  = openCWS;
         } catch {}
       };
       ws.addEventListener('message', onMsg);
+      try { ws.send(JSON.stringify({ type: 'start' })); } catch {}
+      
       ws.addEventListener('close', () => {
         try { ws.removeEventListener('message', onMsg); } catch {}
         stopStatusDots();
