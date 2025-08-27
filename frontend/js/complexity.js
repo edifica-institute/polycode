@@ -367,35 +367,54 @@
   window.PolyComplexity = window.PolyComplexity || {
     inited: false,
 
-    initUI() {
-      const modal = document.getElementById('complexityModal');
-      const btn   = document.getElementById('btnComplexity');
-      if (!modal || !btn) return;       // wait until both exist
-      if (this.inited) return;           // prevent double-binding
-      this.inited = true;
+    function initUI({ getCode, lang = 'java' } = {}) {
+  if (initUI._bound) return;   // <-- guard
+  initUI._bound = true;        // <-- guard
 
-      // open/close helpers
-      const open  = () => modal.setAttribute('aria-hidden', 'false');
-      const close = () => modal.setAttribute('aria-hidden', 'true');
+  // Close hooks
+  const modal = document.getElementById('complexityModal');
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
+    });
+  }
 
-      // open on button click
-      btn.addEventListener('click', open);
+  // Button
+  const btn = document.getElementById('btnComplexity');
+  if (!btn) return;
 
-      // close on [x], footer button, or backdrop
-      modal.addEventListener('click', (e) => {
-        const isCloseBtn = e.target.matches('[data-close], [data-close] *');
-        const isBackdrop = e.target.classList?.contains('pc-modal__backdrop');
-        if (isCloseBtn || isBackdrop) close();
-      });
+  btn.addEventListener('click', () => {
+    const code =
+      (window.editor?.getValue?.() ?? '') ||
+      (typeof getCode === 'function' ? getCode() : '') ||
+      (document.getElementById('code')?.value || '');
 
-      // close on Escape
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') close();
-      });
+    const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
 
-      // TODO: hook your analyzer wiring here if not already elsewhere
-      // e.g., fill #cxTable, #cxTime, #cxSpace, #cxNotes from your analyze function
+    const tEl = document.getElementById('cxTime');
+    const sEl = document.getElementById('cxSpace');
+    const tb  = document.querySelector('#cxTable tbody');
+    const nt  = document.getElementById('cxNotes');
+    if (!tEl || !sEl || !tb || !nt) return;
+
+    tEl.textContent = finalTime || 'O(1)';
+    sEl.textContent = finalSpace || 'O(1)';
+
+    tb.innerHTML = '';
+    for (const n of notes) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
+      tb.appendChild(tr);
     }
+    nt.innerHTML =
+      `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
+
+    openModal();
+  });
+}
+
   };
 
   // --- Helpers ---
