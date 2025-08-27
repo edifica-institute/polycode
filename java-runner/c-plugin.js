@@ -90,43 +90,52 @@ gcc -std=c17 -O2 -pipe -Wall -Wextra -Wno-unused-result -o main "\${uniq[@]}" -l
       proc.stderr.on("data", d => { log += d.toString(); });
 
       proc.on("close", async (code) => {
-  const diagnostics = parseGcc(log);
-  const compileOk = (code === 0) && !diagnostics.some(
-    d => d.severity === "error" || /fatal/i.test(d.message)
-  );
+        const diagnostics = parseGcc(log);
+        const compileOk = (code === 0) && !diagnostics.some(
+          d => d.severity === "error" || /fatal/i.test(d.message)
+        );
 
-        // --- Run command (NO `script`): combine stdbuf + stdin-notify ---
-        // Debian/Ubuntu path for libstdbuf:
-       // --- Run command: preload stdbuf + stdin-notify, no `script` ---
-let stdbufLib = "/usr/lib/coreutils/libstdbuf.so";      // Debian/Ubuntu path
-try {
-  // If the lib isn't there (different distro), fall back gracefully
-  await fs.access(stdbufLib);
-} catch {
-  stdbufLib = ""; // we'll skip stdbuf if not present
-}
+        // --- Run command: preload stdbuf + stdin-notify (no `script`) ---
+        // Find libstdbuf.so across common Debian/Ubuntu paths; fall back if missing.
+        const notifyLibAbs = path.resolve(process.cwd(), "libstdin_notify.so");
+        const notifyLibAbsQ = notifyLibAbs.replace(/'/g, "'\\''");
 
-const notifyLib = path
-  .join(process.cwd(), "libstdin_notify.so")
-  .replace(/'/g, "'\\''");
+        async function pickFirstExisting(paths) {
+          for (const p of paths) {
+            try { await fs.access(p); return p; } catch {}
+          }
+          return "";
+        }
 
-const preloadChain = stdbufLib
-  ? `${stdbufLib}:${notifyLib}`
-  : `${notifyLib}`;
+        const stdbufCandidates = [
+          "/usr/lib/coreutils/libstdbuf.so",
+          "/usr/lib/x86_64-linux-gnu/coreutils/libstdbuf.so",
+          "/usr/lib/x86_64-linux-gnu/libstdbuf.so",
+          "/lib/x86_64-linux-gnu/libstdbuf.so"
+        ];
+        const stdbufFound = await pickFirstExisting(stdbufCandidates);
+        const stdbufLibQ = stdbufFound ? stdbufFound.replace(/'/g, "'\\''") : "";
 
-const cmd = [
-  `export LD_PRELOAD='${preloadChain}'`,
-  stdbufLib ? `export STDBUF='o0:eL'` : `:`,   // unbuffer stdout if stdbuf is available
-  `exec timeout 60s ./main`
-].join("; ");
+        const preloadChain = stdbufLibQ
+          ? `${stdbufLibQ}:${notifyLibAbsQ}`
+          : `${notifyLibAbsQ}`;
 
+        const cmd = [
+          `export LD_PRELOAD='${preloadChain}'`,
+          stdbufLibQ ? `export STDBUF='o0:eL'` : `:`,
+          // Debug banner so we can verify the exact environment at runtime
+          `echo "[dbg] using stdbufLib=${stdbufFound || "(none)"} notifyLib=${notifyLibAbs} LD_PRELOAD=$LD_PRELOAD STDBUF=$STDBUF" 1>&2`,
+          `ls -l '${notifyLibAbsQ}' 1>&2 || true`,
+          // Run the compiled program
+          `exec timeout 60s ./main`
+        ].join("; ");
 
- let token = null;
-      if (compileOk) {
-         token = uid();
-         SESSIONS.set(token, { cwd: dir, cmd });
-       }
-       res.json({ token, ok: compileOk, diagnostics, compileLog: log });
+        let token = null;
+        if (compileOk) {
+          token = uid();
+          SESSIONS.set(token, { cwd: dir, cmd });
+        }
+        res.json({ token, ok: compileOk, diagnostics, compileLog: log });
       });
     } catch (e) {
       console.error("[c-plugin] prepare error", e);
@@ -191,7 +200,10 @@ const cmd = [
       if (m.type === "kill")  { try { child.kill("SIGKILL"); } catch {} }
     });
 
-    ws.on("close", () => { try { SESSIONS.delete(token); } catch {} try { child.kill("SIGKILL"); } catch {} });
+    ws.on("close", () => {
+      try { SESSIONS.delete(token); } catch {}
+      try { child.kill("SIGKILL"); } catch {}
+    });
   });
 
   console.log("[polycode] C plugin loaded (HTTP: /api/c/prepare, WS: /term-c)");
