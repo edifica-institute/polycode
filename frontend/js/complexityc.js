@@ -459,61 +459,72 @@
   /* =================== Recursion heuristics (worst-case + teaching notes) =================== */
 
   // Worst-case recursion classifier
-  function recursionHeuristic(fnName, body, pushNote, ln) {
-    // Count direct self calls
-    const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
-    const calls = (body.match(callRe) || []).length;
+// Worst-case recursion classifier with QuickSort / D&C detection + teaching notes
+function recursionHeuristic(fnName, body, pushNote, ln) {
+  // Count direct self calls
+  const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
+  const calls = (body.match(callRe) || []).length;
 
-    // Two self-calls in the SAME execution path (not mutually exclusive via else)
-    const twoSelfCallsSameBlock =
-      new RegExp(`\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`, 'i').test(body) &&
-      !new RegExp(
-        `if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?else\\s*if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`,
-        'i'
-      ).test(body);
+  // Any hint that the problem size is halved / split by mid
+  const halves =
+    /[*/]\s*2\b|>>\s*1\b|\bmid\b|\b(high\s*-\s*low)\s*\/\s*2|\b(low\s*\+\s*high)\s*\/\s*2/i.test(body);
 
-    // Fibonacci-like: f(n-1) and f(n-2)
-    const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
-    const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
+  // Linear "combine/partition" type work in the same function body
+  // (QuickSort calls partition; MergeSort calls merge; generic "combine")
+  const hasLinearCombine =
+    /\b(for|while)\s*\(/.test(body) || /\bpartition\s*\(|\bmerge\s*\(|\bcombine\s*\(/i.test(body);
 
-    // Halving / boundary-shrink hint
-    const halves = /[*/]\s*2\b|>>\s*1\b|\bn\s*\/\s*2\b|mid/i.test(body);
+  // Two or more self-calls that are NOT mutually exclusive via else/else-if
+  // (coarse but effective for typical D&C like quickSort/mergeSort)
+  const hasElseBranching = /\belse\b/.test(body);
+  const twoCallsSamePath = (calls >= 2) && !hasElseBranching;
 
-    // Linear work (suggests merge/partition with halving)
-    const hasLoop = /\b(for|while)\s*\(/.test(body);
+  // Fibonacci-like: f(n-1) and f(n-2)
+  const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
+  const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
 
-    // --- Worst-case rules ---
-    if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
-      pushNote(ln, 'recursion', '2^n',
-        `${fnName}(): Fibonacci-like recursion → worst O(2^n), no better average-case`);
-      return '2^n';
-    }
-
-    if (twoSelfCallsSameBlock) {
-      if (halves && hasLoop) {
-        pushNote(ln, 'recursion', 'n log n',
-          `${fnName}(): divide & conquer with halving + linear work → worst O(n log n), average also O(n log n)`);
-        return 'n log n';
-      }
-      pushNote(ln, 'recursion', 'n',
-        `${fnName}(): tree recursion (visits multiple branches) → worst O(n), average O(n)`);
-      return 'n';
-    }
-
-    if (calls >= 1) {
-      if (halves) {
-        pushNote(ln, 'recursion', 'log n',
-          `${fnName}(): single-branch halving recursion → worst O(log n), average O(log n)`);
-        return 'log n';
-      }
-      // Single-branch height-bounded recursion (BST insert/search) → worst O(n)
-      pushNote(ln, 'recursion', 'n',
-        `${fnName}(): single-branch recursion (e.g., BST insert/search) → worst O(n); balanced average ≈ O(log n)`);
-      return 'n';
-    }
-
-    return '1';
+  // ---- Classification (WORST-CASE returned; average explained in notes) ----
+  if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
+    pushNote(ln, 'recursion', '2^n',
+      `${fnName}(): Fibonacci-like recursion → worst O(2^n) (no better average-case)`);
+    return '2^n';
   }
+
+  // Divide & Conquer: two self calls in same path
+  if (twoCallsSamePath) {
+    // MergeSort-ish: halves + linear combine → O(n log n) worst (and average)
+    if (halves && hasLinearCombine) {
+      pushNote(ln, 'recursion', 'n log n',
+        `${fnName}(): divide & conquer with halving + linear combine (e.g., merge sort) → worst O(n log n), average O(n log n)`);
+      return 'n log n';
+    }
+    // QuickSort-ish: no guaranteed halving, but linear partition/combine → worst O(n^2), average O(n log n)
+    if (!halves && hasLinearCombine) {
+      pushNote(ln, 'recursion', 'n^2',
+        `${fnName}(): two recursive calls + linear partition/combine (e.g., quicksort) → worst O(n^2), average O(n log n)`);
+      return 'n^2';
+    }
+    // Generic tree recursion (visit multiple branches) with no linear combine signal
+    pushNote(ln, 'recursion', 'n',
+      `${fnName}(): tree recursion (visits multiple branches) → worst O(n), average O(n)`);
+    return 'n';
+  }
+
+  // Single-branch recursion
+  if (calls >= 1) {
+    if (halves) {
+      pushNote(ln, 'recursion', 'log n',
+        `${fnName}(): single-branch halving recursion → worst O(log n), average O(log n)`);
+      return 'log n';
+    }
+    pushNote(ln, 'recursion', 'n',
+      `${fnName}(): single-branch recursion (e.g., BST insert/search) → worst O(n); balanced average ≈ O(log n)`);
+    return 'n';
+  }
+
+  return '1';
+}
+
 
   /* =================== Statement cost (recursive over AST) =================== */
 
