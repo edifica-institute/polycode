@@ -380,53 +380,114 @@
     window.termWS = ws;
 
     const acc = { stderr:'', stdout:'' };
-    const waitForExit = new Promise((resolve,reject)=>{
-      const onMsg = (ev)=>{
-        try{
-          const m = JSON.parse(String(ev.data));
-          if (m.type === 'pong') return;
+const acc = { stderr:'', stdout:'' };
 
-          if (m.type === 'stdout'){
-            acc.stdout += m.data; termWrite(m.data);
-          } else if (m.type === 'stderr'){
-            acc.stderr += m.data; termWrite(m.data);
-          } else if (m.type === 'stdin_req'){
-            // BACKEND signal to show input (exactly like Java/C)
-            showInputRow(true);
-          } else if (m.type === 'exit'){
-            window.PolyShell?.stopInputTicker?.(); stopInputCountdown(); stopStatusDots();
-            window.termWS.removeEventListener('message', onMsg);
-            window.wsRunInFlight = false; showInputRow(false);
+const waitForExit = new Promise((resolve,reject)=>{
+  let exitSeen = false;
+  let errorSeen = false;
+  let exitGraceTimer = null;
 
-            if (m.code === 0){
-              window.PolyShell?.setRunnerPhase?.('success'); window.PolyShell?.setStatus('Execution Success', 'ok');
-              clearEditorMarkers(); resolve();
-            } else {
-              const errText = (acc.stderr || 'Execution failed').trim();
-              const firstLine = (errText.split('\n')[0] || 'Execution failed');
-              const line = findPythonErrorLine(errText);
-              setEditorMarker(line, firstLine);
-              window.PolyShell?.setStatus('Execution Failed', 'error');
-              reject(new Error(`line ${line}: ${firstLine}`));
-            }
-            window.setRunUI?.(false);
-          }
-        }catch{}
-      };
-      const onClose = ()=>{
-        try{ window.termWS?.removeEventListener('message', onMsg); }catch{}
-        const userClose = !!window.__closingByUser; window.__closingByUser = false;
-        try{ window.termWS?._stopHeartbeat?.(); }catch{} stopStatusDots(); window.setRunUI?.(false);
-        stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
+  const stopAllUi = () => {
+    window.PolyShell?.stopInputTicker?.();
+    stopInputCountdown();
+    stopStatusDots();
+    showInputRow(false);
+    window.setRunUI?.(false);
+  };
 
-        if (userClose){ window.wsRunInFlight = false; showInputRow(false); window.termWS=null; return; }
-        window.PolyShell?.setRunnerPhase?.('error', { detail:'Runner disconnected' });
-        if (window.wsRunInFlight){ window.wsRunInFlight=false; showInputRow(false); window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error'); try{ reject(new Error('line 1: runner disconnected')); }catch{} }
-        window.termWS = null;
-      };
-      window.termWS.addEventListener('message', onMsg);
-      window.termWS.addEventListener('close', onClose, { once:true });
-    });
+  const flagFatalError = () => {
+    if (errorSeen) return;
+    errorSeen = true;
+    // Immediately show error state in the UI; exit may still be in-flight
+    window.PolyShell?.setRunnerPhase?.('error');
+    window.PolyShell?.setStatus('Execution Failed', 'error');
+
+    // If exit packet doesn't arrive quickly (WS race), stop the spinner anyway
+    clearTimeout(exitGraceTimer);
+    exitGraceTimer = setTimeout(() => {
+      if (!exitSeen) {
+        window.wsRunInFlight = false;
+        stopAllUi();
+      }
+    }, 600); // small grace; adjust if you like
+  };
+
+  const onMsg = (ev)=>{
+    try{
+      const m = JSON.parse(String(ev.data));
+      if (m.type === 'pong') return;
+
+      if (m.type === 'stdout'){
+        acc.stdout += m.data; termWrite(m.data);
+        return;
+      }
+
+      if (m.type === 'stderr'){
+        acc.stderr += m.data; termWrite(m.data);
+        // Heuristic: mark error immediately if we see a Python fatal pattern
+        if (/\bTraceback\b/.test(m.data) || /\bSyntaxError\b/.test(m.data)) {
+          flagFatalError();
+        }
+        return;
+      }
+
+      if (m.type === 'stdin_req'){
+        showInputRow(true);
+        return;
+      }
+
+      if (m.type === 'exit'){
+        exitSeen = true;
+        clearTimeout(exitGraceTimer);
+        window.termWS.removeEventListener('message', onMsg);
+        window.wsRunInFlight = false;
+        stopAllUi();
+
+        if (m.code === 0){
+          window.PolyShell?.setRunnerPhase?.('success');
+          window.PolyShell?.setStatus('Execution Success', 'ok');
+          clearEditorMarkers();
+          resolve();
+        } else {
+          const errText = (acc.stderr || 'Execution failed').trim();
+          const firstLine = (errText.split('\n')[0] || 'Execution failed');
+          const line = findPythonErrorLine(errText);
+          setEditorMarker(line, firstLine);
+          // status already set by flagFatalError if patterns matched; ensure it's error anyway
+          window.PolyShell?.setStatus('Execution Failed', 'error');
+          reject(new Error(`line ${line}: ${firstLine}`));
+        }
+        return;
+      }
+    }catch{}
+  };
+
+  const onClose = ()=>{
+    try{ window.termWS?.removeEventListener('message', onMsg); }catch{}
+    const userClose = !!window.__closingByUser; window.__closingByUser = false;
+    try{ window.termWS?._stopHeartbeat?.(); }catch{}
+    stopAllUi();
+
+    if (userClose){
+      window.wsRunInFlight = false;
+      window.termWS = null;
+      return;
+    }
+
+    // If the socket closed mid-run without exit, report disconnect
+    if (!exitSeen) {
+      window.PolyShell?.setRunnerPhase?.('error', { detail:'Runner disconnected' });
+      window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
+      window.wsRunInFlight = false;
+      try { reject(new Error('line 1: runner disconnected')); } catch {}
+    }
+    window.termWS = null;
+  };
+
+  window.termWS.addEventListener('message', onMsg);
+  window.termWS.addEventListener('close', onClose, { once:true });
+});
+
 
     try{
       const argsStr = document.getElementById('progArgs')?.value || '';
