@@ -252,105 +252,128 @@ function installCompileMarkerGuard(){
     window.PC_COMPILE_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2))
   );
 
-  // Global guard state (persists across re-invocations)
   const S = window.__pcGuardState || (window.__pcGuardState = {
-    baseFn: null,        // last non-our-wrapper setModelMarkers
-    wrapper: null,       // our current wrapper function
-    sticky: [],          // last markers we set
-    allowClear: false,   // explicit clears allowed?
+    baseFn: null,
+    wrapper: null,
+    stickySpec: [],   // <-- RAW desired markers (unclamped)
+    applied: [],      // last applied (derived from stickySpec)
+    allowClear: false,
     keepAlive: null,
+    reassertQueued: false,
+    waitingForContent: false,
   });
 
-  // Ensure our wrapper is installed, but NEVER make baseFn point to our own wrapper
   const ensureWrapped = () => {
     const current = monaco.editor.setModelMarkers;
-    if (current !== S.wrapper) {         // someone (or first time) set a new function
-      S.baseFn = current;                // capture the foreign/original function
+    if (current !== S.wrapper) {
+      S.baseFn = current;
       S.wrapper = function(model, owner, markers){
-        // Alias legacy owner -> our guarded owner
         if (owner === 'c-compile') owner = MARK_OWNER;
 
-        // Block unintended clears of our owner; re-assert sticky markers instead
-        if (owner === MARK_OWNER && Array.isArray(markers) && markers.length === 0 && !S.allowClear && S.sticky.length){
-          return S.baseFn.call(monaco.editor, model, owner, S.sticky);
+        // Block unintended clears of our owner; re-assert from stickySpec, not from 'applied'
+        if (owner === MARK_OWNER && Array.isArray(markers) && markers.length === 0 && !S.allowClear && S.stickySpec.length){
+          reassertFromSticky();
+          return;
         }
-
-        const count = Array.isArray(markers) ? markers.length : 0;
-        if (owner === MARK_OWNER){
-          console.log(`[markers] owner=${owner} count=${count} uri=${model?.uri?.toString?.()}`);
-        }
-        return S.baseFn.apply(monaco.editor, arguments); // <-- always call baseFn, never wrapper
+        return S.baseFn.apply(monaco.editor, arguments);
       };
-
       monaco.editor.setModelMarkers = S.wrapper;
     }
   };
 
-  // Public API to set markers (records "sticky")
+  const sevMap = {
+    warning: monaco.MarkerSeverity.Warning,
+    info:    monaco.MarkerSeverity.Info,
+    hint:    monaco.MarkerSeverity.Hint
+  };
+
+  const normalizeForModel = (spec, model) => {
+    const lineCount = Math.max(1, model.getLineCount());
+    return spec.map(e => {
+      // clamp only for this *application*, never mutate spec
+      const line = Math.min(Math.max(1, Number(e.line)||1), lineCount);
+      const max  = model.getLineMaxColumn(line);
+      const col  = Math.min(Math.max(1, Number(e.col)||1), Math.max(1, max - 1));
+      const sev  = sevMap[(e.sev||'').toLowerCase()] || monaco.MarkerSeverity.Error;
+      return {
+        startLineNumber: line, endLineNumber: line,
+        startColumn: col, endColumn: Math.min(max, col+1),
+        message: String(e.msg || 'Error'), severity: sev
+      };
+    });
+  };
+
+  const reassertFromSticky = () => {
+    const model = window.editor?.getModel(); if (!model) return;
+    ensureWrapped();
+
+    // If the model is in the "shrunk" transient state, wait for content to settle.
+    const needLines = S.stickySpec.reduce((m, e) => Math.max(m, Number(e.line)||1), 1);
+    if (model.getLineCount() < needLines) {
+      if (!S.waitingForContent) {
+        S.waitingForContent = true;
+        const off1 = window.editor.onDidChangeModelContent?.(() => {
+          if (model.getLineCount() >= needLines) {
+            off1?.dispose?.();
+            S.waitingForContent = false;
+            reassertFromSticky();
+          }
+        });
+        // Fallback: also try next frame (and one more after) in case there are no content events
+        requestAnimationFrame(()=> requestAnimationFrame(()=>{
+          if (S.waitingForContent) { S.waitingForContent = false; reassertFromSticky(); }
+        }));
+      }
+      return;
+    }
+
+    const markers = normalizeForModel(S.stickySpec, model);
+    S.baseFn.call(monaco.editor, model, MARK_OWNER, markers);
+    S.applied = markers;
+  };
+
+  const reassertSoon = () => {
+    if (S.reassertQueued) return;
+    S.reassertQueued = true;
+    requestAnimationFrame(()=> {
+      S.reassertQueued = false;
+      reassertFromSticky();
+    });
+  };
+
+  // Public API: record RAW spec (do not clamp) and apply
   window.setEditorMarkers = function(list){
     const model = window.editor?.getModel(); if (!model) return;
     const items = Array.isArray(list) ? list : (list ? [list] : []);
-    const lineCount = model.getLineCount();
-
-    const markers = items.map(e => {
-      let line  = Math.min(Math.max(1, Number(e?.line)||1), lineCount);
-      const max = model.getLineMaxColumn(line);
-      let start = Math.min(Math.max(1, Number(e?.col)||1), Math.max(1, max-1));
-      let end   = Math.min(max, start+1);
-      const sev = ({warning: monaco.MarkerSeverity.Warning,
-                    info:    monaco.MarkerSeverity.Info,
-                    hint:    monaco.MarkerSeverity.Hint})[(e?.sev||'').toLowerCase()]
-                 || monaco.MarkerSeverity.Error;
-      return { startLineNumber: line, endLineNumber: line,
-               startColumn: start, endColumn: end,
-               message: String(e?.msg || 'Error'), severity: sev };
-    });
+    // Store a *raw* copy (clamp only on application)
+    S.stickySpec = items.map(e => ({
+      line: Number(e?.line) || 1,
+      col:  Number(e?.col)  || 1,
+      msg:  String(e?.msg || 'Error'),
+      sev:  e?.sev || 'error'
+    }));
 
     ensureWrapped();
-    S.baseFn.call(monaco.editor, model, MARK_OWNER, markers);
-    S.sticky = markers.slice();
-
-    if (markers[0]) {
-      window.editor.revealLineInCenterIfOutsideViewport(markers[0].startLineNumber);
-      try{ window.editor.setPosition({ lineNumber: markers[0].startLineNumber, column: markers[0].startColumn }); }catch{}
-    }
+    reassertFromSticky();
   };
 
-  // Explicit clearer for success/reset only
   window.clearCompileMarkers = function(){
     const model = window.editor?.getModel(); if (!model) return;
     ensureWrapped();
     S.allowClear = true;
     S.baseFn.call(monaco.editor, model, MARK_OWNER, []);
     S.allowClear = false;
-    S.sticky = [];
+    S.applied = [];
+    S.stickySpec = [];
   };
 
-  // If someone clears our owner, re-assert
-  monaco.editor.onDidChangeMarkers?.((uris)=>{
-    const m = window.editor?.getModel(); if (!m || !S.sticky.length) return;
-    const now = monaco.editor.getModelMarkers({ owner: MARK_OWNER, resource: m.uri });
-    if (!now.length && !S.allowClear){
-      ensureWrapped();
-      S.baseFn.call(monaco.editor, m, MARK_OWNER, S.sticky);
-    }
-  });
+  // If our markers disappear (e.g., DOM/layout churn), re-assert next frame
+  monaco.editor.onDidChangeMarkers?.(() => reassertSoon());
+  window.editor.onDidLayoutChange?.(() => reassertSoon());
+  window.editor.onDidChangeModel?.(() => reassertSoon());
+  window.addEventListener('resize', () => reassertSoon());
 
-  // Re-assert after layout/model churn
-  const reassert = () => {
-    const m = window.editor?.getModel();
-    if (m && S.sticky.length){
-      ensureWrapped();
-      S.baseFn.call(monaco.editor, m, MARK_OWNER, S.sticky);
-    }
-  };
-  window.editor.onDidLayoutChange?.(reassert);
-  window.editor.onDidChangeModel?.(reassert);
-  window.addEventListener('resize', ()=> requestAnimationFrame(reassert));
-
-  // Keep the wrap if other code overwrites Monaco later
   if (!S.keepAlive) S.keepAlive = setInterval(ensureWrapped, 500);
-
   ensureWrapped();
 }
 
