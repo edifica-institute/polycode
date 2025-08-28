@@ -528,88 +528,106 @@ function recursionHeuristic(fnName, body, pushNote, ln) {
 
   /* =================== Statement cost (recursive over AST) =================== */
 
-  function costNode(node, code, linemap, pushNote){
-    if (node.type === 'loop'){
-      const header = code.slice(node.hStart, node.hEnd);
-      const body   = code.slice(node.bStart, node.bEnd+1);
-      // children cost (worst)
-      let inner = '1';
-      for (const ch of node.children){
-        const cc = costNode(ch, code, linemap, pushNote);
-        inner = simplify.max(inner, cc);
-      }
-      const self = loopSelfTrip(header, body);
-      const total = simplify.mult(self, inner); // multiply loop × inner (worst-case)
-      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
-      pushNote(ln, 'loop', self, `loop header: ${header.trim().slice(0,100)}`);
-      return total;
+ function costNode(node, code, linemap, pushNote, fnCostMap, selfName){
+  if (node.type === 'loop'){
+    const header = code.slice(node.hStart, node.hEnd);
+    const body   = code.slice(node.bStart, node.bEnd+1);
+    // children cost (worst)
+    let inner = '1';
+    for (const ch of node.children){
+      const cc = costNode(ch, code, linemap, pushNote, fnCostMap, selfName);
+      inner = simplify.max(inner, cc);
     }
+    const self = loopSelfTrip(header, body);
+    const total = simplify.mult(self, inner); // multiply loop × inner (worst-case)
+    const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+    pushNote(ln, 'loop', self, `loop header: ${header.trim().slice(0,100)}`);
+    return total;
+  }
 
-    if (node.type === 'if'){
-      let best = '1';
-      for (const b of node.branches){
-        const kids = parseBlock(code, b.s, b.e);
-        let cx = '1';
-        for (const kn of kids){
-          cx = simplify.max(cx, costNode(kn, code, linemap, pushNote));
-        }
-        best = simplify.max(best, cx);
-      }
-      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
-      pushNote(ln, 'branch', best, `if/else chain`);
-      return best;
-    }
-
-    if (node.type === 'switch'){
-      let best = '1';
-      for (const c of node.cases){
-        const kids = parseBlock(code, c.s, c.e);
-        let cx = '1';
-        for (const kn of kids){
-          cx = simplify.max(cx, costNode(kn, code, linemap, pushNote));
-        }
-        best = simplify.max(best, cx);
-      }
-      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
-      pushNote(ln, 'branch', best, `switch`);
-      return best;
-    }
-
-    // generic statement: check for known library costs inside the slice (kept minimal;
-    // the detailed per-line library pass adds notes & worst-case globally)
-    if (node.type === 'stmt'){
-      const snip = code.slice(node.s, node.e+1);
+  if (node.type === 'if'){
+    let best = '1';
+    for (const b of node.branches){
+      const kids = parseBlock(code, b.s, b.e);
       let cx = '1';
-      if (/\b(memcpy|memmove|memset|strlen|strcmp)\s*\(/.test(snip)) cx = 'n';
-      if (/\b(bsearch)\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
-      if (/\b(qsort)\s*\(/.test(snip))   cx = simplify.max(cx,'n log n'); // avg; worst handled in detailed pass
-      if (/\bstd::(sort|stable_sort)\s*\(/.test(snip) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(snip)) cx = simplify.max(cx,'n log n');
-      if (/\bstd::binary_search\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
-      return cx;
+      for (const kn of kids){
+        cx = simplify.max(cx, costNode(kn, code, linemap, pushNote, fnCostMap, selfName));
+      }
+      best = simplify.max(best, cx);
     }
-
-    return '1';
+    const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+    pushNote(ln, 'branch', best, `if/else chain`);
+    return best;
   }
 
-  function analyzeFunction(fn, code, linemap, pushNote){
-    // Parse all top-level statements inside this function’s body
-    const nodes = parseBlock(code, fn.bodyStart + 1, fn.bodyEnd - 1);
-
-    // Worst-case time across sequential statements = max of their worst costs
-    let worstTime = '1';
-    for (const n of nodes){
-      const t = costNode(n, code, linemap, pushNote);  // loop × inner already multiplied
-      worstTime = simplify.max(worstTime, t);
+  if (node.type === 'switch'){
+    let best = '1';
+    for (const c of node.cases){
+      const kids = parseBlock(code, c.s, c.e);
+      let cx = '1';
+      for (const kn of kids){
+        cx = simplify.max(cx, costNode(kn, code, linemap, pushNote, fnCostMap, selfName));
+      }
+      best = simplify.max(best, cx);
     }
-
-    // Add worst-case recursion term from whole body (if any)
-    const body = code.slice(fn.bodyStart + 1, fn.bodyEnd);
-    const ln = Math.max(1, lineFromPos(linemap, fn.headStart));
-    const recWorst = recursionHeuristic(fn.name, body, pushNote, ln);
-
-    // Final worst-case for this function
-    return simplify.max(worstTime, recWorst);
+    const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+    pushNote(ln, 'branch', best, `switch`);
+    return best;
   }
+
+  // generic statement: library calls + known function calls
+  if (node.type === 'stmt'){
+    const snip = code.slice(node.s, node.e+1);
+    let cx = '1';
+
+    // Library heuristics (quick)
+    if (/\b(memcpy|memmove|memset|strlen|strcmp)\s*\(/.test(snip)) cx = 'n';
+    if (/\b(bsearch)\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
+    if (/\b(qsort)\s*\(/.test(snip))   cx = simplify.max(cx,'n log n'); // avg; detailed pass sets worst
+    if (/\bstd::(sort|stable_sort)\s*\(/.test(snip) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(snip)) cx = simplify.max(cx,'n log n');
+    if (/\bstd::binary_search\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
+
+    // Substitute known function calls (exclude self to avoid double counting recursion)
+    if (fnCostMap && Object.keys(fnCostMap).length){
+      for (const [callee, calleeCx] of Object.entries(fnCostMap)){
+        if (callee === selfName) continue;
+        const re = new RegExp(`\\b${callee}\\s*\\(`);
+        if (re.test(snip)){
+          cx = simplify.max(cx, calleeCx);
+          const ln = Math.max(1, lineFromPos(linemap, node.s));
+          pushNote(ln, 'call', calleeCx, `calls ${callee}()`);
+        }
+      }
+    }
+    return cx;
+  }
+
+  return '1';
+}
+
+
+  
+
+  function analyzeFunction(fn, code, linemap, pushNote, fnCostMap){
+  // Parse all top-level statements inside this function’s body
+  const nodes = parseBlock(code, fn.bodyStart + 1, fn.bodyEnd - 1);
+
+  // Worst-case time across sequential statements = max of their worst costs
+  let worstTime = '1';
+  for (const n of nodes){
+    const t = costNode(n, code, linemap, pushNote, fnCostMap, fn.name);
+    worstTime = simplify.max(worstTime, t);
+  }
+
+  // Add worst-case recursion term from whole body (if any)
+  const body = code.slice(fn.bodyStart + 1, fn.bodyEnd);
+  const ln = Math.max(1, lineFromPos(linemap, fn.headStart));
+  const recWorst = recursionHeuristic(fn.name, body, pushNote, ln);
+
+  // Final worst-case for this function
+  return simplify.max(worstTime, recWorst);
+}
+
 
   /* =================== Main analyzer =================== */
 
@@ -624,20 +642,48 @@ function recursionHeuristic(fnName, body, pushNote, ln) {
     const spaceAgg = analyzeSpace(lines, pushNote);
 
     // Function analysis
-    const fns = findFunctions(code);
-    let timeMain = '1', timeOthers = '1';
-    for (const fn of fns){
-      const t = analyzeFunction(fn, code, linemap, pushNote);
-      if (fn.name === 'main') timeMain = simplify.max(timeMain, t);
-      else timeOthers = simplify.max(timeOthers, t);
+    // Function analysis (call-aware)
+const fns = findFunctions(code);
+
+// Pass 1: initial costs without cross-call substitution (map seeded)
+let fnCost = {};
+for (const fn of fns){
+  // Use empty map here so we don't attribute calls yet
+  const t0 = analyzeFunction(fn, code, linemap, ()=>{}, {}); // silent first pass
+  fnCost[fn.name] = t0;
+}
+
+// Pass 2: iterate to fixed point with call substitution
+// (handles chains: main -> A -> B, etc.)
+for (let iter = 0; iter < 5; iter++){
+  let changed = false;
+  for (const fn of fns){
+    const t = analyzeFunction(fn, code, linemap, pushNote, fnCost);
+    if (t !== fnCost[fn.name]){
+      fnCost[fn.name] = t;
+      changed = true;
     }
+  }
+  if (!changed) break;
+}
+
+// Aggregate: we want the cost of what actually runs.
+// If main() exists, show main’s cost (which now includes callees).
+// Otherwise, show worst across all functions (e.g., single-file libs).
+let timeMain = fnCost['main'] || '1';
+let timeOthers = '1';
+for (const [name, cx] of Object.entries(fnCost)){
+  if (name !== 'main') timeOthers = simplify.max(timeOthers, cx);
+}
+
 
     // Library costs (per-line with teaching notes; returns worst-case)
     const libWorst = analyzeLibraryCallsDetailed(lines, pushNote);
 
     // Final time: prefer main if present, else max across functions, include library worst
-    let finalTimeCore = timeMain !== '1' ? timeMain : simplify.max(timeOthers, '1');
-    finalTimeCore = simplify.max(finalTimeCore, libWorst);
+    let finalTimeCore = timeMain !== '1' ? timeMain : timeOthers;
+finalTimeCore = simplify.max(finalTimeCore, analyzeLibraryCallsDetailed(lines, pushNote));
+
 
     const finalTime = `O(${finalTimeCore})`;                 // always worst-case
     const finalSpace = spaceAgg === '1' ? 'O(1)' : `O(${spaceAgg})`;
