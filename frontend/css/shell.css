@@ -2084,3 +2084,6 @@ html, body { height: 100%; }
   overflow: visible;            /* never create a nested scrollbar */
 }
 
+
+#output{ padding:12px 12px 12px 0 !important; }  /* top right bottom left */
+#jconsole{ padding:0 !important; }               /* ensure the <pre> adds none */
