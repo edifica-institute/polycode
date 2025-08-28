@@ -440,6 +440,7 @@ int main(){
             window.PolyShell?.stopInputTicker?.();
             showInputRow(false);
             window.wsRunInFlight = false;
+            setComplexityEnabled(!!ok); // enable Complexity button only on success
             ok ? resolve() : reject(new Error('run_failed'));
           };
 
