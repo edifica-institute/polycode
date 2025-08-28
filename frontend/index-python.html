@@ -53,7 +53,7 @@
   background: currentColor; display: inline-block;
 }
 
-    
+    #jconsoleImages img{ max-width:100%; display:block; margin:10px 0; border-radius:6px; }
   </style>
 </head>
 
@@ -146,6 +146,7 @@
 
         <div id="output" class="screen-dim" style="padding:12px;">
           <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <div id="jconsoleImages" style="display:block;"></div>
           <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;">
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
@@ -224,6 +225,19 @@
   function stopStatusDots(){ if(__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
 
   // --- Console helpers ---
+
+  function termImage(name, dataUrl){
+  const wrap = document.getElementById('jconsoleImages');
+  if (!wrap) return;
+  const img = new Image();
+  img.alt = name || 'plot';
+  img.src = dataUrl;
+  wrap.appendChild(img);
+  document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
+}
+
+
+  
   function setConsole(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent = t||''; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
   function termWrite(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
   function printToConsole({ stderr = '', stdout = '', exitCode = null }){
@@ -485,6 +499,13 @@ const waitForExit = new Promise((resolve,reject)=>{
       const m = JSON.parse(String(ev.data));
       if (m.type === 'pong') return;
 
+      if (m.type === 'image') {
+  // m.name, m.data (data URL)
+  termImage(m.name, m.data);
+  return;
+}
+
+      
       if (m.type === 'stdout'){
         acc.stdout += m.data; termWrite(m.data);
         return;
@@ -616,6 +637,10 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
     try{ const row=document.getElementById('consoleRow'); if(row) row.style.display='none'; }catch{}
     try{ if (window.monaco && window.editor){ const model=window.editor.getModel(); model && monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
     try{ window.termWS?._stopHeartbeat?.(); }catch{}
+    try{
+  const wrap = document.getElementById('jconsoleImages');
+  if (wrap) wrap.innerHTML = '';
+}catch{}
     try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
     // complexity remains disabled
   };
