@@ -903,9 +903,11 @@ Object.assign(window.PolyShell || (window.PolyShell = {}), {
 
 
 function fmtDuration(ms){
-  if (ms < 1000) return `${Math.round(ms)} second(s)`;
+  /*if (ms < 1000) return `${Math.round(ms)} second(s)`;
   const s = ms / 1000;
-  return s < 10 ? `${s.toFixed(2)} second(s)` : `${s.toFixed(1)} second(s)`;
+  return s < 10 ? `${s.toFixed(2)} second(s)` : `${s.toFixed(1)} second(s)`;*/
+    const s = ms / 1000;        // always convert to seconds
+  return `${s.toFixed(2)} second(s)`; 
 }
 
 
