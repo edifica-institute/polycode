@@ -1,4 +1,4 @@
-// python-runner.js — Python 3 runner with WebSocket control
+// python-runner.js — Python 3 runner with WebSocket control + stdin_req signaling
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { spawn } from 'child_process';
@@ -7,45 +7,47 @@ import os from 'os';
 import path from 'path';
 
 const app = express();
-app.get('/health', (_req, res) => res.send('ok'));
 
-const PORT = process.env.PORT || 8082;
-const server = app.listen(PORT, () => console.log('Python runner on :' + PORT));
+// Basic health + root (both 200 OK)
+app.get('/', (_req, res) => res.status(200).send('ok'));
+app.get('/health', (_req, res) => res.status(200).send('ok'));
+app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
-// WebSocket endpoint
+// Be explicit about 0.0.0.0 binding for Render
+const PORT = Number(process.env.PORT) || 8082;
+const HOST = '0.0.0.0';
+
+// Start HTTP server first
+const server = app.listen(PORT, HOST, () => {
+  console.log(`Python runner on :${PORT}`);
+});
+
+// Attach WebSocket endpoint on /python
 const wss = new WebSocketServer({ server, path: '/python' });
 
-wss.on('connection', (ws) => {
+// Helper: timers for hard kill and input wait
+function armTimer(ms, fn) {
+  if (!isFinite(ms) || ms <= 0) return null;
+  return setTimeout(() => {
+    try { fn(); } catch {}
+  }, ms);
+}
+
+wss.on('connection', (ws, req) => {
+  console.log('WS connect', { ip: req.socket?.remoteAddress, ua: req.headers['user-agent'] });
+
   let proc = null;
   let workdir = null;
   let closed = false;
 
-  // Timers + limits
   let hardTimer = null;
   let inputTimer = null;
-  let hardLimitMs = 15000; // default 15s
-  let inputWaitMs = 5 * 60 * 1000; // default 5 min
-
-  function clearTimers() {
-    if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; }
-    if (inputTimer) { clearTimeout(inputTimer); inputTimer = null; }
-  }
-  function armHardKill(ms) {
-    if (hardTimer) clearTimeout(hardTimer);
-    if (!isFinite(ms)) return;
-    hardTimer = setTimeout(() => { try { proc?.kill('SIGKILL'); } catch {} }, ms);
-  }
-  function armInputKill(ms) {
-    if (inputTimer) clearTimeout(inputTimer);
-    if (!isFinite(ms)) return;
-    inputTimer = setTimeout(() => {
-      try { ws.send(JSON.stringify({ type:'stderr', data:'Input wait timed out.\n' })); } catch {}
-      try { proc?.kill('SIGKILL'); } catch {}
-    }, ms);
-  }
+  let hardLimitMs = Math.min(Number(process.env.PY_TIMEOUT_MS || 15000), 600000); // cap at 10 min
+  let inputWaitMs = Math.min(Number(process.env.INPUT_WAIT_MS || 300000), 3600000); // cap at 60 min
 
   async function cleanup() {
-    clearTimers();
+    if (hardTimer) clearTimeout(hardTimer), hardTimer = null;
+    if (inputTimer) clearTimeout(inputTimer), inputTimer = null;
     try { proc?.kill('SIGKILL'); } catch {}
     proc = null;
     if (workdir) {
@@ -55,29 +57,27 @@ wss.on('connection', (ws) => {
   }
 
   ws.on('message', async (raw) => {
-    if (closed) return;
     let msg;
     try { msg = JSON.parse(String(raw)); } catch { return; }
 
-    // Heartbeat
+    // heartbeat
     if (msg.type === 'ping') {
-      try { ws.send(JSON.stringify({ type:'pong' })); } catch {}
+      try { ws.send(JSON.stringify({ type: 'pong' })); } catch {}
       return;
     }
 
-    // Kill current run
     if (msg.type === 'kill') {
       try { proc?.kill('SIGKILL'); } catch {}
       return;
     }
 
-    // Stdin
-    if (msg.type === 'stdin' && proc?.stdin?.writable) {
-      try { proc.stdin.write(msg.data); } catch {}
+    if (msg.type === 'stdin') {
+      if (proc?.stdin?.writable) {
+        try { proc.stdin.write(String(msg.data ?? '')); } catch {}
+      }
       return;
     }
 
-    // Run
     if (msg.type === 'run') {
       await cleanup();
 
@@ -89,11 +89,11 @@ wss.on('connection', (ws) => {
 
       const base = (await fs.pathExists('/dev/shm')) ? '/dev/shm' : os.tmpdir();
       workdir = await fs.mkdtemp(path.join(base, 'polypy-'));
-      const file = path.join(workdir, 'main.py');
-      await fs.writeFile(file, code, 'utf8');
+      const userFile = path.join(workdir, 'main.py');
+      await fs.writeFile(userFile, code, 'utf8');
 
-      // Write a tiny wrapper that signals input requests
-const wrapper = `
+      // Wrapper to signal stdin requests via stderr control line
+      const runnerSrc = `
 import sys, runpy, builtins
 def _pc_input(prompt=''):
     try:
@@ -109,69 +109,60 @@ def _pc_input(prompt=''):
     return line.rstrip('\\r\\n')
 builtins.input = _pc_input
 runpy.run_path('main.py', run_name='__main__')
-`.trim();
-const runnerFile = path.join(workdir, 'pc_runner.py');
-await fs.writeFile(runnerFile, wrapper, 'utf8');
+      `.trim();
 
-      
+      const runnerFile = path.join(workdir, 'pc_runner.py');
+      await fs.writeFile(runnerFile, runnerSrc, 'utf8');
+
       const t0 = Date.now();
+      try {
+        // -u: unbuffered stdio so prompts show immediately
+        proc = spawn('python3', ['-u', runnerFile, ...args], { cwd: workdir });
+      } catch (e) {
+        try { ws.send(JSON.stringify({ type: 'stderr', data: `spawn error: ${e?.message || e}\n` })); } catch {}
+        try { ws.send(JSON.stringify({ type: 'exit', code: 1, metrics: { execMs: 0, totalMs: 0 } })); } catch {}
+        await cleanup();
+        return;
+      }
 
-      // -u for unbuffered stdio to surface prompts without fflush
-      //proc = spawn('python3', ['-u', file, ...args], { cwd: workdir });
-
-      proc = spawn('python3', ['-u', runnerFile, ...args], { cwd: workdir });
-
-
-      
-      let accErr = '';
-      let exitSent = false;
-
-      // forward stdout/stderr
-      proc.stdout.on('data', (d) => {
-        try { ws.send(JSON.stringify({ type:'stdout', data: d.toString() })); } catch {}
+      // Timers
+      if (hardTimer) clearTimeout(hardTimer);
+      hardTimer = armTimer(hardLimitMs, () => { try { proc?.kill('SIGKILL'); } catch {} });
+      if (inputTimer) clearTimeout(inputTimer);
+      inputTimer = armTimer(inputWaitMs, () => {
+        try { ws.send(JSON.stringify({ type: 'stderr', data: 'Input wait timed out.\n' })); } catch {}
+        try { proc?.kill('SIGKILL'); } catch {}
       });
-      
-      
-      
-    let errBuf = '';
-proc.stderr.on('data', (d) => {
-  const s = d.toString();
-  errBuf += s;
 
-  // Scan for control lines [[CTRL]]:something
-  const lines = s.split(/\r?\n/);
-  for (const line of lines) {
-    if (!line) continue;
-    if (/\[\[CTRL\]\]:stdin_req/.test(line)) {
-      try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
-      continue; // do NOT forward the control line to the browser stderr
-    }
-    // Normal stderr passthrough
-    try { ws.send(JSON.stringify({ type: 'stderr', data: line + '\n' })); } catch {}
-  }
-});
+      // Streams
+      proc.stdout.on('data', (d) => {
+        try { ws.send(JSON.stringify({ type: 'stdout', data: d.toString() })); } catch {}
+      });
 
-
-
-
-      
-      // Basic heuristic: if program reads from input, the browser will show input UI itself.
-      // We still enforce an input wait cap to avoid hanging containers.
-      armHardKill(hardLimitMs);
-      armInputKill(inputWaitMs);
+      let stderrBuf = '';
+      proc.stderr.on('data', (d) => {
+        const s = d.toString();
+        stderrBuf += s;
+        const lines = s.split(/\r?\n/);
+        for (const line of lines) {
+          if (!line) continue;
+          if (/\[\[CTRL\]\]:stdin_req/.test(line)) {
+            try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
+            continue;
+          }
+          try { ws.send(JSON.stringify({ type: 'stderr', data: line + '\n' })); } catch {}
+        }
+      });
 
       proc.on('close', (code) => {
         const t1 = Date.now();
-        if (!exitSent) {
-          try {
-            ws.send(JSON.stringify({
-              type: 'exit',
-              code,
-              metrics: { compileMs: 0, startMs: 0, execMs: t1 - t0, totalMs: t1 - t0 }
-            }));
-          } catch {}
-          exitSent = true;
-        }
+        try {
+          ws.send(JSON.stringify({
+            type: 'exit',
+            code,
+            metrics: { compileMs: 0, startMs: 0, execMs: (t1 - t0), totalMs: (t1 - t0) }
+          }));
+        } catch {}
         cleanup();
       });
 
@@ -179,5 +170,13 @@ proc.stderr.on('data', (d) => {
     }
   });
 
-  ws.on('close', async () => { closed = true; await cleanup(); });
+  ws.on('close', async () => {
+    closed = true;
+    await cleanup();
+    console.log('WS close');
+  });
+
+  ws.on('error', (e) => {
+    console.warn('WS error', e?.message || e);
+  });
 });
