@@ -255,6 +255,7 @@
 // Prefer a frame for main.py; otherwise pick the last frame.
 function findPythonErrorLine(text) {
   const s = String(text || '');
+  // Prefer frames that mention main.py, else use the last frame
   const re = /File\s+"([^"]+)",\s+line\s+(\d+)/g;
   let m, last = null, main = null;
   while ((m = re.exec(s))) {
@@ -265,7 +266,6 @@ function findPythonErrorLine(text) {
   return main || last || 1;
 }
 
-
   // --- Input row (triggered strictly by backend `stdin_req`) ---
   let inputShown = false, inputWaitMs = 5 * 60 * 1000; // 5 minutes
   function focusConsoleInput(){
@@ -273,21 +273,42 @@ function findPythonErrorLine(text) {
     el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
     const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
-  function showInputRow(show){
-    const row=document.getElementById('consoleRow'); const prefix=document.getElementById('consolePrefix');
-    if (!row) return;
-    row.style.display = show ? 'flex' : 'none';
-    if (show){
-      if (prefix) prefix.textContent = ''; // do NOT trim prior output
-      window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase); startInputCountdown(inputWaitMs);
-      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-      inputShown = true; focusConsoleInput();
+function showInputRow(show){
+  const row    = document.getElementById('consoleRow');
+  const pre    = document.getElementById('jconsole');
+  const prefix = document.getElementById('consolePrefix');
+  if (!row || !pre || !prefix) return;
+
+  row.style.display = show ? 'flex' : 'none';
+
+  if (show){
+    // Move the console tail (prompt) into prefix
+    const txt  = pre.textContent;
+    const i    = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);
+    if (tail && !/^\s*$/.test(tail)) {
+      prefix.textContent = tail + ' ';
+      pre.textContent = txt.slice(0, i + 1);
     } else {
-      window.PolyShell?.stopInputTicker?.(); stopInputCountdown();
-      inputShown = false;
+      prefix.textContent = '';
     }
+
+    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+    __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+    startInputCountdown(inputWaitMs);
+    window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+    focusConsoleInput();
+  } else {
+    // restore tail if any
+    if (prefix.textContent) {
+      pre.textContent += prefix.textContent;
+      prefix.textContent = '';
+    }
+    window.PolyShell?.stopInputTicker?.();
+    stopInputCountdown();
   }
+}
+
 
   /* --- Monaco markers --- */
 
@@ -436,6 +457,8 @@ function findPythonErrorLine(text) {
   }, { capture:true });
 
   // ---- MAIN RUN ----
+
+  let __tStart = 0;
   window.runLang = async function(codeOverride){
     clearEditorMarkers();
     const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent='';
@@ -616,7 +639,7 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
       startStatusDots(__statusBase);
       showInputRow(false);
       window.PolyShell?.setStatus(mayNeedInput ? 'Running (interactive)…' : 'Running…','busy');
-      const __tStart = performance.now();
+      __tStart = performance.now();
       window.termWS.send(JSON.stringify({ type:'run', code, args, inputWaitMs }));
     }catch{
       try{ window.termWS.close(); }catch{}
