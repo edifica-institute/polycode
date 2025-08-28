@@ -903,10 +903,7 @@ Object.assign(window.PolyShell || (window.PolyShell = {}), {
 
 
 function fmtDuration(ms){
-  /*if (ms < 1000) return `${Math.round(ms)} second(s)`;
-  const s = ms / 1000;
-  return s < 10 ? `${s.toFixed(2)} second(s)` : `${s.toFixed(1)} second(s)`;*/
-    const s = ms / 1000;        // always convert to seconds
+  const s = ms / 1000;        // always convert to seconds
   return `${s.toFixed(2)} second(s)`; 
 }
 
@@ -1320,62 +1317,4 @@ try {
       saveFile();
     }
   }, { passive:false });
-})();
-
-
-
-(function setupSplitters(){
-  const root = document.documentElement;
-  const left  = document.getElementById('dragLeft');
-  const right = document.getElementById('dragRight');
-
-  // kill any old page-wide drag code that might still be attached
-  if (window.PC_teardownOldSplitters) try { window.PC_teardownOldSplitters(); } catch {}
-
-  // prevent native image drag anywhere (logos, etc.)
-  document.addEventListener('dragstart', e => {
-    if (e.target instanceof HTMLImageElement || e.target instanceof SVGElement) e.preventDefault();
-  });
-
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-
-  function begin(which, e){
-    e.preventDefault();
-    e.stopPropagation();                    // 🔒 don’t bubble to any legacy handlers
-    const id = e.pointerId;
-    e.target.setPointerCapture?.(id);
-    document.body.classList.add('is-resizing');
-
-    const startX = e.clientX;
-    const left0  = parseInt(getComputedStyle(root).getPropertyValue('--left'))  || 300;
-    const right0 = parseInt(getComputedStyle(root).getPropertyValue('--right')) || 380;
-
-    const move = ev => {
-      const dx = ev.clientX - startX;
-      if (which === 'left')  root.style.setProperty('--left',  clamp(left0 + dx, 180, window.innerWidth - 300) + 'px');
-      else                   root.style.setProperty('--right', clamp(right0 - dx, 220, window.innerWidth - 300) + 'px');
-      window.editor?.layout?.();
-    };
-
-    const up = () => {
-      document.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerup', up);
-      document.body.classList.remove('is-resizing');
-      localStorage.setItem('pcLayout', JSON.stringify({
-        left:  getComputedStyle(root).getPropertyValue('--left').trim(),
-        right: getComputedStyle(root).getPropertyValue('--right').trim()
-      }));
-      window.editor?.layout?.();
-    };
-
-    document.addEventListener('pointermove', move);
-    document.addEventListener('pointerup', up, { once:true });
-  }
-
-  // Only these two elements can start a drag
-  left ?.addEventListener('pointerdown', e => begin('left', e),  { passive:false });
-  right?.addEventListener('pointerdown', e => begin('right', e), { passive:false });
-
-  // touch/pointer scrolling should not trigger drag on handles
-  [left, right].forEach(h => h && (h.style.touchAction = 'none'));
 })();
