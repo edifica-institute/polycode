@@ -13,7 +13,7 @@ app.get('/', (_req, res) => res.status(200).send('ok'));
 app.get('/health', (_req, res) => res.status(200).send('ok'));
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
-// Render binds our port in PORT; default for local dev:
+// Render binds PORT; default for local dev
 const PORT = Number(process.env.PORT) || 10000;
 const HOST = '0.0.0.0';
 
@@ -29,9 +29,9 @@ function armTimer(ms, fn) {
   return setTimeout(() => { try { fn(); } catch {} }, ms);
 }
 
-// Python bootstrap:
+// ---- Python bootstrap (separate module so user line numbers stay correct) ----
 //  - Force Agg backend
-//  - Wrap plt.show() to save figures in POLY_TMP and print control lines
+//  - Wrap plt.show() to save figures in POLY_TMP and print control lines to stdout
 const PY_BOOTSTRAP = `
 import os, sys, atexit
 os.environ.setdefault("MPLBACKEND", "Agg")
@@ -70,11 +70,11 @@ wss.on('connection', (ws, req) => {
 
   let proc = null;
   let workdir = null;
-
   let hardTimer = null;
   let inputTimer = null;
-  let hardLimitMs = Math.min(Number(process.env.PY_TIMEOUT_MS || 15000), 600000);  // 10 min cap
-  let inputWaitMs = Math.min(Number(process.env.INPUT_WAIT_MS || 300000), 3600000); // 60 min cap
+
+  let hardLimitMs = Math.min(Number(process.env.PY_TIMEOUT_MS || 15000), 600000);   // cap 10 min
+  let inputWaitMs = Math.min(Number(process.env.INPUT_WAIT_MS || 300000), 3600000); // cap 60 min
 
   async function cleanup() {
     if (hardTimer) clearTimeout(hardTimer), hardTimer = null;
@@ -117,54 +117,64 @@ wss.on('connection', (ws, req) => {
       hardLimitMs = Math.min(Number(msg.timeLimitMs || process.env.PY_TIMEOUT_MS || 15000), 600000);
       inputWaitMs = Math.min(Number(msg.inputWaitMs || process.env.INPUT_WAIT_MS || 300000), 3600000);
 
+      // temp workspace (prefer shm)
       const base = (await fs.pathExists('/dev/shm')) ? '/dev/shm' : os.tmpdir();
       workdir = await fs.mkdtemp(path.join(base, 'polypy-'));
       const tmpForImgs = workdir;
-      const userFile   = path.join(workdir, 'main.py');
 
-      // Prepend the bootstrap so the traceback still points to main.py
-      const code = `${PY_BOOTSTRAP}\n# --- user code below ---\n${userCode}`;
-      await fs.writeFile(userFile, code, 'utf8');
+      // write user program (no bootstrap prepended)
+      const userFile = path.join(workdir, 'main.py');
+      await fs.writeFile(userFile, userCode, 'utf8');
 
-      // Wrapper: intercept input(), writing prompt first, then signaling stdin_req
+      // write bootstrap as its own module so we can import it
+      const bootstrapFile = path.join(workdir, 'pc_bootstrap.py');
+      await fs.writeFile(bootstrapFile, PY_BOOTSTRAP, 'utf8');
+
+      // small runner that:
+      //  - sets POLY_TMP
+      //  - installs an input() shim that emits [[CTRL]]:stdin_req:<b64>\n on stderr
+      //  - imports bootstrap (matplotlib tweaks)
+      //  - runpy.run_path('main.py', ...)
       const runnerSrc = `
-import os, sys, runpy, builtins
+import os, sys, runpy, builtins, base64
 os.environ['POLY_TMP'] = ${JSON.stringify(tmpForImgs)}
 
+# Import bootstrap side-effects (Agg backend, plt.show hook, atexit saver)
+import pc_bootstrap  # noqa: F401
+
 def _pc_input(prompt=''):
-    # 1) print prompt first so user sees it in the console
+    # 1) print prompt so it appears in stdout immediately
     try:
         if prompt:
             sys.stdout.write(str(prompt)); sys.stdout.flush()
     except:
         pass
 
-    # 2) send stdin_req with the prompt payload (base64) so the UI can show it immediately
+    # 2) send a control line with the prompt so UI can render input row pre-filled
     try:
         b64 = base64.b64encode(str(prompt).encode('utf-8')).decode('ascii')
-        sys.stderr.write('[[CTRL]]:stdin_req:' + b64 + '\n'); sys.stderr.flush()
+        sys.stderr.write(f"[[CTRL]]:stdin_req:{b64}\\n"); sys.stderr.flush()
     except:
         pass
 
-    # 3) read the line
+    # 3) read a line from stdin
     line = sys.stdin.readline()
     if not line:
         return ''
-    return line.rstrip('\r\n')
+    return line.rstrip('\\r\\n')
 
 builtins.input = _pc_input
-runpy.run_path('main.py', run_name='__main__')
 
-
-builtins.input = _pc_input
+# Run the user's code
 runpy.run_path('main.py', run_name='__main__')
       `.trim();
+
       const runnerFile = path.join(workdir, 'pc_runner.py');
       await fs.writeFile(runnerFile, runnerSrc, 'utf8');
 
       const t0 = Date.now();
       try {
-        // unbuffered stdio: -u
+        // -u: unbuffered stdio so prompts/output stream immediately
         proc = spawn('python3', ['-u', runnerFile, ...args], { cwd: workdir });
       } catch (e) {
         try { ws.send(JSON.stringify({ type: 'stderr', data: `spawn error: ${e?.message || e}\n` })); } catch {}
@@ -173,17 +183,16 @@ runpy.run_path('main.py', run_name='__main__')
         return;
       }
 
-      // Timers
+      // timers
       if (hardTimer) clearTimeout(hardTimer);
       hardTimer = armTimer(hardLimitMs, () => { try { proc?.kill('SIGKILL'); } catch {} });
-
       if (inputTimer) clearTimeout(inputTimer);
       inputTimer = armTimer(inputWaitMs, () => {
         try { ws.send(JSON.stringify({ type: 'stderr', data: 'Input wait timed out.\n' })); } catch {}
         try { proc?.kill('SIGKILL'); } catch {}
       });
 
-      // Helpers: send images
+      // helper: send a PNG file to the client
       async function sendImage(pth) {
         try {
           const data = await fs.readFile(pth);
@@ -195,13 +204,12 @@ runpy.run_path('main.py', run_name='__main__')
         }
       }
 
-      // Streams
+      // stdout: forward lines; catch __POLY_IMG__ control lines
       let stdoutBuffer = '';
       proc.stdout.on('data', async (d) => {
         const s = d.toString();
         stdoutBuffer += s;
 
-        // Handle control lines line-by-line
         let idx;
         while ((idx = stdoutBuffer.indexOf('\n')) !== -1) {
           const line = stdoutBuffer.slice(0, idx);
@@ -216,28 +224,32 @@ runpy.run_path('main.py', run_name='__main__')
         }
       });
 
+      // stderr: forward; detect control message for stdin prompt
       proc.stderr.on('data', (d) => {
         const s = d.toString();
         const lines = s.split(/\r?\n/);
         for (const line of lines) {
           if (!line) continue;
+
           const mReq = line.match(/^\[\[CTRL\]\]:stdin_req(?::([A-Za-z0-9+/=]+))?$/);
-if (mReq) {
-  let prompt = '';
-  if (mReq[1]) {
-    try { prompt = Buffer.from(mReq[1], 'base64').toString('utf-8'); } catch {}
-  }
-  try { ws.send(JSON.stringify({ type: 'stdin_req', prompt })); } catch {}
-  continue;
-}
+          if (mReq) {
+            let prompt = '';
+            if (mReq[1]) {
+              try { prompt = Buffer.from(mReq[1], 'base64').toString('utf-8'); } catch {}
+            }
+            try { ws.send(JSON.stringify({ type: 'stdin_req', prompt })); } catch {}
+            continue;
+          }
+
           try { ws.send(JSON.stringify({ type: 'stderr', data: line + '\n' })); } catch {}
         }
       });
 
+      // process close
       proc.on('close', async (code) => {
         const t1 = Date.now();
 
-        // one last sweep for any images the atexit hook might have created
+        // one last sweep for any atexit-generated images
         try {
           const files = await fs.readdir(tmpForImgs);
           const pngs = files.filter(f => /^plot_\d+\.png$/.test(f));
