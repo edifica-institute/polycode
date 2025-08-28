@@ -438,6 +438,7 @@ const waitForExit = new Promise((resolve,reject)=>{
     const firstLine = (errText.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
     const line = findPythonErrorLine(errText);
     setEditorMarker(line, firstLine);
+                  window.PolyShell?.setStatus('Execution Failed', 'error');
     flagFatalError();  // the function I gave you to stop the spinner early
   }
 
