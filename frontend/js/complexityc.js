@@ -156,10 +156,6 @@
 
       // While-loop (not do-while)
       if (/\bwhile\s*\(/y.test(code.slice(i))){
-        const look = code.slice(i, i+20);
-        // Guard: skip the while that's part of "do {...} while(...);"
-        // We'll parse do-while in its own branch first; so if we are here,
-        // it's a regular while.
         const hStart = i + code.slice(i).match(/\bwhile\s*\(/).index;
         const parOpen = code.indexOf('(', hStart);
         const parEnd  = matchParen(code, parOpen);
@@ -258,7 +254,6 @@
           // split cases coarsely
           const body = code.slice(bStart+1, bEnd);
           const cases = [];
-          let last = bStart+1;
           const caseRe = /(?:\bcase\b[^\:]*\:|\bdefault\s*:)/g;
           let cm, anchors = [];
           while ((cm = caseRe.exec(body))) {
@@ -326,27 +321,7 @@
     return 'n';
   }
 
-  function analyzeLibraryCosts(code){
-    const lib = [];
-    // C stdlib
-    if (/\bqsort\s*\(/.test(code))   lib.push('n log n');
-    if (/\bbsearch\s*\(/.test(code)) lib.push('log n');
-    if (/\bmemcpy\s*\(/.test(code))  lib.push('n');
-    if (/\bmemmove\s*\(/.test(code)) lib.push('n');
-    if (/\bmemset\s*\(/.test(code))  lib.push('n');
-    if (/\bstrlen\s*\(/.test(code))  lib.push('n');
-    if (/\bstrcmp\s*\(/.test(code))  lib.push('n'); // worst-case
-
-    // C++ STL
-    if (/\bstd::sort\s*\(/.test(code) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(code)) lib.push('n log n');
-    if (/\bstd::stable_sort\s*\(/.test(code)) lib.push('n log n');
-    if (/\bstd::binary_search\s*\(/.test(code)) lib.push('log n');
-    if (/\bstd::copy\s*\(/.test(code) || /\bcopy\s*\(\s*[^,]+,\s*[^,]+,\s*[^)]+\)/.test(code)) lib.push('n');
-    if (/\bstd::fill\s*\(/.test(code) || /\bfill\s*\(/.test(code)) lib.push('n');
-    if (/\bstd::accumulate\s*\(/.test(code)) lib.push('n');
-
-    return lib.reduce((a,c)=>simplify.max(a,c),'1');
-  }
+  /* =================== Space scan =================== */
 
   function analyzeSpace(lines, pushNote){
     let spaceTerms=[];
@@ -408,62 +383,137 @@
     return spaceTerms.length ? spaceTerms.reduce((a,c)=>simplify.max(a,c),'1') : '1';
   }
 
-  /* =================== Recursion heuristics =================== */
+  /* =================== Library (per-line with teaching notes) =================== */
 
-// Worst-case recursion classifier
-function recursionHeuristic(fnName, body, pushNote, ln) {
-  // Count direct self calls
-  const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
-  const calls = (body.match(callRe) || []).length;
+  function analyzeLibraryCallsDetailed(lines, pushNote) {
+    let worst = '1';
+    const add = (ln, worstCx, note) => {
+      pushNote(ln, 'library', worstCx, note);
+      worst = simplify.max(worst, worstCx);
+    };
 
-  // Two self-calls in the SAME execution path (not mutually exclusive via else)
-  const twoSelfCallsSameBlock =
-    new RegExp(`\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`, 'i').test(body) &&
-    !new RegExp(
-      `if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?else\\s*if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`,
-      'i'
-    ).test(body);
+    lines.forEach((L, idx) => {
+      const ln = idx + 1;
 
-  // Fibonacci-like: f(n-1) and f(n-2)
-  const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
-  const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
+      // ---- C stdlib ----
+      if (/\bqsort\s*\(/.test(L)) {
+        add(ln, 'n^2', 'qsort(): average O(n log n), worst O(n^2) when partitions are highly unbalanced');
+      }
+      if (/\bbsearch\s*\(/.test(L)) {
+        add(ln, 'log n', 'bsearch(): O(log n) (worst & average)');
+      }
+      if (/\b(memcpy|memmove|memset)\s*\(/.test(L)) {
+        add(ln, 'n', RegExp.$1 + '(): linear in bytes → O(n)');
+      }
+      if (/\bstrlen\s*\(/.test(L)) {
+        add(ln, 'n', 'strlen(): scans to null terminator → O(n) worst');
+      }
+      if (/\bstrcmp\s*\(/.test(L)) {
+        add(ln, 'n', 'strcmp(): compares until mismatch → O(n) worst');
+      }
 
-  // Halving / boundary-shrink hint
-  const halves = /[*/]\s*2\b|>>\s*1\b|\bn\s*\/\s*2\b|mid/i.test(body);
+      // ---- C++ algorithms ----
+      if (/\bstd::sort\s*\(/.test(L) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(L)) {
+        add(ln, 'n log n', 'std::sort(): introsort → average O(n log n), worst O(n log n)');
+      }
+      if (/\bstd::stable_sort\s*\(/.test(L)) {
+        add(ln, 'n log n', 'std::stable_sort(): average/worst O(n log n) (stable)');
+      }
+      if (/\bstd::binary_search\s*\(/.test(L)) {
+        add(ln, 'log n', 'std::binary_search(): O(log n)');
+      }
+      if (/\bstd::copy\s*\(/.test(L) || /\bcopy\s*\(\s*[^,]+,\s*[^,]+,\s*[^)]+\)/.test(L)) {
+        add(ln, 'n', 'std::copy(): linear in distance → O(n)');
+      }
+      if (/\bstd::fill\s*\(/.test(L) || /\bfill\s*\(/.test(L)) {
+        add(ln, 'n', 'std::fill(): linear in range → O(n)');
+      }
+      if (/\bstd::accumulate\s*\(/.test(L)) {
+        add(ln, 'n', 'std::accumulate(): sums over range → O(n)');
+      }
+      if (/\bstd::nth_element\s*\(/.test(L)) {
+        add(ln, 'n^2', 'std::nth_element(): average O(n), worst O(n^2)');
+      }
+      if (/\bstd::partition\s*\(/.test(L)) {
+        add(ln, 'n^2', 'std::partition(): average O(n), worst O(n^2) for pathological pivots');
+      }
 
-  // Linear work (suggests merge/partition with halving)
-  const hasLoop = /\b(for|while)\s*\(/.test(body);
+      // ---- C++ containers (common ops) ----
+      if (/\bstd::unordered_map\s*<[^>]+>/.test(L) && /\.(find|insert|erase|operator\s*\[)/.test(L)) {
+        add(ln, 'n', 'unordered_map op: average O(1), worst O(n) due to collisions');
+      }
+      if (/\bstd::(map|multimap)\s*<[^>]+>/.test(L) && /\.(find|insert|erase|operator\s*\[)/.test(L)) {
+        add(ln, 'log n', 'map/multimap op: balanced tree → O(log n) worst & average');
+      }
+      if (/\bstd::vector\s*<[^>]+>/.test(L) && /\.push_back\s*\(/.test(L)) {
+        add(ln, 'n', 'vector::push_back(): amortized O(1), worst O(n) on reallocation');
+      }
+      if (/\bstd::vector\s*<[^>]+>/.test(L) && /\.(insert|erase)\s*\(/.test(L)) {
+        add(ln, 'n', 'vector::insert/erase at middle: shifts → O(n) worst');
+      }
+    });
 
-  // --- Worst-case rules ---
-  if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
-    pushNote(ln, 'recursion', '2^n', `${fnName}(): Fibonacci-like recursion (worst O(2^n))`);
-    return '2^n';
+    return worst;
   }
 
-  if (twoSelfCallsSameBlock) {
-    // Visits multiple branches → worst O(n); if also halving+linear, n log n
-    if (halves && hasLoop) {
-      pushNote(ln, 'recursion', 'n log n', `${fnName}(): divide & conquer with halving + linear work (worst O(n log n))`);
-      return 'n log n';
+  /* =================== Recursion heuristics (worst-case + teaching notes) =================== */
+
+  // Worst-case recursion classifier
+  function recursionHeuristic(fnName, body, pushNote, ln) {
+    // Count direct self calls
+    const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
+    const calls = (body.match(callRe) || []).length;
+
+    // Two self-calls in the SAME execution path (not mutually exclusive via else)
+    const twoSelfCallsSameBlock =
+      new RegExp(`\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`, 'i').test(body) &&
+      !new RegExp(
+        `if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?else\\s*if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`,
+        'i'
+      ).test(body);
+
+    // Fibonacci-like: f(n-1) and f(n-2)
+    const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
+    const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
+
+    // Halving / boundary-shrink hint
+    const halves = /[*/]\s*2\b|>>\s*1\b|\bn\s*\/\s*2\b|mid/i.test(body);
+
+    // Linear work (suggests merge/partition with halving)
+    const hasLoop = /\b(for|while)\s*\(/.test(body);
+
+    // --- Worst-case rules ---
+    if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
+      pushNote(ln, 'recursion', '2^n',
+        `${fnName}(): Fibonacci-like recursion → worst O(2^n), no better average-case`);
+      return '2^n';
     }
-    pushNote(ln, 'recursion', 'n', `${fnName}(): tree recursion (visits multiple branches; worst O(n))`);
-    return 'n';
-  }
 
-  if (calls >= 1) {
-    if (halves) {
-      pushNote(ln, 'recursion', 'log n', `${fnName}(): single-branch halving recursion (worst O(log n))`);
-      return 'log n';
+    if (twoSelfCallsSameBlock) {
+      if (halves && hasLoop) {
+        pushNote(ln, 'recursion', 'n log n',
+          `${fnName}(): divide & conquer with halving + linear work → worst O(n log n), average also O(n log n)`);
+        return 'n log n';
+      }
+      pushNote(ln, 'recursion', 'n',
+        `${fnName}(): tree recursion (visits multiple branches) → worst O(n), average O(n)`);
+      return 'n';
     }
-    // Single-branch height-bounded recursion (BST insert/search) → worst O(n)
-    pushNote(ln, 'recursion', 'n', `${fnName}(): single-branch recursion (worst O(n); balanced ≈ O(log n))`);
-    return 'n';
+
+    if (calls >= 1) {
+      if (halves) {
+        pushNote(ln, 'recursion', 'log n',
+          `${fnName}(): single-branch halving recursion → worst O(log n), average O(log n)`);
+        return 'log n';
+      }
+      // Single-branch height-bounded recursion (BST insert/search) → worst O(n)
+      pushNote(ln, 'recursion', 'n',
+        `${fnName}(): single-branch recursion (e.g., BST insert/search) → worst O(n); balanced average ≈ O(log n)`);
+      return 'n';
+    }
+
+    return '1';
   }
-
-  return '1';
-}
-
-
 
   /* =================== Statement cost (recursive over AST) =================== */
 
@@ -471,14 +521,14 @@ function recursionHeuristic(fnName, body, pushNote, ln) {
     if (node.type === 'loop'){
       const header = code.slice(node.hStart, node.hEnd);
       const body   = code.slice(node.bStart, node.bEnd+1);
-      // children cost
+      // children cost (worst)
       let inner = '1';
       for (const ch of node.children){
         const cc = costNode(ch, code, linemap, pushNote);
         inner = simplify.max(inner, cc);
       }
       const self = loopSelfTrip(header, body);
-      const total = simplify.mult(self, inner);
+      const total = simplify.mult(self, inner); // multiply loop × inner (worst-case)
       const ln = Math.max(1, lineFromPos(linemap, node.hStart));
       pushNote(ln, 'loop', self, `loop header: ${header.trim().slice(0,100)}`);
       return total;
@@ -514,13 +564,14 @@ function recursionHeuristic(fnName, body, pushNote, ln) {
       return best;
     }
 
-    // generic statement: check for known library costs inside the slice
+    // generic statement: check for known library costs inside the slice (kept minimal;
+    // the detailed per-line library pass adds notes & worst-case globally)
     if (node.type === 'stmt'){
       const snip = code.slice(node.s, node.e+1);
       let cx = '1';
       if (/\b(memcpy|memmove|memset|strlen|strcmp)\s*\(/.test(snip)) cx = 'n';
       if (/\b(bsearch)\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
-      if (/\b(qsort)\s*\(/.test(snip))   cx = simplify.max(cx,'n log n');
+      if (/\b(qsort)\s*\(/.test(snip))   cx = simplify.max(cx,'n log n'); // avg; worst handled in detailed pass
       if (/\bstd::(sort|stable_sort)\s*\(/.test(snip) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(snip)) cx = simplify.max(cx,'n log n');
       if (/\bstd::binary_search\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
       return cx;
@@ -529,26 +580,25 @@ function recursionHeuristic(fnName, body, pushNote, ln) {
     return '1';
   }
 
-function analyzeFunction(fn, code, linemap, pushNote){
-  // Parse all top-level statements inside this function’s body
-  const nodes = parseBlock(code, fn.bodyStart + 1, fn.bodyEnd - 1);
+  function analyzeFunction(fn, code, linemap, pushNote){
+    // Parse all top-level statements inside this function’s body
+    const nodes = parseBlock(code, fn.bodyStart + 1, fn.bodyEnd - 1);
 
-  // Worst-case time across sequential statements = max of their worst costs
-  let worstTime = '1';
-  for (const n of nodes){
-    const t = costNode(n, code, linemap, pushNote);  // costNode already multiplies loop × inner
-    worstTime = simplify.max(worstTime, t);
+    // Worst-case time across sequential statements = max of their worst costs
+    let worstTime = '1';
+    for (const n of nodes){
+      const t = costNode(n, code, linemap, pushNote);  // loop × inner already multiplied
+      worstTime = simplify.max(worstTime, t);
+    }
+
+    // Add worst-case recursion term from whole body (if any)
+    const body = code.slice(fn.bodyStart + 1, fn.bodyEnd);
+    const ln = Math.max(1, lineFromPos(linemap, fn.headStart));
+    const recWorst = recursionHeuristic(fn.name, body, pushNote, ln);
+
+    // Final worst-case for this function
+    return simplify.max(worstTime, recWorst);
   }
-
-  // Add worst-case recursion term from whole body (if any)
-  const body = code.slice(fn.bodyStart + 1, fn.bodyEnd);
-  const ln = Math.max(1, lineFromPos(linemap, fn.headStart));
-  const recWorst = recursionHeuristic(fn.name, body, pushNote, ln);
-
-  // Final worst-case for this function
-  return simplify.max(worstTime, recWorst);
-}
-
 
   /* =================== Main analyzer =================== */
 
@@ -571,20 +621,20 @@ function analyzeFunction(fn, code, linemap, pushNote){
       else timeOthers = simplify.max(timeOthers, t);
     }
 
-    // Library costs anywhere (also captured in stmt nodes, but keep a global pass)
-    const libTime = analyzeLibraryCosts(code);
+    // Library costs (per-line with teaching notes; returns worst-case)
+    const libWorst = analyzeLibraryCallsDetailed(lines, pushNote);
 
-    // Final time: prefer main if present, else max across functions, else lib
+    // Final time: prefer main if present, else max across functions, include library worst
     let finalTimeCore = timeMain !== '1' ? timeMain : simplify.max(timeOthers, '1');
-    finalTimeCore = simplify.max(finalTimeCore, libTime);
+    finalTimeCore = simplify.max(finalTimeCore, libWorst);
 
-    const finalTime = `O(${finalTimeCore})`;
+    const finalTime = `O(${finalTimeCore})`;                 // always worst-case
     const finalSpace = spaceAgg === '1' ? 'O(1)' : `O(${spaceAgg})`;
 
     return { notes, finalTime, finalSpace };
   }
 
-  /* =================== Modal (same UI) =================== */
+  /* =================== Modal (same UI + teaching notes) =================== */
 
   const MODAL_HTML = `
 <div id="complexityModal" class="pc-modal" aria-hidden="true">
@@ -669,6 +719,10 @@ function analyzeFunction(fn, code, linemap, pushNote){
 
     nt.innerHTML =
       `<p><strong>Heuristic:</strong> Nest-aware loops (for/while/do-while), if/else & switch (max branch), function + recursion patterns (single-branch, tree, Fibonacci, divide&amp;conquer). Space scans arrays/containers/heap. Library calls add costs. Path-dependent math is approximated.</p>`;
+    nt.innerHTML +=
+      `<p><strong>Teaching note:</strong> The “Final Time” is always the <u>worst-case</u>. Line-by-line notes may also mention average-case so you learn both. In interviews/exams, quote worst-case unless asked otherwise.</p>`;
+    nt.innerHTML +=
+      `<p><strong>Library note:</strong> For standard library calls we show average <em>and</em> worst where they differ (e.g., <code>qsort</code> average O(n log n), worst O(n^2)). The Final Time remains worst-case.</p>`;
 
     openModal();
   }
