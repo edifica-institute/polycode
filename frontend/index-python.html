@@ -264,6 +264,15 @@
     monaco.editor.setModelMarkers(model,'py',[{startLineNumber:line||1,endLineNumber:line||1,startColumn:1,endColumn:maxCol,message:String(message||'Error'),severity:window.monaco.MarkerSeverity.Error}]);
   }
 
+
+  // Python traceback parser — extracts "line N"
+function findPythonErrorLine(text) {
+  const m = /File\s+"[^"]+",\s+line\s+(\d+)/.exec(String(text) || '');
+  return m ? Math.max(1, parseInt(m[1], 10)) : 1;
+}
+
+
+  
   // ---- Input detection for hints only (not to drive UI) ----
   function codeNeedsInput(code){ return /\binput\s*\(/.test(code); }
 
@@ -425,9 +434,15 @@ const waitForExit = new Promise((resolve,reject)=>{
       if (m.type === 'stderr'){
         acc.stderr += m.data; termWrite(m.data);
         // Heuristic: mark error immediately if we see a Python fatal pattern
-        if (/\bTraceback\b/.test(m.data) || /\bSyntaxError\b/.test(m.data)) {
-          flagFatalError();
-        }
+               if (/File\s+"[^"]+",\s+line\s+\d+/.test(m.data) || /\bSyntaxError\b/.test(m.data) || /\bTraceback\b/.test(m.data)) {
+    const errText = acc.stderr;
+    const firstLine = (errText.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
+    const line = findPythonErrorLine(errText);
+    setEditorMarker(line, firstLine);
+    flagFatalError();  // the function I gave you to stop the spinner early
+  }
+
+        
         return;
       }
 
