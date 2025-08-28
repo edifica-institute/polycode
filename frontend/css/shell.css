@@ -2068,3 +2068,19 @@ html, body { height: 100%; }
 
 /* Make sure the stage doesn’t overlap the footer on short viewports */
 .stage{ padding-bottom:8px; }
+
+
+/* Make the panel (#output) own the scrollbars */
+#output{
+  overflow: auto;               /* both axes */
+  display: block;
+}
+
+/* Prevent the <pre> from creating its own scroller */
+#jconsole{
+  display: inline-block;        /* shrink-to-content for long lines */
+  min-width: 100%;              /* but at least fill the viewport width */
+  white-space: pre;             /* no wrapping, so horizontal scroll appears */
+  overflow: visible;            /* never create a nested scrollbar */
+}
+
