@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Scratch — Quick Reference (Polycode)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root{ --ink:#e6e7ea; --muted:#aeb5bd; --panel:#1e2024; --accent:#91d370 }
+  body{ margin:0; font:14px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; color:var(--ink); background:transparent }
+  .wrap{ padding:10px 12px 18px }
+  h1{ font-size:18px; margin:0 0 8px }
+  h2{ font-size:15px; margin:16px 0 6px }
+  p{ margin:6px 0 }
+  code,kbd{ background:#111; padding:2px 5px; border-radius:6px; font-family:ui-monospace,Menlo,Consolas,monospace }
+  kbd{ border:1px solid #333 }
+  ul,ol{ margin:6px 0 10px 18px }
+  .note{ font-size:12px; color:var(--muted) }
+  .card{ background:var(--panel); border:1px solid #2b2f34; border-radius:10px; padding:10px 12px; margin:10px 0 }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px }
+  .tbl{ width:100%; border-collapse:collapse; font-size:13px }
+  .tbl th,.tbl td{ border:1px solid #2b2f34; padding:6px 8px; vertical-align:top }
+  .tbl th{ text-align:left; background:#191b1f }
+  .ok{ color:var(--accent); font-weight:600 }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Scratch — Quick Reference</h1>
+  <p class="note">This page is static and print‑friendly. Use it as a left‑pane guide while you create projects in the center editor.</p>
+
+  <div class="card">
+    <h2>Getting Started</h2>
+    <ol>
+      <li>Use the box above to paste a Scratch/TurboWarp <b>Project ID or URL</b>, then click <b>Load</b>.</li>
+      <li>Or start from a blank editor. Add sprites, backdrops, and blocks.</li>
+      <li>Click the <b>green flag</b> to run. Click the <b>stop</b> button to halt.</li>
+      <li><b>Save:</b> File → <i>Save to your computer</i> (downloads <code>.sb3</code>).</li>
+      <li><b>Open:</b> File → <i>Load from your computer</i> and pick an <code>.sb3</code>.</li>
+    </ol>
+    <p class="note">Projects never leave your browser unless you choose to upload/download inside the editor.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Editor Anatomy</h2>
+      <ul>
+        <li><b>Stage:</b> Preview/play area at right.</li>
+        <li><b>Sprites:</b> Characters/objects you control.</li>
+        <li><b>Blocks:</b> Drag from the palette to the scripting area.</li>
+        <li><b>Backdrops:</b> Background images for the stage.</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Handy Shortcuts</h2>
+      <ul>
+        <li><kbd>Ctrl/Cmd</kbd> + <kbd>Z</kbd> / <kbd>Y</kbd> — Undo / Redo</li>
+        <li><kbd>Ctrl/Cmd</kbd> + <kbd>S</kbd> — Save (via File menu action)</li>
+        <li><kbd>Ctrl/Cmd</kbd> + <kbd>C</kbd> / <kbd>V</kbd> — Copy / Paste blocks</li>
+        <li><kbd>Delete</kbd> — Remove selected block or sprite</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Block Categories</h2>
+    <table class="tbl">
+      <thead><tr><th>Category</th><th>What it does</th><th>Example blocks</th></tr></thead>
+      <tbody>
+        <tr><td>Motion</td><td>Move and turn sprites</td><td><code>move 10 steps</code>, <code>turn 15°</code></td></tr>
+        <tr><td>Looks</td><td>Appearance, costumes, speech</td><td><code>switch costume</code>, <code>say &quot;Hello&quot;</code></td></tr>
+        <tr><td>Sound</td><td>Play sounds, set volume</td><td><code>play sound</code>, <code>set volume</code></td></tr>
+        <tr><td>Events</td><td>When + hat blocks (start triggers)</td><td><code>when green flag clicked</code>, <code>when key pressed</code></td></tr>
+        <tr><td>Control</td><td>Loops, waits, if/else</td><td><code>repeat 10</code>, <code>forever</code>, <code>if then</code></td></tr>
+        <tr><td>Sensing</td><td>Mouse, touching, ask/answer</td><td><code>touching?</code>, <code>ask ... and wait</code></td></tr>
+        <tr><td>Operators</td><td>Math/logic/string ops</td><td><code>+ − × ÷</code>, <code>&lt;</code>, <code>=</code>, <code>join</code></td></tr>
+        <tr><td>Variables</td><td>Store numbers/text</td><td><code>set [score] to</code>, <code>change [x] by</code></td></tr>
+        <tr><td>My Blocks</td><td>Custom procedures</td><td><code>define jump</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Importing Projects</h2>
+      <ul>
+        <li><b>ID/URL:</b> Paste the Scratch or TurboWarp project URL/ID in the box above and press <b>Load</b>.</li>
+        <li><b>File:</b> Use File → <i>Load from your computer</i> to open <code>.sb3</code>.</li>
+      </ul>
+      <p class="note">Tip: You can remix public Scratch projects by loading their ID.</p>
+    </div>
+
+    <div class="card">
+      <h2>Export / Share</h2>
+      <ul>
+        <li><b>Save to computer:</b> Downloads <code>.sb3</code> (editable).</li>
+        <li><b>Player link:</b> Use TurboWarp <i>embed</i> (read‑only play view) if you just want to share a playable version.</li>
+        <li><b>Performance:</b> In TurboWarp, you can enable high FPS/turbo mode for smoother animations.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Troubleshooting</h2>
+    <ul>
+      <li><b>Editor not visible?</b> Make sure your iframe URL points to <span class="ok">/tw/editor.html?embed=1</span> on your own site.</li>
+      <li><b>404 on /tw/editor.html:</b> Ensure the <code>tw/</code> folder exists on your host and <code>_redirects</code> contains <code>/tw/*  /tw/index.html  200</code>.</li>
+      <li><b>Can’t save?</b> Browser may block downloads in iframes; try opening the editor in a new tab (right‑click → Open frame in new tab) just for saving.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
