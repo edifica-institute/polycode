@@ -586,7 +586,9 @@ monaco.editor.setModelMarkers = function(model, owner, markers) {
     function finishUI(){ window.setRunUI?.(false); }
 
     function finalizeStatus(){
-      
+  // ❌ DO NOT clear here:
+  // clearCompileMarkers();
+
   stopHeartbeat();
   stopStatusDots();
   stopInputCountdown();
@@ -597,18 +599,17 @@ monaco.editor.setModelMarkers = function(model, owner, markers) {
 
   const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
   const hasCompileErr =
-  __cFlags.sawCompileErr ||
-  /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
+    __cFlags.sawCompileErr ||
+    /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
   const hasRuntimeErr = __cFlags.sawRuntimeErr
     || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
 
-  // Decide outcome
   if (__cFlags.exitCode !== null) {
     const ok = (__cFlags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr;
     if (ok) {
       window.PolyShell?.setRunnerPhase?.('success');
       window.PolyShell.setStatus('Execution Success', 'ok');
-      window.clearCompileMarkers();
+      window.clearCompileMarkers();        // ✅ clear only on success
       setComplexityEnabled(true);
     } else {
       window.PolyShell?.setRunnerPhase?.('error');
@@ -616,11 +617,10 @@ monaco.editor.setModelMarkers = function(model, owner, markers) {
       markFirstErrorFromLog();
       setComplexityEnabled(false);
     }
-    window.setRunUI?.(false);  // <-- close AFTER status/phase is set
+    window.setRunUI?.(false);
     return;
   }
 
-  // No explicit exit code — infer
   if (hasCompileErr) {
     window.PolyShell?.setRunnerPhase?.('error');
     window.PolyShell.setStatus('Compilation Failed', 'error');
@@ -637,11 +637,11 @@ monaco.editor.setModelMarkers = function(model, owner, markers) {
   } else {
     window.PolyShell?.setRunnerPhase?.('success');
     window.PolyShell.setStatus('Execution Finished', 'ok');
-    window.clearCompileMarkers();
+    window.clearCompileMarkers();          // ✅ clear only on success/finished-without-errors
     setComplexityEnabled(true);
   }
 
-  window.setRunUI?.(false);    // <-- close AFTER phase/status
+  window.setRunUI?.(false);
 }
 
 
