@@ -410,50 +410,55 @@
 
   /* =================== Recursion heuristics =================== */
 
-  function recursionHeuristic(fnName, body, pushNote, ln){
-    // Count self-calls
-    const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
-    const calls = (body.match(callRe) || []).length;
+function recursionHeuristic(fnName, body, pushNote, ln) {
+  const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
+  const calls = (body.match(callRe) || []).length;
 
-    // Fibonacci-like: both (n-1) and (n-2)
-    const fibRe = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
-    const fib2Re= new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
+  // Detect "two calls but in different branches" => single-branch recursion (height)
+  const singleBranchViaIfElse = new RegExp(
+    `if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?else\\s*if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`,
+    'i'
+  );
 
-    // Halving / boundary shrink inside body
-    const halves = /[*/]\s*2\b|>>\s*1\b|<<\s*-1\b|\bn\s*\/\s*2\b/i.test(body) ||
-                   /\bmid\b/i.test(body);
+  // Two self calls in the SAME execution path (no else separation) => tree recursion
+  const twoSelfCallsSameBlock =
+    new RegExp(`\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`, 'i').test(body) &&
+    !singleBranchViaIfElse.test(body);
 
-    // Linear work in body (suggesting merge or partition)
-    const hasLoop = /\b(for|while)\s*\(/.test(body);
+  // Fibonacci-like
+  const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
+  const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
 
-    if (calls >= 2 && fibRe.test(body) && fib2Re.test(body)){
-      pushNote(ln,'recursion','2^n', `${fnName}(): Fibonacci-like recursion`);
-      return '2^n';
-    }
+  const halves = /[*/]\s*2\b|>>\s*1\b|\bn\s*\/\s*2\b|mid/i.test(body);
+  const hasLoop = /\b(for|while)\s*\(/.test(body);
 
-    if (calls >= 2) {
-      // tree recursion: two subproblems. If halving & linear work → n log n; else n
-      if (halves && hasLoop){
-        pushNote(ln,'recursion','n log n', `${fnName}(): divide & conquer with halving + linear work`);
-        return 'n log n';
-      } else {
-        pushNote(ln,'recursion','n', `${fnName}(): tree traversal style (visits branches)`);
-        return 'n';
-      }
-    }
-
-    if (calls === 1){
-      if (halves){
-        pushNote(ln,'recursion','log n', `${fnName}(): single-branch halving recursion`);
-        return 'log n';
-      } else {
-        pushNote(ln,'recursion','n', `${fnName}(): single-branch recursion (height h; balanced≈log n, worst n)`);
-        return 'n'; // conservative
-      }
-    }
-
-    return '1';
+  if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
+    pushNote(ln,'recursion','2^n', `${fnName}(): Fibonacci-like recursion`);
+    return '2^n';
   }
+
+  if (twoSelfCallsSameBlock) {
+    if (halves && hasLoop) {
+      pushNote(ln,'recursion','n log n', `${fnName}(): divide & conquer with halving + linear work`);
+      return 'n log n';
+    }
+    pushNote(ln,'recursion','n', `${fnName}(): tree recursion (visits multiple branches)`);
+    return 'n';
+  }
+
+  if (calls >= 1) {
+    if (halves) {
+      pushNote(ln,'recursion','log n', `${fnName}(): single-branch halving recursion`);
+      return 'log n';
+    }
+    // Height-bounded recursion (BST insert/search)
+    pushNote(ln,'recursion','n', `${fnName}(): single-branch recursion (O(h); balanced≈O(log n), worst O(n))`);
+    return 'n';
+  }
+
+  return '1';
+}
+
 
   /* =================== Statement cost (recursive over AST) =================== */
 
