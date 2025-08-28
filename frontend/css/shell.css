@@ -2043,36 +2043,3 @@ html, body { height: 100%; }
   line-height: 1; 
 }
 
-
-
-/* Container is flex */
-.app { display: flex; min-width: 0; }
-
-/* Use CSS vars to lock side widths */
-:root {
-  --left: 300px;   /* defaults */
-  --right: 380px;
-}
-
-/* Side panels must NOT flex-grow back after mouseup */
-.panel.left  { flex: 0 0 var(--left);  min-width: 180px; }
-.panel.right { flex: 0 0 var(--right); min-width: 220px; }
-
-/* Center takes the rest */
-.panel.center { flex: 1 1 auto; min-width: 240px; min-height: 0; }
-
-/* The vertical handles */
-.v-resize,
-.v-resize.right { flex: 0 0 6px; cursor: col-resize; }
-
-
-/* Splitters are the ONLY draggable zones */
-.v-resize { flex: 0 0 6px; position: relative; z-index: 5; cursor: col-resize; }
-.v-resize.right { flex-basis: 6px; }
-.v-resize > div { position: absolute; inset: 0; }
-
-/* Nice during drag */
-body.is-resizing { cursor: col-resize; user-select: none; }
-
-/* Don’t let images start native drag */
-.brand-logo, .footer-logo { -webkit-user-drag: none; user-drag: none; }
