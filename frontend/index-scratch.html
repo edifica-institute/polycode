@@ -6,19 +6,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="./assets/logo.png" />
   <link rel="stylesheet" href="./css/shell.css" />
-  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light" />
-
   <style>
-    /* Scratch page uses an iframe in the editor area */
-    #scratchFrame{ position:absolute; inset:0; width:100%; height:100%; border:0; }
-    .pane-head .input{ height:28px; padding:0 10px; border:1px solid var(--border,#2b2f34); background:var(--panel,#1e2024); color:inherit; border-radius:8px; min-width:260px; }
-    .pane-head .sep{ width:1px; height:20px; background:var(--border,#2b2f34); margin:0 8px; opacity:.9 }
-    .pane-head .btn svg{ width:18px; height:18px }
-    .pane-foot .msg{ white-space:nowrap }
+    #scratchFrame { position:absolute; inset:0; width:100%; height:100%; border:0; }
+    .pane-head .input { height:28px; padding:0 10px; border:1px solid var(--border,#2b2f34);
+      background:var(--panel,#1e2024); color:inherit; border-radius:8px; min-width:260px; }
+    .pane-head .btn svg { width:18px; height:18px }
+    .pane-foot .msg { white-space:nowrap }
   </style>
 </head>
 <body class="page-fade">
+
   <!-- Header -->
   <header class="site-header">
     <div class="brand-wrap">
@@ -38,86 +36,62 @@
   <!-- App -->
   <div class="stage">
     <div class="app">
+
       <!-- LEFT -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
-          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
+          <select id="langSelect" class="select" onchange="location.href=this.value">
             <option value="./index-scratch.html" selected>Scratch</option>
             <option value="./index-c.html">C</option>
             <option value="./index-cpp.html">C++</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html">Java</option>
             <option value="./index-python.html">Python</option>
-            <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
+            <option value="./index-sql.html">SQL</option>
           </select>
         </div>
         <div class="pane-body"><div id="leftContent" style="margin-top:12px;"></div></div>
-        <div class="pane-foot"><span class="msg" id="leftFoot">About Scratch (TurboWarp)</span></div>
+        <div class="pane-foot"><span class="msg" id="leftFoot">About Scratch</span></div>
       </section>
 
       <!-- RESIZER -->
       <div class="v-resize"><div id="dragLeft"></div></div>
 
-      <!-- CENTER (Scratch Editor iframe) -->
+      <!-- CENTER -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
-          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
+          <button id="themeToggle" class="btn theme-btn" title="Toggle theme">
             <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
           </button>
           <span class="title" id="centerTitle" style="margin-left:8px;">Scratch — Editor | Polycode</span>
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-            <input id="projInput" class="input" placeholder="Project ID or URL (Scratch/TurboWarp)" />
-            <button id="btnLoad" class="btn" title="Load project by ID/URL" aria-label="Load">
+            <input id="projInput" class="input" placeholder="Project ID or URL" />
+            <button id="btnLoad" class="btn" title="Load project">
               <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM5 4v6h4l5 5 4-4-5-5H5z"/></svg>
-            </button>
-            <span class="sep"></span>
-            <button id="btnNew" class="btn" title="New blank editor" aria-label="New">
-              <svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 00-2 2v14l4-4h12a2 2 0 002-2V5a2 2 0 00-2-2z"/></svg>
-            </button>
-            <button id="btnReset" class="btn" title="Reload editor" aria-label="Reset">
-              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
-            </button>
-            <button id="btnOpenTab" class="btn" title="Open editor in new tab" aria-label="Open in new tab">
-              <svg viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.3H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></svg>
             </button>
           </div>
         </div>
-        <div id="editor" style="position:relative;">
-          <iframe id="scratchFrame" title="Scratch Editor" allow="clipboard-read; clipboard-write"></iframe>
+        <div id="editor" style="position:relative; height:100%;">
+          <iframe id="scratchFrame" title="Scratch Editor"
+                  allow="clipboard-read; clipboard-write"></iframe>
         </div>
-        <div class="pane-foot"><span class="msg" id="centerFoot">Ready — TurboWarp editor embedded</span></div>
+        <div class="pane-foot"><span class="msg" id="centerFoot">Ready — Scratch editor embedded</span></div>
       </section>
 
       <!-- RESIZER -->
       <div class="v-resize right"><div id="dragRight"></div></div>
 
-      <!-- RIGHT (Tips / Shortcuts) -->
+      <!-- RIGHT -->
       <section class="panel right" id="rightPanel">
-        <div class="pane-head">
-          <span class="title">Scratch — Tips & Shortcuts</span>
-          <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
-            <button id="btnDocs" class="btn" title="Open Scratch Getting Started" aria-label="Docs">
-              <svg viewBox="0 0 24 24"><path d="M19 2H8a2 2 0 00-2 2v16l6-3 6 3V4a2 2 0 00-2-2z"/></svg>
-            </button>
-          </div>
-        </div>
-        <div id="output" class="screen-dim" style="padding:12px; font:14px/1.5 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
-          <h3 style="margin:0 0 8px; font-size:16px;">Quick Start</h3>
-          <ol style="margin:0 0 12px 18px;">
-            <li>Use the menu inside the editor (top-left) to <b>Load from your computer</b> or <b>Save to your computer</b> (SB3 files).</li>
-            <li>Paste a Scratch/TurboWarp project URL or numeric ID above and click <b>Load</b>.</li>
-            <li>Click the green flag in the editor to run your project.</li>
+        <div class="pane-head"><span class="title">Scratch — Tips</span></div>
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <h3>Quick Start</h3>
+          <ol>
+            <li>Use the editor’s File menu to load or save SB3 projects.</li>
+            <li>Paste a project URL/ID in the box above to load a project.</li>
+            <li>Click the green flag to run.</li>
           </ol>
-          <h4 style="margin:10px 0 6px; font-size:15px;">Keyboard</h4>
-          <ul style="margin:0 0 12px 18px;">
-            <li><b>Ctrl/Cmd + S</b> — Save (inside editor menu)</li>
-            <li><b>Ctrl/Cmd + Z / Y</b> — Undo/Redo</li>
-          </ul>
-          <h4 style="margin:10px 0 6px; font-size:15px;">Notes</h4>
-          <ul style="margin:0 0 0 18px;">
-            <li>Editor is powered by <b>TurboWarp</b> (modern Scratch 3 runtime) for speed & compatibility.</li>
-            <li>Files never leave your browser unless you choose to upload/download in the editor.</li>
-          </ul>
+          <p>Editor powered by <b>TurboWarp</b> (self-hosted in <code>/tw</code>).</p>
         </div>
         <div class="pane-foot"><span class="msg" id="rightFoot">Guide — No backend needed</span></div>
       </section>
@@ -137,59 +111,31 @@
         <div class="txt">
           <span class="powered">powered by edifica</span>
           <span class="subline">education<span class="dot">.</span>consultation<span class="dot">.</span>assistance</span>
-          <div class="siteurl"><a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a></div>
+          <div class="siteurl"><a href="https://www.edifica.in" target="_blank">www.edifica.in</a></div>
         </div>
       </div>
       <div class="footer-center">
-        <span class="label">Follow us</span>
-        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
-        </a>
-        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
-        </a>
-        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
-        </a>
+        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank">FB</a>
+        <a class="social" href="https://instagram.com/edifica.ig" target="_blank">IG</a>
+        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank">YT</a>
       </div>
       <div class="footer-right">
-        <a href="./privacy.html">Privacy Policy</a>
-        <a href="./terms.html">Terms &amp; Conditions</a>
-        <a href="./legal.html">Legal Information</a>
+        <a href="./privacy.html">Privacy</a>
+        <a href="./terms.html">Terms</a>
+        <a href="./legal.html">Legal</a>
       </div>
     </div>
   </footer>
 
-  <!-- Vendor (no Monaco needed here) -->
+  <!-- Scripts -->
   <script src="./js/shell.js" defer></script>
-
-  <!-- Page script -->
   <script>
-    // --- TurboWarp editor URL builder ---
-    function buildTWEditorURL(opts){
-      const base = 'https://turbowarp.org/editor';
-      const p = new URLSearchParams();
-      // Sensible defaults
-      p.set('fps','60');
-      p.set('turbo','false');
-      // Allow embedding the editor in an iframe
-      p.set('embed','1');
-      if (opts && opts.projectId){
-        // Load a specific project by ID in the editor
-        p.set('project_id', String(opts.projectId).trim());
-      }
-      return base + '?' + p.toString();
-    }
+    const TW_BASE = '/tw'; // self-hosted build folder
 
-    function parseProjectInput(v){
-      if (!v) return null;
-      v = String(v).trim();
-      // Accept: numeric ID, full scratch URL, or tw URL
-      const idMatch = v.match(/(?:projects\/)??(\d{3,})/); // scratch.mit.edu/projects/12345
-      if (idMatch) return idMatch[1];
-      const onlyDigits = v.replace(/\D/g,'');
-      if (onlyDigits.length >= 3) return onlyDigits; // raw ID typed
-      return null;
+    function buildTWEditorURL(opts){
+      const p = new URLSearchParams({ embed:'1', fps:'60', turbo:'false' });
+      if (opts?.projectId) p.set('project_id', String(opts.projectId).trim());
+      return `${TW_BASE}/editor.html?${p.toString()}`;
     }
 
     function setEditorSrc(url){
@@ -198,48 +144,39 @@
       window.PolyShell?.setStatus('Ready','ok');
     }
 
-    // --- Bootstrap like other pages ---
+    // Parse Scratch/TW project input
+    function parseProjectInput(v){
+      if (!v) return null;
+      v = String(v).trim();
+      const idMatch = v.match(/(?:projects\/)?(\d{3,})/);
+      if (idMatch) return idMatch[1];
+      const onlyDigits = v.replace(/\D/g,'');
+      return onlyDigits.length >= 3 ? onlyDigits : null;
+    }
+
+    // Bootstrap
     window.bootstrap = async function(){
       window.PolyShell?.setStatus('Loading Scratch Editor…','busy');
       window.PolyShell?.loadLeftContent?.('scratch');
-      // Default: blank editor
       setEditorSrc(buildTWEditorURL({}));
-      document.getElementById('centerFoot').textContent = 'Ready — TurboWarp editor embedded';
+      document.getElementById('centerFoot').textContent = 'Ready — Scratch editor embedded';
     };
 
-    // Controls
     document.addEventListener('DOMContentLoaded', ()=>{
       const input = document.getElementById('projInput');
       const btnLoad = document.getElementById('btnLoad');
-      const btnNew  = document.getElementById('btnNew');
-      const btnReset= document.getElementById('btnReset');
-      const btnOpen = document.getElementById('btnOpenTab');
-      const btnDocs = document.getElementById('btnDocs');
-      const frame   = document.getElementById('scratchFrame');
-
       btnLoad?.addEventListener('click', ()=>{
-        const id = parseProjectInput(input?.value || '');
-        const url = id ? buildTWEditorURL({ projectId:id }) : buildTWEditorURL({});
+        const id  = parseProjectInput(input?.value || '');
+        const url = buildTWEditorURL(id ? { projectId:id } : {});
         setEditorSrc(url);
-        window.PolyShell?.setStatus(id ? ('Loaded project #' + id) : 'Opened blank editor','ok');
+        window.PolyShell?.setStatus(id ? `Loaded project #${id}` : 'Opened blank editor','ok');
       });
-      input?.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') { e.preventDefault(); btnLoad?.click(); }});
-
-      btnNew?.addEventListener('click', ()=>{
-        setEditorSrc(buildTWEditorURL({}));
-        window.PolyShell?.setStatus('New blank editor','ok');
+      input?.addEventListener('keydown', e => {
+        if (e.key === 'Enter'){ e.preventDefault(); btnLoad?.click(); }
       });
-
-      btnReset?.addEventListener('click', ()=>{
-        if (frame){ const u = frame.src; frame.src = 'about:blank'; setTimeout(()=> frame.src = u, 50); }
-        window.PolyShell?.setStatus('Editor reloaded','ok');
-      });
-
-      btnOpen?.addEventListener('click', ()=>{ if (frame?.src) window.open(frame.src, '_blank','noopener'); });
-      btnDocs?.addEventListener('click', ()=>{ window.open('https://scratch.mit.edu/projects/editor/?tutorial=getStarted', '_blank','noopener'); });
     });
 
-    // Start after shell.js (same pattern used across Polycode)
+    // Polycode startup hook
     (function startWhenReady(){
       function start(){
         if (!window.PolyShell){
