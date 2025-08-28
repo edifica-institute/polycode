@@ -233,7 +233,7 @@ int main(){
     /* ===== Bootstrap ===== */
     window.bootstrap = async function(){
       await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
-      
+      installCompileMarkerGuard(); 
       window.PolyShell.setStatus('Ready', 'ok');
       window.PolyShell.loadLeftContent?.('c');
       window.setComplexityEnabled?.(false);
@@ -276,6 +276,92 @@ function clearEditorMarkers(){
   }
 }
 
+
+
+
+
+
+    function installCompileMarkerGuard(){
+  if (!window.monaco || !window.editor || window.__pcGuardInstalled) return;
+  window.__pcGuardInstalled = true;
+
+  // Unique owner so nothing else collides with our markers
+  const MARK_OWNER = window.PC_COMPILE_OWNER || (
+    window.PC_COMPILE_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2))
+  );
+
+  let __sticky = [];
+  let __allowClear = false;
+
+  // Keep reference to Monaco's real function
+  const realSetModelMarkers = monaco.editor.setModelMarkers;
+
+  // Replace your public setter so it uses our owner + persists markers
+  window.setEditorMarkers = function(list){
+    const model = window.editor?.getModel(); if (!model) return;
+
+    const items = Array.isArray(list) ? list : (list ? [list] : []);
+    const lineCount = model.getLineCount();
+    const markers = items.map(e => {
+      let line  = Math.min(Math.max(1, Number(e?.line)||1), lineCount);
+      const max = model.getLineMaxColumn(line);
+      let start = Math.min(Math.max(1, Number(e?.col)||1), Math.max(1, max-1));
+      let end   = Math.min(max, start+1);
+      const sev = ({warning: monaco.MarkerSeverity.Warning,
+                    info:    monaco.MarkerSeverity.Info,
+                    hint:    monaco.MarkerSeverity.Hint})[(e?.sev||'').toLowerCase()]
+                 || monaco.MarkerSeverity.Error;
+      return { startLineNumber: line, endLineNumber: line,
+               startColumn: start, endColumn: end,
+               message: String(e?.msg || 'Error'), severity: sev };
+    });
+
+    realSetModelMarkers.call(monaco.editor, model, MARK_OWNER, markers);
+    __sticky = markers.slice();
+
+    if (markers[0]) {
+      window.editor.revealLineInCenterIfOutsideViewport(markers[0].startLineNumber);
+      try{ window.editor.setPosition({ lineNumber: markers[0].startLineNumber, column: markers[0].startColumn }); }catch{}
+    }
+  };
+
+  // Explicit clearer for reset/success cases
+  window.clearCompileMarkers = function(){
+    const model = window.editor?.getModel(); if (!model) return;
+    __allowClear = true;
+    realSetModelMarkers.call(monaco.editor, model, MARK_OWNER, []);
+    __allowClear = false;
+    __sticky = [];
+  };
+
+  // Guard: block unintended clears of our owner; also LOG who did it
+  monaco.editor.setModelMarkers = function(model, owner, markers){
+    const count = Array.isArray(markers) ? markers.length : 0;
+
+    if (owner === MARK_OWNER) {
+      console.log(`[markers] owner=${owner} count=${count} uri=${model?.uri?.toString?.()}`,
+                  '\n' + new Error('marker trace').stack.split('\n').slice(2, 12).join('\n'));
+      if (count === 0 && !__allowClear && __sticky.length && model === window.editor?.getModel()) {
+        // Re-assert our markers instead of letting them disappear
+        return realSetModelMarkers.call(monaco.editor, model, owner, __sticky);
+      }
+    }
+    return realSetModelMarkers.apply(monaco.editor, arguments);
+  };
+
+  // Re-assert after layout/model churn (e.g., RAF, resize)
+  const reassert = () => {
+    const m = window.editor?.getModel();
+    if (m && __sticky.length) realSetModelMarkers.call(monaco.editor, m, MARK_OWNER, __sticky);
+  };
+  window.editor.onDidLayoutChange?.(reassert);
+  window.editor.onDidChangeModel?.(reassert);
+  window.addEventListener('resize', () => requestAnimationFrame(reassert));
+}
+
+
+
+    
 
 
 
