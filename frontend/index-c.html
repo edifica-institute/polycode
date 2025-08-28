@@ -241,21 +241,6 @@ int main(){
 
 
 
-    // ---- DEBUG: who is touching our markers?
-(function () {
-  const orig = monaco.editor.setModelMarkers;
-  monaco.editor.setModelMarkers = function (model, owner, markers) {
-    if (owner === 'c-compile') {
-      const n = Array.isArray(markers) ? markers.length : 0;
-      console.log(`[markers] owner=${owner} count=${n}`,
-        '\n' + new Error().stack.split('\n').slice(2, 12).join('\n'));
-      // debugger; // <- uncomment to break when they are cleared
-    }
-    return orig.apply(this, arguments);
-  };
-})();
-
-
     
     /* ===== Monaco marker helpers ===== */
 let __markerGen = 0;
