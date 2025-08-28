@@ -239,66 +239,39 @@ int main(){
     };
 
     /* ===== Monaco marker helpers ===== */
-    function clearEditorMarkers(){
-      if (!window.monaco || !window.editor) return;
-      const model = window.editor.getModel();
-      if (model) window.monaco.editor.setModelMarkers(model, 'c-compile', []);
-    }
-  function setEditorMarkers(list){
+let __markerGen = 0;
+
+function setEditorMarkers(list){
   if (!window.monaco || !window.editor) return;
   const model = window.editor.getModel(); if (!model) return;
 
+  // remember which “generation” put these markers on this model
+  model.__pcMarkerGen = __markerGen;
+
   const items = Array.isArray(list) ? list : (list ? [list] : []);
-
   const markers = items.map(e => {
-    // Clamp line into the document
     const lineCount = model.getLineCount();
-    let line = Number(e && e.line) || 1;
-    if (line < 1) line = 1;
-    if (line > lineCount) line = lineCount;
-
-    // Compute safe columns for this line
+    let line = Math.max(1, Math.min(lineCount, Number(e?.line) || 1));
     const maxCol = model.getLineMaxColumn(line);
-    let start = Number(e && e.col) || 1;
-    if (!isFinite(start) || start < 1) start = 1;
-    if (start >= maxCol) start = Math.max(1, maxCol - 1); // never past EOL
-
-    // End is just after start, clamped to EOL
-    let end = start + 1;
-    if (end > maxCol) end = maxCol;
-
-    // Optional: allow e.sev = 'Warning' | 'Info' | 'Hint'
-    const sevKey = (e && e.sev ? String(e.sev) : 'Error').toLowerCase();
-    const sev =
-      sevKey === 'warning' ? window.monaco.MarkerSeverity.Warning :
-      sevKey === 'info'    ? window.monaco.MarkerSeverity.Info :
-      sevKey === 'hint'    ? window.monaco.MarkerSeverity.Hint :
-                             window.monaco.MarkerSeverity.Error;
-
-    return {
-      startLineNumber: line,
-      endLineNumber:   line,
-      startColumn:     start,
-      endColumn:       end,
-      message:         String((e && e.msg) || 'Error'),
-      severity:        sev
-    };
+    let start = Math.max(1, Math.min(maxCol - 1, Number(e?.col) || 1));
+    const end = Math.min(maxCol, start + 1);
+    const sev = ({warning:1,info:2,hint:3}[String(e?.sev).toLowerCase()] ?? 8); // Error
+    return { startLineNumber: line, endLineNumber: line, startColumn: start, endColumn: end,
+             message: String(e?.msg || 'Error'), severity: sev };
   });
-
   window.monaco.editor.setModelMarkers(model, 'c-compile', markers);
+}
 
-  if (markers[0]) {
-    // Bring first marker into view
-    window.editor.revealLineInCenterIfOutsideViewport(markers[0].startLineNumber);
-    // (Optional) place the cursor there so screen readers announce it
-    try {
-      window.editor.setPosition({
-        lineNumber: markers[0].startLineNumber,
-        column: markers[0].startColumn
-      });
-    } catch {}
+function clearEditorMarkers(){
+  if (!window.monaco || !window.editor) return;
+  const model = window.editor.getModel(); if (!model) return;
+
+  // only clear if we’re still on the same generation that set them
+  if (model.__pcMarkerGen === __markerGen) {
+    window.monaco.editor.setModelMarkers(model, 'c-compile', []);
   }
 }
+
 
 
 
@@ -618,6 +591,8 @@ int main(){
     /* ===== Main run ===== */
 window.runLang = async function(){
   window.setRunUI?.(true);
+  __markerGen++;        // new run, invalidate old clears
+clearEditorMarkers(); // optional: clear immediately for a fresh run
   setConsole(''); document.getElementById('outV')?.classList.remove('error');
   setComplexityEnabled(false); clearEditorMarkers();
   try{ window.termWS?.close(); }catch{}
