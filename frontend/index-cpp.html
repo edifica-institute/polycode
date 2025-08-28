@@ -10,22 +10,41 @@
   <meta name="color-scheme" content="dark light" />
 
   <style>
-    /* Keep the console input row crisp */
+    /* Match Java input-row look */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
-    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; }
-    #consoleInput::selection{ background:rgba(255,255,255,.18) }
+    #consoleInput{
+      display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
+      caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only;
+    }
+    #consoleInput:focus{ outline:0 }
+    #consoleInput::selection{ background:rgba(255,255,255,.15) }
 
-    /* Small pulse when Complexity becomes enabled */
-    .btn-pulse{ animation: btnPulse .9s ease-out 1 }
-    @keyframes btnPulse{ 0%{ transform:scale(1.03) } 100%{ transform:scale(1) } }
+    .btn[disabled], .btn.attn[disabled]{ animation:none!important }
+    .pane-foot .msg{ white-space:nowrap }
+    .panel .pane-head{ display:flex; align-items:center }
 
-    /* Optional: stricter dialog centering */
-    .pc-modal{ position: fixed; inset: 0; display: none; place-items: center; z-index: 1000; }
-    .pc-modal[aria-hidden="false"]{ display: grid; }
-    .pc-modal__dialog{ margin:0; }
+    /* Overlay (same style as Java) */
+    #runnerOverlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999; }
+    #runnerOverlay[aria-hidden="false"]{ display:flex }
+    #runnerCard{ min-width:280px; max-width:420px; padding:16px 18px; border-radius:12px; background:var(--panel,#111); color:inherit; box-shadow:0 6px 24px rgba(0,0,0,.35); font:14px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto }
+    #runnerBarWrap{ height:8px; background:rgba(255,255,255,.15); border-radius:999px; overflow:hidden }
+    #runnerBar{ height:100%; width:18%; background:currentColor; opacity:.9; transform-origin:left center }
+
+    /* Footer/icon hygiene (prevents cropping) */
+    .site-footer{ overflow:visible }
+    .footer-grid{ align-items:center }
+    .site-footer .footer-center{ display:flex; align-items:center; gap:8px; line-height:1 }
+    .site-footer .footer-center .label{ margin-right:6px }
+    .site-footer .footer-center .social{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:28px; height:28px; margin:0 4px; vertical-align:middle;
+    }
+    .site-footer .footer-center .social svg{ width:18px; height:18px }
+    #output{ overflow:auto }
+    .pane-foot{ display:flex; align-items:center; height:28px; padding:0 10px; border-top:1px solid var(--border,#2b2f34) }
+    .pane-foot .msg{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   </style>
 </head>
-
 <body class="page-fade">
   <!-- Header -->
   <header class="site-header">
@@ -36,271 +55,479 @@
         <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
       </div>
     </div>
-
-    <div class="top-controls">
-      <div class="toolbar">
-        <!-- left cluster (editor-related) -->
-        <div class="btn-group">
-          <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
-            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          </button>
-          <button id="btnStop" class="btn" title="Stop (Ctrl+.)" aria-label="Stop" disabled>
-            <svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
-          </button>
-          <button id="btnReset" class="btn" title="Reset (Ctrl+R)" aria-label="Reset">
-            <svg viewBox="0 0 24 24"><path d="M12 6V3L8 7l4 4V8c2.76 0 5 2.24 5 5 0 1.1-.36 2.11-.97 2.94l1.46 1.46A6.963 6.963 0 0 0 19 13c0-3.87-3.13-7-7-7z"/></svg>
-          </button>
-          <button id="btnComplexity" class="btn" title="Analyze Time Complexity" aria-label="Complexity" disabled>
-            <svg viewBox="0 0 24 24"><path d="M3 13h2v-2H3v2zm4 0h14v-2H7v2z"/></svg>
-          </button>
-          <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
-            <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-3v8H7v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/></svg>
-          </button>
-        </div>
-
-        <!-- center status -->
-        <div class="toolbar-status"><span id="status" class="ok">Ready</span> <span id="spinner" style="display:none">⏳</span></div>
-
-        <!-- theme + language switcher -->
-        <div class="btn-group">
-          <button id="themeToggle" class="btn" title="Toggle Theme" aria-label="Theme">
-            <svg id="themeIcon" viewBox="0 0 24 24"></svg>
-          </button>
-          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
-            <option value="./index-cpp.html" selected>C++</option>
-            <option value="./index-c.html">C</option>
-            <option value="./index-java.html">Java</option>
-            <option value="./index-web.html">HTML/CSS/JS</option>
-            <option value="./index-sql.html">SQL</option>
-            
-          </select>
-        </div>
-      </div>
-    </div>
+    <nav class="site-nav">
+      <a href="./index.html">Home</a>
+      <a href="./about.html">About</a>
+      <a href="./contact.html">Contact</a>
+    </nav>
   </header>
 
   <!-- App -->
   <div class="stage">
     <div class="app">
-      <!-- LEFT/center panel: editor -->
+      <!-- LEFT -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
-          <div class="pane-title">Editor</div>
+          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
+            <option value="./index-c.html">C</option>
+            <option value="./index-cpp.html" selected>C++</option>
+            <option value="./index-web.html">HTML/CSS/JS</option>
+            <option value="./index-java.html">Java</option>
+            <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
+          </select>
+        </div>
+        <div class="pane-body"><div id="leftContent" style="margin-top:12px;"></div></div>
+        <div class="pane-foot"><span class="msg" id="leftFoot">About C++</span></div>
+      </section>
+
+      <!-- RESIZER -->
+      <div class="v-resize"><div id="dragLeft"></div></div>
+
+      <!-- CENTER (Monaco) -->
+      <section class="panel center" id="centerPanel">
+        <div class="pane-head">
+          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+          <span class="title" id="centerTitle" style="margin-left:8px;">C++ – Editor | Polycode</span>
+          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+            <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
+              <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor"/></svg>
+            </button>
+            <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
+              <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/></svg>
+            </button>
+            <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          </div>
         </div>
         <div id="editor"></div>
         <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
       </section>
 
       <!-- RESIZER -->
-      <div class="resizer" data-dir="x" aria-hidden="true"></div>
+      <div class="v-resize right"><div id="dragRight"></div></div>
 
-      <!-- RIGHT panel: console -->
+      <!-- RIGHT (Console) -->
       <section class="panel right" id="rightPanel">
-        <div class="pane-head"><div class="pane-title">Console</div></div>
-        <pre id="output" class="output" aria-live="polite"></pre>
-        <div id="consoleRow" class="console-row" style="display:none">
-          <span id="consolePrefix"></span>
-          <span id="consoleInput" contenteditable="true" spellcheck="false" aria-label="Console Input"></span>
+        <div class="pane-head">
+          <span class="title">C++ – Console | Polycode</span>
+          <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
+            <button id="btnComplexity" class="btn" title="Analyze Time & Space" aria-label="Complexity" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 9.5c.9-1 2-1.5 3-1.5s2.1.5 3 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
+              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="pane-foot"><span class="msg" id="rightFoot"></span></div>
+
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <pre id="jconsole" class="console" style="margin:0;"></pre>
+          <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+            <span id="consolePrefix"></span>
+            <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+          </div>
+        </div>
+
+        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
       </section>
     </div>
-
-    <footer class="site-foot">
-      <div>Powered by <strong>polycode</strong></div>
-      <nav>
-        <a href="./index.html">Home</a>
-        <a href="./about.html">About</a>
-        <a href="./contact.html">Contact</a>
-      </nav>
-    </footer>
   </div>
 
-  <!-- Monaco loader + site shell -->
+  <!-- Chevron -->
+  <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
+    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-grid">
+      <div class="footer-left">
+        <img src="./assets/logo.png" alt="Edifica" class="footer-logo" />
+        <div class="txt">
+          <span class="powered">powered by edifica</span>
+          <span class="subline">education<span class="dot">.</span>consultation<span class="dot">.</span>assistance</span>
+          <div class="siteurl"><a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a></div>
+        </div>
+      </div>
+
+      <div class="footer-center">
+        <span class="label">Follow us</span>
+        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
+        </a>
+        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
+        </a>
+        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
+        </a>
+      </div>
+
+      <div class="footer-right">
+        <a href="./privacy.html">Privacy Policy</a>
+        <a href="./terms.html">Terms &amp; Conditions</a>
+        <a href="./legal.html">Legal Information</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Vendor -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
+  <!-- Page script -->
   <script>
-    // ==== C++ runner endpoints (same cc-runner) ====
-    const CC_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/cc/prepare (lang:'cpp')
-    const CC_WS_URL   = 'wss://polycode-cc.onrender.com/cc';   // WS /cc?token=...
+    /* --- Sample C++ used in the editor --- */
+    const SAMPLE_CPP =
+`#include <iostream>
+using namespace std;
 
-    // --- Sample C++ code ---
-    const SAMPLE_CPP = `#include <iostream>\nusing namespace std;\n\nint main(){\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int n;\n    cout << "Enter a number: ";\n    if(!(cin >> n)) return 0;\n    cout << "Square = " << (n*n) << "\\n";\n    return 0;\n}`;
+int main(){
+    int n;
+    cout << "Enter a number: ";
+    if (!(cin >> n)) return 0;
+    cout << "Square = " << n*n << "\\n";
+    return 0;
+}`;
 
-    // Expose for complexity.js compatibility
-    window.getEditorCode = () => (window.editor ? window.editor.getValue() : '');
+    /* --- Bootstrap (same call pattern as Java) --- */
+    window.bootstrap = async function(){
+      await window.PolyShell.initMonaco({ value: SAMPLE_CPP, language: 'cpp' });
+      window.PolyShell.setStatus('Ready','ok');
+      window.PolyShell.loadLeftContent?.('cpp');
+      setComplexityEnabled(false);
+    };
 
-    // ===== Console helpers =====
-    function setConsole(t){ const el = document.getElementById('output'); if (el) el.textContent = t ?? ''; }
-    function appendConsole(t){ const el = document.getElementById('output'); if (el) { el.textContent += t; el.scrollTop = el.scrollHeight; } }
+    /* ===== Input-wait countdown & status dots (same as Java) ===== */
+    let __inputDeadline = 0, __inputCountdownTimer = null;
+    function getCountdownText(){
+      if (!__inputDeadline) return '';
+      const ms = Math.max(0, __inputDeadline - Date.now());
+      const s  = Math.floor(ms/1000);
+      const mm = String(Math.floor(s/60)).padStart(2,'0');
+      const ss = String(s%60).padStart(2,'0');
+      return ` — ${mm}:${ss}`;
+    }
+    function startInputCountdown(ms){
+      stopInputCountdown();
+      __inputDeadline = Date.now() + Math.max(0, Number(ms) || 0);
+      __inputCountdownTimer = setInterval(()=>{}, 500); // piggy-backs on status dots
+    }
+    function stopInputCountdown(){
+      __inputDeadline = 0;
+      if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer = null; }
+    }
 
-    // Input row helpers
-    let inputShown = false; let inputArmTimer = null;
-    function showInputRow(on){
+    let __statusTimer = null, __statusBase = '';
+    function startStatusDots(baseText){
+      stopStatusDots();
+      __statusBase = baseText || 'Executing';
+      let dots = 0;
+      __statusTimer = setInterval(()=>{
+        dots = (dots+1) % 4;
+        window.PolyShell?.setStatus(__statusBase + '.'.repeat(dots) + getCountdownText(), 'busy');
+      }, 400);
+    }
+    function stopStatusDots(){ if (__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
+
+    /* ===== Console helpers ===== */
+    function setConsole(text){
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent = text || '';
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
+    }
+    function termWrite(t){
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent += t;
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
+    }
+
+    /* ===== Input row ===== */
+    let inputWaitMs = 5 * 60 * 1000;
+    function focusConsoleInput(){
+      const el = document.getElementById('consoleInput'); if (!el) return;
+      el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+    function showInputRow(show){
       const row = document.getElementById('consoleRow');
-      if (!row) return; row.style.display = on ? 'flex' : 'none';
-      inputShown = !!on; if (on){ const i = document.getElementById('consoleInput'); i.textContent=''; i.focus(); }
+      const pre = document.getElementById('jconsole');
+      const prefix = document.getElementById('consolePrefix');
+      if (row) row.style.display = show ? 'flex' : 'none';
+
+      if (show){
+        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
+        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+        else { prefix.textContent = ''; }
+
+        window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
+        window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+        startInputCountdown(inputWaitMs);
+        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+
+        focusConsoleInput();
+      }else{
+        if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
+          window.PolyShell?.setStatus('Executing...', 'busy');
+        }
+        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
+      }
     }
 
-    // Heuristic: does code likely need input? (C & C++)
+    document.addEventListener('keydown', (e)=>{
+      const el = document.getElementById('consoleInput');
+      if (!el || el.offsetParent === null) return;
+      if (e.target !== el) return;
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        stopInputCountdown();
+        window.PolyShell?.stopInputTicker?.();
+        __statusBase = 'Executing'; startStatusDots(__statusBase);
+        window.PolyShell?.setRunnerPhase?.('running');
+
+        const pre    = document.getElementById('jconsole');
+        const prefix = document.getElementById('consolePrefix');
+        if (prefix && prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
+
+        const line = el.textContent;
+        termWrite(line + '\n');
+        el.textContent = '';
+
+        try{
+          if (window.termWS && window.termWS.readyState === 1 && window.wsRunInFlight){
+            window.termWS.send(JSON.stringify({ type:'stdin', data: line + '\n' }));
+          }
+        }catch{}
+        focusConsoleInput();
+      }
+    }, { capture:true });
+
+    /* ===== Monaco markers ===== */
+    function clearEditorMarkers(){
+      if (!window.monaco || !window.editor) return;
+      const m = window.editor.getModel();
+      if (m) window.monaco.editor.setModelMarkers(m, 'cpp-compile', []);
+    }
+    function setEditorMarker(line, message){
+      if (!window.monaco || !window.editor) return;
+      const m = window.editor.getModel(); if (!m) return;
+      const maxCol = Math.max(1, m.getLineMaxColumn(line || 1));
+      window.monaco.editor.setModelMarkers(m, 'cpp-compile', [{
+        startLineNumber: line || 1, endLineNumber: line || 1,
+        startColumn: 1, endColumn: maxCol,
+        message: String(message || 'Error'), severity: window.monaco.MarkerSeverity.Error
+      }]);
+    }
+
+    /* ===== Helpers ===== */
     function codeNeedsInput(src){
-      return /\bscanf\s*\(|\bgetchar\s*\(|\bgets\s*\(|\bfgets\s*\(|\bfscanf\s*\(|\bstd::cin\s*>>|\bcin\s*>>|\bstd::getline\s*\(|\bgetline\s*\(/.test(src);
+      return /\b(?:std::)?cin\s*>>|\bstd::getline\s*\(|\bgetline\s*\(|\bgetchar\s*\(/.test(src);
     }
 
-    // Complexity button enable pulse
+    // Overlay helpers (same naming as Java)
+    function showRunnerOverlay(msg='Connecting to C++ runner…', pct=10, hint='Warming up backend…'){
+      const ov=document.getElementById('runnerOverlay'); const bar=document.getElementById('runnerBar');
+      const m=document.getElementById('runnerMsg'); const h=document.getElementById('runnerHint');
+      if (!ov||!bar||!m||!h) return; ov.style.display='flex'; m.textContent=msg; h.textContent=hint;
+      bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
+    }
+    function updateRunnerOverlay({msg, pct, hint}){
+      const m=document.getElementById('runnerMsg'); const h=document.getElementById('runnerHint');
+      const bar=document.getElementById('runnerBar'); if (msg&&m) m.textContent=msg; if (hint&&h) h.textContent=hint;
+      if (typeof pct==='number' && bar){ bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%'; }
+    }
+    function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none'; }
+
+    // Complexity button toggle (match Java)
     function setComplexityEnabled(on){
-      const b = document.getElementById('btnComplexity'); if (!b) return;
-      const was = b.disabled; b.disabled = !on;
-      if (on && was && !b.dataset.pulsed){ b.classList.add('btn-pulse'); b.dataset.pulsed='1'; setTimeout(()=>b.classList.remove('btn-pulse'), 900); }
+      const b=document.getElementById('btnComplexity'); if (!b) return;
+      const was=b.disabled; b.disabled=!on;
+      if (on && was && !b.dataset.pulsedOnce){
+        b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1';
+        setTimeout(()=> b.classList.remove('btn-pulse'), 1000);
+      }
     }
     window.setComplexityEnabled = setComplexityEnabled;
 
-    // ===== Runner state =====
-    let runWS = null;           // active websocket
-    let runToken = null;        // token from prepare
-    let isRunning = false;
-
-    function setRunnerPhase(phase){ // 'idle' | 'compile' | 'run' | 'waiting'
-      const s = window.PolyShell?.setStatus || (()=>{});
-      if (phase==='idle') s('Ready','ok');
-      if (phase==='compile') s('Compiling…');
-      if (phase==='run') s('Executing…');
-      if (phase==='waiting') s('Waiting for Input…');
-    }
-
-    function setButtons({running}){
-      const bRun = document.getElementById('btnRun');
-      const bStop = document.getElementById('btnStop');
-      const bReset = document.getElementById('btnReset');
-      if (bRun) bRun.disabled = running;
-      if (bStop) bStop.disabled = !running;
-      if (bReset) bReset.disabled = running;
-    }
-
-    function connectOverlay(show, msg='Connecting to C++ runner…'){
-      const ov = document.getElementById('runnerOverlay');
-      if (!ov) return; ov.style.display = show ? 'flex' : 'none';
-      const m = document.getElementById('runnerMsg'); if (m) m.textContent = msg;
-    }
+    /* ===== Backend endpoints for C++ ===== */
+    const CPP_API_BASE = 'https://polycode-cc.onrender.com';
+    const CPP_WS_BASE  = 'wss://polycode-cc.onrender.com/cc';
 
     async function prepare(){
       const code = window.editor ? window.editor.getValue() : '';
-      if (!code.trim()){ setConsole(''); return null; }
-      const files = [{ path: 'main.cpp', content: code }];
-      const url = CC_API_BASE + '/api/cc/prepare';
-      const res = await fetch(url, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json' },
+      const files = [{ path:'main.cpp', content:code }];
+      const res = await fetch(CPP_API_BASE + '/api/cc/prepare', {
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ lang:'cpp', files, entry:'main.cpp', output:'a.out' })
       });
       if (!res.ok) throw new Error('Prepare failed: ' + res.status);
       return res.json();
     }
 
-    function attachInputHandlers(send){
-      const input = document.getElementById('consoleInput');
-      if (!input) return;
-      input.onkeydown = (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          const text = input.textContent + '\n';
-          send(text);
-          input.textContent = '';
-        }
-      };
+    // Parse g++/clang++ error line
+    function parseCxxCompileErrorLine(text){
+      const m = /main\.(?:cpp|cc|cxx|C):(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(text);
+      return m ? { line: Math.max(1, parseInt(m[1],10)), msg: m[2] } : null;
     }
 
-    async function runCpp(){
-      if (isRunning) return; isRunning = true; setButtons({running:true}); setRunnerPhase('compile'); setConsole('');
-      try {
-        connectOverlay(true);
-        const prep = await prepare();
-        connectOverlay(false);
-        if (!prep || !prep.ok || !prep.token){
-          setConsole((prep && prep.compileLog) ? prep.compileLog : 'Compilation failed.');
-          isRunning = false; setButtons({running:false}); setRunnerPhase('idle'); return;
-        }
-        runToken = prep.token;
-        const needsStdin = codeNeedsInput(window.editor.getValue());
-        showInputRow(needsStdin);
-        if (needsStdin) setRunnerPhase('waiting'); else setRunnerPhase('run');
+    /* ===== Heartbeat ===== */
+    let hbInterval=null, hbTimeout=null;
+    function startHeartbeat(ws){
+      stopHeartbeat();
+      hbInterval = setInterval(()=>{ try{
+        if (ws.readyState!==1) return;
+        ws.send(JSON.stringify({type:'ping'}));
+        clearTimeout(hbTimeout);
+        hbTimeout = setTimeout(()=>{ console.warn('Runner heartbeat missed'); }, 5000);
+      }catch{} }, 25000);
+    }
+    function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
-        // Connect WS
-        runWS = new WebSocket(CC_WS_URL + '?token=' + encodeURIComponent(runToken));
-        runWS.onopen = () => { /* ready */ };
-        runWS.onmessage = (ev) => {
-          appendConsole(typeof ev.data === 'string' ? ev.data : '');
-        };
-        runWS.onerror = () => { appendConsole('\n[connection error]\n'); };
-        runWS.onclose = () => {
-          isRunning = false; setButtons({running:false}); setRunnerPhase('idle'); showInputRow(false);
-        };
+    /* ===== Run flow (mirrors Java structure) ===== */
+    window.runLang = async function(){
+      clearEditorMarkers();
+      setComplexityEnabled(false);
+      const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
+      showInputRow(false);
+      setConsole('');
+      document.getElementById('output')?.classList.remove('error');
 
-        // Hook input
-        attachInputHandlers((text) => {
-          if (runWS && runWS.readyState === 1) {
-            runWS.send(JSON.stringify({ type:'stdin', data:text }));
-            setRunnerPhase('run');
+      const src = window.editor ? window.editor.getValue() : '';
+      const needsStdin = codeNeedsInput(src);
+
+      const runState = { exitCode:null, compiled:false };
+
+      return new Promise(async (resolve, reject)=>{
+        try{
+          window.PolyShell?.setStatus('Compiling…','busy');
+          __statusBase = 'Compiling'; startStatusDots(__statusBase);
+
+          const prep = await prepare();
+
+          if (!prep || !prep.ok || !prep.token){
+            stopStatusDots();
+            const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
+            termWrite((log||'').trim() + '\n');
+            const parsed = parseCxxCompileErrorLine(log||'');
+            if (parsed){ setEditorMarker(parsed.line, parsed.msg); }
+            else { setEditorMarker(1, (log.split('\n')[0] || 'Compilation failed').trim()); }
+            window.PolyShell?.setRunnerPhase?.('error');
+            window.PolyShell?.setStatus('Execution Failed','error');
+            setComplexityEnabled(false);
+            return reject(new Error('compile_failed'));
           }
-        });
-      } catch (e){
-        connectOverlay(false);
-        setConsole((e && e.message) ? e.message : 'Error');
-        isRunning = false; setButtons({running:false}); setRunnerPhase('idle');
-      }
-    }
+          runState.compiled = true;
 
-    function stopRun(){ try{ runWS?.close(); }catch{} }
-    function resetAll(){ if (isRunning) return; setConsole(''); showInputRow(false); setRunnerPhase('idle'); }
+          showRunnerOverlay('Connecting to C++ runner…', 12, 'Creating interactive session…');
+          __statusBase = 'Connecting'; startStatusDots(__statusBase);
 
-    // ===== Wire UI =====
-    function wireUI(){
-      document.getElementById('btnRun')?.addEventListener('click', runCpp);
-      document.getElementById('btnStop')?.addEventListener('click', stopRun);
-      document.getElementById('btnReset')?.addEventListener('click', resetAll);
-      document.addEventListener('keydown', (e)=>{
-        if (e.key === 'F9'){ e.preventDefault(); runCpp(); }
-        if ((e.ctrlKey || e.metaKey) && e.key === '.') { e.preventDefault(); stopRun(); }
-        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'r')) { e.preventDefault(); resetAll(); }
-      }, true);
+          const ws = new WebSocket(CPP_WS_BASE + '?token=' + encodeURIComponent(prep.token));
+          window.termWS = ws; window.wsRunInFlight = true;
 
-      // Complexity
-      const btnCx = document.getElementById('btnComplexity');
-      if (btnCx) {
-        btnCx.addEventListener('click', () => {
-          const m = document.getElementById('cxModal');
-          if (m) m.setAttribute('aria-hidden','false');
-          if (window.PolyShell?.setStatus) window.PolyShell.setStatus('Analyzing…');
-          setTimeout(() => window.PolyShell?.setStatus('Ready','ok'), 400);
-        });
-      }
+          let settled = false;
+          const finish = (ok)=>{
+            if (settled) return; settled = true;
+            try{ hideRunnerOverlay(); }catch{}
+            try{ stopHeartbeat(); }catch{}
+            stopStatusDots(); stopInputCountdown();
+            window.PolyShell?.stopInputTicker?.();
+            showInputRow(false);
+            window.wsRunInFlight = false;
+            ok ? resolve() : reject(new Error('run_failed'));
+          };
 
-      // Enable complexity once Monaco is ready
-      setComplexityEnabled(true);
-    }
+          ws.addEventListener('open', ()=>{
+            hideRunnerOverlay();
+            __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
+            startStatusDots(__statusBase);
+            startHeartbeat(ws);
+            window.PolyShell?.setRunnerPhase?.('running');
+            if (needsStdin){
+              setTimeout(()=>{ if (!settled && window.wsRunInFlight) showInputRow(true); }, 400);
+            }
+          });
 
-    // ===== Bootstrap =====
-    window.bootstrap = async function bootstrap(){
-      await window.PolyShell?.initMonaco?.({ value:SAMPLE_CPP, language:'cpp' });
-      window.PolyShell?.setStatus?.('Ready','ok');
-      wireUI();
+          ws.addEventListener('message', (ev)=>{
+            const data = String(ev.data || '');
+            termWrite(data);
+
+            try{
+              const msg = JSON.parse(data);
+              if (msg.type === 'stdin_req'){
+                showInputRow(true);
+                window.PolyShell?.setRunnerPhase?.('waiting_input');
+                window.PolyShell?.setStatus('Waiting for User Input…','busy');
+                __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+                startInputCountdown(5*60*1000);
+                window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+              } else if (msg.type === 'exit'){
+                runState.exitCode = Number(msg.code);
+              }
+            }catch{}
+
+            const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
+            if (m) runState.exitCode = parseInt(m[1],10);
+          });
+
+          ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
+          ws.addEventListener('close', ()=>{ const ok = (runState.exitCode === 0); finish(ok); }, { once:true });
+        }catch(err){
+          stopStatusDots(); stopInputCountdown();
+          window.PolyShell?.stopInputTicker?.();
+          showInputRow(false);
+          window.wsRunInFlight = false;
+          window.PolyShell?.setRunnerPhase?.('error');
+          window.PolyShell?.setStatus('Execution Failed','error');
+          document.getElementById('output')?.classList.add('error');
+          termWrite((err && err.message) ? (err.message+'\n') : 'Execution failed\n');
+          reject(err);
+        }
+      });
     };
 
-    // Start once shell.js has loaded & DOM is ready
-    document.addEventListener('DOMContentLoaded', () => { try{ window.bootstrap(); }catch(e){ console.error(e); } });
+    window.clearLang = function(){
+      setConsole('');
+      try{ window.termWS?.close(); }catch{}
+      window.termWS = null; window.wsRunInFlight = false;
+      showInputRow(false);
+      setComplexityEnabled(false);
+      stopStatusDots(); stopInputCountdown();
+      window.PolyShell?.stopInputTicker?.();
+      window.PolyShell.setStatus('Ready','ok');
+    };
+
+    // Start after shell.js
+    (function startWhenReady(){
+      function start(){
+        if (!window.PolyShell){
+          const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
+          setTimeout(()=>clearInterval(id), 3000);
+          return;
+        }
+        window.bootstrap();
+      }
+      if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
+      else { start(); }
+    })();
   </script>
 
-  <!-- Connecting overlay -->
-  <div id="runnerOverlay" style="position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999;">
-    <div style="min-width:280px; max-width:420px; padding:16px 18px; border-radius:16px; background:rgba(20,22,25,.9); color:#e9edf3; border:1px solid rgba(255,255,255,.12); box-shadow: var(--shadow-3d); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
+  <!-- Runner overlay -->
+  <div id="runnerOverlay" aria-hidden="true">
+    <div id="runnerCard">
       <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to C++ runner…</div>
-      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius:999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:.9;"></div></div>
+      <div id="runnerBarWrap"><div id="runnerBar"></div></div>
       <div id="runnerHint" style="margin-top:8px; opacity:.8;">Warming up backend…</div>
     </div>
   </div>
 
-  <!-- Complexity modal -->
+  <!-- Complexity modal (optional UI) -->
   <div class="pc-modal" id="cxModal" aria-hidden="true">
     <div class="pc-modal__backdrop" data-close></div>
     <div class="pc-modal__dialog">
@@ -311,27 +538,19 @@
       <div class="pc-modal__body">
         <div class="cx-summary" id="cxSummary"></div>
         <hr/>
-        <table class="cx-table" id="cxTable">
-          <thead><tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr></thead>
-          <tbody></tbody>
-        </table>
+        <table class="cx-table" id="cxTable"><thead><tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr></thead><tbody></tbody></table>
         <div class="cx-notes" id="cxNotes"></div>
       </div>
       <div class="pc-modal__footer"><button class="btn" data-close>Close</button></div>
     </div>
   </div>
-
   <script>
-    // simple close handlers for modal
-    document.addEventListener('click', (e) => {
-      const t = e.target;
-      if (t?.matches('[data-close]')){
-        const m = document.getElementById('cxModal'); if (m) m.setAttribute('aria-hidden','true');
-      }
+    document.addEventListener('click', (e)=>{ if (e.target && e.target.matches('[data-close]')){ document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); }});
+    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{
+      document.getElementById('cxModal')?.setAttribute('aria-hidden','false');
+      window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
     });
   </script>
-
-  <!-- Complexity engine -->
-  <script src="./js/complexity.js" defer></script>
+  <script src="./js/complexitycpp.js" defer></script>
 </body>
 </html>
