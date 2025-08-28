@@ -132,16 +132,29 @@ import os, sys, runpy, builtins
 os.environ['POLY_TMP'] = ${JSON.stringify(tmpForImgs)}
 
 def _pc_input(prompt=''):
+    # 1) print prompt first so user sees it in the console
     try:
         if prompt:
             sys.stdout.write(str(prompt)); sys.stdout.flush()
-        sys.stderr.write('[[CTRL]]:stdin_req\\n'); sys.stderr.flush()
     except:
         pass
+
+    # 2) send stdin_req with the prompt payload (base64) so the UI can show it immediately
+    try:
+        b64 = base64.b64encode(str(prompt).encode('utf-8')).decode('ascii')
+        sys.stderr.write('[[CTRL]]:stdin_req:' + b64 + '\n'); sys.stderr.flush()
+    except:
+        pass
+
+    # 3) read the line
     line = sys.stdin.readline()
     if not line:
         return ''
-    return line.rstrip('\\r\\n')
+    return line.rstrip('\r\n')
+
+builtins.input = _pc_input
+runpy.run_path('main.py', run_name='__main__')
+
 
 builtins.input = _pc_input
 runpy.run_path('main.py', run_name='__main__')
