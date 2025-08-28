@@ -273,7 +273,9 @@ function findPythonErrorLine(text) {
     el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
     const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
-function showInputRow(show){
+
+
+  function showInputRow(show, promptFromServer = '') {
   const row    = document.getElementById('consoleRow');
   const pre    = document.getElementById('jconsole');
   const prefix = document.getElementById('consolePrefix');
@@ -281,25 +283,30 @@ function showInputRow(show){
 
   row.style.display = show ? 'flex' : 'none';
 
-  if (show){
-    // Move the console tail (prompt) into prefix
-    const txt  = pre.textContent;
-    const i    = txt.lastIndexOf('\n');
-    const tail = txt.slice(i + 1);
-    if (tail && !/^\s*$/.test(tail)) {
-      prefix.textContent = tail + ' ';
-      pre.textContent = txt.slice(0, i + 1);
+  if (show) {
+    // Prefer prompt from server (no race). Fallback to tail of console.
+    let prompt = String(promptFromServer || '');
+    if (!prompt) {
+      const txt  = pre.textContent;
+      const i    = txt.lastIndexOf('\n');
+      const tail = txt.slice(i + 1);
+      if (tail && !/^\s*$/.test(tail)) {
+        prompt = tail + ' ';
+        pre.textContent = txt.slice(0, i + 1);
+      }
     } else {
-      prefix.textContent = '';
+      // Ensure the printed prompt stays in the console too
+      if (!pre.textContent.endsWith('\n')) pre.textContent += '';
     }
 
+    prefix.textContent = prompt || '';
     window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
     __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
     startInputCountdown(inputWaitMs);
     window.PolyShell?.startInputTicker?.(getCountdownText, 500);
     focusConsoleInput();
   } else {
-    // restore tail if any
+    // put the prefix back if any
     if (prefix.textContent) {
       pre.textContent += prefix.textContent;
       prefix.textContent = '';
