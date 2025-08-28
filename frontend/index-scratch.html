@@ -48,9 +48,6 @@
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html">Java</option>
             <option value="./index-python.html">Python</option>
-            <option value="./index-scratch.html">Scratch</option>
-
-            
             <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
           </select>
         </div>
@@ -175,8 +172,10 @@
       // Sensible defaults
       p.set('fps','60');
       p.set('turbo','false');
+      // Allow embedding the editor in an iframe
+      p.set('embed','1');
       if (opts && opts.projectId){
-        // Load a specific project by ID
+        // Load a specific project by ID in the editor
         p.set('project_id', String(opts.projectId).trim());
       }
       return base + '?' + p.toString();
