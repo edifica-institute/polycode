@@ -10,40 +10,19 @@
   <meta name="color-scheme" content="dark light" />
 
   <style>
-    /* Input row look */
+    /* Match Java page input row look */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
-    #consoleInput{
-      display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
-      caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only;
-    }
+    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only; }
     #consoleInput:focus{ outline:0 }
     #consoleInput::selection{ background:rgba(255,255,255,.15) }
 
+    /* Disable attention animation when disabled */
     .btn[disabled], .btn.attn[disabled]{ animation:none!important }
+
     .pane-foot .msg{ white-space:nowrap }
     .panel .pane-head{ display:flex; align-items:center }
 
-    /* Output pane: single pinned horizontal scrollbar */
-    #output{ position:relative; padding:0; }
-    /* Vertical scroller only; hide native horizontal bar */
-    #outV{
-      position:absolute; inset:0 0 16px 0; /* leave room for pinned h-scroll */
-      overflow-y:auto; overflow-x:hidden; padding:12px;
-      -webkit-overflow-scrolling:touch;
-    }
-    /* This wrapper moves horizontally via transform so we don't need a native h-scroll */
-    #outH{ position:relative; display:inline-block; transform:translateX(0); will-change:transform; }
-    #jconsole{
-      margin:0; white-space:pre !important; word-break:normal !important; overflow-wrap:normal !important;
-      line-height:1.25;
-    }
-    #hbar{
-      position:absolute; left:0; right:0; bottom:0; height:16px;
-      overflow-x:auto; overflow-y:hidden;
-    }
-    #hbarInner{ height:1px; } /* width set by JS */
-
-    /* Complexity modal tokens (shared with Java) */
+    /* Complexity modal (same tokens as Java) */
     .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
     .pc-modal[aria-hidden="false"] { display:block; }
     .pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
@@ -58,6 +37,7 @@
     .cx-table th{ text-align:left; position:sticky; top:0; background:inherit; }
     .cx-notes{ opacity:.9; font-size:12px; margin-top:8px; }
 
+    /* One-time brief pulse when Complexity is enabled */
     @media (prefers-reduced-motion: no-preference) {
       @keyframes pc-pulse-brief { 0%{transform:scale(1)} 40%{transform:scale(1.08)} 100%{transform:scale(1)} }
       .btn-pulse { animation: pc-pulse-brief 0.9s ease-out; }
@@ -66,7 +46,7 @@
 </head>
 
 <body class="page-fade">
-  <!-- Header -->
+  <!-- Header (mirrors Java layout) -->
   <header class="site-header">
     <div class="brand-wrap">
       <div class="brand-grid">
@@ -83,27 +63,31 @@
     </nav>
   </header>
 
-  <!-- App -->
+  <!-- App (3-panel layout to match Java) -->
   <div class="stage">
     <div class="app">
-      <!-- LEFT -->
+      <!-- LEFT panel -->
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
           <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
-            <option value="./index-c.html" selected>C</option>
+           <option value="./index-c.html" selected>C</option>
             <option value="./index-cpp.html">C++</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html">Java</option>
             <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
+            
           </select>
         </div>
-        <div class="pane-body"><div id="leftContent" style="margin-top:12px;"></div></div>
+        <div class="pane-body">
+          <div id="leftContent" style="margin-top:12px;"></div>
+        </div>
         <div class="pane-foot"><span class="msg" id="leftFoot">About C</span></div>
       </section>
 
+      <!-- RESIZER between left and center -->
       <div class="v-resize"><div id="dragLeft"></div></div>
 
-      <!-- CENTER (Editor) -->
+      <!-- CENTER panel (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
           <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
@@ -136,9 +120,10 @@
         <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
       </section>
 
+      <!-- RESIZER between center and right -->
       <div class="v-resize right"><div id="dragRight"></div></div>
 
-      <!-- RIGHT (Console) -->
+      <!-- RIGHT panel (Console) -->
       <section class="panel right" id="rightPanel">
         <div class="pane-head">
           <span class="title">C – Console | Polycode</span>
@@ -156,20 +141,15 @@
           </div>
         </div>
 
-        <div id="output" class="screen-dim">
-          <!-- Scrollable output + pinned bottom h-scroll -->
-          <div id="outV">
-            <div id="outH">
-              <pre id="jconsole" class="console"></pre>
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <!-- Output only -->
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
 
-              <!-- Inline input row -->
-              <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
-                <span id="consolePrefix"></span>
-                <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
-              </div>
-            </div>
+          <!-- Inline input row (shown only when needed) -->
+          <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
+            <span id="consolePrefix"></span>
+            <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
           </div>
-          <div id="hbar"><div id="hbarInner"></div></div>
         </div>
 
         <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
@@ -182,7 +162,7 @@
     <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
   </div>
 
-  <!-- Footer -->
+  <!-- Footer (same as Java) -->
   <footer class="site-footer">
     <div class="footer-grid">
       <div class="footer-left">
@@ -213,384 +193,64 @@
     </div>
   </footer>
 
-  <!-- Scripts -->
+  <!-- Scripts (Monaco + site shell) -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
-  <!-- Page script -->
+  <!-- Page script: C runner wired to shell-style UI -->
   <script>
-    const SAMPLE_C =
-`#include <stdio.h>
+    // ---- Sample C for editor ----
+    const SAMPLE_C = `#include <stdio.h>\n\nint main(){\n    int n;\n    printf("Enter a number: ");\n    if (scanf("%d", &n) != 1) return 0;\n    printf("Square = %d\\n", n*n);\n    return 0;\n}`;
 
-int main(){
-    int n;
-    printf("Enter a number: ");
-    if (scanf("%d", &n) != 1) return 0;
-    printf("Square = %d\\n", n*n);
-    return 0;
-}`;
-
-    /* ===== Bootstrap ===== */
-    window.bootstrap = async function(){
+    // Make bootstrap globally visible (shell.js waits for this in some cases)
+    window.bootstrap = async function bootstrap(){
       await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
-      installCompileMarkerGuard(); 
-      window.clearEditorMarkers = window.clearCompileMarkers;
       window.PolyShell.setStatus('Ready', 'ok');
+      // Optional: load left-pane content (create /content/c.html if you want)
       window.PolyShell.loadLeftContent?.('c');
+      // Complexity stays disabled until a successful run
       window.setComplexityEnabled?.(false);
     };
 
+    // ===== Console helpers (match Java IDs) =====
+    function setConsole(text){ const el = document.getElementById('jconsole'); if (el){ el.textContent = text || ''; document.getElementById('output')?.scrollTo({top:1e9}); } }
+    function termWrite(t){ const el = document.getElementById('jconsole'); if (el){ el.textContent += t; document.getElementById('output')?.scrollTo({top:1e9}); } }
 
-
-    
-    /* ===== Monaco marker helpers ===== */
-
-function installCompileMarkerGuard(){
-  if (!window.monaco || !window.editor) return;
-
-  const MARK_OWNER = window.PC_COMPILE_OWNER || (
-    window.PC_COMPILE_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2))
-  );
-
-  const S = window.__pcGuardState || (window.__pcGuardState = {
-    baseFn: null,
-    wrapper: null,
-    stickySpec: [],   // <-- RAW desired markers (unclamped)
-    applied: [],      // last applied (derived from stickySpec)
-    allowClear: false,
-    keepAlive: null,
-    reassertQueued: false,
-    waitingForContent: false,
-  });
-
-  const ensureWrapped = () => {
-    const current = monaco.editor.setModelMarkers;
-    if (current !== S.wrapper) {
-      S.baseFn = current;
-      S.wrapper = function(model, owner, markers){
-        if (owner === 'c-compile') owner = MARK_OWNER;
-
-        // Block unintended clears of our owner; re-assert from stickySpec, not from 'applied'
-        if (owner === MARK_OWNER && Array.isArray(markers) && markers.length === 0 && !S.allowClear && S.stickySpec.length){
-          reassertFromSticky();
-          return;
-        }
-        return S.baseFn.apply(monaco.editor, arguments);
-      };
-      monaco.editor.setModelMarkers = S.wrapper;
-    }
-  };
-
-  const sevMap = {
-    warning: monaco.MarkerSeverity.Warning,
-    info:    monaco.MarkerSeverity.Info,
-    hint:    monaco.MarkerSeverity.Hint
-  };
-
-  const normalizeForModel = (spec, model) => {
-    const lineCount = Math.max(1, model.getLineCount());
-    return spec.map(e => {
-      // clamp only for this *application*, never mutate spec
-      const line = Math.min(Math.max(1, Number(e.line)||1), lineCount);
-      const max  = model.getLineMaxColumn(line);
-      const col  = Math.min(Math.max(1, Number(e.col)||1), Math.max(1, max - 1));
-      const sev  = sevMap[(e.sev||'').toLowerCase()] || monaco.MarkerSeverity.Error;
-      return {
-        startLineNumber: line, endLineNumber: line,
-        startColumn: col, endColumn: Math.min(max, col+1),
-        message: String(e.msg || 'Error'), severity: sev
-      };
-    });
-  };
-
-  const reassertFromSticky = () => {
-    const model = window.editor?.getModel(); if (!model) return;
-    ensureWrapped();
-
-    // If the model is in the "shrunk" transient state, wait for content to settle.
-    const needLines = S.stickySpec.reduce((m, e) => Math.max(m, Number(e.line)||1), 1);
-    if (model.getLineCount() < needLines) {
-      if (!S.waitingForContent) {
-        S.waitingForContent = true;
-        const off1 = window.editor.onDidChangeModelContent?.(() => {
-          if (model.getLineCount() >= needLines) {
-            off1?.dispose?.();
-            S.waitingForContent = false;
-            reassertFromSticky();
-          }
-        });
-        // Fallback: also try next frame (and one more after) in case there are no content events
-        requestAnimationFrame(()=> requestAnimationFrame(()=>{
-          if (S.waitingForContent) { S.waitingForContent = false; reassertFromSticky(); }
-        }));
-      }
-      return;
-    }
-
-    const markers = normalizeForModel(S.stickySpec, model);
-    S.baseFn.call(monaco.editor, model, MARK_OWNER, markers);
-    S.applied = markers;
-  };
-
-  const reassertSoon = () => {
-    if (S.reassertQueued) return;
-    S.reassertQueued = true;
-    requestAnimationFrame(()=> {
-      S.reassertQueued = false;
-      reassertFromSticky();
-    });
-  };
-
-  // Public API: record RAW spec (do not clamp) and apply
-  window.setEditorMarkers = function(list){
-    const model = window.editor?.getModel(); if (!model) return;
-    const items = Array.isArray(list) ? list : (list ? [list] : []);
-    // Store a *raw* copy (clamp only on application)
-    S.stickySpec = items.map(e => ({
-      line: Number(e?.line) || 1,
-      col:  Number(e?.col)  || 1,
-      msg:  String(e?.msg || 'Error'),
-      sev:  e?.sev || 'error'
-    }));
-
-    ensureWrapped();
-    reassertFromSticky();
-  };
-
-  window.clearCompileMarkers = function(){
-    const model = window.editor?.getModel(); if (!model) return;
-    ensureWrapped();
-    S.allowClear = true;
-    S.baseFn.call(monaco.editor, model, MARK_OWNER, []);
-    S.allowClear = false;
-    S.applied = [];
-    S.stickySpec = [];
-  };
-
-  // If our markers disappear (e.g., DOM/layout churn), re-assert next frame
-  monaco.editor.onDidChangeMarkers?.(() => reassertSoon());
-  window.editor.onDidLayoutChange?.(() => reassertSoon());
-  window.editor.onDidChangeModel?.(() => reassertSoon());
-  window.addEventListener('resize', () => reassertSoon());
-
-  if (!S.keepAlive) S.keepAlive = setInterval(ensureWrapped, 500);
-  ensureWrapped();
-}
-
-
-
-
-    
-
-
-
-    function findAllGccErrors(text){
-  if (!text) return [];
-  const clean = text.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
-  const out = [];
-  let m;
-
-  // path/to/file.c:LINE:COL: error: MSG
-  const re1 = /(?:^|\n)(?:.*?)(?:^|[\/\\])([^\/\\\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-
-  while ((m = re1.exec(clean))) out.push({ file:m[1], line:+m[2], col:m[3]?+m[3]:1, msg:m[4] });
-
-  // <stdin>:LINE:COL: error: MSG
-  const re2 = /(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-  while ((m = re2.exec(clean))) out.push({ file:'<stdin>', line:+m[1], col:m[2]?+m[2]:1, msg:m[3] });
-
-  // file.c:LINE: error: MSG  (no column)
-  const re3 = /(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/mg;
-  while ((m = re3.exec(clean))) out.push({ file:m[1], line:+m[2], col:1, msg:m[3] });
-
-  // de-dupe by (line,msg) to avoid repeats as log grows
-  const seen = new Set();
-  return out.filter(e => {
-    const k = `${e.line}|${e.col}|${e.msg}`;
-    if (seen.has(k)) return false; seen.add(k); return true;
-  });
-}
-
- function findFirstGccError(text){
-  if (!text) return null;
-  const clean = text.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
-
-  // path/to/main.c:LINE:COL: error: MSG   (gcc/clang)
-  let m = /(?:^|\n)(?:.*?)(?:^|\/)([^\/\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/m.exec(clean);
-  if (m) return { file:m[1], line:Number(m[2]), col:m[3] ? Number(m[3]) : 1, msg:m[4] };
-
-  // <stdin>:LINE:COL: error: MSG          (some toolchains)
-  m = /(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/m.exec(clean);
-  if (m) return { file:'<stdin>', line:Number(m[1]), col:m[2] ? Number(m[2]) : 1, msg:m[3] };
-
-  // filename.c:LINE: error: MSG           (no column)
-  m = /(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/m.exec(clean);
-  if (m) return { file:m[1], line:Number(m[2]), col:1, msg:m[3] };
-
-  // no reliable line -> no marker
-  return null;
-}
-
-
-
-    /* ===== Console helpers ===== */
-    function refreshHWidth(){
-      const outV = document.getElementById('outV');
-      const outH = document.getElementById('outH');
-      const inner = document.getElementById('hbarInner');
-      if (outV && outH && inner){
-        inner.style.width = Math.max(outH.scrollWidth, outV.clientWidth) + 'px';
-      }
-    }
-    function setConsole(text){
-      const el = document.getElementById('jconsole'); if (!el) return;
-      el.textContent = text || '';
-      document.getElementById('outV')?.scrollTo({ top: 1e9 });
-      refreshHWidth();
-    }
-    function termWrite(t){
-      const el = document.getElementById('jconsole'); if (!el) return;
-      el.textContent += t;
-      document.getElementById('outV')?.scrollTo({ top: 1e9 });
-      refreshHWidth();
-    }
-    // Keep the content horizontally in sync with the pinned scrollbar
-    (function hsync(){
-      const outV = document.getElementById('outV');
-      const outH = document.getElementById('outH');
-      const hbar = document.getElementById('hbar');
-      if (!outV || !outH || !hbar) return;
-      const sync = ()=>{ outH.style.transform = 'translateX(' + (-hbar.scrollLeft) + 'px)'; };
-      hbar.addEventListener('scroll', sync);
-      window.addEventListener('resize', ()=>{ refreshHWidth(); sync(); });
-      refreshHWidth(); sync();
-    })();
-
-    /* ===== Input row ===== */
-    function focusConsoleInput(){
-      const el = document.getElementById('consoleInput'); if (!el) return;
-      el.focus();
-      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-    }
+    // Show inline input row, preserving any prompt text on the last line
     function showInputRow(show){
       const row = document.getElementById('consoleRow');
       const pre = document.getElementById('jconsole');
       const prefix = document.getElementById('consolePrefix');
       if (!row || !pre || !prefix) return;
-
       row.style.display = show ? 'flex' : 'none';
-
       if (show){
         const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
         if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
         else { prefix.textContent = ''; }
-        focusConsoleInput();
-
-        window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
-        window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-        startStatusDots('Waiting for User Input');
-        startInputCountdown(inputWaitMs);
-        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+        const el = document.getElementById('consoleInput');
+        if (el){ el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+        window.PolyShell.setStatus('Waiting for User Input...', 'busy');
       } else {
         if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
-        stopInputCountdown();
-        window.PolyShell?.stopInputTicker?.();
-        if (window.wsRunInFlight){
-          window.PolyShell?.setRunnerPhase?.('running');
-          window.PolyShell?.setStatus('Executing...', 'busy');
-          startStatusDots('Executing');
-        } else {
-          stopStatusDots();
-        }
       }
     }
 
-    /* ===== Complexity button ===== */
+    // ===== Complexity button enable/disable (one-time pulse) =====
     function setComplexityEnabled(on){
       const b = document.getElementById('btnComplexity'); if (!b) return;
-      const was = b.disabled; b.disabled = !on;
-      if (on && was && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1'; setTimeout(()=>b.classList.remove('btn-pulse'), 1000); }
+      const wasDisabled = b.disabled; b.disabled = !on;
+      if (on && wasDisabled && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce = '1'; setTimeout(()=> b.classList.remove('btn-pulse'), 1000); }
     }
     window.setComplexityEnabled = setComplexityEnabled;
 
-    /* ===== Input wait + status dots (like Java) ===== */
-    let __inputDeadline = 0, __inputCountdownTimer = null, __statusTimer = null;
-    let __statusBase  = 'Executing';
-    let inputWaitMs   = 5 * 60 * 1000; // 5 min
+    // ===== C runner endpoints =====
+    const C_API_BASE = 'https://polycode-cc.onrender.com';   // POST /api/cc/prepare {lang:'c', files:[], entry:'main.c'}
+    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';  // WS /cc?token=...
 
-    function getCountdownText(){
-      if (!__inputDeadline) return '';
-      const ms = Math.max(0, __inputDeadline - Date.now());
-      const s  = Math.floor(ms/1000);
-      const mm = String(Math.floor(s/60)).padStart(2,'0');
-      const ss = String(s%60).padStart(2,'0');
-      return ` — ${mm}:${ss}`;
-    }
-    function startInputCountdown(ms){
-      stopInputCountdown();
-      __inputDeadline = Date.now() + Math.max(0, Number(ms)||0);
-      __inputCountdownTimer = setInterval(()=>{
-        const el = document.getElementById('statusDots');
-        if (el) el.textContent = __statusBase + getCountdownText();
-      }, 500);
-    }
-    function stopInputCountdown(){
-      __inputDeadline = 0;
-      if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer=null; }
-    }
-    function startStatusDots(baseText){
-      stopStatusDots();
-      __statusBase = baseText || 'Executing';
-      let dots = 0;
-      __statusTimer = setInterval(()=>{
-        dots = (dots+1)%4;
-        const el = document.getElementById('statusDots');
-        const txt = __statusBase + '.'.repeat(dots) + getCountdownText();
-        if (el) el.textContent = txt; else window.PolyShell?.setStatus(txt,'busy');
-      }, 400);
-    }
-    function stopStatusDots(){ if (__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
-
-    /* ===== Runner overlay ===== */
-    function showRunnerOverlay(msg='Connecting to C runner…', pct=10, hint='Opening WebSocket…'){
-      const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'),
-            m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
-      if (!ov||!bar||!m||!h) return;
-      ov.style.display='flex'; m.textContent=msg; h.textContent=hint;
-      bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-    }
-    function updateRunnerOverlay({msg,pct,hint}){
-      const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'),
-            bar=document.getElementById('runnerBar');
-      if (msg&&m) m.textContent=msg; if (hint&&h) h.textContent=hint;
-      if (typeof pct==='number' && bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-    }
-    function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none'; }
-
-    /* ===== Heartbeat ===== */
-    let hbInterval=null, hbTimeout=null;
-    function startHeartbeat(ws){
-      stopHeartbeat();
-      hbInterval=setInterval(()=>{
-        try{
-          if (ws.readyState===1){
-            ws.send(JSON.stringify({type:'ping'}));
-            clearTimeout(hbTimeout);
-            hbTimeout=setTimeout(()=>{ console.warn('Runner heartbeat missed'); },5000);
-          }
-        }catch{}
-      },25000);
-    }
-    function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
-
-    /* ===== C runner endpoints ===== */
-    const C_API_BASE = 'https://polycode-cc.onrender.com';
-    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';
-
+    // Prepare step: compile + get token
     async function prepare(){
       const code = window.editor ? window.editor.getValue() : '';
-      const files = [{ path:'main.c', content: code }];
+      const files = [{ path: 'main.c', content: code }];
       const res = await fetch(C_API_BASE + '/api/cc/prepare', {
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
@@ -598,297 +258,101 @@ function installCompileMarkerGuard(){
       if (!res.ok) throw new Error('Prepare failed: ' + res.status);
       return res.json();
     }
-    function codeNeedsInput(src){ return /\b(scanf|fscanf|fgets|getchar|gets|getline|read)\b\s*\(/i.test(src); }
 
-    /* ===== Flags & finalization ===== */
-    let __cFlags = {
-      sawCompileErr:false, sawRuntimeErr:false, exitCode:null,
-      sawAnyOutput:false, inputProvided:false, needsStdin:false
-    };
-    let __aggLog = '';
-    const stripAnsi = (s)=> s.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+    function codeNeedsInput(src){ return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(|\bfscanf\s*\(/.test(src); }
 
-    function markFirstErrorFromLog(){
-      //const e = findFirstGccError(stripAnsi(__aggLog));
-      //if (e){ setEditorMarker(e.line, e.msg, e.col); }
-      window.setEditorMarkers(findAllGccErrors(stripAnsi(__aggLog)));
-    }
-    function finishUI(){ window.setRunUI?.(false); }
-
-    function finalizeStatus(){
-  // ❌ DO NOT clear here:
-  // clearCompileMarkers();
-
-  stopHeartbeat();
-  stopStatusDots();
-  stopInputCountdown();
-  window.PolyShell?.stopInputTicker?.();
-  window.wsRunInFlight = false;
-  showInputRow(false);
-  hideRunnerOverlay();
-
-  const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
-  const hasCompileErr =
-    __cFlags.sawCompileErr ||
-    /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
-  const hasRuntimeErr = __cFlags.sawRuntimeErr
-    || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
-
-  if (__cFlags.exitCode !== null) {
-    const ok = (__cFlags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr;
-    if (ok) {
-      window.PolyShell?.setRunnerPhase?.('success');
-      window.PolyShell.setStatus('Execution Success', 'ok');
-      window.clearCompileMarkers();        // ✅ clear only on success
-      setComplexityEnabled(true);
-    } else {
-      window.PolyShell?.setRunnerPhase?.('error');
-      window.PolyShell.setStatus(hasCompileErr ? 'Compilation Failed' : 'Execution Failed', 'error');
-      markFirstErrorFromLog();
-      setComplexityEnabled(false);
-    }
-    window.setRunUI?.(false);
-    return;
-  }
-
-  if (hasCompileErr) {
-    window.PolyShell?.setRunnerPhase?.('error');
-    window.PolyShell.setStatus('Compilation Failed', 'error');
-    markFirstErrorFromLog();
-    setComplexityEnabled(false);
-  } else if (hasRuntimeErr) {
-    window.PolyShell?.setRunnerPhase?.('error');
-    window.PolyShell.setStatus('Execution Failed', 'error');
-    setComplexityEnabled(false);
-  } else if (__cFlags.needsStdin && !__cFlags.inputProvided) {
-    window.PolyShell?.setRunnerPhase?.('error');
-    window.PolyShell.setStatus('Execution ended (no input / timeout)', 'error');
-    setComplexityEnabled(false);
-  } else {
-    window.PolyShell?.setRunnerPhase?.('success');
-    window.PolyShell.setStatus('Execution Finished', 'ok');
-    window.clearCompileMarkers();          // ✅ clear only on success/finished-without-errors
-    setComplexityEnabled(true);
-  }
-
-  window.setRunUI?.(false);
-}
-
-
-    /* ===== Send input on Enter, clear "waiting" ===== */
-    document.addEventListener('keydown',(e)=>{
+    // Keyboard: send on Enter when input row is visible
+    document.addEventListener('keydown', (e)=>{
       const el = document.getElementById('consoleInput');
-      if (!el || el.offsetParent===null) return;
-      if (e.target!==el) return;
-      if (e.key==='Enter'){
+      if (!el || el.offsetParent === null) return;   // not visible
+      if (e.target !== el) return;
+      if (e.key === 'Enter'){
         e.preventDefault();
         const line = el.textContent + '\n';
-        if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){
-          try{ window.termWS.send(JSON.stringify({type:'stdin', data: line})); }catch{}
+        if (window.termWS && window.termWS.readyState === 1 && window.wsRunInFlight){
+          try{ window.termWS.send(JSON.stringify({ type:'stdin', data: line })); }catch{}
         }
         termWrite(line);
-        el.textContent='';
-        __cFlags.inputProvided = true;
-
-        window.PolyShell?.setRunnerPhase?.('running');
-        window.PolyShell.setStatus('Executing…','busy');
-        stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-        startStatusDots('Executing');
-        showInputRow(false);
+        el.textContent = '';
+        window.PolyShell.setStatus('Executing…', 'busy');
       }
     }, true);
 
-    /* ===== Main run ===== */
-window.runLang = async function(){
-   installCompileMarkerGuard(); 
-  window.setRunUI?.(true);
- 
-  setConsole(''); document.getElementById('outV')?.classList.remove('error');
-  setComplexityEnabled(false);
-  try{ window.termWS?.close(); }catch{}
-  window.termWS = null; window.wsRunInFlight = false;
+    // Heartbeat helpers (optional safety)
+    let hbInterval = null, hbTimeout = null;
+    function startHeartbeat(ws){
+      stopHeartbeat();
+      hbInterval = setInterval(()=>{ try{ if (ws.readyState===1){ ws.send(JSON.stringify({type:'ping'})); clearTimeout(hbTimeout); hbTimeout = setTimeout(()=>{ console.warn('Runner heartbeat missed'); }, 5000); } }catch{} }, 25000);
+    }
+    function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
-  stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-  __cFlags = { sawCompileErr:false, sawRuntimeErr:false, exitCode:null, sawAnyOutput:false, inputProvided:false, needsStdin:false };
-  __aggLog = '';
+    // ===== Main run wired to shell.js (use same name as Java page) =====
+    window.runLang = async function runLang(){
+      // Reset console + state
+      setConsole(''); document.getElementById('output')?.classList.remove('error');
+      setComplexityEnabled(false);
 
-  window.PolyShell?.setRunnerPhase?.('running');
-  window.PolyShell.setStatus('Compiling…','busy');
-  showRunnerOverlay('Compiling C program…', 12, 'Sending source to backend…');
+      // Close any previous session
+      try{ window.termWS?.close(); }catch{} window.termWS = null; window.wsRunInFlight = false;
 
-  // --- compile / prepare ---
-  let prep;
-  try{
-    updateRunnerOverlay({ pct:28, hint:'Building with gcc…' });
-    prep = await prepare();
-    updateRunnerOverlay({ pct:45, hint:'Checking build artifacts…' });
-  }catch(e){
-    updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-    setTimeout(hideRunnerOverlay, 300);
-    setConsole((e && e.message) || 'Prepare failed');
-    __aggLog += String((e && e.message) || '');
-    window.PolyShell?.setRunnerPhase?.('error');
-    window.PolyShell.setStatus('Compilation Failed','error');
-    setComplexityEnabled(false);
-    finishUI();
-    // IMPORTANT: reject so shell.js catch() runs
-    throw new Error('compile_failed');
-  }
+      // Status
+      window.PolyShell.setStatus('Compiling…', 'busy');
 
-  if (!prep || !prep.ok || !prep.token){
-    const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
-    setConsole((log||'').trim());
-    __aggLog += String(log||'');
-    window.setEditorMarkers(findAllGccErrors(__aggLog));
-    updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-    setTimeout(hideRunnerOverlay, 300);
-    window.PolyShell?.setRunnerPhase?.('error');
-    window.PolyShell.setStatus('Compilation Failed','error');
-    setComplexityEnabled(false);
-    finishUI();
-    // IMPORTANT: reject so shell.js catch() runs
-    throw new Error('compile_failed');
-  }
-
-  const token = prep.token;
-  updateRunnerOverlay({ msg:'Connecting to C runner…', pct:65, hint:'Opening WebSocket…' });
-  const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
-  window.termWS = ws; window.wsRunInFlight = true;
-  window.PolyShell?.setRunnerPhase?.('running');
-  window.PolyShell.setStatus('Running (interactive)…','busy');
-
-  __cFlags.needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
-  if (__cFlags.needsStdin) showInputRow(true);
-
-  ws.addEventListener('open', ()=>{
-    updateRunnerOverlay({ pct:95, hint:'Finalizing…' });
-    setTimeout(hideRunnerOverlay, 150);
-    startHeartbeat(ws);
-  });
-
-  // Helper to evaluate final outcome using your flags + log
-  function computeOutcome(){
-  const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
-
-  const hasCompileErr =
-  __cFlags.sawCompileErr ||
-  /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
-
-  const hasRuntimeErr = __cFlags.sawRuntimeErr
-    || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
-
-  // If backend gave an explicit exit code, use it.
-  if (__cFlags.exitCode !== null) {
-    const ok = (__cFlags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr;
-    return { ok, reason: ok ? '' : (hasCompileErr ? 'compile_failed' : 'runtime_failed') };
-  }
-
-  // Infer just like finalizeStatus()
-  if (hasCompileErr)   return { ok:false, reason:'compile_failed' };
-  if (hasRuntimeErr)   return { ok:false, reason:'runtime_failed' };
-  if (__cFlags.needsStdin && !__cFlags.inputProvided)
-                       return { ok:false, reason:'no_input' };
-
-  // No explicit exit, no errors detected -> treat as success.
-  return { ok:true, reason:'' };
-}
-
-  // Return a promise that resolves/rejects on end (like Java)
-  return await new Promise((resolve, reject) => {
-    let settled = false;
-    const settle = (ok, reason) => {
-      if (settled) return; settled = true;
-      if (ok) resolve(); else reject(new Error(reason || 'run_failed'));
-    };
-
-    ws.addEventListener('message',(ev)=>{
-      const raw = String(ev.data || '');
-      let msg = null; try{ msg = JSON.parse(raw); }catch{}
-
-      if (msg && typeof msg==='object' && msg.type){
-        if (msg.type==='stdout'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); if ((msg.data||'').trim()) __cFlags.sawAnyOutput = true; return; }
-        if (msg.type==='stderr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawRuntimeErr = true; return; }
-        if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; 
-                                     window.setEditorMarkers(findAllGccErrors(__aggLog)); return; }
-        if (msg.type==='stdin_req'){ showInputRow(true); return; }
-        if (msg.type==='exit'){
-          __cFlags.exitCode = Number(msg.code);
-          finalizeStatus();                // your UI logic + setRunUI(false)
-          const { ok, reason } = computeOutcome();
-          settle(ok, reason);
-          return;
-        }
+      // Prepare/compile
+      let prep; try{ prep = await prepare(); } catch(e){ setConsole((e&&e.message)||'Prepare failed'); window.PolyShell.setStatus('Execution Failed','error'); return; }
+      if (!prep || !prep.ok || !prep.token){
+        const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
+        setConsole((log||'').trim());
+        window.PolyShell.setStatus('Execution Failed','error');
         return;
       }
 
-      // Plain text fallback (keep your immediate detection)
-      termWrite(raw);
-      const clean = stripAnsi(raw);
-      __aggLog += clean;
-      if (clean.trim()) __cFlags.sawAnyOutput = true;
+      // Open WS
+      const token = prep.token; const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
+      window.termWS = ws; window.wsRunInFlight = true; window.PolyShell.setStatus('Running (interactive)…','busy');
 
-     const errs = findAllGccErrors(__aggLog);
-if (errs.length) {
-  __cFlags.sawCompileErr = true;
- window.setEditorMarkers(errs);
-  window.PolyShell?.setRunnerPhase?.('error');
-  window.PolyShell.setStatus('Compilation Failed', 'error');
-}
+      const needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
+      showInputRow(needsStdin);
 
-      if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) {
-        __cFlags.sawRuntimeErr = true;
-      }
-
-      const ex = clean.match(/\b(?:exit\s*code|EXIT)\s*[:=]\s*(-?\d+)/i);
-      if (ex) __cFlags.exitCode = Number(ex[1]);
-    });
-
-    ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
-
-    ws.addEventListener('close', () => {
-      // If exit wasn't received, still finalize + decide
-      finalizeStatus();
-      const { ok, reason } = computeOutcome();
-      settle(ok, reason);
-    }, { once:true });
-  });
-};
-
-
-    /* ===== Reset ===== */
-    window.clearLang = function(){
-      setConsole('');
-      try{ window.termWS?.close(); }catch{}
-      window.termWS=null; window.wsRunInFlight=false;
-      showInputRow(false); setComplexityEnabled(false);
-      stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-      hideRunnerOverlay(); window.clearCompileMarkers(); finishUI();
-      window.PolyShell.setStatus('Ready','ok');
-      
+      ws.addEventListener('open', ()=>{ startHeartbeat(ws); });
+      ws.addEventListener('message', (ev)=>{
+        const data = String(ev.data||'');
+        termWrite(data);
+        // If backend explicitly asks for input (optional future event), we could show row here
+      });
+      ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
+      ws.addEventListener('close', ()=>{
+        stopHeartbeat();
+        window.wsRunInFlight = false; showInputRow(false);
+        // Heuristic: consider non-empty output as success
+        const txt = document.getElementById('jconsole')?.textContent || '';
+        if (txt.trim().length){ window.PolyShell.setStatus('Execution Success','ok'); setComplexityEnabled(true); }
+        else { window.PolyShell.setStatus('Execution Finished','ok'); setComplexityEnabled(true); }
+      }, { once:true });
     };
 
-    /* ===== Startup ===== */
+    // Reset hook used by shell.js
+    window.clearLang = function clearLang(){
+      setConsole('');
+      try{ window.termWS?.close(); }catch{}
+      window.termWS = null; window.wsRunInFlight = false;
+      showInputRow(false);
+      setComplexityEnabled(false);
+      window.PolyShell.setStatus('Ready','ok');
+    };
+
+    // Start after shell.js (defer) has executed
     (function startWhenReady(){
-      function start(){
-        if (!window.PolyShell){
-          const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
-          setTimeout(()=>clearInterval(id), 3000);
-          return;
-        }
-        window.bootstrap();
-      }
-      if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
-      else { start(); }
+      function start(){ if (!window.PolyShell){ const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25); setTimeout(()=>clearInterval(id), 3000); return; } window.bootstrap(); }
+      if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
     })();
   </script>
 
-  <!-- Runner connecting overlay -->
+  <!-- Runner connecting overlay (same visual as Java) -->
   <div id="runnerOverlay" style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); z-index: 9999;">
     <div style="min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px; background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
       <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to C runner…</div>
-      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;">
-        <div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:0.9;"></div>
-      </div>
+      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:0.9;"></div></div>
       <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
     </div>
   </div>
@@ -911,13 +375,12 @@ if (errs.length) {
     </div>
   </div>
   <script>
-    document.addEventListener('click', (e)=>{ const t=e.target; if (t && t.matches('[data-close]')){ document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); } });
-    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{
-      document.getElementById('cxModal')?.setAttribute('aria-hidden','false');
-      window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
-    });
+    // Simple close handlers for modal
+    document.addEventListener('click', (e)=>{ const t = e.target; if (t && t.matches('[data-close]')){ const m = document.getElementById('cxModal'); if (m) m.setAttribute('aria-hidden','true'); } });
+    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{ document.getElementById('cxModal')?.setAttribute('aria-hidden','false'); window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400); });
   </script>
 
+  <!-- Complexity engine -->
   <script src="./js/complexityc.js" defer></script>
 </body>
 </html>
