@@ -10,51 +10,41 @@
   <meta name="color-scheme" content="dark light" />
 
   <style>
-    /* ===== Console input row (match Java) ===== */
+    /* Match Java input-row look */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
     #consoleInput{
       display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
-      caret-color:currentColor; user-select:text; -webkit-user-modify:read-write-plaintext-only;
+      caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only;
     }
     #consoleInput:focus{ outline:0 }
     #consoleInput::selection{ background:rgba(255,255,255,.15) }
 
     .btn[disabled], .btn.attn[disabled]{ animation:none!important }
+    .pane-foot .msg{ white-space:nowrap }
     .panel .pane-head{ display:flex; align-items:center }
 
-    /* ===== Foot rows & scroll behavior ===== */
-    .pane-foot{ display:flex; align-items:center; height:28px; padding:0 10px; border-top:1px solid var(--border,#2b2f34); }
-    .pane-foot .msg{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
-    #output{ overflow:auto; } /* ensures h-scroll sits at the bottom */
-
-    /* ===== Runner overlay ===== */
+    /* Overlay (same style as Java) */
     #runnerOverlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999; }
     #runnerOverlay[aria-hidden="false"]{ display:flex }
     #runnerCard{ min-width:280px; max-width:420px; padding:16px 18px; border-radius:12px; background:var(--panel,#111); color:inherit; box-shadow:0 6px 24px rgba(0,0,0,.35); font:14px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto }
     #runnerBarWrap{ height:8px; background:rgba(255,255,255,.15); border-radius:999px; overflow:hidden }
     #runnerBar{ height:100%; width:18%; background:currentColor; opacity:.9; transform-origin:left center }
 
-    /* ===== Complexity modal (optional UI) ===== */
-    .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
-    .pc-modal[aria-hidden="false"] { display:block; }
-    .pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
-    .pc-modal__dialog{ position:relative; margin:5vh auto; max-width:800px; background:var(--panel,#111); border:1px solid rgba(255,255,255,.1); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.35); padding:14px; }
-    .pc-modal__header{ display:flex; align-items:center; justify-content:space-between; }
-    .pc-modal__title{ font-weight:600 }
-    .cx-summary{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 10px; }
-    .cx-table{ width:100%; border-collapse:collapse; font:13px/1.4 ui-monospace,Menlo,Consolas,monospace }
-    .cx-table th,.cx-table td{ border-bottom:1px solid rgba(127,127,127,.25); padding:6px 8px; vertical-align:top }
-    .cx-table th{ text-align:left; position:sticky; top:0; background:inherit }
-
-    /* ===== Footer social icons never crop ===== */
+    /* Footer/icon hygiene (prevents cropping) */
+    .site-footer{ overflow:visible }
+    .footer-grid{ align-items:center }
+    .site-footer .footer-center{ display:flex; align-items:center; gap:8px; line-height:1 }
+    .site-footer .footer-center .label{ margin-right:6px }
     .site-footer .footer-center .social{
       display:inline-flex; align-items:center; justify-content:center;
       width:28px; height:28px; margin:0 4px; vertical-align:middle;
     }
-    .site-footer .footer-center .social svg{ width:18px; height:18px; }
+    .site-footer .footer-center .social svg{ width:18px; height:18px }
+    #output{ overflow:auto }
+    .pane-foot{ display:flex; align-items:center; height:28px; padding:0 10px; border-top:1px solid var(--border,#2b2f34) }
+    .pane-foot .msg{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
   </style>
 </head>
-
 <body class="page-fade">
   <!-- Header -->
   <header class="site-header">
@@ -184,7 +174,7 @@
     </div>
   </footer>
 
-  <!-- Vendor & base shell -->
+  <!-- Vendor -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
@@ -202,73 +192,66 @@ int main(){
     return 0;
 }`;
 
-    /* --- Bootstrap Monaco, left pane, and initial status --- */
-    window.bootstrap = async function bootstrap(){
+    /* --- Bootstrap (same call pattern as Java) --- */
+    window.bootstrap = async function(){
       await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
       window.PolyShell.setStatus('Ready','ok');
       window.PolyShell.loadLeftContent?.('c');
       setComplexityEnabled(false);
     };
 
-    /* ---------------- Input-wait countdown & status dots (same as Java) ---------------- */
+    /* ===== Input-wait countdown & status dots (same as Java) ===== */
     let __inputDeadline = 0, __inputCountdownTimer = null;
-    let __statusTimer = null, __statusBase = '';
-
     function getCountdownText(){
       if (!__inputDeadline) return '';
       const ms = Math.max(0, __inputDeadline - Date.now());
-      const s = Math.floor(ms / 1000);
+      const s  = Math.floor(ms/1000);
       const mm = String(Math.floor(s/60)).padStart(2,'0');
       const ss = String(s%60).padStart(2,'0');
       return ` — ${mm}:${ss}`;
     }
-
     function startInputCountdown(ms){
       stopInputCountdown();
       __inputDeadline = Date.now() + Math.max(0, Number(ms) || 0);
-      __inputCountdownTimer = setInterval(()=>{/* tick piggy-backs on status dots */}, 500);
+      __inputCountdownTimer = setInterval(()=>{}, 500); // tick piggy-backs on status dots
     }
     function stopInputCountdown(){
       __inputDeadline = 0;
-      if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer=null; }
+      if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer = null; }
     }
 
-    function startStatusDots(base){
+    let __statusTimer = null, __statusBase = '';
+    function startStatusDots(baseText){
       stopStatusDots();
-      __statusBase = String(base || '');
-      let i = 0;
+      __statusBase = baseText || 'Executing';
+      let dots = 0;
       __statusTimer = setInterval(()=>{
-        const dots = '.'.repeat((i++ % 3)+1);
-        const extra = getCountdownText?.() || '';
-        window.PolyShell.setStatus(`${__statusBase}${dots}${extra}`, 'busy');
-      }, 500);
+        dots = (dots+1) % 4;
+        const statusEl = document.getElementById('statusDots');
+        if (statusEl) statusEl.textContent = __statusBase + '.'.repeat(dots) + getCountdownText();
+      }, 400);
     }
-    function stopStatusDots(){
-      if (__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; }
-    }
+    function stopStatusDots(){ if (__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
 
-    /* ---------------- Console helpers (auto-scroll to bottom) ---------------- */
+    /* ===== Console helpers (same semantics as Java) ===== */
     function setConsole(text){
-      const pre = document.getElementById('jconsole'); if (!pre) return;
-      pre.textContent = text || '';
-      const sc = document.getElementById('output'); sc && sc.scrollTo({ top: 1e9, behavior:'auto' });
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent = text || '';
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
     }
-    function _termWrite_raw(t){
-      const pre = document.getElementById('jconsole'); if (!pre) return;
-      pre.textContent += t;
-      const sc = document.getElementById('output'); sc && sc.scrollTo({ top: 1e9, behavior:'auto' });
-    }
-
-    /* ---------------- Input row (mirrors Java) ---------------- */
-    let inputWaitMs = 5 * 60 * 1000; // 5 minutes
-    let inputArmTimer = null;
-    let needsStdinHeuristicActive = false;
-
-    function inputRowVisible(){
-      const row = document.getElementById('consoleRow');
-      return row && row.style.display !== 'none';
+    function termWrite(t){
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent += t;
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
     }
 
+    /* ===== Input row (same behavior as Java) ===== */
+    let inputWaitMs = 5 * 60 * 1000;
+    function focusConsoleInput(){
+      const el = document.getElementById('consoleInput'); if (!el) return;
+      el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
     function showInputRow(show){
       const row = document.getElementById('consoleRow');
       const pre = document.getElementById('jconsole');
@@ -276,43 +259,22 @@ int main(){
       if (row) row.style.display = show ? 'flex' : 'none';
 
       if (show){
-        absorbTailToPrefix();
-        window.PolyShell.setStatus('Waiting for User Input', 'busy');
-        __statusBase = 'Waiting for User Input';
-        startStatusDots(__statusBase);
+        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
+        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+        else { prefix.textContent = ''; }
+
+        window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
+        window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
         startInputCountdown(inputWaitMs);
-        const el = document.getElementById('consoleInput');
-        if (el){
-          el.focus();
-          const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-          const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
-        }
-      } else {
+        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+
+        focusConsoleInput();
+      }else{
         if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
-          window.PolyShell.setStatus('Executing', 'busy');
+          window.PolyShell?.setStatus('Executing...', 'busy');
         }
-        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
-      }
-    }
-
-    function absorbTailToPrefix(){
-      const pre = document.getElementById('jconsole');
-      const prefix = document.getElementById('consolePrefix');
-      if (!pre || !prefix) return;
-      const txt = pre.textContent;
-      const i = Math.max(txt.lastIndexOf('\n'), -1);
-      const tail = txt.slice(i+1);
-      if (tail && !/\n/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-    }
-
-    // termWrite override: prompt absorption + heuristic trigger
-    function termWrite(t){
-      _termWrite_raw(t);
-      const last = (document.getElementById('jconsole')?.textContent||'').split('\n').pop()||'';
-      if (inputRowVisible()){
-        absorbTailToPrefix();
-      } else if (needsStdinHeuristicActive && /[:>?]\s*$/.test(last)){
-        showInputRow(true); absorbTailToPrefix();
+        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
       }
     }
 
@@ -323,8 +285,8 @@ int main(){
       if (e.key === 'Enter'){
         e.preventDefault();
         stopInputCountdown();
-        __statusBase = 'Executing';
-        startStatusDots(__statusBase);
+        window.PolyShell?.stopInputTicker?.();
+        __statusBase = 'Executing'; startStatusDots(__statusBase);
         window.PolyShell?.setRunnerPhase?.('running');
 
         const pre    = document.getElementById('jconsole');
@@ -332,7 +294,7 @@ int main(){
         if (prefix && prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
 
         const line = el.textContent;
-        _termWrite_raw(line + '\n');
+        termWrite(line + '\n');
         el.textContent = '';
 
         try{
@@ -340,10 +302,11 @@ int main(){
             window.termWS.send(JSON.stringify({ type:'stdin', data: line + '\n' }));
           }
         }catch{}
+        focusConsoleInput();
       }
     }, { capture:true });
 
-    /* ---------------- Monaco markers ---------------- */
+    /* ===== Monaco markers ===== */
     function clearEditorMarkers(){
       if (!window.monaco || !window.editor) return;
       const m = window.editor.getModel();
@@ -360,22 +323,27 @@ int main(){
       }]);
     }
 
-    /* ---------------- Helpers ---------------- */
+    /* ===== Helpers ===== */
     function codeNeedsInput(src){ return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(/.test(src); }
 
-    // Overlay helpers
-    function showRunnerOverlay(msg='Connecting to C runner…', hint='Warming up backend…'){
-      const o = document.getElementById('runnerOverlay'); if (!o) return;
-      document.getElementById('runnerMsg').textContent = msg;
-      document.getElementById('runnerHint').textContent = hint;
-      o.setAttribute('aria-hidden','false');
+    // Overlay helpers (same naming as Java)
+    function showRunnerOverlay(msg='Connecting to C runner…', pct=10, hint='Warming up backend…'){
+      const ov=document.getElementById('runnerOverlay'); const bar=document.getElementById('runnerBar');
+      const m=document.getElementById('runnerMsg'); const h=document.getElementById('runnerHint');
+      if (!ov||!bar||!m||!h) return; ov.style.display='flex'; m.textContent=msg; h.textContent=hint;
+      bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%';
     }
-    function hideRunnerOverlay(){ document.getElementById('runnerOverlay')?.setAttribute('aria-hidden','true'); }
+    function updateRunnerOverlay({msg, pct, hint}){
+      const m=document.getElementById('runnerMsg'); const h=document.getElementById('runnerHint');
+      const bar=document.getElementById('runnerBar'); if (msg&&m) m.textContent=msg; if (hint&&h) h.textContent=hint;
+      if (typeof pct==='number' && bar){ bar.style.width = Math.max(5, Math.min(100, Math.floor(pct))) + '%'; }
+    }
+    function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none'; }
 
-    // Complexity button toggle
+    // Complexity button toggle (match Java)
     function setComplexityEnabled(on){
-      const b = document.getElementById('btnComplexity'); if (!b) return;
-      const was = b.disabled; b.disabled = !on;
+      const b=document.getElementById('btnComplexity'); if (!b) return;
+      const was=b.disabled; b.disabled=!on;
       if (on && was && !b.dataset.pulsedOnce){
         b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1';
         setTimeout(()=> b.classList.remove('btn-pulse'), 1000);
@@ -383,7 +351,7 @@ int main(){
     }
     window.setComplexityEnabled = setComplexityEnabled;
 
-    /* ---------------- Backend endpoints ---------------- */
+    /* ===== Backend endpoints for C ===== */
     const C_API_BASE = 'https://polycode-cc.onrender.com';
     const C_WS_BASE  = 'wss://polycode-cc.onrender.com/cc';
 
@@ -398,95 +366,80 @@ int main(){
       return res.json();
     }
 
-    // Parse gcc/clang single-line error: /.../main.c:7:33: error: expected ';' before 'return'
+    // Parse gcc/clang error line
     function parseCCompileErrorLine(text){
       const m = /main\.c:(\d+):\d+:\s*error:\s*(.+)/.exec(text) || /main\.c:(\d+):\d+:\s*fatal error:\s*(.+)/.exec(text);
       return m ? { line: Math.max(1, parseInt(m[1],10)), msg: m[2] } : null;
     }
 
-    /* ---------------- Run flow (fixed truthy status) ---------------- */
+    /* ===== Heartbeat (same cadence as Java) ===== */
     let hbInterval=null, hbTimeout=null;
     function startHeartbeat(ws){
       stopHeartbeat();
       hbInterval = setInterval(()=>{ try{
-        if (ws.readyState===1){ ws.send(JSON.stringify({type:'ping'}));
-          clearTimeout(hbTimeout);
-          hbTimeout = setTimeout(()=>console.warn('Runner heartbeat missed'), 5000);
-        }
+        if (ws.readyState!==1) return;
+        ws.send(JSON.stringify({type:'ping'}));
+        clearTimeout(hbTimeout);
+        hbTimeout = setTimeout(()=>{ console.warn('Runner heartbeat missed'); }, 5000);
       }catch{} }, 25000);
     }
     function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
-    // Run state to avoid false "success"
-    const runState = {
-      started:false, compiled:false, compileFailed:false,
-      hadRuntimeError:false, exitCode:null
-    };
+    /* ===== Run flow (mirrors Java structure) ===== */
+    const runState = { exitCode:null, compileFailed:false };
 
     window.runLang = async function(){
       clearEditorMarkers();
       setComplexityEnabled(false);
-      const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
+
+      const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent='';
       showInputRow(false);
       setConsole('');
       document.getElementById('output')?.classList.remove('error');
-
-      // reset run state
-      runState.started=true; runState.compiled=false; runState.compileFailed=false;
-      runState.hadRuntimeError=false; runState.exitCode=null;
 
       const src = window.editor ? window.editor.getValue() : '';
       const needsStdin = codeNeedsInput(src);
 
       try{
-        window.PolyShell.setStatus('Compiling…','busy');
-        __statusBase = 'Compiling'; startStatusDots(__statusBase);
+        // Compile step
+        window.PolyShell?.setStatus('Compiling…','busy');
+        __statusBase='Compiling'; startStatusDots(__statusBase);
 
-        // 1) Compile / prepare
         const prep = await prepare();
         if (!prep || !prep.ok || !prep.token){
           runState.compileFailed = true;
 
           stopStatusDots();
           const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
-          const first = (log.split('\n')[0] || 'Compilation failed').trim();
           termWrite((log||'').trim() + '\n');
 
           const parsed = parseCCompileErrorLine(log);
           if (parsed){ setEditorMarker(parsed.line, parsed.msg); }
-          else { setEditorMarker(1, first); }
+          else { setEditorMarker(1, (log.split('\n')[0] || 'Compilation failed').trim()); }
 
-          window.PolyShell.setStatus('Compilation Failed','error');
           window.PolyShell?.setRunnerPhase?.('error');
+          window.PolyShell?.setStatus('Execution Failed','error');
           setComplexityEnabled(false);
           return;
         }
-        runState.compiled = true;
 
-        // 2) Connect
-        showRunnerOverlay('Connecting to C runner…', 'Creating interactive session…');
-        __statusBase = 'Connecting'; startStatusDots(__statusBase);
+        // Connect step
+        showRunnerOverlay('Connecting to C runner…', 12, 'Creating interactive session…');
+        __statusBase='Connecting'; startStatusDots(__statusBase);
 
         const ws = new WebSocket(C_WS_BASE + '?token=' + encodeURIComponent(prep.token));
         window.termWS = ws; window.wsRunInFlight = true;
 
         ws.addEventListener('open', ()=>{
           hideRunnerOverlay();
-          __statusBase = 'Running (interactive)'; startStatusDots(__statusBase);
+          __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
+          startStatusDots(__statusBase);
           startHeartbeat(ws);
           window.PolyShell?.setRunnerPhase?.('running');
 
-          needsStdinHeuristicActive = !!needsStdin;
-
-          // fallback arm: if prompt didn't flush, still allow typing
+          // Heuristic: if stdin is expected but no prompt flushes, enable input row shortly
           if (needsStdin){
-            if (inputArmTimer) clearTimeout(inputArmTimer);
-            inputArmTimer = setTimeout(()=>{
-              if (!inputRowVisible()){
-                showInputRow(true);
-                absorbTailToPrefix();
-              }
-            }, 400);
+            setTimeout(()=>{ if (window.wsRunInFlight) showInputRow(true); }, 400);
           }
         });
 
@@ -494,57 +447,52 @@ int main(){
           const data = String(ev.data || '');
           termWrite(data);
 
-          // mark runtime failures if recognizable
-          if (/Segmentation fault|abort|floating point exception|stack overflow/i.test(data)){
-            runState.hadRuntimeError = true;
-          }
-
-          // pick possible mid-stream exit code print (depends on backend)
-          const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
-          if (m) runState.exitCode = parseInt(m[1],10);
-
+          // If backend sends structured messages, handle them; otherwise ignore
           try{
-            const mjson = JSON.parse(data);
-            if (mjson && mjson.type === 'stdin_req'){
+            const msg = JSON.parse(data);
+            if (msg.type === 'stdin_req'){
               showInputRow(true);
-              window.PolyShell?.setRunnerPhase?.('waiting_input');
-              __statusBase = 'Waiting for User Input';
-              startStatusDots(__statusBase);
+              window.PolyShell?.setRunnerPhase?.('waiting_input', { detail:getCountdownText?.() });
+              window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+              __statusBase='Waiting for User Input'; startStatusDots(__statusBase);
               startInputCountdown(inputWaitMs);
+              window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+            } else if (msg.type === 'exit'){
+              runState.exitCode = Number(msg.code);
             }
           }catch{}
+          // Also catch exit code printed as plain text: "[process exited with code X]"
+          const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
+          if (m) runState.exitCode = parseInt(m[1],10);
         });
 
         ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
 
         ws.addEventListener('close', ()=>{
           stopHeartbeat(); stopStatusDots(); stopInputCountdown();
+          window.PolyShell?.stopInputTicker?.();
           window.wsRunInFlight = false; showInputRow(false);
 
-          const success = runState.exitCode === 0; // only explicit zero is success
-          if (success){
+          const ok = (runState.exitCode === 0);
+          if (ok){
             window.PolyShell?.setRunnerPhase?.('success');
-            window.PolyShell.setStatus('Execution Success','ok');
+            window.PolyShell?.setStatus('Execution Success','ok');
             clearEditorMarkers();
             setComplexityEnabled(true);
-          } else {
+          }else{
             window.PolyShell?.setRunnerPhase?.('error');
-            window.PolyShell.setStatus(
-              runState.compileFailed ? 'Compilation Failed' :
-              runState.exitCode !== null ? `Execution Failed (code ${runState.exitCode})` :
-              runState.hadRuntimeError ? 'Execution Failed' : 'Execution Ended',
-              'error'
-            );
+            window.PolyShell?.setStatus('Execution Failed','error');
             setComplexityEnabled(false);
           }
         }, { once:true });
 
       }catch(err){
         stopStatusDots(); stopInputCountdown();
+        window.PolyShell?.stopInputTicker?.();
         showInputRow(false);
         window.wsRunInFlight = false;
         window.PolyShell?.setRunnerPhase?.('error');
-        window.PolyShell.setStatus('Execution Failed','error');
+        window.PolyShell?.setStatus('Execution Failed','error');
         document.getElementById('output')?.classList.add('error');
         termWrite((err && err.message) ? (err.message+'\n') : 'Execution failed\n');
       }
@@ -557,10 +505,11 @@ int main(){
       showInputRow(false);
       setComplexityEnabled(false);
       stopStatusDots(); stopInputCountdown();
+      window.PolyShell?.stopInputTicker?.();
       window.PolyShell.setStatus('Ready','ok');
     };
 
-    // Fire bootstrap after shell.js
+    // Start after shell.js
     (function startWhenReady(){
       function start(){
         if (!window.PolyShell){
@@ -602,12 +551,10 @@ int main(){
     </div>
   </div>
   <script>
-    // modal close
-    document.addEventListener('click', (e)=>{ const t=e.target; if (t && t.matches('[data-close]')){ document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); }});
+    document.addEventListener('click', (e)=>{ if (e.target && e.target.matches('[data-close]')){ document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); }});
     document.getElementById('btnComplexity')?.addEventListener('click', ()=>{
       document.getElementById('cxModal')?.setAttribute('aria-hidden','false');
-      window.PolyShell?.setStatus('Analyzing…');
-      setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
+      window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
     });
   </script>
   <script src="./js/complexityc.js" defer></script>
