@@ -1,3 +1,4 @@
+// === Modal/table layout fixes (sticky headers; no overlap) ===
 // === Modal/table layout (non-sticky + compact) ===
 const MODAL_CSS = `
 .pc-modal{position:fixed;inset:0;z-index:9999;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;}
@@ -675,6 +676,7 @@ function recursionHeuristic(fnName, body, pushNote, ln){
 `;
 
   function ensureModalInserted() {
+    ensureModalStyles();
     if (document.getElementById('complexityModal')) return 'exists';
     document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
     const modal = document.getElementById('complexityModal');
