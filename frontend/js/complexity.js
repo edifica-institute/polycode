@@ -1,34 +1,39 @@
 // === Modal/table layout fixes (sticky headers; no overlap) ===
+// === Modal/table layout (non-sticky + compact) ===
 const MODAL_CSS = `
 .pc-modal{position:fixed;inset:0;z-index:9999;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;}
 .pc-modal__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6);}
 .pc-modal__dialog{
-  position:relative; margin:5vh auto; width:min(960px,95vw); max-height:90vh;
+  position:relative; margin:5vh auto; width:min(960px,95vw); max-height:88vh;
   display:flex; flex-direction:column; background:#1f1f1f; color:#eee;
   border-radius:10px; box-shadow:0 18px 50px rgba(0,0,0,.45); overflow:hidden;
 }
-.pc-modal__header, .pc-modal__footer{
-  background:#1f1f1f; z-index:3; padding:12px 16px;
-}
-.pc-modal__header{ position:sticky; top:0; border-bottom:1px solid rgba(255,255,255,.08); }
-.pc-modal__footer{ position:sticky; bottom:0; border-top:1px solid rgba(255,255,255,.08); }
-.pc-modal__body{ flex:1 1 auto; overflow:auto; padding:16px; background:#191919; }
 
-.cx-summary{ display:flex; gap:24px; flex-wrap:wrap; margin-bottom:8px; }
+/* Header/Footer — NOT sticky, compact padding */
+.pc-modal__header, .pc-modal__footer{
+  background:#1f1f1f; z-index:1; padding:10px 14px;
+  border:0; /* no borders to save vertical space */
+}
+.pc-modal__body{ flex:1 1 auto; overflow:auto; padding:12px 16px; background:#191919; }
+
+/* Summary strip */
+.cx-summary{ display:flex; gap:18px; flex-wrap:wrap; margin-bottom:6px; }
+
+/* Table — header NOT sticky; tighter cell padding */
 .cx-table{ width:100%; border-collapse:collapse; table-layout:fixed; }
 .cx-table th, .cx-table td{
-  padding:8px 10px; border-bottom:1px solid rgba(255,255,255,.08);
-  vertical-align:top; word-wrap:break-word; overflow-wrap:anywhere;
+  padding:6px 8px; border-bottom:1px solid rgba(255,255,255,.08);
+  vertical-align:top; word-wrap:break-word; overflow-wrap:anywhere; font-size:.95rem;
 }
 .cx-table thead th{
-  position:sticky; top:0; background:#262626; z-index:2;
-  border-bottom:1px solid rgba(255,255,255,.12);
+  background:#222; /* just a color, no position:sticky */
 }
-.cx-notes{ opacity:.9; font-size:.92rem; line-height:1.35; margin-top:10px; }
-.pc-modal__close{ all:unset; cursor:pointer; font-size:18px; padding:0 4px; }
-.btn{ padding:8px 12px; border-radius:8px; background:#2a2a2a; color:#eee; border:1px solid rgba(255,255,255,.08); }
-.btn:hover{ background:#333; }
-`;
+
+/* Notes — smaller font & margins to reduce bottom footprint */
+.cx-notes{ opacity:.9; font-size:.88rem; line-height:1.28; margin-top:6px; }
+
+/* Buttons */
+.pc-modal__close{ all:unset; cursor:pointer; font-size:18px; padding:0 4px; }`;
 
 // inject once
 function ensureModalStyles(){
