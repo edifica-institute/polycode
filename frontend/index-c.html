@@ -8,11 +8,13 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light" />
-
   <style>
-    /* Console input row */
+    /* Input row look (matches Java) */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
-    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only; }
+    #consoleInput{
+      display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
+      caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only;
+    }
     #consoleInput:focus{ outline:0 }
     #consoleInput::selection{ background:rgba(255,255,255,.15) }
 
@@ -30,7 +32,7 @@
     .pc-modal__body{ max-height:60vh; overflow:auto; }
     .pc-modal__footer{ display:flex; justify-content:flex-end; gap:8px; }
     .cx-summary{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 10px; }
-    .cx-table{ width:100%; border-collapse: collapse; font:13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+    .cx-table{ width:100%; border-collapse:collapse; font:13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
     .cx-table th, .cx-table td{ border-bottom:1px solid rgba(127,127,127,.25); padding:6px 8px; vertical-align: top; }
     .cx-table th{ text-align:left; position:sticky; top:0; background:inherit; }
     .cx-notes{ opacity:.9; font-size:12px; margin-top:8px; }
@@ -52,7 +54,6 @@
         <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
       </div>
     </div>
-
     <nav class="site-nav">
       <a href="./index.html">Home</a>
       <a href="./about.html">About</a>
@@ -86,26 +87,20 @@
           <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
             <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
           </button>
-
           <span class="title" id="centerTitle" style="margin-left:8px;">C – Editor | Polycode</span>
-
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
             <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
-              <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z"/></svg>
             </button>
-
             <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
-              <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z"/></svg>
             </button>
-
             <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
               <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             </button>
           </div>
         </div>
-
         <div id="editor"></div>
-
         <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
       </section>
 
@@ -130,7 +125,7 @@
         </div>
 
         <div id="output" class="screen-dim" style="padding:12px;">
-          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre; word-break:normal; overflow-wrap:normal;"></pre>
           <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
@@ -142,7 +137,6 @@
     </div>
   </div>
 
-  <!-- Collapser chevron -->
   <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
     <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
   </div>
@@ -182,12 +176,11 @@
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
-  <!-- Page script: C runner -->
-
-<script>
-/* ================= Base ================= */
-
-const SAMPLE_C = `#include <stdio.h>
+  <!-- Page script -->
+  <script>
+    /* ---------------- Sample program ---------------- */
+    const SAMPLE_C =
+`#include <stdio.h>
 
 int main(){
     int n;
@@ -197,369 +190,294 @@ int main(){
     return 0;
 }`;
 
-const C_API_BASE = 'https://polycode-cc.onrender.com';
-const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';
+    /* ---------------- Bootstrap ---------------- */
+    window.bootstrap = async function(){
+      await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
+      window.PolyShell.setStatus('Ready', 'ok');
+      window.PolyShell.loadLeftContent?.('c');
+      setComplexityEnabled(false);
+      installMarkerHelpers();
+    };
 
-/* ============= Monaco helpers (markers) ============= */
-
-function installCompileMarkerGuard(){
-  if (!window.monaco || !window.editor || window.__pcGuardInstalled) return;
-  window.__pcGuardInstalled = true;
-
-  const MARK_OWNER = window.PC_COMPILE_OWNER || (
-    window.PC_COMPILE_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2))
-  );
-
-  const realSet = monaco.editor.setModelMarkers;
-  let sticky = []; let allowClear = false;
-
-  window.setEditorMarkers = function(list){
-    const model = window.editor?.getModel(); if (!model) return;
-    const lineCount = model.getLineCount();
-    const items = (Array.isArray(list)? list : (list ? [list] : [])).map(e=>{
-      let ln = Math.min(Math.max(1, Number(e?.line)||1), lineCount);
-      let max = model.getLineMaxColumn(ln);
-      let col = Math.min(Math.max(1, Number(e?.col)||1), Math.max(1, max-1));
-      const sev = ({warning: monaco.MarkerSeverity.Warning, info: monaco.MarkerSeverity.Info, hint: monaco.MarkerSeverity.Hint}[(e?.sev||'').toLowerCase()]) || monaco.MarkerSeverity.Error;
-      return { startLineNumber: ln, endLineNumber: ln, startColumn: col, endColumn: Math.min(max,col+1), message: String(e?.msg || 'Error'), severity: sev };
-    });
-    realSet.call(monaco.editor, window.editor.getModel(), MARK_OWNER, items);
-    sticky = items.slice();
-  };
-
-  window.clearCompileMarkers = function(){
-    const model = window.editor?.getModel(); if (!model) return;
-    allowClear = true;
-    realSet.call(monaco.editor, model, MARK_OWNER, []);
-    allowClear = false; sticky = [];
-  };
-
-  monaco.editor.setModelMarkers = function(model, owner, markers){
-    // treat legacy owner as ours and prevent accidental clears
-    if (owner === 'c-compile') owner = MARK_OWNER;
-    if (owner === MARK_OWNER && Array.isArray(markers) && markers.length === 0 && !allowClear && sticky.length){
-      return realSet.call(monaco.editor, model, owner, sticky);
+    /* ---------------- Console helpers ---------------- */
+    function setConsole(text){
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent = text || '';
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
     }
-    return realSet.apply(monaco.editor, arguments);
-  };
-
-  const reapply = ()=>{ const m = window.editor?.getModel(); if (m && sticky.length) realSet.call(monaco.editor, m, MARK_OWNER, sticky); };
-  window.editor.onDidLayoutChange?.(reapply);
-  window.editor.onDidChangeModel?.(reapply);
-  window.addEventListener('resize', ()=> requestAnimationFrame(reapply));
-}
-
-function findAllGccErrors(text){
-  if (!text) return [];
-  const clean = text.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
-  const out = []; let m;
-
-  // foo.c:LINE:COL: error: MSG
-  const re1 = /(?:^|\n)(?:.*?)(?:^|[\/\\])([^\/\\\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-  while ((m = re1.exec(clean))) out.push({ file:m[1], line:+m[2], col:m[3]?+m[3]:1, msg:m[4] });
-
-  // <stdin>:LINE[:COL]: error: MSG
-  const re2 = /(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-  while ((m = re2.exec(clean))) out.push({ file:'<stdin>', line:+m[1], col:m[2]?+m[2]:1, msg:m[3] });
-
-  // foo.c:LINE: error: MSG
-  const re3 = /(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/mg;
-  while ((m = re3.exec(clean))) out.push({ file:m[1], line:+m[2], col:1, msg:m[3] });
-
-  // de-dupe by (line|col|msg)
-  const seen = new Set();
-  return out.filter(e=>{ const k = `${e.line}|${e.col}|${e.msg}`; if (seen.has(k)) return false; seen.add(k); return true; });
-}
-
-/* ================= Console helpers ================= */
-
-function setConsole(text){
-  const el = document.getElementById('jconsole'); if (!el) return;
-  el.textContent = text || ''; document.getElementById('output')?.scrollTo({ top: 1e9 });
-}
-function termWrite(t){
-  const el = document.getElementById('jconsole'); if (!el) return;
-  el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 });
-}
-
-function showInputRow(show){
-  const row = document.getElementById('consoleRow');
-  const pre = document.getElementById('jconsole');
-  const prefix = document.getElementById('consolePrefix');
-  if (!row || !pre || !prefix) return;
-
-  row.style.display = show ? 'flex' : 'none';
-  if (show){
-    const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
-    if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-    else { prefix.textContent = ''; }
-    const el = document.getElementById('consoleInput');
-    if (el){
-      el.focus();
-      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
-      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    function termWrite(t){
+      const el = document.getElementById('jconsole'); if (!el) return;
+      el.textContent += t;
+      document.getElementById('output')?.scrollTo({ top: 1e9 });
     }
-    window.PolyShell?.setStatus('Waiting for User Input…','busy');
-  } else {
-    if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
-  }
-}
 
-function setComplexityEnabled(on){
-  const b = document.getElementById('btnComplexity'); if (!b) return;
-  const was = b.disabled; b.disabled = !on;
-  if (on && was && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1'; setTimeout(()=> b.classList.remove('btn-pulse'), 1000); }
-}
-window.setComplexityEnabled = setComplexityEnabled;
+    /* ---------------- Input row + status ticker ---------------- */
+    let inputDeadline = 0, inputTimer = null, statusDotsTimer = null, statusBase = 'Executing';
+    const INPUT_WAIT_MS = 5 * 60 * 1000;
 
-/* ================= Overlay ================= */
+    function countdownText(){
+      if (!inputDeadline) return '';
+      const ms = Math.max(0, inputDeadline - Date.now());
+      const s = Math.floor(ms / 1000);
+      const mm = String(Math.floor(s/60)).padStart(2,'0');
+      const ss = String(s%60).padStart(2,'0');
+      return ` — ${mm}:${ss}`;
+    }
+    function startInputCountdown(){
+      stopInputCountdown();
+      inputDeadline = Date.now() + INPUT_WAIT_MS;
+      inputTimer = setInterval(()=> window.PolyShell.setStatus('Waiting for User Input' + countdownText() + dots(), 'busy'), 500);
+      window.PolyShell.setStatus('Waiting for User Input' + countdownText(), 'busy');
+    }
+    function stopInputCountdown(){ inputDeadline = 0; if (inputTimer){ clearInterval(inputTimer); inputTimer=null; } }
 
-function showRunnerOverlay(msg='Connecting…', pct=10, hint='Opening WebSocket…'){
-  const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'),
-        m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
-  if (!ov||!bar||!m||!h) return;
-  ov.style.display='flex'; m.textContent=msg; h.textContent=hint; bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-}
-function updateRunnerOverlay({msg,pct,hint}){
-  const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'),
-        bar=document.getElementById('runnerBar');
-  if (msg&&m) m.textContent=msg; if (hint&&h) h.textContent=hint;
-  if (typeof pct==='number' && bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-}
-function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none'; }
+    function dots(){
+      if (!statusDotsTimer) return '';
+      return '';
+    }
+    function startStatusDots(base='Executing'){
+      stopStatusDots(); statusBase = base;
+      let n = 0;
+      statusDotsTimer = setInterval(()=>{
+        n = (n+1)%4;
+        window.PolyShell.setStatus(statusBase + '.'.repeat(n) + (base==='Waiting for User Input' ? countdownText() : ''), 'busy');
+      }, 400);
+    }
+    function stopStatusDots(){ if (statusDotsTimer){ clearInterval(statusDotsTimer); statusDotsTimer=null; } }
 
-/* ================= Runner I/O ================= */
-
-function codeNeedsInput(src){
-  return /\b(scanf|fscanf|fgets|getchar|getch|gets|getline|read)\b\s*\(/i.test(src||'');
-}
-
-async function prepare(){
-  const code = window.editor ? window.editor.getValue() : '';
-  const files = [{ path: 'main.c', content: code }];
-  const res = await fetch(C_API_BASE + '/api/cc/prepare', {
-    method:'POST', headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
-  });
-  if (!res.ok) throw new Error('Prepare failed: ' + res.status);
-  return res.json();
-}
-
-/* ================= Heartbeat ================= */
-let hbInterval=null, hbTimeout=null;
-function startHeartbeat(ws){
-  stopHeartbeat();
-  hbInterval=setInterval(()=>{
-    try{
-      if (ws.readyState===1){
-        ws.send(JSON.stringify({type:'ping'}));
-        clearTimeout(hbTimeout);
-        hbTimeout=setTimeout(()=>{ console.warn('Runner heartbeat missed'); },5000);
-      }
-    }catch{}
-  },25000);
-}
-function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
-
-/* ================= Bootstrap (guarded once) ================= */
-
-window.bootstrap = async function(){
-  if (window.__pcBooted) return; window.__pcBooted = true;
-  await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
-  installCompileMarkerGuard();
-  window.PolyShell.setStatus('Ready','ok');
-  window.PolyShell.loadLeftContent?.('c');
-  setComplexityEnabled(false);
-};
-
-/* ================= Keyboard -> stdin ================= */
-
-document.addEventListener('keydown',(e)=>{
-  const el = document.getElementById('consoleInput');
-  if (!el || el.offsetParent===null) return;
-  if (e.target!==el) return;
-  if (e.key==='Enter'){
-    e.preventDefault();
-    const line = el.textContent + '\n';
-    try{
-      if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){
-        window.termWS.send(JSON.stringify({type:'stdin', data: line}));
-      }
-    }catch{}
-    termWrite(line);
-    el.textContent='';
-    window.PolyShell?.setStatus('Executing…','busy');
-  }
-}, true);
-
-/* ================= RUN ================= */
-
-window.runLang = async function(){
-  // Let shell.js know a run started (if it uses this)
-  window.setRunUI?.(true);
-
-  // reset UI
-  setConsole(''); document.getElementById('output')?.classList.remove('error');
-  setComplexityEnabled(false); window.clearCompileMarkers?.();
-  try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
-
-  // state
-  const flags = { sawCompileErr:false, sawRuntimeErr:false, exitCode:null, needsStdin:false, inputProvided:false, sawAnyOutput:false };
-  let aggLog = '';
-  const stripAnsi = s => s.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
-
-  // overlay
-  showRunnerOverlay('Compiling C program…', 12, 'Sending source…');
-  window.PolyShell.setStatus('Compiling…','busy');
-
-  // compile
-  let prep;
-  try{
-    updateRunnerOverlay({ pct:28, hint:'Building with gcc…' });
-    prep = await prepare();
-    updateRunnerOverlay({ pct:45, hint:'Checking artifacts…' });
-  }catch(e){
-    updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-    hideRunnerOverlay();
-    setConsole((e&&e.message)||'Prepare failed');
-    window.PolyShell.setStatus('Compilation Failed','error');
-    setComplexityEnabled(false);
-    window.setRunUI?.(false);
-    throw new Error('compile_failed');
-  }
-
-  if (!prep || !prep.ok || !prep.token){
-    const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
-    setConsole((log||'').trim());
-    aggLog += stripAnsi(String(log||''));
-    window.setEditorMarkers?.(findAllGccErrors(aggLog));
-    updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-    hideRunnerOverlay();
-    window.PolyShell.setStatus('Compilation Failed','error');
-    setComplexityEnabled(false);
-    window.setRunUI?.(false);
-    throw new Error('compile_failed');
-  }
-
-  // run
-  const token = prep.token;
-  updateRunnerOverlay({ msg:'Connecting to C runner…', pct:65, hint:'Opening WebSocket…' });
-  const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
-  window.termWS = ws; window.wsRunInFlight = true;
-  window.PolyShell.setStatus('Running (interactive)…','busy');
-
-  flags.needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
-  if (flags.needsStdin) showInputRow(true);
-
-  return await new Promise((resolve, reject)=>{
-    let settled = false;
-    const settle = (ok, reason) => { if (settled) return; settled = true; ok ? resolve() : reject(new Error(reason||'run_failed')); };
-
-    ws.addEventListener('open', ()=>{ updateRunnerOverlay({ pct:95, hint:'Connected' }); setTimeout(hideRunnerOverlay, 150); startHeartbeat(ws); });
-
-    ws.addEventListener('message',(ev)=>{
-      const raw = String(ev.data||'');
-      let msg = null; try{ msg = JSON.parse(raw); }catch{}
-      if (msg && typeof msg==='object' && msg.type){
-        if (msg.type==='stdout'){ const d = String(msg.data||''); termWrite(d); aggLog += stripAnsi(d); if (d.trim()) flags.sawAnyOutput = true; return; }
-        if (msg.type==='stderr'){ const d = String(msg.data||''); termWrite(d); aggLog += stripAnsi(d); flags.sawRuntimeErr = true; return; }
-        if (msg.type==='compileErr'){ const d = String(msg.data||''); termWrite(d); aggLog += stripAnsi(d); flags.sawCompileErr = true; window.setEditorMarkers?.(findAllGccErrors(aggLog)); return; }
-        if (msg.type==='stdin_req'){ showInputRow(true); return; }
-        if (msg.type==='exit'){ flags.exitCode = Number(msg.code); return; }
-        // unknown typed message -> fall through to raw append
-      }
-      // plain text fallback
-      termWrite(raw);
-      const clean = stripAnsi(raw);
-      aggLog += clean;
-      if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) flags.sawRuntimeErr = true;
-      if (clean.trim()) flags.sawAnyOutput = true;
-      const errs = findAllGccErrors(aggLog);
-      if (errs.length){ flags.sawCompileErr = true; window.setEditorMarkers?.(errs); }
-    });
-
-    ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
-
-    ws.addEventListener('close', ()=>{
-      stopHeartbeat();
-      window.wsRunInFlight = false; showInputRow(false);
-
-      const cleanLog = stripAnsi(aggLog || (document.getElementById('jconsole')?.textContent || ''));
-      const hasCompileErr = flags.sawCompileErr || /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
-      const hasRuntimeErr = flags.sawRuntimeErr || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
-
-      let ok;
-      if (flags.exitCode !== null) ok = (flags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr;
-      else ok = !hasCompileErr && !hasRuntimeErr && !(flags.needsStdin && !flags.inputProvided);
-
-      if (ok){
-        window.PolyShell.setStatus('Execution Success','ok');
-        window.clearCompileMarkers?.();
-        setComplexityEnabled(true);
-        window.setRunUI?.(false);
-        settle(true);
+    function showInputRow(show){
+      const row = document.getElementById('consoleRow');
+      const pre = document.getElementById('jconsole');
+      const prefix = document.getElementById('consolePrefix');
+      if (!row || !pre || !prefix) return;
+      row.style.display = show ? 'flex' : 'none';
+      if (show){
+        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
+        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); } else { prefix.textContent = ''; }
+        const el = document.getElementById('consoleInput');
+        if (el){ el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+        startInputCountdown();
       } else {
-        window.PolyShell.setStatus(hasCompileErr ? 'Compilation Failed' : 'Execution Failed','error');
-        setComplexityEnabled(false);
-        window.setRunUI?.(false);
-        settle(false, hasCompileErr ? 'compile_failed' : 'runtime_failed');
+        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
+        stopInputCountdown();
       }
-    }, { once:true });
-  });
-};
-
-/* ================= Reset used by shell.js ================= */
-
-window.clearLang = function(){
-  setConsole('');
-  try{ window.termWS?.close(); }catch{}
-  window.termWS=null; window.wsRunInFlight=false;
-  showInputRow(false); setComplexityEnabled(false); window.clearCompileMarkers?.();
-  window.PolyShell.setStatus('Ready','ok');
-};
-
-/* ================= Start after shell.js ================= */
-
-(function startWhenReady(){
-  function start(){
-    if (!window.PolyShell){
-      const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
-      setTimeout(()=>clearInterval(id), 3000);
-      return;
     }
-    window.bootstrap();
-  }
-  if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
-  else { start(); }
-})();
-</script>
 
+    document.addEventListener('keydown', (e)=>{
+      const el = document.getElementById('consoleInput');
+      if (!el || el.offsetParent===null) return;
+      if (e.target!==el) return;
+      if (e.key==='Enter'){
+        e.preventDefault();
+        const line = el.textContent + '\n';
+        try{ if (window.termWS && window.termWS.readyState===1) window.termWS.send(JSON.stringify({ type:'stdin', data: line })); }catch{}
+        termWrite(line);
+        el.textContent = '';
+        showInputRow(false);
+        startStatusDots('Executing');
+      }
+    }, true);
 
+    /* ---------------- Complexity enable ---------------- */
+    function setComplexityEnabled(on){
+      const b = document.getElementById('btnComplexity'); if (!b) return;
+      const was=b.disabled; b.disabled=!on;
+      if (on && was && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1'; setTimeout(()=>b.classList.remove('btn-pulse'), 900); }
+    }
+    window.setComplexityEnabled = setComplexityEnabled;
 
+    /* ---------------- GCC error parsing + markers ---------------- */
+    let MARK_OWNER = null;
+    function installMarkerHelpers(){
+      if (!window.monaco || !window.editor) return;
+      MARK_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2));
+      window.clearCompileMarkers = function(){
+        const m = window.editor?.getModel(); if (!m) return;
+        monaco.editor.setModelMarkers(m, MARK_OWNER, []);
+      };
+      window.setEditorMarkers = function(list){
+        const m = window.editor?.getModel(); if (!m) return;
+        const items = Array.isArray(list) ? list : (list ? [list] : []);
+        monaco.editor.setModelMarkers(m, MARK_OWNER, items.map(toMarker));
+        if (items[0]) window.editor.revealLineInCenterIfOutsideViewport(items[0].line);
+      };
+    }
+    function toMarker(e){
+      const m = window.editor?.getModel(); const lineCount = m ? m.getLineCount() : 1;
+      const line = Math.min(Math.max(1, Number(e?.line)||1), lineCount);
+      const max  = m ? m.getLineMaxColumn(line) : 200;
+      const start= Math.min(Math.max(1, Number(e?.col)||1), Math.max(1, max-1));
+      return { startLineNumber: line, endLineNumber: line, startColumn: start, endColumn: Math.min(max,start+1),
+               message: String(e?.msg||'Error'), severity: monaco.MarkerSeverity.Error };
+    }
+    function stripAnsi(s){ return String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g, ''); }
+    function findAllGccErrors(text){
+      const clean = stripAnsi(text); const out=[]; let m;
+      const re1=/(?:^|\n)(?:.*?)(?:^|[\/\\])([^\/\\\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
+      while((m=re1.exec(clean))) out.push({file:m[1], line:+m[2], col:m[3]?+m[3]:1, msg:m[4]});
+      const re2=/(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
+      while((m=re2.exec(clean))) out.push({file:'<stdin>', line:+m[1], col:m[2]?+m[2]:1, msg:m[3]});
+      const re3=/(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/mg;
+      while((m=re3.exec(clean))) out.push({file:m[1], line:+m[2], col:1, msg:m[3]});
+      // de-dupe by (line,col,msg)
+      const seen=new Set(); return out.filter(e=>{ const k=`${e.line}|${e.col}|${e.msg}`; if(seen.has(k))return false; seen.add(k); return true; });
+    }
 
+    /* ---------------- Runner overlay ---------------- */
+    function showRunnerOverlay(msg='Connecting to C runner…', pct=10, hint='Opening WebSocket…'){
+      const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'),
+            m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
+      if (!ov||!bar||!m||!h) return;
+      ov.style.display='flex'; m.textContent=msg; h.textContent=hint;
+      bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
+    }
+    function updateRunnerOverlay({msg,pct,hint}){
+      const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'),
+            bar=document.getElementById('runnerBar');
+      if (msg&&m) m.textContent=msg; if (hint&&h) h.textContent=hint;
+      if (typeof pct==='number' && bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
+    }
+    function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none'; }
 
+    /* ---------------- C runner endpoints ---------------- */
+    const C_API_BASE = 'https://polycode-cc.onrender.com';
+    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';
 
+    async function prepare(){
+      const code = window.editor ? window.editor.getValue() : '';
+      const files = [{ path:'main.c', content: code }];
+      const res = await fetch(C_API_BASE + '/api/cc/prepare', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
+      });
+      if (!res.ok) throw new Error('Prepare failed: ' + res.status);
+      return res.json();
+    }
+    function codeNeedsInput(src){ return /\b(scanf|fscanf|fgets|getchar|gets|getline|read)\b\s*\(/i.test(src); }
 
+    /* ---------------- Run lifecycle ---------------- */
+    window.runLang = async function(){
+      // reset
+      setConsole(''); window.clearCompileMarkers?.(); setComplexityEnabled(false);
+      try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
+      stopStatusDots(); stopInputCountdown();
 
+      // flags
+      const flags = { sawCompileErr:false, sawRuntimeErr:false, exitCode:null, needsStdin:false, inputProvided:false };
+      let aggLog = '';
+      const t0 = performance.now();
 
+      // compile
+      window.PolyShell.setStatus('Compiling…', 'busy');
+      showRunnerOverlay('Compiling C program…', 12, 'Sending source…');
+      let prep;
+      try{
+        updateRunnerOverlay({ pct:38, hint:'Building with gcc…' });
+        prep = await prepare();
+      }catch(e){
+        updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
+        setTimeout(hideRunnerOverlay, 250);
+        const msg = (e && e.message) || 'Prepare failed';
+        setConsole(msg); flags.sawCompileErr = true; window.PolyShell.setStatus('Compilation Failed', 'error');
+        return;
+      }
+      if (!prep || !prep.ok || !prep.token){
+        const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
+        setConsole((log||'').trim()); flags.sawCompileErr = true;
+        window.setEditorMarkers?.(findAllGccErrors(log));
+        updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
+        setTimeout(hideRunnerOverlay, 250);
+        window.PolyShell.setStatus('Compilation Failed', 'error');
+        return;
+      }
 
+      // connect WS
+      const token = prep.token;
+      updateRunnerOverlay({ msg:'Connecting to C runner…', pct:65, hint:'Opening WebSocket…' });
+      const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
+      window.termWS = ws; window.wsRunInFlight = true;
+      flags.needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
+      window.PolyShell.setStatus('Running (interactive)…', 'busy');
 
+      if (flags.needsStdin) { showInputRow(true); startStatusDots('Waiting for User Input'); }
 
+      ws.addEventListener('open', ()=>{ updateRunnerOverlay({ pct:95, hint:'Connected' }); setTimeout(hideRunnerOverlay, 150); });
 
+      ws.addEventListener('message', (ev)=>{
+        const raw = String(ev.data||'');
+        let msg = null; try{ msg = JSON.parse(raw); }catch{}
+        if (msg && typeof msg==='object' && msg.type){
+          if (msg.type==='stdout'){ termWrite(msg.data||''); aggLog += stripAnsi(String(msg.data||'')); return; }
+          if (msg.type==='stderr'){ termWrite(msg.data||''); aggLog += stripAnsi(String(msg.data||'')); flags.sawRuntimeErr = true; return; }
+          if (msg.type==='compileErr'){ termWrite(msg.data||''); aggLog += stripAnsi(String(msg.data||'')); flags.sawCompileErr = true; window.setEditorMarkers?.(findAllGccErrors(aggLog)); return; }
+          if (msg.type==='stdin_req'){ showInputRow(true); startStatusDots('Waiting for User Input'); return; }
+          if (msg.type==='exit'){ flags.exitCode = Number(msg.code); return; }
+          return;
+        }
+        // plain text fallback
+        termWrite(raw);
+        const clean = stripAnsi(raw);
+        aggLog += clean;
+        // detect exit code if printed as text
+        const ex = clean.match(/\b(?:exit\s*code|EXIT)\s*[:=]\s*(-?\d+)/i);
+        if (ex) flags.exitCode = Number(ex[1]);
+      });
 
+      ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
 
+      ws.addEventListener('close', ()=>{
+        window.wsRunInFlight = false; showInputRow(false);
+        stopStatusDots(); stopInputCountdown();
 
+        // derive outcome
+        const clean = stripAnsi(aggLog);
+        const hasCompileErr = flags.sawCompileErr || /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(clean);
+        const hasRuntimeErr = flags.sawRuntimeErr || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean);
+        const noInput = flags.needsStdin && !flags.inputProvided;
 
+        const ok = (flags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr && !noInput;
 
+        // markers on compile failure
+        if (hasCompileErr) window.setEditorMarkers?.(findAllGccErrors(clean));
+        if (ok) window.clearCompileMarkers?.();
 
-  
-  <!-- Runner connecting overlay -->
+        const dt = Math.max(0, (performance.now()-t0)/1000);
+        const timeTxt = `Time: ${dt.toFixed(dt<10?2:1)} second(s)`;
+        window.PolyShell.setStatus(ok ? `Executed Successfully   ${timeTxt}` : `Executed with Error   ${timeTxt}`, ok?'ok':'error');
+
+        setComplexityEnabled(ok);
+      }, { once:true });
+
+      // record that user provided input (enter) while WS open
+      document.getElementById('consoleInput')?.addEventListener('keydown', (e)=>{ if (e.key==='Enter') flags.inputProvided = true; }, { once:false });
+    };
+
+    window.clearLang = function(){
+      setConsole(''); window.clearCompileMarkers?.(); setComplexityEnabled(false);
+      try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
+      stopStatusDots(); stopInputCountdown(); showInputRow(false);
+      window.PolyShell.setStatus('Ready','ok');
+    };
+
+    /* ---------------- Start when shell is ready ---------------- */
+    (function startWhenReady(){
+      function start(){
+        if (!window.PolyShell){
+          const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
+          setTimeout(()=>clearInterval(id), 3000);
+          return;
+        }
+        window.bootstrap();
+      }
+      if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
+    })();
+  </script>
+
+  <!-- Runner overlay -->
   <div id="runnerOverlay" style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); z-index: 9999;">
     <div style="min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px; background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
       <div id="runnerMsg" style="font-weight:600; margin-bottom:8px;">Connecting to C runner…</div>
-      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;">
-        <div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:0.9;"></div>
-      </div>
+      <div style="height:8px; background: rgba(255,255,255,0.15); border-radius: 999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:18%; background: currentColor; opacity:0.9;"></div></div>
       <div id="runnerHint" style="margin-top:8px; opacity:0.8;">Warming up backend…</div>
     </div>
   </div>
@@ -582,18 +500,13 @@ window.clearLang = function(){
     </div>
   </div>
   <script>
-    // Modal open/close + (optional) call into complexity engine if present
-    document.addEventListener('click', (e)=>{ const t=e.target; if (t && t.matches('[data-close]')){ document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); }});
+    document.addEventListener('click', (e)=>{ const t=e.target; if (t && t.matches('[data-close]')) document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); });
     document.getElementById('btnComplexity')?.addEventListener('click', ()=>{
       document.getElementById('cxModal')?.setAttribute('aria-hidden','false');
-      window.PolyShell?.setStatus('Analyzing…');
-      // If your complexity script exposes a function, call it here:
-      // window.computeCComplexity?.({ editor: window.editor, summaryEl:'#cxSummary', tableEl:'#cxTable', notesEl:'#cxNotes' });
-      setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
+      window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
     });
   </script>
 
-  <!-- Complexity engine -->
   <script src="./js/complexityc.js" defer></script>
 </body>
 </html>
