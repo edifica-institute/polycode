@@ -603,15 +603,30 @@ window.runLang = async function(){
 
   // Helper to evaluate final outcome using your flags + log
   function computeOutcome(){
-    const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
-    const hasCompileErr = __cFlags.sawCompileErr
-      || /(^|\n).*?\bmain\.c:\d+(?::\d+)?:\s*error:/i.test(cleanLog)
-      || /(^|\n).*?\berror\s*:\s*/i.test(cleanLog);
-    const hasRuntimeErr = __cFlags.sawRuntimeErr
-      || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
+  const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
+
+  const hasCompileErr = __cFlags.sawCompileErr
+    || /(^|\n).*?\bmain\.c:\d+(?::\d+)?:\s*error:/i.test(cleanLog)
+    || /(^|\n).*?\berror\s*:\s*/i.test(cleanLog);
+
+  const hasRuntimeErr = __cFlags.sawRuntimeErr
+    || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
+
+  // If backend gave an explicit exit code, use it.
+  if (__cFlags.exitCode !== null) {
     const ok = (__cFlags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr;
-    return { ok, reason: hasCompileErr ? 'compile_failed' : (ok ? '' : 'runtime_failed') };
+    return { ok, reason: ok ? '' : (hasCompileErr ? 'compile_failed' : 'runtime_failed') };
   }
+
+  // Infer just like finalizeStatus()
+  if (hasCompileErr)   return { ok:false, reason:'compile_failed' };
+  if (hasRuntimeErr)   return { ok:false, reason:'runtime_failed' };
+  if (__cFlags.needsStdin && !__cFlags.inputProvided)
+                       return { ok:false, reason:'no_input' };
+
+  // No explicit exit, no errors detected -> treat as success.
+  return { ok:true, reason:'' };
+}
 
   // Return a promise that resolves/rejects on end (like Java)
   return await new Promise((resolve, reject) => {
