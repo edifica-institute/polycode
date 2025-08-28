@@ -710,14 +710,13 @@ window.runLang = async function(){
       __aggLog += clean;
       if (clean.trim()) __cFlags.sawAnyOutput = true;
 
-      const m = /(^|\n).*?\bmain\.c:(\d+)(?::\d+)?:\s*error\s*:\s*([^\n]+)/m.exec(__aggLog)
-             || /(^|\n).*?\berror\s*:\s*([^\n]+)/m.exec(__aggLog);
-      if (m) {
-        __cFlags.sawCompileErr = true;
-        setEditorMarkers(findAllGccErrors(__aggLog));
-        window.PolyShell?.setRunnerPhase?.('error');
-        window.PolyShell.setStatus('Compilation Failed', 'error');
-      }
+     const errs = findAllGccErrors(__aggLog);
+if (errs.length) {
+  __cFlags.sawCompileErr = true;
+  setEditorMarkers(errs);
+  window.PolyShell?.setRunnerPhase?.('error');
+  window.PolyShell.setStatus('Compilation Failed', 'error');
+}
 
       if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) {
         __cFlags.sawRuntimeErr = true;
