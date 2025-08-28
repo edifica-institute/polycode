@@ -237,10 +237,20 @@
   }
 
   // Python traceback: File "main.py", line N
-  function findPythonErrorLine(text){
-    const m = /File\s+"[^"]+",\s+line\s+(\d+)/.exec(String(text)||'');
-    return m ? Math.max(1, parseInt(m[1],10)) : 1;
+// Parse Python stderr to find the most relevant line number.
+// Prefer a frame for main.py; otherwise pick the last frame.
+function findPythonErrorLine(text) {
+  const s = String(text || '');
+  const re = /File\s+"([^"]+)",\s+line\s+(\d+)/g;
+  let m, last = null, main = null;
+  while ((m = re.exec(s))) {
+    const file = m[1], ln = parseInt(m[2], 10);
+    last = ln || last;
+    if (/(^|[\\/])main\.py$/i.test(file)) main = ln;
   }
+  return main || last || 1;
+}
+
 
   // --- Input row (triggered strictly by backend `stdin_req`) ---
   let inputShown = false, inputWaitMs = 5 * 60 * 1000; // 5 minutes
@@ -318,11 +328,7 @@
 
   
 
-  // Python traceback parser — extracts "line N"
-function findPythonErrorLine(text) {
-  const m = /File\s+"[^"]+",\s+line\s+(\d+)/.exec(String(text) || '');
-  return m ? Math.max(1, parseInt(m[1], 10)) : 1;
-}
+
 
 
   
@@ -460,8 +466,9 @@ const waitForExit = new Promise((resolve,reject)=>{
     if (errorSeen) return;
     errorSeen = true;
     // Immediately show error state in the UI; exit may still be in-flight
-    window.PolyShell?.setRunnerPhase?.('error');
-    window.PolyShell?.setStatus('Execution Failed', 'error');
+    const execMs = Math.max(0, Math.round(performance.now() - __tStart));
+  window.PolyShell?.setRunnerPhase?.('error', { metrics: { execMs } });
+  window.PolyShell?.setStatus(`Execution Failed — ${execMs} ms`, 'error');
 
     // If exit packet doesn't arrive quickly (WS race), stop the spinner anyway
     clearTimeout(exitGraceTimer);
@@ -483,21 +490,29 @@ const waitForExit = new Promise((resolve,reject)=>{
         return;
       }
 
-      if (m.type === 'stderr'){
-        acc.stderr += m.data; termWrite(m.data);
-        // Heuristic: mark error immediately if we see a Python fatal pattern
-               if (/File\s+"[^"]+",\s+line\s+\d+/.test(m.data) || /\bSyntaxError\b/.test(m.data) || /\bTraceback\b/.test(m.data)) {
-    const errText = acc.stderr;
-    const firstLine = (errText.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
-    const line = findPythonErrorLine(errText);
-    setEditorMarker(line, firstLine);
-                  window.PolyShell?.setStatus('Execution Failed', 'error');
-    flagFatalError();  // the function I gave you to stop the spinner early
-  }
+      if (m.type === 'stderr') {
+  acc.stderr += m.data;
+  termWrite(m.data);
 
-        
-        return;
-      }
+  // We only mark when there's enough info:
+  //  - we saw a frame line, ideally for main.py, OR
+  //  - we saw "Traceback" followed by an exception line.
+  const hasFrame = /File\s+"[^"]+",\s+line\s+\d+/.test(acc.stderr);
+  const hasMain  = /File\s+"[^"]*main\.py",\s+line\s+\d+/.test(acc.stderr);
+  const hasTb    = /\bTraceback\b/.test(acc.stderr);
+  const hasExc   = /\n[A-Za-z_]\w*Error\b.*\n?$/.test(acc.stderr); // ends with “...Error: ...”
+
+  if (hasMain || (hasTb && hasExc) || (hasFrame && /\bSyntaxError\b/.test(acc.stderr))) {
+    const line = findPythonErrorLine(acc.stderr);
+    const firstLine =
+      (acc.stderr.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
+    setEditorMarker(line, firstLine);
+    window.PolyShell?.setStatus('Execution Failed', 'error');
+    flagFatalError();   // stop spinner early; exit may still be in-flight
+  }
+  return;
+}
+
 
       if (m.type === 'stdin_req'){
         showInputRow(true);
@@ -523,6 +538,7 @@ const waitForExit = new Promise((resolve,reject)=>{
           setEditorMarker(line, firstLine);
 const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
   window.PolyShell?.setRunnerPhase?.('error', { metrics: { execMs } });
+          window.PolyShell?.setStatus(`Execution Failed — ${execMs} ms`, 'error');
           
           // status already set by flagFatalError if patterns matched; ensure it's error anyway
           window.PolyShell?.setStatus('Execution Failed', 'error');
@@ -547,11 +563,19 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
 
     // If the socket closed mid-run without exit, report disconnect
     if (!exitSeen) {
-      window.PolyShell?.setRunnerPhase?.('error', { detail:'Runner disconnected' });
-      window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
-      window.wsRunInFlight = false;
-      try { reject(new Error('line 1: runner disconnected')); } catch {}
-    }
+  const execMs = Math.max(0, Math.round(performance.now() - __tStart));
+  if (errorSeen) {
+    // preserve error state and timing on abrupt close
+    window.PolyShell?.setRunnerPhase?.('error', { metrics: { execMs } });
+    window.PolyShell?.setStatus(`Execution Failed — ${execMs} ms`, 'error');
+  } else {
+    window.PolyShell?.setRunnerPhase?.('error', { detail:'Runner disconnected' });
+    window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error');
+  }
+  window.wsRunInFlight = false;
+  try { reject(new Error('line 1: runner disconnected')); } catch {}
+}
+
     window.termWS = null;
   };
 
