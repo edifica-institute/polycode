@@ -689,8 +689,7 @@ function clearEditorMarkers(){
     /* ===== Main run ===== */
 window.runLang = async function(){
   window.setRunUI?.(true);
-  __markerGen++;        // new run, invalidate old clears
-clearEditorMarkers(); // optional: clear immediately for a fresh run
+ 
   setConsole(''); document.getElementById('outV')?.classList.remove('error');
   setComplexityEnabled(false); clearEditorMarkers();
   try{ window.termWS?.close(); }catch{}
