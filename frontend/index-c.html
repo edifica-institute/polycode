@@ -8,36 +8,53 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light" />
+
   <style>
-    /* Input row (match Java) */
+    /* ===== Console input row (match Java) ===== */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
-    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only; }
+    #consoleInput{
+      display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
+      caret-color:currentColor; user-select:text; -webkit-user-modify:read-write-plaintext-only;
+    }
     #consoleInput:focus{ outline:0 }
     #consoleInput::selection{ background:rgba(255,255,255,.15) }
 
     .btn[disabled], .btn.attn[disabled]{ animation:none!important }
-    .pane-foot .msg{ white-space:nowrap }
     .panel .pane-head{ display:flex; align-items:center }
 
-    /* Overlay (like Java) */
+    /* ===== Foot rows & scroll behavior ===== */
+    .pane-foot{ display:flex; align-items:center; height:28px; padding:0 10px; border-top:1px solid var(--border,#2b2f34); }
+    .pane-foot .msg{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+    #output{ overflow:auto; } /* ensures h-scroll sits at the bottom */
+
+    /* ===== Runner overlay ===== */
     #runnerOverlay{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999; }
     #runnerOverlay[aria-hidden="false"]{ display:flex }
     #runnerCard{ min-width:280px; max-width:420px; padding:16px 18px; border-radius:12px; background:var(--panel,#111); color:inherit; box-shadow:0 6px 24px rgba(0,0,0,.35); font:14px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto }
     #runnerBarWrap{ height:8px; background:rgba(255,255,255,.15); border-radius:999px; overflow:hidden }
     #runnerBar{ height:100%; width:18%; background:currentColor; opacity:.9; transform-origin:left center }
 
-    /* Complexity modal just kept as-is (can be wired later) */
+    /* ===== Complexity modal (optional UI) ===== */
     .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
     .pc-modal[aria-hidden="false"] { display:block; }
     .pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
     .pc-modal__dialog{ position:relative; margin:5vh auto; max-width:800px; background:var(--panel,#111); border:1px solid rgba(255,255,255,.1); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.35); padding:14px; }
     .pc-modal__header{ display:flex; align-items:center; justify-content:space-between; }
+    .pc-modal__title{ font-weight:600 }
     .cx-summary{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 10px; }
     .cx-table{ width:100%; border-collapse:collapse; font:13px/1.4 ui-monospace,Menlo,Consolas,monospace }
     .cx-table th,.cx-table td{ border-bottom:1px solid rgba(127,127,127,.25); padding:6px 8px; vertical-align:top }
     .cx-table th{ text-align:left; position:sticky; top:0; background:inherit }
+
+    /* ===== Footer social icons never crop ===== */
+    .site-footer .footer-center .social{
+      display:inline-flex; align-items:center; justify-content:center;
+      width:28px; height:28px; margin:0 4px; vertical-align:middle;
+    }
+    .site-footer .footer-center .social svg{ width:18px; height:18px; }
   </style>
 </head>
+
 <body class="page-fade">
   <!-- Header -->
   <header class="site-header">
@@ -167,14 +184,11 @@
     </div>
   </footer>
 
-  <!-- Scripts -->
+  <!-- Vendor & base shell -->
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
   <!-- Page script -->
-
-
-
   <script>
     /* --- Sample C used in the editor --- */
     const SAMPLE_C =
@@ -239,7 +253,7 @@ int main(){
       pre.textContent = text || '';
       const sc = document.getElementById('output'); sc && sc.scrollTo({ top: 1e9, behavior:'auto' });
     }
-    function termWrite(t){
+    function _termWrite_raw(t){
       const pre = document.getElementById('jconsole'); if (!pre) return;
       pre.textContent += t;
       const sc = document.getElementById('output'); sc && sc.scrollTo({ top: 1e9, behavior:'auto' });
@@ -247,6 +261,13 @@ int main(){
 
     /* ---------------- Input row (mirrors Java) ---------------- */
     let inputWaitMs = 5 * 60 * 1000; // 5 minutes
+    let inputArmTimer = null;
+    let needsStdinHeuristicActive = false;
+
+    function inputRowVisible(){
+      const row = document.getElementById('consoleRow');
+      return row && row.style.display !== 'none';
+    }
 
     function showInputRow(show){
       const row = document.getElementById('consoleRow');
@@ -255,10 +276,8 @@ int main(){
       if (row) row.style.display = show ? 'flex' : 'none';
 
       if (show){
-        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
-        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-        else { prefix.textContent = ''; }
-        window.PolyShell.setStatus('Waiting for User Input...', 'busy');
+        absorbTailToPrefix();
+        window.PolyShell.setStatus('Waiting for User Input', 'busy');
         __statusBase = 'Waiting for User Input';
         startStatusDots(__statusBase);
         startInputCountdown(inputWaitMs);
@@ -270,9 +289,30 @@ int main(){
         }
       } else {
         if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
-          window.PolyShell.setStatus('Executing...', 'busy');
+          window.PolyShell.setStatus('Executing', 'busy');
         }
         if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
+      }
+    }
+
+    function absorbTailToPrefix(){
+      const pre = document.getElementById('jconsole');
+      const prefix = document.getElementById('consolePrefix');
+      if (!pre || !prefix) return;
+      const txt = pre.textContent;
+      const i = Math.max(txt.lastIndexOf('\n'), -1);
+      const tail = txt.slice(i+1);
+      if (tail && !/\n/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+    }
+
+    // termWrite override: prompt absorption + heuristic trigger
+    function termWrite(t){
+      _termWrite_raw(t);
+      const last = (document.getElementById('jconsole')?.textContent||'').split('\n').pop()||'';
+      if (inputRowVisible()){
+        absorbTailToPrefix();
+      } else if (needsStdinHeuristicActive && /[:>?]\s*$/.test(last)){
+        showInputRow(true); absorbTailToPrefix();
       }
     }
 
@@ -292,7 +332,7 @@ int main(){
         if (prefix && prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
 
         const line = el.textContent;
-        termWrite(line + '\n');
+        _termWrite_raw(line + '\n');
         el.textContent = '';
 
         try{
@@ -323,7 +363,7 @@ int main(){
     /* ---------------- Helpers ---------------- */
     function codeNeedsInput(src){ return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(/.test(src); }
 
-    // Overlay
+    // Overlay helpers
     function showRunnerOverlay(msg='Connecting to C runner…', hint='Warming up backend…'){
       const o = document.getElementById('runnerOverlay'); if (!o) return;
       document.getElementById('runnerMsg').textContent = msg;
@@ -364,7 +404,7 @@ int main(){
       return m ? { line: Math.max(1, parseInt(m[1],10)), msg: m[2] } : null;
     }
 
-    /* ---------------- Run (mirrors Java flow) ---------------- */
+    /* ---------------- Run flow (fixed truthy status) ---------------- */
     let hbInterval=null, hbTimeout=null;
     function startHeartbeat(ws){
       stopHeartbeat();
@@ -377,6 +417,12 @@ int main(){
     }
     function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
+    // Run state to avoid false "success"
+    const runState = {
+      started:false, compiled:false, compileFailed:false,
+      hadRuntimeError:false, exitCode:null
+    };
+
     window.runLang = async function(){
       clearEditorMarkers();
       setComplexityEnabled(false);
@@ -385,17 +431,22 @@ int main(){
       setConsole('');
       document.getElementById('output')?.classList.remove('error');
 
+      // reset run state
+      runState.started=true; runState.compiled=false; runState.compileFailed=false;
+      runState.hadRuntimeError=false; runState.exitCode=null;
+
       const src = window.editor ? window.editor.getValue() : '';
       const needsStdin = codeNeedsInput(src);
 
       try{
-        __statusBase = 'Compiling';
-        startStatusDots(__statusBase);
+        window.PolyShell.setStatus('Compiling…','busy');
+        __statusBase = 'Compiling'; startStatusDots(__statusBase);
 
         // 1) Compile / prepare
         const prep = await prepare();
-
         if (!prep || !prep.ok || !prep.token){
+          runState.compileFailed = true;
+
           stopStatusDots();
           const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
           const first = (log.split('\n')[0] || 'Compilation failed').trim();
@@ -405,34 +456,56 @@ int main(){
           if (parsed){ setEditorMarker(parsed.line, parsed.msg); }
           else { setEditorMarker(1, first); }
 
-          window.PolyShell.setStatus('Execution Failed','error');
+          window.PolyShell.setStatus('Compilation Failed','error');
           window.PolyShell?.setRunnerPhase?.('error');
           setComplexityEnabled(false);
           return;
         }
+        runState.compiled = true;
 
         // 2) Connect
         showRunnerOverlay('Connecting to C runner…', 'Creating interactive session…');
         __statusBase = 'Connecting'; startStatusDots(__statusBase);
+
         const ws = new WebSocket(C_WS_BASE + '?token=' + encodeURIComponent(prep.token));
         window.termWS = ws; window.wsRunInFlight = true;
 
         ws.addEventListener('open', ()=>{
           hideRunnerOverlay();
           __statusBase = 'Running (interactive)'; startStatusDots(__statusBase);
-          if (needsStdin) showInputRow(true);
           startHeartbeat(ws);
           window.PolyShell?.setRunnerPhase?.('running');
+
+          needsStdinHeuristicActive = !!needsStdin;
+
+          // fallback arm: if prompt didn't flush, still allow typing
+          if (needsStdin){
+            if (inputArmTimer) clearTimeout(inputArmTimer);
+            inputArmTimer = setTimeout(()=>{
+              if (!inputRowVisible()){
+                showInputRow(true);
+                absorbTailToPrefix();
+              }
+            }, 400);
+          }
         });
 
         ws.addEventListener('message', (ev)=>{
           const data = String(ev.data || '');
           termWrite(data);
-          // If backend ever sends a stdin request message, mirror Java:
-          // (kept here for compatibility)  :contentReference[oaicite:3]{index=3}
+
+          // mark runtime failures if recognizable
+          if (/Segmentation fault|abort|floating point exception|stack overflow/i.test(data)){
+            runState.hadRuntimeError = true;
+          }
+
+          // pick possible mid-stream exit code print (depends on backend)
+          const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
+          if (m) runState.exitCode = parseInt(m[1],10);
+
           try{
-            const m = JSON.parse(data);
-            if (m && m.type === 'stdin_req'){
+            const mjson = JSON.parse(data);
+            if (mjson && mjson.type === 'stdin_req'){
               showInputRow(true);
               window.PolyShell?.setRunnerPhase?.('waiting_input');
               __statusBase = 'Waiting for User Input';
@@ -448,26 +521,21 @@ int main(){
           stopHeartbeat(); stopStatusDots(); stopInputCountdown();
           window.wsRunInFlight = false; showInputRow(false);
 
-          // Decide success/failure by exit code if present
-          const txt = document.getElementById('jconsole')?.textContent || '';
-          const m = txt.match(/\[process exited with code\s+(-?\d+)\]/i);
-          if (m){
-            const code = parseInt(m[1],10);
-            if (code === 0){
-              window.PolyShell?.setRunnerPhase?.('success');
-              window.PolyShell.setStatus('Execution Success','ok');
-              clearEditorMarkers();
-              setComplexityEnabled(true);
-            }else{
-              window.PolyShell?.setRunnerPhase?.('error');
-              window.PolyShell.setStatus('Execution Failed','error');
-              setComplexityEnabled(false);
-            }
-          }else{
-            // No explicit code -> treat as finished (non-error)
+          const success = runState.exitCode === 0; // only explicit zero is success
+          if (success){
             window.PolyShell?.setRunnerPhase?.('success');
-            window.PolyShell.setStatus('Execution Finished','ok');
+            window.PolyShell.setStatus('Execution Success','ok');
+            clearEditorMarkers();
             setComplexityEnabled(true);
+          } else {
+            window.PolyShell?.setRunnerPhase?.('error');
+            window.PolyShell.setStatus(
+              runState.compileFailed ? 'Compilation Failed' :
+              runState.exitCode !== null ? `Execution Failed (code ${runState.exitCode})` :
+              runState.hadRuntimeError ? 'Execution Failed' : 'Execution Ended',
+              'error'
+            );
+            setComplexityEnabled(false);
           }
         }, { once:true });
 
@@ -507,19 +575,6 @@ int main(){
     })();
   </script>
 
-
-
-
-
-
-
-
-
-
-
-
-
-  
   <!-- Runner overlay -->
   <div id="runnerOverlay" aria-hidden="true">
     <div id="runnerCard">
@@ -529,7 +584,7 @@ int main(){
     </div>
   </div>
 
-  <!-- Complexity modal (optional UI, same as before) -->
+  <!-- Complexity modal (optional UI) -->
   <div class="pc-modal" id="cxModal" aria-hidden="true">
     <div class="pc-modal__backdrop" data-close></div>
     <div class="pc-modal__dialog">
@@ -549,7 +604,11 @@ int main(){
   <script>
     // modal close
     document.addEventListener('click', (e)=>{ const t=e.target; if (t && t.matches('[data-close]')){ document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); }});
-    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{ document.getElementById('cxModal')?.setAttribute('aria-hidden','false'); window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400); });
+    document.getElementById('btnComplexity')?.addEventListener('click', ()=>{
+      document.getElementById('cxModal')?.setAttribute('aria-hidden','false');
+      window.PolyShell?.setStatus('Analyzing…');
+      setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
+    });
   </script>
   <script src="./js/complexityc.js" defer></script>
 </body>
