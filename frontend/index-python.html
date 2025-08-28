@@ -572,6 +572,8 @@ if (hasSyn || hasMain || (hasTb && hasExc) || (hasFrame && hasExc)) {
 
 
       if (m.type === 'stdin_req'){
+        const prefix = document.getElementById('consolePrefix');
+  if (prefix) prefix.textContent = m.prompt || '';
         showInputRow(true);
         return;
       }
