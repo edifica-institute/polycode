@@ -657,7 +657,7 @@ window.runLang = async function(){
       if (msg && typeof msg==='object' && msg.type){
         if (msg.type==='stdout'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); if ((msg.data||'').trim()) __cFlags.sawAnyOutput = true; return; }
         if (msg.type==='stderr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawRuntimeErr = true; return; }
-        if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; const e=findFirstGccError(__aggLog); if(e) setEditorMarker(e.line, e.msg); return; }
+        if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; const e=findFirstGccError(__aggLog); if(e) setEditorMarker(e.line, e.msg,e.col); return; }
         if (msg.type==='stdin_req'){ showInputRow(true); return; }
         if (msg.type==='exit'){
           __cFlags.exitCode = Number(msg.code);
@@ -680,7 +680,7 @@ window.runLang = async function(){
       if (m) {
         __cFlags.sawCompileErr = true;
         const e = findFirstGccError(__aggLog);
-        if (e) setEditorMarker(e.line, e.msg);
+        if (e) setEditorMarker(e.line, e.msg, e.col);
         window.PolyShell?.setRunnerPhase?.('error');
         window.PolyShell.setStatus('Compilation Failed', 'error');
       }
