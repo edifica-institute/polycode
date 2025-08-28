@@ -159,7 +159,7 @@
   <a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a>
 </div>
 
-        </span>
+        
       </div>
     </div>
 
@@ -241,8 +241,7 @@ int main(){
       let dots = 0;
       __statusTimer = setInterval(()=>{
         dots = (dots+1) % 4;
-        const statusEl = document.getElementById('statusDots');
-        if (statusEl) statusEl.textContent = __statusBase + '.'.repeat(dots) + getCountdownText();
+       window.PolyShell?.setStatus(__statusBase + '.'.repeat(dots) + getCountdownText(), 'busy');
       }, 400);
     }
     function stopStatusDots(){ if (__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
@@ -400,7 +399,7 @@ int main(){
     function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
     /* ===== Run flow (mirrors Java structure) ===== */
-    const runState = { exitCode:null, compileFailed:false };
+    
 
 window.runLang = async function(){
   // --- pre-run cleanup (same as you already do) ---
