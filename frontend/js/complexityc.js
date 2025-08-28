@@ -410,54 +410,59 @@
 
   /* =================== Recursion heuristics =================== */
 
+// Worst-case recursion classifier
 function recursionHeuristic(fnName, body, pushNote, ln) {
+  // Count direct self calls
   const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
   const calls = (body.match(callRe) || []).length;
 
-  // Detect "two calls but in different branches" => single-branch recursion (height)
-  const singleBranchViaIfElse = new RegExp(
-    `if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?else\\s*if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`,
-    'i'
-  );
-
-  // Two self calls in the SAME execution path (no else separation) => tree recursion
+  // Two self-calls in the SAME execution path (not mutually exclusive via else)
   const twoSelfCallsSameBlock =
     new RegExp(`\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`, 'i').test(body) &&
-    !singleBranchViaIfElse.test(body);
+    !new RegExp(
+      `if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*left[\\s\\S]*?else\\s*if\\s*\\([^)]*\\)[\\s\\S]*?\\b${fnName}\\s*\\([^)]*->\\s*right`,
+      'i'
+    ).test(body);
 
-  // Fibonacci-like
+  // Fibonacci-like: f(n-1) and f(n-2)
   const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
   const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
 
+  // Halving / boundary-shrink hint
   const halves = /[*/]\s*2\b|>>\s*1\b|\bn\s*\/\s*2\b|mid/i.test(body);
+
+  // Linear work (suggests merge/partition with halving)
   const hasLoop = /\b(for|while)\s*\(/.test(body);
 
+  // --- Worst-case rules ---
   if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
-    pushNote(ln,'recursion','2^n', `${fnName}(): Fibonacci-like recursion`);
+    pushNote(ln, 'recursion', '2^n', `${fnName}(): Fibonacci-like recursion (worst O(2^n))`);
     return '2^n';
   }
 
   if (twoSelfCallsSameBlock) {
+    // Visits multiple branches → worst O(n); if also halving+linear, n log n
     if (halves && hasLoop) {
-      pushNote(ln,'recursion','n log n', `${fnName}(): divide & conquer with halving + linear work`);
+      pushNote(ln, 'recursion', 'n log n', `${fnName}(): divide & conquer with halving + linear work (worst O(n log n))`);
       return 'n log n';
     }
-    pushNote(ln,'recursion','n', `${fnName}(): tree recursion (visits multiple branches)`);
+    pushNote(ln, 'recursion', 'n', `${fnName}(): tree recursion (visits multiple branches; worst O(n))`);
     return 'n';
   }
 
   if (calls >= 1) {
     if (halves) {
-      pushNote(ln,'recursion','log n', `${fnName}(): single-branch halving recursion`);
+      pushNote(ln, 'recursion', 'log n', `${fnName}(): single-branch halving recursion (worst O(log n))`);
       return 'log n';
     }
-    // Height-bounded recursion (BST insert/search)
-    pushNote(ln,'recursion','n', `${fnName}(): single-branch recursion (O(h); balanced≈O(log n), worst O(n))`);
+    // Single-branch height-bounded recursion (BST insert/search) → worst O(n)
+    pushNote(ln, 'recursion', 'n', `${fnName}(): single-branch recursion (worst O(n); balanced ≈ O(log n))`);
     return 'n';
   }
 
   return '1';
 }
+
 
 
   /* =================== Statement cost (recursive over AST) =================== */
@@ -524,20 +529,26 @@ function recursionHeuristic(fnName, body, pushNote, ln) {
     return '1';
   }
 
-  function analyzeFunction(fn, code, linemap, pushNote){
-    // parse statements in function body
-    const nodes = parseBlock(code, fn.bodyStart+1, fn.bodyEnd-1);
-    let time = '1';
-    for (const n of nodes){
-      time = simplify.max(time, costNode(n, code, linemap, pushNote));
-    }
-    // recursion heuristic on whole body
-    const body = code.slice(fn.bodyStart+1, fn.bodyEnd);
-    const ln = Math.max(1, lineFromPos(linemap, fn.headStart));
-    const rec = recursionHeuristic(fn.name, body, pushNote, ln);
-    time = simplify.max(time, rec);
-    return time;
+function analyzeFunction(fn, code, linemap, pushNote){
+  // Parse all top-level statements inside this function’s body
+  const nodes = parseBlock(code, fn.bodyStart + 1, fn.bodyEnd - 1);
+
+  // Worst-case time across sequential statements = max of their worst costs
+  let worstTime = '1';
+  for (const n of nodes){
+    const t = costNode(n, code, linemap, pushNote);  // costNode already multiplies loop × inner
+    worstTime = simplify.max(worstTime, t);
   }
+
+  // Add worst-case recursion term from whole body (if any)
+  const body = code.slice(fn.bodyStart + 1, fn.bodyEnd);
+  const ln = Math.max(1, lineFromPos(linemap, fn.headStart));
+  const recWorst = recursionHeuristic(fn.name, body, pushNote, ln);
+
+  // Final worst-case for this function
+  return simplify.max(worstTime, recWorst);
+}
+
 
   /* =================== Main analyzer =================== */
 
