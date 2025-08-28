@@ -238,6 +238,42 @@ int main(){
     function stopStatusDots(){ if (__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
 
     /* ===== Console helpers ===== */
+
+
+
+function isInputRowVisible(){
+  const row = document.getElementById('consoleRow');
+  return !!row && row.style.display !== 'none';
+}
+function latestConsoleTail(){
+  const pre = document.getElementById('jconsole');
+  if (!pre) return '';
+  const txt = pre.textContent || '';
+  const i = txt.lastIndexOf('\n');
+  return (i >= 0 ? txt.slice(i+1) : txt).trimEnd();
+}
+// A conservative pattern that matches common prompts without being too aggressive
+const PROMPT_RE = /(?:enter|input|value|number|name|char|string|age|size|count)\b.*[:?>]\s*$/i;
+
+let idleProbeTimer = null;
+function scheduleIdleProbe(){
+  clearTimeout(idleProbeTimer);
+  idleProbeTimer = setTimeout(()=>{
+    if (!isInputRowVisible() && window.wsRunInFlight){
+      // If we haven't exited and we stalled after output, surface the input row
+      showInputRow(true);
+    }
+  }, 800); // small stall == likely waiting on scanf/cin
+}
+
+
+
+
+
+
+
+
+    
     function setConsole(text){
       const el = document.getElementById('jconsole'); if (!el) return;
       el.textContent = text || '';
@@ -460,6 +496,17 @@ int main(){
           ws.addEventListener('message', (ev)=>{
             const data = String(ev.data || '');
             termWrite(data);
+
+            try{
+    if (!isInputRowVisible()){
+      const tail = latestConsoleTail();
+      if (PROMPT_RE.test(tail)) {
+        showInputRow(true);
+      }
+    }
+  }catch{}
+
+  scheduleIdleProbe();
 
             try{
               const msg = JSON.parse(data);
