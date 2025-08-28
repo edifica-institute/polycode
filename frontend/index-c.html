@@ -402,115 +402,128 @@ int main(){
     /* ===== Run flow (mirrors Java structure) ===== */
     const runState = { exitCode:null, compileFailed:false };
 
-    window.runLang = async function(){
-      clearEditorMarkers();
-      setComplexityEnabled(false);
+window.runLang = async function(){
+  // --- pre-run cleanup (same as you already do) ---
+  clearEditorMarkers();
+  setComplexityEnabled(false);
+  const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
+  showInputRow(false);
+  setConsole('');
+  document.getElementById('output')?.classList.remove('error');
 
-      const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent='';
-      showInputRow(false);
-      setConsole('');
-      document.getElementById('output')?.classList.remove('error');
+  const src = window.editor ? window.editor.getValue() : '';
+  const needsStdin = /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(/.test(src);
 
-      const src = window.editor ? window.editor.getValue() : '';
-      const needsStdin = codeNeedsInput(src);
+  // state used to decide success at close
+  const runState = { exitCode:null, compiled:false };
 
-      try{
-        // Compile step
-        window.PolyShell?.setStatus('Compiling…','busy');
-        __statusBase='Compiling'; startStatusDots(__statusBase);
+  return new Promise(async (resolve, reject)=>{
+    try{
+      // ---- compile (prepare) ----
+      window.PolyShell?.setStatus('Compiling…','busy');
+      __statusBase = 'Compiling'; startStatusDots(__statusBase);
 
-        const prep = await prepare();
-        if (!prep || !prep.ok || !prep.token){
-          runState.compileFailed = true;
+      const code = window.editor ? window.editor.getValue() : '';
+      const files = [{ path:'main.c', content:code }];
+      const res = await fetch('https://polycode-cc.onrender.com/api/cc/prepare', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
+      });
+      if (!res.ok) throw new Error('Prepare failed: ' + res.status);
+      const prep = await res.json();
 
-          stopStatusDots();
-          const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
-          termWrite((log||'').trim() + '\n');
+      if (!prep || !prep.ok || !prep.token){
+        // print compiler output, set Monaco markers, then REJECT
+        stopStatusDots();
+        const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
+        termWrite((log||'').trim() + '\n');
+        const m = /main\.c:(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(log||'');
+        if (m){ setEditorMarker(Math.max(1,parseInt(m[1],10)), m[2]); }
+        else { setEditorMarker(1, (log.split('\n')[0] || 'Compilation failed').trim()); }
+        window.PolyShell?.setRunnerPhase?.('error');
+        window.PolyShell?.setStatus('Execution Failed','error');
+        setComplexityEnabled(false);
+        return reject(new Error('compile_failed'));
+      }
+      runState.compiled = true;
 
-          const parsed = parseCCompileErrorLine(log);
-          if (parsed){ setEditorMarker(parsed.line, parsed.msg); }
-          else { setEditorMarker(1, (log.split('\n')[0] || 'Compilation failed').trim()); }
+      // ---- connect ----
+      showRunnerOverlay('Connecting to C runner…', 12, 'Creating interactive session…');
+      __statusBase = 'Connecting'; startStatusDots(__statusBase);
 
-          window.PolyShell?.setRunnerPhase?.('error');
-          window.PolyShell?.setStatus('Execution Failed','error');
-          setComplexityEnabled(false);
-          return;
-        }
+      const ws = new WebSocket('wss://polycode-cc.onrender.com/cc?token=' + encodeURIComponent(prep.token));
+      window.termWS = ws; window.wsRunInFlight = true;
 
-        // Connect step
-        showRunnerOverlay('Connecting to C runner…', 12, 'Creating interactive session…');
-        __statusBase='Connecting'; startStatusDots(__statusBase);
-
-        const ws = new WebSocket(C_WS_BASE + '?token=' + encodeURIComponent(prep.token));
-        window.termWS = ws; window.wsRunInFlight = true;
-
-        ws.addEventListener('open', ()=>{
-          hideRunnerOverlay();
-          __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
-          startStatusDots(__statusBase);
-          startHeartbeat(ws);
-          window.PolyShell?.setRunnerPhase?.('running');
-
-          // Heuristic: if stdin is expected but no prompt flushes, enable input row shortly
-          if (needsStdin){
-            setTimeout(()=>{ if (window.wsRunInFlight) showInputRow(true); }, 400);
-          }
-        });
-
-        ws.addEventListener('message', (ev)=>{
-          const data = String(ev.data || '');
-          termWrite(data);
-
-          // If backend sends structured messages, handle them; otherwise ignore
-          try{
-            const msg = JSON.parse(data);
-            if (msg.type === 'stdin_req'){
-              showInputRow(true);
-              window.PolyShell?.setRunnerPhase?.('waiting_input', { detail:getCountdownText?.() });
-              window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-              __statusBase='Waiting for User Input'; startStatusDots(__statusBase);
-              startInputCountdown(inputWaitMs);
-              window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-            } else if (msg.type === 'exit'){
-              runState.exitCode = Number(msg.code);
-            }
-          }catch{}
-          // Also catch exit code printed as plain text: "[process exited with code X]"
-          const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
-          if (m) runState.exitCode = parseInt(m[1],10);
-        });
-
-        ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
-
-        ws.addEventListener('close', ()=>{
-          stopHeartbeat(); stopStatusDots(); stopInputCountdown();
-          window.PolyShell?.stopInputTicker?.();
-          window.wsRunInFlight = false; showInputRow(false);
-
-          const ok = (runState.exitCode === 0);
-          if (ok){
-            window.PolyShell?.setRunnerPhase?.('success');
-            window.PolyShell?.setStatus('Execution Success','ok');
-            clearEditorMarkers();
-            setComplexityEnabled(true);
-          }else{
-            window.PolyShell?.setRunnerPhase?.('error');
-            window.PolyShell?.setStatus('Execution Failed','error');
-            setComplexityEnabled(false);
-          }
-        }, { once:true });
-
-      }catch(err){
+      let settled = false; // prevent double resolve/reject
+      const finish = (ok)=>{
+        if (settled) return; settled = true;
+        try{ hideRunnerOverlay(); }catch{}
+        try{ stopHeartbeat(); }catch{}
         stopStatusDots(); stopInputCountdown();
         window.PolyShell?.stopInputTicker?.();
         showInputRow(false);
         window.wsRunInFlight = false;
-        window.PolyShell?.setRunnerPhase?.('error');
-        window.PolyShell?.setStatus('Execution Failed','error');
-        document.getElementById('output')?.classList.add('error');
-        termWrite((err && err.message) ? (err.message+'\n') : 'Execution failed\n');
-      }
-    };
+        ok ? resolve() : reject(new Error('run_failed'));
+      };
+
+      ws.addEventListener('open', ()=>{
+        hideRunnerOverlay();
+        __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
+        startStatusDots(__statusBase);
+        startHeartbeat(ws);
+        window.PolyShell?.setRunnerPhase?.('running');
+        if (needsStdin){
+          // If stdout didn’t flush prompt, still allow typing shortly
+          setTimeout(()=>{ if (!settled && window.wsRunInFlight) showInputRow(true); }, 400);
+        }
+      });
+
+      ws.addEventListener('message', (ev)=>{
+        const data = String(ev.data || '');
+        termWrite(data);
+
+        // Try to read structured signals
+        try{
+          const msg = JSON.parse(data);
+          if (msg.type === 'stdin_req'){
+            showInputRow(true);
+            window.PolyShell?.setRunnerPhase?.('waiting_input');
+            window.PolyShell?.setStatus('Waiting for User Input…','busy');
+            __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+            startInputCountdown(5*60*1000);
+            window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+          } else if (msg.type === 'exit'){
+            runState.exitCode = Number(msg.code);
+          }
+        }catch{}
+
+        // Also catch textual exit code
+        const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
+        if (m) runState.exitCode = parseInt(m[1],10);
+      });
+
+      ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
+
+      ws.addEventListener('close', ()=>{
+        // stop timers/overlays, then resolve/reject so shell.js can set final status + time
+        const ok = (runState.exitCode === 0);
+        finish(ok);
+      }, { once:true });
+
+    }catch(err){
+      // network / unexpected failure
+      stopStatusDots(); stopInputCountdown();
+      window.PolyShell?.stopInputTicker?.();
+      showInputRow(false);
+      window.wsRunInFlight = false;
+      window.PolyShell?.setRunnerPhase?.('error');
+      window.PolyShell?.setStatus('Execution Failed','error');
+      document.getElementById('output')?.classList.add('error');
+      termWrite((err && err.message) ? (err.message+'\n') : 'Execution failed\n');
+      reject(err);
+    }
+  });
+};
 
     window.clearLang = function(){
       setConsole('');
