@@ -6,6 +6,45 @@ import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
 
+
+// ---- add near top of file ----
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { spawn } = require('child_process');
+
+const PY_BOOTSTRAP = `
+import os, sys, atexit
+import matplotlib
+matplotlib.use("Agg")
+try:
+    import matplotlib.pyplot as plt
+except Exception:
+    plt = None
+
+def _pc_emit_images():
+    if not plt: return
+    try:
+        tmpdir = os.environ.get("POLY_TMP", ".")
+        # Save all open figures as numbered PNGs
+        for i, num in enumerate(plt.get_fignums(), start=1):
+            fig = plt.figure(num)
+            path = os.path.join(tmpdir, f"plot_{i}.png")
+            fig.savefig(path, bbox_inches='tight')
+            print(f"__POLY_IMG__:{path}", flush=True)
+        plt.close('all')
+    except Exception as e:
+        print(f"[polycode image export error] {e}", file=sys.stderr, flush=True)
+
+if plt:
+    def _pc_show(*args, **kwargs):
+        _pc_emit_images()
+    plt.show = _pc_show
+    atexit.register(_pc_emit_images)
+`.trim();
+
+
+
 const app = express();
 
 // Basic health + root (both 200 OK)
