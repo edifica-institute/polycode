@@ -514,70 +514,81 @@ function ensureModalStyles(){
 
   // Worst-case recursion classifier
 // Worst-case recursion classifier with QuickSort / D&C detection + teaching notes
+// Worst-case recursion classifier + stack depth & trace notes (C/C++)
 function recursionHeuristic(fnName, body, pushNote, ln) {
-  // Count direct self calls
+  // how many direct self calls?
   const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
   const calls = (body.match(callRe) || []).length;
 
-  // Any hint that the problem size is halved / split by mid
+  // halving / mid hints
   const halves =
     /[*/]\s*2\b|>>\s*1\b|\bmid\b|\b(high\s*-\s*low)\s*\/\s*2|\b(low\s*\+\s*high)\s*\/\s*2/i.test(body);
 
-  // Linear "combine/partition" type work in the same function body
-  // (QuickSort calls partition; MergeSort calls merge; generic "combine")
+  // linear combine/partition (e.g., partition/merge) or visible loop work
   const hasLinearCombine =
     /\b(for|while)\s*\(/.test(body) || /\bpartition\s*\(|\bmerge\s*\(|\bcombine\s*\(/i.test(body);
 
-  // Two or more self-calls that are NOT mutually exclusive via else/else-if
-  // (coarse but effective for typical D&C like quickSort/mergeSort)
-  const hasElseBranching = /\belse\b/.test(body);
-  const twoCallsSamePath = (calls >= 2) && !hasElseBranching;
+  // two self calls in the same path (coarse: not separated by else)
+  const twoCallsSamePath = (calls >= 2) && !/\belse\b/.test(body);
 
-  // Fibonacci-like: f(n-1) and f(n-2)
+  // Fibonacci pattern
   const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
   const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
 
-  // ---- Classification (WORST-CASE returned; average explained in notes) ----
+  // tree-ish signal
+  const looksTreey = /->\s*(left|right|child|next)\b|\.\s*(left|right|child|next)\b|\b(node|root)\b/i.test(body);
+
+  // helper: add a stack row
+  function pushStack(depthExpr, trace) {
+    // depthExpr: 'n', 'log n', or 'h' (tree height)
+    pushNote(ln, 'stack', depthExpr, `recursion stack (worst): ${trace}`);
+  }
+
+  // ---- WORST-CASE classification + stack trace ----
   if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
-    pushNote(ln, 'recursion', '2^n',
-      `${fnName}(): Fibonacci-like recursion → worst O(2^n) (no better average-case)`);
+    pushNote(ln, 'recursion', '2^n', `${fnName}(): Fibonacci-like recursion → worst O(2^n)`);
+    pushStack('n', `${fnName}(n) → ${fnName}(n-1) → … → ${fnName}(1)`);
     return '2^n';
   }
 
-  // Divide & Conquer: two self calls in same path
   if (twoCallsSamePath) {
-    // MergeSort-ish: halves + linear combine → O(n log n) worst (and average)
     if (halves && hasLinearCombine) {
       pushNote(ln, 'recursion', 'n log n',
-        `${fnName}(): divide & conquer with halving + linear combine (e.g., merge sort) → worst O(n log n), average O(n log n)`);
+        `${fnName}(): divide & conquer with halving + linear combine (e.g., merge sort) → worst O(n log n)`);
+      pushStack('log n', `${fnName}(n) → ${fnName}(n/2) → ${fnName}(n/4) → … → ${fnName}(1)`);
       return 'n log n';
     }
-    // QuickSort-ish: no guaranteed halving, but linear partition/combine → worst O(n^2), average O(n log n)
     if (!halves && hasLinearCombine) {
       pushNote(ln, 'recursion', 'n^2',
         `${fnName}(): two recursive calls + linear partition/combine (e.g., quicksort) → worst O(n^2), average O(n log n)`);
+      pushStack('n', `${fnName}(n) → ${fnName}(n-1) → … → ${fnName}(1)`);
       return 'n^2';
     }
-    // Generic tree recursion (visit multiple branches) with no linear combine signal
+    // generic tree recursion (visit multiple branches)
     pushNote(ln, 'recursion', 'n',
-      `${fnName}(): tree recursion (visits multiple branches) → worst O(n), average O(n)`);
+      `${fnName}(): tree recursion (visits multiple branches) → worst O(n)`);
+    pushStack('h', `${fnName}(node) → ${fnName}(node->left) → ${fnName}(node->left->left) → …`);
     return 'n';
   }
 
-  // Single-branch recursion
   if (calls >= 1) {
     if (halves) {
       pushNote(ln, 'recursion', 'log n',
-        `${fnName}(): single-branch halving recursion → worst O(log n), average O(log n)`);
+        `${fnName}(): single-branch halving recursion → worst O(log n)`);
+      pushStack('log n', `${fnName}(n) → ${fnName}(n/2) → ${fnName}(n/4) → …`);
       return 'log n';
     }
+    // single-branch (BST insert/search)
     pushNote(ln, 'recursion', 'n',
-      `${fnName}(): single-branch recursion (e.g., BST insert/search) → worst O(n); balanced average ≈ O(log n)`);
+      `${fnName}(): single-branch recursion (e.g., BST insert/search) → worst O(n); balanced avg ≈ O(log n)`);
+    if (looksTreey) pushStack('h', `${fnName}(node) → ${fnName}(node->left/right) → …`);
+    else            pushStack('n', `${fnName}(n) → ${fnName}(n-1) → … → ${fnName}(1)`);
     return 'n';
   }
 
   return '1';
 }
+
 
 
   /* =================== Statement cost (recursive over AST) =================== */
@@ -835,6 +846,7 @@ finalTimeCore = simplify.max(finalTimeCore, analyzeLibraryCallsDetailed(lines, p
       `<p><strong>Teaching note:</strong> The “Final Time” is always the <u>worst-case</u>. Line-by-line notes may also mention average-case so you learn both. In interviews/exams, quote worst-case unless asked otherwise.</p>`;
     nt.innerHTML +=
       `<p><strong>Library note:</strong> For standard library calls we show average <em>and</em> worst where they differ (e.g., <code>qsort</code> average O(n log n), worst O(n^2)). The Final Time remains worst-case.</p>`;
+nt.innerHTML += `<p><strong>Recursion stack:</strong> Rows with type <em>stack</em> show the worst-case <em>auxiliary stack</em> depth and a sketch of the call chain (e.g., <code>f(n) → f(n-1) → …</code>). This contributes to space complexity in addition to heap allocations.</p>`;
 
     openModal();
   }
