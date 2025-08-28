@@ -299,24 +299,43 @@ int main(){
   };
 
   // Guard: block unintended clears of our owner; also LOG who did it
-  monaco.editor.setModelMarkers = function(model, owner, markers){
-  // --- BEGIN: compatibility shims ---
-  // 1) Alias the old owner to the guarded owner
-  if (owner === 'c-compile') owner = MARK_OWNER;
+  // Guard: block unintended clears of our owner; normalize 'c-compile' ➜ MARK_OWNER
+monaco.editor.setModelMarkers = function(model, owner, markers) {
+  let o = owner;
+  let m = markers;
 
-  // 2) If someone calls the old clearer, treat it as our guarded clearer
-  if (owner === MARK_OWNER && Array.isArray(markers) && markers.length === 0 && !__allowClear && __sticky.length) {
-    // Re-assert instead of clearing unintentionally
-    return realSetModelMarkers.call(monaco.editor, model, owner, __sticky);
-  }
-  // --- END: compatibility shims ---
+  // 1) Alias legacy owner to our guarded owner
+  if (o === 'c-compile') o = MARK_OWNER;
 
-  const count = Array.isArray(markers) ? markers.length : 0;
-  if (owner === MARK_OWNER) {
-    console.log(`[markers] owner=${owner} count=${count} uri=${model?.uri?.toString?.()}`,
+  // 2) If this is our owner, manage stickiness & block accidental clears
+  if (o === MARK_OWNER) {
+    const isArray = Array.isArray(m);
+    const count   = isArray ? m.length : 0;
+
+    if (isArray && count === 0) {
+      // Attempted clear of our owner
+      if (!__allowClear && __sticky.length) {
+        // Re-assert instead of clearing unintentionally
+        return realSetModelMarkers.call(monaco.editor, model, o, __sticky);
+      } else {
+        // Legit clear (explicit via window.clearCompileMarkers)
+        __sticky = [];
+        return realSetModelMarkers.call(monaco.editor, model, o, []);
+      }
+    }
+
+    // Non-empty set for our owner → refresh sticky cache
+    if (isArray && count > 0) {
+      __sticky = m.slice();
+    }
+
+    // Optional: debug
+    console.log(`[markers] owner=${o} count=${count} uri=${model?.uri?.toString?.()}`,
                 '\n' + new Error('marker trace').stack.split('\n').slice(2, 12).join('\n'));
   }
-  return realSetModelMarkers.apply(monaco.editor, arguments);
+
+  // 3) Forward the (possibly normalized) call
+  return realSetModelMarkers.call(monaco.editor, model, o, m);
 };
 
   // Re-assert after layout/model churn (e.g., RAF, resize)
