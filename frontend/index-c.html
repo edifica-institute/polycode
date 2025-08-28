@@ -183,9 +183,11 @@
   <script src="./js/shell.js" defer></script>
 
   <!-- Page script: C runner -->
-  <script>
-    const SAMPLE_C =
-`#include <stdio.h>
+
+<script>
+/* ================= Base ================= */
+
+const SAMPLE_C = `#include <stdio.h>
 
 int main(){
     int n;
@@ -195,317 +197,362 @@ int main(){
     return 0;
 }`;
 
-    /* ===== Bootstrap ===== */
-    window.bootstrap = async function(){
-      await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
-      window.PolyShell.setStatus('Ready', 'ok');
-      window.PolyShell.loadLeftContent?.('c');
-      window.setComplexityEnabled?.(false);
-      window.clearEditorMarkers = clearEditorMarkers;
-    };
+const C_API_BASE = 'https://polycode-cc.onrender.com';
+const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';
 
-    /* ===== Console helpers ===== */
-    function setConsole(text){
-      const el = document.getElementById('jconsole'); if (!el) return;
-      el.textContent = text || '';
-      document.getElementById('output')?.scrollTo({ top: 1e9 });
+/* ============= Monaco helpers (markers) ============= */
+
+function installCompileMarkerGuard(){
+  if (!window.monaco || !window.editor || window.__pcGuardInstalled) return;
+  window.__pcGuardInstalled = true;
+
+  const MARK_OWNER = window.PC_COMPILE_OWNER || (
+    window.PC_COMPILE_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2))
+  );
+
+  const realSet = monaco.editor.setModelMarkers;
+  let sticky = []; let allowClear = false;
+
+  window.setEditorMarkers = function(list){
+    const model = window.editor?.getModel(); if (!model) return;
+    const lineCount = model.getLineCount();
+    const items = (Array.isArray(list)? list : (list ? [list] : [])).map(e=>{
+      let ln = Math.min(Math.max(1, Number(e?.line)||1), lineCount);
+      let max = model.getLineMaxColumn(ln);
+      let col = Math.min(Math.max(1, Number(e?.col)||1), Math.max(1, max-1));
+      const sev = ({warning: monaco.MarkerSeverity.Warning, info: monaco.MarkerSeverity.Info, hint: monaco.MarkerSeverity.Hint}[(e?.sev||'').toLowerCase()]) || monaco.MarkerSeverity.Error;
+      return { startLineNumber: ln, endLineNumber: ln, startColumn: col, endColumn: Math.min(max,col+1), message: String(e?.msg || 'Error'), severity: sev };
+    });
+    realSet.call(monaco.editor, window.editor.getModel(), MARK_OWNER, items);
+    sticky = items.slice();
+  };
+
+  window.clearCompileMarkers = function(){
+    const model = window.editor?.getModel(); if (!model) return;
+    allowClear = true;
+    realSet.call(monaco.editor, model, MARK_OWNER, []);
+    allowClear = false; sticky = [];
+  };
+
+  monaco.editor.setModelMarkers = function(model, owner, markers){
+    // treat legacy owner as ours and prevent accidental clears
+    if (owner === 'c-compile') owner = MARK_OWNER;
+    if (owner === MARK_OWNER && Array.isArray(markers) && markers.length === 0 && !allowClear && sticky.length){
+      return realSet.call(monaco.editor, model, owner, sticky);
     }
-    function termWrite(t){
-      const el = document.getElementById('jconsole'); if (!el) return;
-      el.textContent += t;
-      document.getElementById('output')?.scrollTo({ top: 1e9 });
+    return realSet.apply(monaco.editor, arguments);
+  };
+
+  const reapply = ()=>{ const m = window.editor?.getModel(); if (m && sticky.length) realSet.call(monaco.editor, m, MARK_OWNER, sticky); };
+  window.editor.onDidLayoutChange?.(reapply);
+  window.editor.onDidChangeModel?.(reapply);
+  window.addEventListener('resize', ()=> requestAnimationFrame(reapply));
+}
+
+function findAllGccErrors(text){
+  if (!text) return [];
+  const clean = text.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+  const out = []; let m;
+
+  // foo.c:LINE:COL: error: MSG
+  const re1 = /(?:^|\n)(?:.*?)(?:^|[\/\\])([^\/\\\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
+  while ((m = re1.exec(clean))) out.push({ file:m[1], line:+m[2], col:m[3]?+m[3]:1, msg:m[4] });
+
+  // <stdin>:LINE[:COL]: error: MSG
+  const re2 = /(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
+  while ((m = re2.exec(clean))) out.push({ file:'<stdin>', line:+m[1], col:m[2]?+m[2]:1, msg:m[3] });
+
+  // foo.c:LINE: error: MSG
+  const re3 = /(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/mg;
+  while ((m = re3.exec(clean))) out.push({ file:m[1], line:+m[2], col:1, msg:m[3] });
+
+  // de-dupe by (line|col|msg)
+  const seen = new Set();
+  return out.filter(e=>{ const k = `${e.line}|${e.col}|${e.msg}`; if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+/* ================= Console helpers ================= */
+
+function setConsole(text){
+  const el = document.getElementById('jconsole'); if (!el) return;
+  el.textContent = text || ''; document.getElementById('output')?.scrollTo({ top: 1e9 });
+}
+function termWrite(t){
+  const el = document.getElementById('jconsole'); if (!el) return;
+  el.textContent += t; document.getElementById('output')?.scrollTo({ top: 1e9 });
+}
+
+function showInputRow(show){
+  const row = document.getElementById('consoleRow');
+  const pre = document.getElementById('jconsole');
+  const prefix = document.getElementById('consolePrefix');
+  if (!row || !pre || !prefix) return;
+
+  row.style.display = show ? 'flex' : 'none';
+  if (show){
+    const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
+    if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+    else { prefix.textContent = ''; }
+    const el = document.getElementById('consoleInput');
+    if (el){
+      el.focus();
+      const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
     }
+    window.PolyShell?.setStatus('Waiting for User Input…','busy');
+  } else {
+    if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
+  }
+}
 
-    /* ===== Input row ===== */
-    function showInputRow(show){
-      const row = document.getElementById('consoleRow');
-      const pre = document.getElementById('jconsole');
-      const prefix = document.getElementById('consolePrefix');
-      if (!row || !pre || !prefix) return;
+function setComplexityEnabled(on){
+  const b = document.getElementById('btnComplexity'); if (!b) return;
+  const was = b.disabled; b.disabled = !on;
+  if (on && was && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1'; setTimeout(()=> b.classList.remove('btn-pulse'), 1000); }
+}
+window.setComplexityEnabled = setComplexityEnabled;
 
-      row.style.display = show ? 'flex' : 'none';
-      if (show){
-        const txt = pre.textContent; const i = txt.lastIndexOf('\\n'); const tail = txt.slice(i+1);
-        if (tail && !/^\\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-        else { prefix.textContent = ''; }
-        const el = document.getElementById('consoleInput');
-        if (el){ el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
-        window.PolyShell.setStatus('Waiting for User Input...', 'busy');
-      } else {
-        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
+/* ================= Overlay ================= */
+
+function showRunnerOverlay(msg='Connecting…', pct=10, hint='Opening WebSocket…'){
+  const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'),
+        m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
+  if (!ov||!bar||!m||!h) return;
+  ov.style.display='flex'; m.textContent=msg; h.textContent=hint; bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
+}
+function updateRunnerOverlay({msg,pct,hint}){
+  const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'),
+        bar=document.getElementById('runnerBar');
+  if (msg&&m) m.textContent=msg; if (hint&&h) h.textContent=hint;
+  if (typeof pct==='number' && bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
+}
+function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none'; }
+
+/* ================= Runner I/O ================= */
+
+function codeNeedsInput(src){
+  return /\b(scanf|fscanf|fgets|getchar|getch|gets|getline|read)\b\s*\(/i.test(src||'');
+}
+
+async function prepare(){
+  const code = window.editor ? window.editor.getValue() : '';
+  const files = [{ path: 'main.c', content: code }];
+  const res = await fetch(C_API_BASE + '/api/cc/prepare', {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
+  });
+  if (!res.ok) throw new Error('Prepare failed: ' + res.status);
+  return res.json();
+}
+
+/* ================= Heartbeat ================= */
+let hbInterval=null, hbTimeout=null;
+function startHeartbeat(ws){
+  stopHeartbeat();
+  hbInterval=setInterval(()=>{
+    try{
+      if (ws.readyState===1){
+        ws.send(JSON.stringify({type:'ping'}));
+        clearTimeout(hbTimeout);
+        hbTimeout=setTimeout(()=>{ console.warn('Runner heartbeat missed'); },5000);
       }
-    }
-    document.addEventListener('keydown',(e)=>{
-      const el = document.getElementById('consoleInput');
-      if (!el || el.offsetParent===null) return;
-      if (e.target!==el) return;
-      if (e.key==='Enter'){
-        e.preventDefault();
-        const line = el.textContent + '\\n';
-        if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){
-          try{ window.termWS.send(JSON.stringify({type:'stdin', data: line})); }catch{}
-        }
-        termWrite(line);
-        el.textContent='';
-        window.PolyShell.setStatus('Executing…','busy');
-        showInputRow(false);
+    }catch{}
+  },25000);
+}
+function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
+
+/* ================= Bootstrap (guarded once) ================= */
+
+window.bootstrap = async function(){
+  if (window.__pcBooted) return; window.__pcBooted = true;
+  await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
+  installCompileMarkerGuard();
+  window.PolyShell.setStatus('Ready','ok');
+  window.PolyShell.loadLeftContent?.('c');
+  setComplexityEnabled(false);
+};
+
+/* ================= Keyboard -> stdin ================= */
+
+document.addEventListener('keydown',(e)=>{
+  const el = document.getElementById('consoleInput');
+  if (!el || el.offsetParent===null) return;
+  if (e.target!==el) return;
+  if (e.key==='Enter'){
+    e.preventDefault();
+    const line = el.textContent + '\n';
+    try{
+      if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){
+        window.termWS.send(JSON.stringify({type:'stdin', data: line}));
       }
-    }, true);
+    }catch{}
+    termWrite(line);
+    el.textContent='';
+    window.PolyShell?.setStatus('Executing…','busy');
+  }
+}, true);
 
-    /* ===== Complexity button ===== */
-    function setComplexityEnabled(on){
-      const b = document.getElementById('btnComplexity'); if (!b) return;
-      const was = b.disabled; b.disabled = !on;
-      if (on && was && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1'; setTimeout(()=>b.classList.remove('btn-pulse'), 1000); }
-    }
-    window.setComplexityEnabled = setComplexityEnabled;
+/* ================= RUN ================= */
 
-    /* ===== Overlay (backend modal) ===== */
-    function showRunnerOverlay(msg='Connecting to C runner…', pct=10, hint='Opening WebSocket…'){
-      const ov=document.getElementById('runnerOverlay'),
-            bar=document.getElementById('runnerBar'),
-            m=document.getElementById('runnerMsg'),
-            h=document.getElementById('runnerHint');
-      if (!ov||!bar||!m||!h) return;
-      ov.style.display='flex'; m.textContent=msg; h.textContent=hint;
-      bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-    }
-    function updateRunnerOverlay({msg,pct,hint}){
-      const bar=document.getElementById('runnerBar'),
-            m=document.getElementById('runnerMsg'),
-            h=document.getElementById('runnerHint');
-      if (msg&&m) m.textContent=msg;
-      if (hint&&h) h.textContent=hint;
-      if (typeof pct==='number' && bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-    }
-    function hideRunnerOverlay(){
-      const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none';
-    }
+window.runLang = async function(){
+  // Let shell.js know a run started (if it uses this)
+  window.setRunUI?.(true);
 
-    /* ===== Markers (no monkeypatch) ===== */
-    const stripAnsi = s => String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g,'');
-    function findAllGccErrors(text){
-      if (!text) return [];
-      const clean = stripAnsi(text);
-      const out = [];
-      let m;
+  // reset UI
+  setConsole(''); document.getElementById('output')?.classList.remove('error');
+  setComplexityEnabled(false); window.clearCompileMarkers?.();
+  try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
 
-      // path/file.c:LINE:COL: error: MSG
-      const re1 = /(?:^|\n)(?:.*?)(?:^|[\/\\])([^\/\\\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-      while ((m = re1.exec(clean))) out.push({ file:m[1], line:+m[2], col:m[3]?+m[3]:1, msg:m[4] });
+  // state
+  const flags = { sawCompileErr:false, sawRuntimeErr:false, exitCode:null, needsStdin:false, inputProvided:false, sawAnyOutput:false };
+  let aggLog = '';
+  const stripAnsi = s => s.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 
-      // <stdin>:LINE:COL: error: MSG
-      const re2 = /(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-      while ((m = re2.exec(clean))) out.push({ file:'<stdin>', line:+m[1], col:m[2]?+m[2]:1, msg:m[3] });
+  // overlay
+  showRunnerOverlay('Compiling C program…', 12, 'Sending source…');
+  window.PolyShell.setStatus('Compiling…','busy');
 
-      // file.c:LINE: error: MSG
-      const re3 = /(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/mg;
-      while ((m = re3.exec(clean))) out.push({ file:m[1], line:+m[2], col:1, msg:m[3] });
+  // compile
+  let prep;
+  try{
+    updateRunnerOverlay({ pct:28, hint:'Building with gcc…' });
+    prep = await prepare();
+    updateRunnerOverlay({ pct:45, hint:'Checking artifacts…' });
+  }catch(e){
+    updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
+    hideRunnerOverlay();
+    setConsole((e&&e.message)||'Prepare failed');
+    window.PolyShell.setStatus('Compilation Failed','error');
+    setComplexityEnabled(false);
+    window.setRunUI?.(false);
+    throw new Error('compile_failed');
+  }
 
-      const seen = new Set();
-      return out.filter(e => { const k = `${e.line}|${e.col}|${e.msg}`; if (seen.has(k)) return false; seen.add(k); return true; });
-    }
+  if (!prep || !prep.ok || !prep.token){
+    const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
+    setConsole((log||'').trim());
+    aggLog += stripAnsi(String(log||''));
+    window.setEditorMarkers?.(findAllGccErrors(aggLog));
+    updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
+    hideRunnerOverlay();
+    window.PolyShell.setStatus('Compilation Failed','error');
+    setComplexityEnabled(false);
+    window.setRunUI?.(false);
+    throw new Error('compile_failed');
+  }
 
-    const MARK_OWNER = window.PC_COMPILE_OWNER || (window.PC_COMPILE_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2)));
+  // run
+  const token = prep.token;
+  updateRunnerOverlay({ msg:'Connecting to C runner…', pct:65, hint:'Opening WebSocket…' });
+  const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
+  window.termWS = ws; window.wsRunInFlight = true;
+  window.PolyShell.setStatus('Running (interactive)…','busy');
 
-    function setEditorMarkers(list){
-      const model = window.editor?.getModel(); if (!model || !window.monaco) return;
-      const lineCount = model.getLineCount();
-      const markers = (Array.isArray(list)?list:[]).map(e=>{
-        const line  = Math.min(Math.max(1, Number(e?.line)||1), lineCount);
-        const max   = model.getLineMaxColumn(line);
-        const start = Math.min(Math.max(1, Number(e?.col)||1), Math.max(1, max-1));
-        return { startLineNumber: line, endLineNumber: line, startColumn: start, endColumn: Math.min(max, start+1), message: String(e?.msg||'Error'), severity: monaco.MarkerSeverity.Error };
-      });
-      monaco.editor.setModelMarkers(model, MARK_OWNER, markers);
-      if (markers[0]){
-        window.editor.revealLineInCenterIfOutsideViewport(markers[0].startLineNumber);
-        try{ window.editor.setPosition({ lineNumber: markers[0].startLineNumber, column: markers[0].startColumn }); }catch{}
+  flags.needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
+  if (flags.needsStdin) showInputRow(true);
+
+  return await new Promise((resolve, reject)=>{
+    let settled = false;
+    const settle = (ok, reason) => { if (settled) return; settled = true; ok ? resolve() : reject(new Error(reason||'run_failed')); };
+
+    ws.addEventListener('open', ()=>{ updateRunnerOverlay({ pct:95, hint:'Connected' }); setTimeout(hideRunnerOverlay, 150); startHeartbeat(ws); });
+
+    ws.addEventListener('message',(ev)=>{
+      const raw = String(ev.data||'');
+      let msg = null; try{ msg = JSON.parse(raw); }catch{}
+      if (msg && typeof msg==='object' && msg.type){
+        if (msg.type==='stdout'){ const d = String(msg.data||''); termWrite(d); aggLog += stripAnsi(d); if (d.trim()) flags.sawAnyOutput = true; return; }
+        if (msg.type==='stderr'){ const d = String(msg.data||''); termWrite(d); aggLog += stripAnsi(d); flags.sawRuntimeErr = true; return; }
+        if (msg.type==='compileErr'){ const d = String(msg.data||''); termWrite(d); aggLog += stripAnsi(d); flags.sawCompileErr = true; window.setEditorMarkers?.(findAllGccErrors(aggLog)); return; }
+        if (msg.type==='stdin_req'){ showInputRow(true); return; }
+        if (msg.type==='exit'){ flags.exitCode = Number(msg.code); return; }
+        // unknown typed message -> fall through to raw append
       }
-    }
-    function clearEditorMarkers(){
-      const model = window.editor?.getModel();
-      if (!model || !window.monaco) return;
-      monaco.editor.setModelMarkers(model, MARK_OWNER, []);
-    }
+      // plain text fallback
+      termWrite(raw);
+      const clean = stripAnsi(raw);
+      aggLog += clean;
+      if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) flags.sawRuntimeErr = true;
+      if (clean.trim()) flags.sawAnyOutput = true;
+      const errs = findAllGccErrors(aggLog);
+      if (errs.length){ flags.sawCompileErr = true; window.setEditorMarkers?.(errs); }
+    });
 
-    /* ===== Heartbeat ===== */
-    let hbInterval=null, hbTimeout=null;
-    function startHeartbeat(ws){
+    ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
+
+    ws.addEventListener('close', ()=>{
       stopHeartbeat();
-      hbInterval=setInterval(()=>{
-        try{
-          if (ws.readyState===1){
-            ws.send(JSON.stringify({type:'ping'}));
-            clearTimeout(hbTimeout);
-            hbTimeout=setTimeout(()=>{ console.warn('Runner heartbeat missed'); },5000);
-          }
-        }catch{}
-      },25000);
+      window.wsRunInFlight = false; showInputRow(false);
+
+      const cleanLog = stripAnsi(aggLog || (document.getElementById('jconsole')?.textContent || ''));
+      const hasCompileErr = flags.sawCompileErr || /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
+      const hasRuntimeErr = flags.sawRuntimeErr || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
+
+      let ok;
+      if (flags.exitCode !== null) ok = (flags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr;
+      else ok = !hasCompileErr && !hasRuntimeErr && !(flags.needsStdin && !flags.inputProvided);
+
+      if (ok){
+        window.PolyShell.setStatus('Execution Success','ok');
+        window.clearCompileMarkers?.();
+        setComplexityEnabled(true);
+        window.setRunUI?.(false);
+        settle(true);
+      } else {
+        window.PolyShell.setStatus(hasCompileErr ? 'Compilation Failed' : 'Execution Failed','error');
+        setComplexityEnabled(false);
+        window.setRunUI?.(false);
+        settle(false, hasCompileErr ? 'compile_failed' : 'runtime_failed');
+      }
+    }, { once:true });
+  });
+};
+
+/* ================= Reset used by shell.js ================= */
+
+window.clearLang = function(){
+  setConsole('');
+  try{ window.termWS?.close(); }catch{}
+  window.termWS=null; window.wsRunInFlight=false;
+  showInputRow(false); setComplexityEnabled(false); window.clearCompileMarkers?.();
+  window.PolyShell.setStatus('Ready','ok');
+};
+
+/* ================= Start after shell.js ================= */
+
+(function startWhenReady(){
+  function start(){
+    if (!window.PolyShell){
+      const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
+      setTimeout(()=>clearInterval(id), 3000);
+      return;
     }
-    function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
+    window.bootstrap();
+  }
+  if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
+  else { start(); }
+})();
+</script>
 
-    /* ===== Backend endpoints ===== */
-    const C_API_BASE = 'https://polycode-cc.onrender.com';
-    const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';
 
-    async function prepare(){
-      const code = window.editor ? window.editor.getValue() : '';
-      const files = [{ path:'main.c', content: code }];
-      const res = await fetch(C_API_BASE + '/api/cc/prepare', {
-        method:'POST', headers:{ 'Content-Type':'application/json' },
-        body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
-      });
-      if (!res.ok) throw new Error('Prepare failed: ' + res.status);
-      return res.json();
-    }
-    function codeNeedsInput(src){ return /\b(scanf|fscanf|fgets|getchar)\b\s*\(/i.test(src); }
 
-    /* ===== Main run ===== */
-    window.runLang = async function(){
-      setConsole('');
-      document.getElementById('output')?.classList.remove('error');
-      setComplexityEnabled(false);
-      clearEditorMarkers();
-      try{ window.termWS?.close(); }catch{}
-      window.termWS=null; window.wsRunInFlight=false;
 
-      window.PolyShell.setStatus('Compiling…','busy');
-      showRunnerOverlay('Compiling C program…', 12, 'Sending source to backend…');
 
-      let prep;
-      try{
-        updateRunnerOverlay({ pct:28, hint:'Building with gcc…' });
-        prep = await prepare();
-        updateRunnerOverlay({ pct:45, hint:'Checking build artifacts…' });
-      }catch(e){
-        updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-        setTimeout(hideRunnerOverlay, 200);
-        setConsole(String(e?.message || 'Prepare failed'));
-        window.PolyShell.setStatus('Compilation Failed','error');
-        return;
-      }
 
-      if (!prep || !prep.ok || !prep.token){
-        const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
-        const clean = stripAnsi(log);
-        setConsole(clean.trim());
-        const errs = findAllGccErrors(clean);
-        if (errs.length) setEditorMarkers(errs);
-        updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-        setTimeout(hideRunnerOverlay, 200);
-        window.PolyShell.setStatus('Compilation Failed','error');
-        return;
-      }
 
-      const token = prep.token;
-      updateRunnerOverlay({ msg:'Connecting to C runner…', pct:65, hint:'Opening WebSocket…' });
-      const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
-      window.termWS = ws; window.wsRunInFlight = true;
-      window.PolyShell.setStatus('Running (interactive)…','busy');
 
-      const needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
-      if (needsStdin) showInputRow(true);
 
-      let sawCompileErr=false, sawRuntimeErr=false, exitCode=null;
-      ws.addEventListener('open', ()=>{
-        updateRunnerOverlay({ pct:95, hint:'Finalizing…' });
-        setTimeout(hideRunnerOverlay, 150);
-        startHeartbeat(ws);
-      });
 
-      ws.addEventListener('message',(ev)=>{
-        const raw = String(ev.data||'');
-        let msg=null; try{ msg = JSON.parse(raw); }catch{}
 
-        if (msg && typeof msg==='object' && msg.type){
-          if (msg.type==='stdout'){ termWrite(msg.data||''); return; }
-          if (msg.type==='stderr'){ termWrite(msg.data||''); sawRuntimeErr = true; return; }
-          if (msg.type==='compileErr'){
-            const text = stripAnsi(String(msg.data||''));
-            termWrite(text);
-            sawCompileErr = true;
-            const errs = findAllGccErrors(text);
-            if (errs.length) setEditorMarkers(errs);
-            return;
-          }
-          if (msg.type==='stdin_req'){ showInputRow(true); return; }
-          if (msg.type==='exit'){ exitCode = Number(msg.code); ws.close(); return; }
-          return;
-        }
 
-        // Fallback plain text
-        termWrite(raw);
-        const clean = stripAnsi(raw);
-        if (/undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean)) {
-          sawRuntimeErr = true;
-        }
-        // Also catch compile errors if they arrive as plain text
-        const errs = findAllGccErrors(clean);
-        if (errs.length){ sawCompileErr = true; setEditorMarkers(errs); }
-      });
 
-      ws.addEventListener('error', ()=>{ termWrite('\\n[connection error]\\n'); });
-      ws.addEventListener('close', ()=>{
-        stopHeartbeat();
-        window.wsRunInFlight = false;
-        showInputRow(false);
 
-        const log = document.getElementById('jconsole')?.textContent || '';
-        const hasCompileErrors = sawCompileErr || /(^|\\n)[^:\\n]+:\\d+(?::\\d+)?:\\s*(?:fatal\\s+)?error\\s*:/i.test(log);
 
-        if (exitCode !== null){
-          const ok = exitCode===0 && !hasCompileErrors && !sawRuntimeErr;
-          if (ok){
-            window.PolyShell.setStatus('Execution Success','ok');
-            setComplexityEnabled(true);
-            clearEditorMarkers();
-          } else {
-            window.PolyShell.setStatus(hasCompileErrors ? 'Compilation Failed' : 'Execution Failed','error');
-          }
-          if (hasCompileErrors){ const errs = findAllGccErrors(log); if (errs.length) setEditorMarkers(errs); }
-          return;
-        }
 
-        // Infer if no exit message
-        if (hasCompileErrors){
-          window.PolyShell.setStatus('Compilation Failed','error');
-          const errs = findAllGccErrors(log); if (errs.length) setEditorMarkers(errs);
-        } else if (sawRuntimeErr){
-          window.PolyShell.setStatus('Execution Failed','error');
-        } else {
-          window.PolyShell.setStatus('Execution Finished','ok');
-          setComplexityEnabled(true);
-          clearEditorMarkers();
-        }
-      }, { once:true });
-    };
 
-    /* ===== Reset ===== */
-    window.clearLang = function(){
-      setConsole('');
-      try{ window.termWS?.close(); }catch{}
-      window.termWS=null; window.wsRunInFlight=false;
-      showInputRow(false); setComplexityEnabled(false);
-      clearEditorMarkers(); hideRunnerOverlay();
-      window.PolyShell.setStatus('Ready','ok');
-    };
 
-    /* ===== Startup ===== */
-    (function startWhenReady(){
-      function start(){
-        if (!window.PolyShell){
-          const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
-          setTimeout(()=>clearInterval(id), 3000);
-          return;
-        }
-        window.bootstrap();
-      }
-      if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
-      else { start(); }
-    })();
-  </script>
 
+  
   <!-- Runner connecting overlay -->
   <div id="runnerOverlay" style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.45); z-index: 9999;">
     <div style="min-width: 280px; max-width: 420px; padding: 16px 18px; border-radius: 12px; background: var(--panel, #111); color: inherit; box-shadow: 0 6px 24px rgba(0,0,0,0.35); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto;">
