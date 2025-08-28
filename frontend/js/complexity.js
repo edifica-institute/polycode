@@ -733,6 +733,8 @@ function recursionHeuristic(fnName, body, pushNote, ln){
     nt.innerHTML +=
       `<p><strong>Library note:</strong> Arrays.sort on primitives uses dual-pivot quicksort (average O(n log n), worst O(n^2)); on objects it is TimSort (worst O(n log n)). Collections.sort is TimSort. We surface the worst-case in the total.</p>`;
 
+    nt.innerHTML += `<p><strong>Recursion stack:</strong> Rows with type <em>stack</em> show the worst-case <em>auxiliary stack</em> depth and a sketch of the call chain (e.g., <code>f(n) → f(n-1) → …</code>). This contributes to space complexity in addition to heap allocations.</p>`;
+
     openModal();
   }
 
