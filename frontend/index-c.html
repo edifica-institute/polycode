@@ -264,10 +264,7 @@ int main(){
 
   window.monaco.editor.setModelMarkers(model, 'c-compile', markers);
 
-  if (markers[0]) window.editor.revealPositionInCenter({
-    lineNumber: markers[0].startLineNumber,
-    column:     markers[0].startColumn
-  });
+ if (markers[0]) window.editor.revealLineInCenterIfOutsideViewport(markers[0].startLineNumber);
 }
 
 
