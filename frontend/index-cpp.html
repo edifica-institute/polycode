@@ -329,7 +329,8 @@ int main(){
 
     /* ===== Helpers ===== */
     function codeNeedsInput(src){
-      return /\b(?:std::)?cin\s*>>|\bstd::getline\s*\(|\bgetline\s*\(|\bgetchar\s*\(/.test(src);
+      //return /\b(?:std::)?cin\s*>>|\bstd::getline\s*\(|\bgetline\s*\(|\bgetchar\s*\(/.test(src);
+      return false;
     }
 
     // Overlay helpers (same naming as Java)
