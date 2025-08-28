@@ -8,19 +8,22 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <meta name="color-scheme" content="dark light" />
+
   <style>
-    /* Input row look (matches Java) */
+    /* --- small page-local tweaks --- */
     #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
-    #consoleInput{
-      display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
-      caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only;
-    }
+    #consoleInput{ display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none; caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only; }
     #consoleInput:focus{ outline:0 }
     #consoleInput::selection{ background:rgba(255,255,255,.15) }
-
     .btn[disabled], .btn.attn[disabled]{ animation:none!important }
     .pane-foot .msg{ white-space:nowrap }
     .panel .pane-head{ display:flex; align-items:center }
+
+    /* keep grid from snapping back due to intrinsic min-widths */
+    .app, .panel, .pane-body, #editor, #output, #jconsole { min-width: 0; }
+    .v-resize{ cursor: col-resize; user-select: none; }
+    /* wrap output lines so they don't force panel growth; always autoscroll (JS also sets scrollLeft) */
+    #jconsole{ white-space: pre; overflow: auto; }
 
     /* Complexity modal */
     .pc-modal { position: fixed; inset: 0; display: none; z-index: 1000; }
@@ -28,14 +31,12 @@
     .pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45); }
     .pc-modal__dialog{ position:relative; margin:5vh auto; max-width:800px; background:var(--panel, #111); color:inherit; border:1px solid rgba(255,255,255,.1); border-radius:14px; box-shadow:0 20px 50px rgba(0,0,0,.35); padding:14px; }
     .pc-modal__header{ display:flex; align-items:center; justify-content:space-between; }
-    .pc-modal__x{ background:transparent; border:0; font-size:22px; cursor:pointer; }
     .pc-modal__body{ max-height:60vh; overflow:auto; }
     .pc-modal__footer{ display:flex; justify-content:flex-end; gap:8px; }
     .cx-summary{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:6px 0 10px; }
-    .cx-table{ width:100%; border-collapse:collapse; font:13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+    .cx-table{ width:100%; border-collapse: collapse; font:13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
     .cx-table th, .cx-table td{ border-bottom:1px solid rgba(127,127,127,.25); padding:6px 8px; vertical-align: top; }
     .cx-table th{ text-align:left; position:sticky; top:0; background:inherit; }
-    .cx-notes{ opacity:.9; font-size:12px; margin-top:8px; }
 
     @media (prefers-reduced-motion: no-preference) {
       @keyframes pc-pulse-brief { 0%{transform:scale(1)} 40%{transform:scale(1.08)} 100%{transform:scale(1)} }
@@ -63,8 +64,7 @@
 
   <!-- App -->
   <div class="stage">
-    <div class="app">
-      <!-- LEFT -->
+    <div class="app" id="appGrid">
       <section class="panel left" id="leftPanel">
         <div class="pane-head">
           <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
@@ -81,7 +81,6 @@
 
       <div class="v-resize"><div id="dragLeft"></div></div>
 
-      <!-- CENTER (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
           <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
@@ -90,10 +89,10 @@
           <span class="title" id="centerTitle" style="margin-left:8px;">C – Editor | Polycode</span>
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
             <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
-              <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor"/></svg>
             </button>
             <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
-              <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/></svg>
             </button>
             <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
               <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -106,7 +105,6 @@
 
       <div class="v-resize right"><div id="dragRight"></div></div>
 
-      <!-- RIGHT (Console) -->
       <section class="panel right" id="rightPanel">
         <div class="pane-head">
           <span class="title">C – Console | Polycode</span>
@@ -125,7 +123,8 @@
         </div>
 
         <div id="output" class="screen-dim" style="padding:12px;">
-          <pre id="jconsole" class="console" style="margin:0; white-space:pre; word-break:normal; overflow-wrap:normal;"></pre>
+          <pre id="jconsole" class="console" style="margin:0;"></pre>
+
           <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
@@ -176,9 +175,8 @@
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <script src="./js/shell.js" defer></script>
 
-  <!-- Page script -->
   <script>
-    /* ---------------- Sample program ---------------- */
+    // ------------------------ Sample C ------------------------
     const SAMPLE_C =
 `#include <stdio.h>
 
@@ -190,60 +188,164 @@ int main(){
     return 0;
 }`;
 
-    /* ---------------- Bootstrap ---------------- */
-    window.bootstrap = async function(){
-      await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
-      window.PolyShell.setStatus('Ready', 'ok');
-      window.PolyShell.loadLeftContent?.('c');
-      setComplexityEnabled(false);
-      installMarkerHelpers();
-    };
+    // ------------------------ Resizers ------------------------
+    const SIZE_KEY = 'pc:c:sizes';
+    function gridColTemplate(L, g1, C, g2, R){ return `${L}px ${g1}px ${C}px ${g2}px ${R}px`; }
 
-    /* ---------------- Console helpers ---------------- */
+    function initResizers(){
+      const app = document.getElementById('appGrid');
+      const left = document.getElementById('leftPanel');
+      const center = document.getElementById('centerPanel');
+      const right = document.getElementById('rightPanel');
+      const g1El = document.querySelector('.v-resize:not(.right)');
+      const g2El = document.querySelector('.v-resize.right');
+      if (!app || !left || !center || !right || !g1El || !g2El) return;
+
+      const g1 = Math.max(6, Math.round(g1El.getBoundingClientRect().width || 8));
+      const g2 = Math.max(6, Math.round(g2El.getBoundingClientRect().width || 8));
+
+      const compute = () => {
+        const total = app.getBoundingClientRect().width;
+        const L = left.getBoundingClientRect().width;
+        const R = right.getBoundingClientRect().width;
+        const C = Math.max(320, total - L - R - g1 - g2);
+        return { L, C, R };
+      };
+
+      function applyCols(cols){
+        app.style.gridTemplateColumns = gridColTemplate(cols.L, g1, cols.C, g2, cols.R);
+      }
+
+      // restore or init
+      const saved = localStorage.getItem(SIZE_KEY);
+      if (saved){
+        try{ applyCols(JSON.parse(saved)); }catch{ applyCols(compute()); }
+      } else {
+        applyCols(compute());
+      }
+
+      const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+      const minL = 200, minR = 240, minC = 320;
+
+      function startDrag(which, startX){
+        const rect = app.getBoundingClientRect();
+        const total = rect.width;
+        // current columns
+        const cs = getComputedStyle(app).gridTemplateColumns.split(' ').map(x => parseFloat(x));
+        let [L, , C, , R] = cs;
+
+        function onMove(e){
+          const dx = e.clientX - startX;
+          let nL=L, nC=C, nR=R;
+          if (which==='left'){
+            nL = clamp(L + dx, minL, total - g1 - g2 - minC - minR);
+            nC = total - nL - g1 - g2 - nR;
+            if (nC < minC){ nC = minC; nL = total - g1 - g2 - nC - nR; }
+          } else {
+            nR = clamp(R - dx, minR, total - g1 - g2 - minC - minL);
+            nC = total - L - g1 - g2 - nR;
+            if (nC < minC){ nC = minC; nR = total - L - g1 - g2 - nC; }
+          }
+          applyCols({ L:nL, C:nC, R:nR });
+        }
+        function onUp(){
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+          const cs = getComputedStyle(app).gridTemplateColumns.split(' ').map(x => parseFloat(x));
+          const cols = { L:cs[0], C:cs[2], R:cs[4] };
+          localStorage.setItem(SIZE_KEY, JSON.stringify(cols));
+        }
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      }
+      document.getElementById('dragLeft')?.addEventListener('mousedown', (e)=> startDrag('left',  e.clientX));
+      document.getElementById('dragRight')?.addEventListener('mousedown', (e)=> startDrag('right', e.clientX));
+      window.addEventListener('resize', ()=> {
+        // keep center >= minC on window resize
+        const cs = getComputedStyle(app).gridTemplateColumns.split(' ').map(x => parseFloat(x));
+        const [L, , C, , R] = cs;
+        const total = app.getBoundingClientRect().width;
+        const newC = Math.max(minC, total - L - R - g1 - g2);
+        app.style.gridTemplateColumns = gridColTemplate(L, g1, newC, g2, R);
+      });
+    }
+
+    // ------------------------ Status ticker ------------------------
+    let __tickerRAF=null, __tickStart=0, __tickerLabel='';
+    function startStatusTicker(label){
+      stopStatusTicker();
+      __tickerLabel = label;
+      __tickStart = performance.now();
+      const right = document.getElementById('rightFoot');
+      const center = document.getElementById('centerFoot');
+      const loop = () => {
+        const s = (performance.now() - __tickStart) / 1000;
+        const t = s < 10 ? s.toFixed(2) : s.toFixed(1);
+        const msg = `${__tickerLabel}   Time: ${t} second(s)`;
+        if (right) right.textContent = msg;
+        if (center) center.textContent = msg;
+        __tickerRAF = requestAnimationFrame(loop);
+      };
+      loop();
+    }
+    function stopStatusTicker(){ if (__tickerRAF){ cancelAnimationFrame(__tickerRAF); __tickerRAF=null; } }
+    function setStatusBoth(text, kind){
+      window.PolyShell?.setStatus(text, kind);
+      const right = document.getElementById('rightFoot');
+      const center = document.getElementById('centerFoot');
+      if (right) right.textContent  = text;
+      if (center) center.textContent = text;
+    }
+
+    // ------------------------ Monaco helpers ------------------------
+    function clearCompileMarkers(){
+      try{
+        const model = window.editor?.getModel();
+        if (model && window.monaco) window.monaco.editor.setModelMarkers(model, 'c-compile', []);
+      }catch{}
+    }
+    function setCompileMarkersFromGccLog(log){
+      try{
+        const model = window.editor?.getModel();
+        if (!model || !window.monaco) return;
+        const markers = [];
+        const re = /main\.c:(\d+):(\d+):\s*(?:fatal error|error|warning):\s*([^\n]+)/g;
+        let m;
+        while ((m = re.exec(log))){
+          const line = +m[1], col = +m[2];
+          markers.push({
+            startLineNumber: line, startColumn: Math.max(1,col),
+            endLineNumber: line, endColumn: Math.max(1,col+1),
+            message: m[3], severity: monaco.MarkerSeverity.Error, source:'gcc'
+          });
+        }
+        monaco.editor.setModelMarkers(model, 'c-compile',
+          markers.length ? markers : [{
+            startLineNumber:1, startColumn:1, endLineNumber:1, endColumn:1,
+            message:'Compilation failed', severity: monaco.MarkerSeverity.Error
+          }]);
+      }catch(e){ console.warn('marker set failed', e); }
+    }
+
+    // ------------------------ Console helpers ------------------------
+    function scrollOutputToEnd(){
+      const out = document.getElementById('output');
+      const pre = document.getElementById('jconsole');
+      if (out){ out.scrollTop = out.scrollHeight; out.scrollLeft = out.scrollWidth; }
+      if (pre){ pre.scrollTop = pre.scrollHeight; pre.scrollLeft = pre.scrollWidth; }
+    }
     function setConsole(text){
-      const el = document.getElementById('jconsole'); if (!el) return;
+      const el = document.getElementById('jconsole');
+      if (!el) return;
       el.textContent = text || '';
-      document.getElementById('output')?.scrollTo({ top: 1e9 });
+      scrollOutputToEnd();
     }
     function termWrite(t){
-      const el = document.getElementById('jconsole'); if (!el) return;
+      const el = document.getElementById('jconsole');
+      if (!el) return;
       el.textContent += t;
-      document.getElementById('output')?.scrollTo({ top: 1e9 });
+      scrollOutputToEnd();
     }
-
-    /* ---------------- Input row + status ticker ---------------- */
-    let inputDeadline = 0, inputTimer = null, statusDotsTimer = null, statusBase = 'Executing';
-    const INPUT_WAIT_MS = 5 * 60 * 1000;
-
-    function countdownText(){
-      if (!inputDeadline) return '';
-      const ms = Math.max(0, inputDeadline - Date.now());
-      const s = Math.floor(ms / 1000);
-      const mm = String(Math.floor(s/60)).padStart(2,'0');
-      const ss = String(s%60).padStart(2,'0');
-      return ` — ${mm}:${ss}`;
-    }
-    function startInputCountdown(){
-      stopInputCountdown();
-      inputDeadline = Date.now() + INPUT_WAIT_MS;
-      inputTimer = setInterval(()=> window.PolyShell.setStatus('Waiting for User Input' + countdownText() + dots(), 'busy'), 500);
-      window.PolyShell.setStatus('Waiting for User Input' + countdownText(), 'busy');
-    }
-    function stopInputCountdown(){ inputDeadline = 0; if (inputTimer){ clearInterval(inputTimer); inputTimer=null; } }
-
-    function dots(){
-      if (!statusDotsTimer) return '';
-      return '';
-    }
-    function startStatusDots(base='Executing'){
-      stopStatusDots(); statusBase = base;
-      let n = 0;
-      statusDotsTimer = setInterval(()=>{
-        n = (n+1)%4;
-        window.PolyShell.setStatus(statusBase + '.'.repeat(n) + (base==='Waiting for User Input' ? countdownText() : ''), 'busy');
-      }, 400);
-    }
-    function stopStatusDots(){ if (statusDotsTimer){ clearInterval(statusDotsTimer); statusDotsTimer=null; } }
 
     function showInputRow(show){
       const row = document.getElementById('consoleRow');
@@ -253,99 +355,41 @@ int main(){
       row.style.display = show ? 'flex' : 'none';
       if (show){
         const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
-        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); } else { prefix.textContent = ''; }
+        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+        else { prefix.textContent = ''; }
         const el = document.getElementById('consoleInput');
-        if (el){ el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); const s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }
-        startInputCountdown();
+        if (el){ el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+        setStatusBoth('Waiting for Input…','busy'); startStatusTicker('Waiting for Input…');
       } else {
-        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
-        stopInputCountdown();
+        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent = ''; }
       }
+      scrollOutputToEnd();
     }
 
+    function codeNeedsInput(src){ return /\bscanf\s*\(|\bgetchar\s*\(|\bfgets\s*\(|\bfscanf\s*\(/.test(src); }
     document.addEventListener('keydown', (e)=>{
       const el = document.getElementById('consoleInput');
-      if (!el || el.offsetParent===null) return;
-      if (e.target!==el) return;
-      if (e.key==='Enter'){
+      if (!el || el.offsetParent === null) return;
+      if (e.target !== el) return;
+      if (e.key === 'Enter'){
         e.preventDefault();
         const line = el.textContent + '\n';
-        try{ if (window.termWS && window.termWS.readyState===1) window.termWS.send(JSON.stringify({ type:'stdin', data: line })); }catch{}
+        if (window.termWS && window.termWS.readyState === 1 && window.wsRunInFlight){
+          try{ window.termWS.send(JSON.stringify({ type:'stdin', data: line })); }catch{}
+        }
         termWrite(line);
         el.textContent = '';
-        showInputRow(false);
-        startStatusDots('Executing');
+        setStatusBoth('Execution in Progress…','busy'); startStatusTicker('Execution in Progress…');
       }
     }, true);
 
-    /* ---------------- Complexity enable ---------------- */
-    function setComplexityEnabled(on){
-      const b = document.getElementById('btnComplexity'); if (!b) return;
-      const was=b.disabled; b.disabled=!on;
-      if (on && was && !b.dataset.pulsedOnce){ b.classList.add('btn-pulse'); b.dataset.pulsedOnce='1'; setTimeout(()=>b.classList.remove('btn-pulse'), 900); }
-    }
-    window.setComplexityEnabled = setComplexityEnabled;
-
-    /* ---------------- GCC error parsing + markers ---------------- */
-    let MARK_OWNER = null;
-    function installMarkerHelpers(){
-      if (!window.monaco || !window.editor) return;
-      MARK_OWNER = 'pc-c-' + (crypto.randomUUID?.() || Math.random().toString(36).slice(2));
-      window.clearCompileMarkers = function(){
-        const m = window.editor?.getModel(); if (!m) return;
-        monaco.editor.setModelMarkers(m, MARK_OWNER, []);
-      };
-      window.setEditorMarkers = function(list){
-        const m = window.editor?.getModel(); if (!m) return;
-        const items = Array.isArray(list) ? list : (list ? [list] : []);
-        monaco.editor.setModelMarkers(m, MARK_OWNER, items.map(toMarker));
-        if (items[0]) window.editor.revealLineInCenterIfOutsideViewport(items[0].line);
-      };
-    }
-    function toMarker(e){
-      const m = window.editor?.getModel(); const lineCount = m ? m.getLineCount() : 1;
-      const line = Math.min(Math.max(1, Number(e?.line)||1), lineCount);
-      const max  = m ? m.getLineMaxColumn(line) : 200;
-      const start= Math.min(Math.max(1, Number(e?.col)||1), Math.max(1, max-1));
-      return { startLineNumber: line, endLineNumber: line, startColumn: start, endColumn: Math.min(max,start+1),
-               message: String(e?.msg||'Error'), severity: monaco.MarkerSeverity.Error };
-    }
-    function stripAnsi(s){ return String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g, ''); }
-    function findAllGccErrors(text){
-      const clean = stripAnsi(text); const out=[]; let m;
-      const re1=/(?:^|\n)(?:.*?)(?:^|[\/\\])([^\/\\\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-      while((m=re1.exec(clean))) out.push({file:m[1], line:+m[2], col:m[3]?+m[3]:1, msg:m[4]});
-      const re2=/(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
-      while((m=re2.exec(clean))) out.push({file:'<stdin>', line:+m[1], col:m[2]?+m[2]:1, msg:m[3]});
-      const re3=/(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/mg;
-      while((m=re3.exec(clean))) out.push({file:m[1], line:+m[2], col:1, msg:m[3]});
-      // de-dupe by (line,col,msg)
-      const seen=new Set(); return out.filter(e=>{ const k=`${e.line}|${e.col}|${e.msg}`; if(seen.has(k))return false; seen.add(k); return true; });
-    }
-
-    /* ---------------- Runner overlay ---------------- */
-    function showRunnerOverlay(msg='Connecting to C runner…', pct=10, hint='Opening WebSocket…'){
-      const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'),
-            m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
-      if (!ov||!bar||!m||!h) return;
-      ov.style.display='flex'; m.textContent=msg; h.textContent=hint;
-      bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-    }
-    function updateRunnerOverlay({msg,pct,hint}){
-      const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'),
-            bar=document.getElementById('runnerBar');
-      if (msg&&m) m.textContent=msg; if (hint&&h) h.textContent=hint;
-      if (typeof pct==='number' && bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-    }
-    function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if (ov) ov.style.display='none'; }
-
-    /* ---------------- C runner endpoints ---------------- */
+    // ------------------------ Runner endpoints ------------------------
     const C_API_BASE = 'https://polycode-cc.onrender.com';
     const C_WS_URL   = 'wss://polycode-cc.onrender.com/cc';
 
     async function prepare(){
       const code = window.editor ? window.editor.getValue() : '';
-      const files = [{ path:'main.c', content: code }];
+      const files = [{ path: 'main.c', content: code }];
       const res = await fetch(C_API_BASE + '/api/cc/prepare', {
         method:'POST', headers:{ 'Content-Type':'application/json' },
         body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
@@ -353,113 +397,112 @@ int main(){
       if (!res.ok) throw new Error('Prepare failed: ' + res.status);
       return res.json();
     }
-    function codeNeedsInput(src){ return /\b(scanf|fscanf|fgets|getchar|gets|getline|read)\b\s*\(/i.test(src); }
 
-    /* ---------------- Run lifecycle ---------------- */
-    window.runLang = async function(){
-      // reset
-      setConsole(''); window.clearCompileMarkers?.(); setComplexityEnabled(false);
-      try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
-      stopStatusDots(); stopInputCountdown();
+    // Heartbeat (optional safety)
+    let hbInterval = null, hbTimeout = null;
+    function startHeartbeat(ws){
+      stopHeartbeat();
+      hbInterval = setInterval(()=>{ try{ if (ws.readyState===1){ ws.send(JSON.stringify({type:'ping'})); clearTimeout(hbTimeout); hbTimeout = setTimeout(()=>{ console.warn('Runner heartbeat missed'); }, 5000); } }catch{} }, 25000);
+    }
+    function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
-      // flags
-      const flags = { sawCompileErr:false, sawRuntimeErr:false, exitCode:null, needsStdin:false, inputProvided:false };
-      let aggLog = '';
-      const t0 = performance.now();
+    // ------------------------ Main run ------------------------
+    window.runLang = async function runLang(){
+      setConsole(''); document.getElementById('output')?.classList.remove('error');
+      window.setComplexityEnabled?.(false);
+      try{ window.termWS?.close(); }catch{} window.termWS = null; window.wsRunInFlight = false;
+      clearCompileMarkers();
+      setStatusBoth('Compiling…','busy'); startStatusTicker('Compiling…');
 
-      // compile
-      window.PolyShell.setStatus('Compiling…', 'busy');
-      showRunnerOverlay('Compiling C program…', 12, 'Sending source…');
+      // CONNECT OVERLAY (optional visual)
+      const overlay = document.getElementById('runnerOverlay');
+      const msg = document.getElementById('runnerMsg');
+      const hint = document.getElementById('runnerHint');
+      if (overlay){ overlay.style.display='flex'; if(msg) msg.textContent='Connecting to C runner…'; if(hint) hint.textContent='Warming up backend…'; }
+
+      // Prepare
       let prep;
-      try{
-        updateRunnerOverlay({ pct:38, hint:'Building with gcc…' });
-        prep = await prepare();
-      }catch(e){
-        updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-        setTimeout(hideRunnerOverlay, 250);
-        const msg = (e && e.message) || 'Prepare failed';
-        setConsole(msg); flags.sawCompileErr = true; window.PolyShell.setStatus('Compilation Failed', 'error');
-        return;
-      }
-      if (!prep || !prep.ok || !prep.token){
-        const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
-        setConsole((log||'').trim()); flags.sawCompileErr = true;
-        window.setEditorMarkers?.(findAllGccErrors(log));
-        updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
-        setTimeout(hideRunnerOverlay, 250);
-        window.PolyShell.setStatus('Compilation Failed', 'error');
+      try { prep = await prepare(); }
+      catch(e){
+        stopStatusTicker();
+        setConsole((e && e.message) || 'Prepare failed');
+        setStatusBoth('Execution Failed','error');
+        if (overlay) overlay.style.display='none';
         return;
       }
 
-      // connect WS
+      if (!prep || !prep.ok || !prep.token){
+        stopStatusTicker();
+        const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
+        setConsole((log||'').trim());
+        setCompileMarkersFromGccLog(log);
+        setStatusBoth('Execution Failed','error');
+        if (overlay) overlay.style.display='none';
+        return;
+      }
+
+      clearCompileMarkers();
+
+      // Open WS
       const token = prep.token;
-      updateRunnerOverlay({ msg:'Connecting to C runner…', pct:65, hint:'Opening WebSocket…' });
       const ws = new WebSocket(C_WS_URL + '?token=' + encodeURIComponent(token));
       window.termWS = ws; window.wsRunInFlight = true;
-      flags.needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
-      window.PolyShell.setStatus('Running (interactive)…', 'busy');
+      const needsStdin = codeNeedsInput(window.editor ? window.editor.getValue() : '');
+      let lastExitCode = null;
 
-      if (flags.needsStdin) { showInputRow(true); startStatusDots('Waiting for User Input'); }
-
-      ws.addEventListener('open', ()=>{ updateRunnerOverlay({ pct:95, hint:'Connected' }); setTimeout(hideRunnerOverlay, 150); });
+      ws.addEventListener('open', ()=>{
+        startHeartbeat(ws);
+        if (overlay) overlay.style.display='none';
+        setStatusBoth(needsStdin ? 'Waiting for Input…' : 'Execution in Progress…','busy');
+        startStatusTicker(needsStdin ? 'Waiting for Input…' : 'Execution in Progress…');
+        showInputRow(needsStdin);
+      });
 
       ws.addEventListener('message', (ev)=>{
-        const raw = String(ev.data||'');
-        let msg = null; try{ msg = JSON.parse(raw); }catch{}
-        if (msg && typeof msg==='object' && msg.type){
-          if (msg.type==='stdout'){ termWrite(msg.data||''); aggLog += stripAnsi(String(msg.data||'')); return; }
-          if (msg.type==='stderr'){ termWrite(msg.data||''); aggLog += stripAnsi(String(msg.data||'')); flags.sawRuntimeErr = true; return; }
-          if (msg.type==='compileErr'){ termWrite(msg.data||''); aggLog += stripAnsi(String(msg.data||'')); flags.sawCompileErr = true; window.setEditorMarkers?.(findAllGccErrors(aggLog)); return; }
-          if (msg.type==='stdin_req'){ showInputRow(true); startStatusDots('Waiting for User Input'); return; }
-          if (msg.type==='exit'){ flags.exitCode = Number(msg.code); return; }
-          return;
-        }
-        // plain text fallback
-        termWrite(raw);
-        const clean = stripAnsi(raw);
-        aggLog += clean;
-        // detect exit code if printed as text
-        const ex = clean.match(/\b(?:exit\s*code|EXIT)\s*[:=]\s*(-?\d+)/i);
-        if (ex) flags.exitCode = Number(ex[1]);
+        const data = String(ev.data||'');
+        termWrite(data);
+        const m = data.match(/\[process exited with code\s+(-?\d+)\]/);
+        if (m) lastExitCode = parseInt(m[1],10);
       });
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); });
 
       ws.addEventListener('close', ()=>{
+        stopHeartbeat();
         window.wsRunInFlight = false; showInputRow(false);
-        stopStatusDots(); stopInputCountdown();
-
-        // derive outcome
-        const clean = stripAnsi(aggLog);
-        const hasCompileErr = flags.sawCompileErr || /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(clean);
-        const hasRuntimeErr = flags.sawRuntimeErr || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(clean);
-        const noInput = flags.needsStdin && !flags.inputProvided;
-
-        const ok = (flags.exitCode === 0) && !hasCompileErr && !hasRuntimeErr && !noInput;
-
-        // markers on compile failure
-        if (hasCompileErr) window.setEditorMarkers?.(findAllGccErrors(clean));
-        if (ok) window.clearCompileMarkers?.();
-
-        const dt = Math.max(0, (performance.now()-t0)/1000);
-        const timeTxt = `Time: ${dt.toFixed(dt<10?2:1)} second(s)`;
-        window.PolyShell.setStatus(ok ? `Executed Successfully   ${timeTxt}` : `Executed with Error   ${timeTxt}`, ok?'ok':'error');
-
-        setComplexityEnabled(ok);
+        stopStatusTicker();
+        if (typeof lastExitCode === 'number'){
+          if (lastExitCode === 0){
+            setStatusBoth('Executed Successfully','ok'); window.setComplexityEnabled?.(true);
+          } else {
+            document.getElementById('output')?.classList.add('error');
+            setStatusBoth('Executed with Error','error');
+          }
+        } else {
+          setStatusBoth('Execution Finished','ok'); window.setComplexityEnabled?.(true);
+        }
       }, { once:true });
-
-      // record that user provided input (enter) while WS open
-      document.getElementById('consoleInput')?.addEventListener('keydown', (e)=>{ if (e.key==='Enter') flags.inputProvided = true; }, { once:false });
     };
 
-    window.clearLang = function(){
-      setConsole(''); window.clearCompileMarkers?.(); setComplexityEnabled(false);
-      try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
-      stopStatusDots(); stopInputCountdown(); showInputRow(false);
-      window.PolyShell.setStatus('Ready','ok');
+    window.clearLang = function clearLang(){
+      setConsole('');
+      try{ window.termWS?.close(); }catch{}
+      window.termWS = null; window.wsRunInFlight = false;
+      showInputRow(false);
+      stopStatusTicker();
+      window.setComplexityEnabled?.(false);
+      setStatusBoth('Ready','ok');
     };
 
-    /* ---------------- Start when shell is ready ---------------- */
+    // ------------------------ Bootstrap ------------------------
+    window.bootstrap = async function bootstrap(){
+      await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
+      initResizers();
+      setStatusBoth('Ready','ok');
+      window.PolyShell.loadLeftContent?.('c');
+      window.setComplexityEnabled?.(false);
+    };
+
     (function startWhenReady(){
       function start(){
         if (!window.PolyShell){
@@ -469,7 +512,7 @@ int main(){
         }
         window.bootstrap();
       }
-      if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
+      if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
     })();
   </script>
 
@@ -500,7 +543,7 @@ int main(){
     </div>
   </div>
   <script>
-    document.addEventListener('click', (e)=>{ const t=e.target; if (t && t.matches('[data-close]')) document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); });
+    document.addEventListener('click', (e)=>{ const t = e.target; if (t && t.matches('[data-close]')){ document.getElementById('cxModal')?.setAttribute('aria-hidden','true'); } });
     document.getElementById('btnComplexity')?.addEventListener('click', ()=>{
       document.getElementById('cxModal')?.setAttribute('aria-hidden','false');
       window.PolyShell?.setStatus('Analyzing…'); setTimeout(()=> window.PolyShell?.setStatus('Ready','ok'), 400);
