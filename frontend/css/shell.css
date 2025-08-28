@@ -2052,3 +2052,19 @@ html, body { height: 100%; }
 /* Either wrap console lines … */
 #jconsole { white-space: pre-wrap; overflow:auto; word-break: break-word; overflow-wrap: anywhere; }
 /* … or, if you really want pre (no wrap), keep min-width:0 above and still allow scroll */
+
+
+
+/* Ensure site footer and its middle column never crop icons */
+.site-footer{ overflow:visible; }
+.footer-grid{ align-items:center; }
+.site-footer .footer-center{ display:flex; align-items:center; gap:8px; line-height:1; }
+.site-footer .footer-center .label{ margin-right:6px; }
+.site-footer .footer-center .social{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:28px; height:28px; margin:0 4px; vertical-align:middle;
+}
+.site-footer .footer-center .social svg{ width:18px; height:18px; }
+
+/* Make sure the stage doesn’t overlap the footer on short viewports */
+.stage{ padding-bottom:8px; }
