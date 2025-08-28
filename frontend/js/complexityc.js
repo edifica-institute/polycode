@@ -1,14 +1,15 @@
+<script>
 (function () {
   'use strict';
 
   /* =================== Utilities & Normalization =================== */
 
-  // Strip strings + comments (C/C++/Java style)
   function stripNoise(src) {
     let s = String(src);
+    // keep line count when stripping strings/comments
     s = s.replace(/"(?:\\.|[^"\\])*"/g, '""')
          .replace(/'(?:\\.|[^'\\])'/g, "''");
-    s = s.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' ')); // keep line count
+    s = s.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
     s = s.replace(/\/\/.*$/gm, '');
     return s;
   }
@@ -17,97 +18,78 @@
     mult(a, b) {
       if (a === '1') return b;
       if (b === '1') return a;
-      const parts = (txt) => txt.split(/\s+/).filter(Boolean);
+
+      // Normalize tokens
+      const norm = (x) => x.replace(/\s+/g,' ')
+                           .replace(/n\s*log\s*n/g,'n log n')
+                           .replace(/log\s*n/g,'log n')
+                           .trim();
+
+      a = norm(a); b = norm(b);
+      // Handle exponentials conservatively
+      if (/2\^n|phi\^n|FIB/.test(a) || /2\^n|phi\^n|FIB/.test(b)) return '2^n';
+
+      // Count powers of n and log n
+      const parts = (t) => t.split(/\s+/).filter(Boolean);
       const all = parts(a).concat(parts(b));
-      const count = {};
-      for (const t of all) count[t] = (count[t] || 0) + 1;
-      const mk = (sym, p) => (p === 1 ? sym : `${sym}^${p}`);
+      const cnt = {};
+      for (const t of all) cnt[t] = (cnt[t] || 0) + 1;
+
       const out = [];
-      const keys = Object.keys(count);
-      for (const k of keys) {
-        if (k === 'log') { count['log n'] = (count['log n'] || 0) + count[k]; delete count[k]; }
+      const pushPow = (sym) => {
+        if (cnt[sym]) {
+          out.push(cnt[sym] === 1 ? sym : `${sym}^${cnt[sym]}`);
+          delete cnt[sym];
+        }
+      };
+      pushPow('n');
+      pushPow('log n');
+
+      // include remaining symbols (e.g., h)
+      for (const [k,v] of Object.entries(cnt)) {
+        out.push(v === 1 ? k : `${k}^${v}`);
       }
-      if (count['n']) { out.push(mk('n', count['n'])); delete count['n']; }
-      if (count['log n']) { out.push(mk('log n', count['log n'])); delete count['log n']; }
-      for (const [k, p] of Object.entries(count)) out.push(mk(k, p));
       return out.length ? out.join(' ') : '1';
     },
     max(a, b) {
       if (a === '1') return b;
       if (b === '1') return a;
-      const weight = (v) => {
+      const W = (v) => {
         v = v.replace(/\s+/g,'');
-        if (/2\^n|n!/.test(v)) return 7;
-        if (/n\^3/.test(v))    return 6;
-        if (/n\^2/.test(v))    return 5;
-        if (/nlogn|nlog/.test(v)) return 4;
-        if (/n(?!\^)/.test(v)) return 3;
-        if (/logn|log/.test(v)) return 2;
+        if (/2\^n|phi\^n|FIB/i.test(v)) return 9;
+        if (/n!/.test(v))               return 8;
+        if (/n\^3/.test(v))             return 7;
+        if (/n\^2/.test(v))             return 6;
+        if (/nlogn|nlog/.test(v))       return 5;
+        if (/n(?!\^)/.test(v))          return 4;
+        if (/h(?!\w)/.test(v))          return 3; // tree height
+        if (/logn|log/.test(v))         return 2;
         return 1;
       };
-      return weight(a) >= weight(b) ? a : b;
+      return W(a) >= W(b) ? a : b;
     }
   };
 
-  /* =================== Loop Body Discovery (Nesting) =================== */
+  /* =================== Position helpers =================== */
 
-  function matchBrace(src, openIdx){
-    let depth = 0;
+  function matchParen(src, openIdx){
+    let d = 0;
     for (let i=openIdx; i<src.length; i++){
       const ch = src[i];
-      if (ch === '{') depth++;
-      else if (ch === '}'){ depth--; if (depth === 0) return i; }
+      if (ch === '(') d++;
+      else if (ch === ')'){ d--; if (d===0) return i; }
     }
     return -1;
   }
-
-  function findLoopsWithBodies(code){
-    const out = [];
-    const re = /\b(for|while)\s*\(/g;
-    let m;
-    while ((m = re.exec(code))){
-      const headStart = m.index;
-      // scan to header end ')'
-      let i = re.lastIndex, par=1;
-      while (i < code.length && par){
-        if (code[i] === '(') par++;
-        else if (code[i] === ')') par--;
-        i++;
-      }
-      const headEnd = i; // right after ')'
-      while (i < code.length && /\s/.test(code[i])) i++;
-      let bodyStart = -1, bodyEnd = -1;
-      if (code[i] === '{'){
-        bodyStart = i;
-        bodyEnd   = matchBrace(code, i);
-      } else {
-        const semi  = code.indexOf(';', i);
-        const brace = code[i] === '{' ? matchBrace(code, i) : -1;
-        if (semi !== -1 && (brace === -1 || semi < brace)){
-          bodyStart = i; bodyEnd = semi;
-        } else if (brace !== -1){
-          bodyStart = i; bodyEnd = brace;
-        }
-      }
-      if (bodyStart !== -1 && bodyEnd !== -1){
-        out.push({ headStart, headEnd, bodyStart, bodyEnd });
-      }
-      re.lastIndex = headEnd;
+  function matchBrace(src, openIdx){
+    let d = 0;
+    for (let i=openIdx; i<src.length; i++){
+      const ch = src[i];
+      if (ch === '{') d++;
+      else if (ch === '}'){ d--; if (d===0) return i; }
     }
-    out.sort((a,b)=> a.bodyStart - b.bodyStart);
-    const stack = [];
-    for (const node of out){
-      node.children = [];
-      while (stack.length && !(node.bodyStart >= stack.at(-1).bodyStart && node.bodyEnd <= stack.at(-1).bodyEnd)){
-        stack.pop();
-      }
-      if (stack.length) stack.at(-1).children.push(node);
-      stack.push(node);
-    }
-    const isChild = new Set(out.flatMap(p => p.children));
-    return out.filter(n => !isChild.has(n));
+    return -1;
   }
-
   function posToLineMap(src){
     const lines = src.split(/\r?\n/);
     const acc = []; let pos=0;
@@ -120,106 +102,288 @@
   function lineFromPos(map, idx){
     let lo=0, hi=map.length-1, ans=1;
     while (lo<=hi){
-      const mid = (lo+hi)>>1;
-      if (idx < map[mid].start){ hi=mid-1; }
-      else if (idx > map[mid].end){ lo=mid+1; }
-      else { ans = map[mid].line; break; }
+      const mid=(lo+hi)>>1;
+      if (idx < map[mid].start) hi=mid-1;
+      else if (idx > map[mid].end) lo=mid+1;
+      else { ans=map[mid].line; break; }
       ans = Math.max(1, Math.min(map.length, mid+1));
     }
     return ans;
   }
 
-  /* =================== Loop Cost Heuristics (C/C++ friendly) =================== */
+  /* =================== Function discovery =================== */
 
-  function loopCost(header, body){
-    const h = (header || '').replace(/\s+/g,' ');
-    const b = (body   || '').replace(/\s+/g,' ');
+  // Grabs C/C++/Java-like function definitions, returns {name, headStart, bodyStart, bodyEnd}
+  function findFunctions(code){
+    const fns = [];
+    const re = /\b(?:void|int|long|short|char|float|double|bool|size_t|auto|struct\s+\w+\s*\*?|[\w:<>]+\s*\*?)\s+(\w+)\s*\([^;{}]*\)\s*\{/g;
+    let m;
+    while ((m = re.exec(code))){
+      const name = m[1];
+      const bodyStart = code.indexOf('{', m.index);
+      const bodyEnd = matchBrace(code, bodyStart);
+      fns.push({ name, headStart: m.index, bodyStart, bodyEnd });
+      re.lastIndex = bodyEnd + 1;
+    }
+    return fns;
+  }
 
-    // Any halving/doubling hint in header OR body ⇒ O(log n)
-    if (/[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(h) || /[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(b)) {
+  /* =================== Block parser (top-level statements) =================== */
+
+  // Parse a block (function body) into statement nodes (loops/ifs/switch/do-while/stmt)
+  function parseBlock(code, start, end){
+    const nodes = [];
+    let i = start|0;
+    while (i <= end){
+      // skip whitespace
+      while (i<=end && /\s/.test(code[i])) i++;
+      if (i > end) break;
+
+      // For-loop
+      if (/\bfor\s*\(/y.test(code.slice(i))){
+        const hStart = i + code.slice(i).match(/\bfor\s*\(/).index;
+        const parOpen = code.indexOf('(', hStart);
+        const parEnd  = matchParen(code, parOpen);
+        let j = parEnd + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+
+        let bStart, bEnd;
+        if (code[j] === '{'){ bStart=j; bEnd=matchBrace(code, j); }
+        else { bStart=j; bEnd=code.indexOf(';', j); }
+
+        nodes.push({ type:'loop', kind:'for', hStart, hEnd:parEnd+1, bStart, bEnd, children: parseBlock(code, bStart+(code[j]==='{'), bEnd-(code[j]==='{')) });
+        i = bEnd + 1; continue;
+      }
+
+      // While-loop (not do-while)
+      if (/\bwhile\s*\(/y.test(code.slice(i))){
+        const look = code.slice(i, i+20);
+        // Guard: skip the while that's part of "do {...} while(...);"
+        // We'll parse do-while in its own branch first; so if we are here,
+        // it's a regular while.
+        const hStart = i + code.slice(i).match(/\bwhile\s*\(/).index;
+        const parOpen = code.indexOf('(', hStart);
+        const parEnd  = matchParen(code, parOpen);
+        let j = parEnd + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+
+        let bStart, bEnd;
+        if (code[j] === '{'){ bStart=j; bEnd=matchBrace(code, j); }
+        else { bStart=j; bEnd=code.indexOf(';', j); }
+
+        nodes.push({ type:'loop', kind:'while', hStart, hEnd:parEnd+1, bStart, bEnd, children: parseBlock(code, bStart+(code[j]==='{'), bEnd-(code[j]==='{')) });
+        i = bEnd + 1; continue;
+      }
+
+      // do { ... } while (...);
+      if (/\bdo\b/y.test(code.slice(i))){
+        const dStart = i + code.slice(i).match(/\bdo\b/).index;
+        let j = dStart + 2;
+        while (j<=end && /\s/.test(code[j])) j++;
+
+        if (code[j] === '{'){
+          const bStart=j, bEnd=matchBrace(code, j);
+          let k = bEnd + 1;
+          // expect while(...)
+          const wIdx = code.indexOf('while', k);
+          if (wIdx !== -1){
+            const parOpen = code.indexOf('(', wIdx);
+            const parEnd  = matchParen(code, parOpen);
+            const hStart = wIdx;
+            nodes.push({ type:'loop', kind:'do-while', hStart, hEnd:parEnd+1, bStart, bEnd, children: parseBlock(code, bStart+1, bEnd-1) });
+            i = parEnd + 2; // after closing );
+            continue;
+          }
+        }
+      }
+
+      // if (...) { ... } [else if ...]* [else ...]?
+      if (/\bif\s*\(/y.test(code.slice(i))){
+        const ifStart = i + code.slice(i).match(/\bif\s*\(/).index;
+        const parOpen = code.indexOf('(', ifStart);
+        const parEnd  = matchParen(code, parOpen);
+        let j = parEnd + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+
+        let thenStart, thenEnd;
+        if (code[j] === '{'){ thenStart=j; thenEnd=matchBrace(code, j); }
+        else { thenStart=j; thenEnd=code.indexOf(';', j); }
+
+        const branches = [];
+        branches.push({ s: thenStart+(code[j]==='{'), e: thenEnd-(code[j]==='{') });
+
+        let k = thenEnd + 1;
+        // chain: else if ... / else ...
+        while (k<=end){
+          // whitespace
+          while (k<=end && /\s/.test(code[k])) k++;
+          if (!/\belse\b/y.test(code.slice(k))) break;
+          k += code.slice(k).match(/\belse\b/).index + 4;
+          while (k<=end && /\s/.test(code[k])) k++;
+
+          if (/\bif\s*\(/y.test(code.slice(k))){
+            const if2 = k + code.slice(k).match(/\bif\s*\(/).index;
+            const po = code.indexOf('(', if2);
+            const pe = matchParen(code, po);
+            k = pe + 1;
+            while (k<=end && /\s/.test(code[k])) k++;
+            let s2,e2;
+            if (code[k] === '{'){ s2=k; e2=matchBrace(code, k); }
+            else { s2=k; e2=code.indexOf(';', k); }
+            branches.push({ s: s2+(code[k]==='{'), e: e2-(code[k]==='{') });
+            k = e2 + 1;
+          } else {
+            // plain else
+            let s2,e2;
+            if (code[k] === '{'){ s2=k; e2=matchBrace(code, k); }
+            else { s2=k; e2=code.indexOf(';', k); }
+            branches.push({ s: s2+(code[k]==='{'), e: e2-(code[k]==='{') });
+            k = e2 + 1;
+            break;
+          }
+        }
+
+        nodes.push({ type:'if', hStart: ifStart, hEnd: parEnd+1, branches });
+        i = k; continue;
+      }
+
+      // switch (...) { cases }
+      if (/\bswitch\s*\(/y.test(code.slice(i))){
+        const sStart = i + code.slice(i).match(/\bswitch\s*\(/).index;
+        const po = code.indexOf('(', sStart);
+        const pe = matchParen(code, po);
+        let j = pe + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+        if (code[j] === '{'){
+          const bStart=j, bEnd=matchBrace(code, j);
+          // split cases coarsely
+          const body = code.slice(bStart+1, bEnd);
+          const cases = [];
+          let last = bStart+1;
+          const caseRe = /(?:\bcase\b[^\:]*\:|\bdefault\s*:)/g;
+          let cm, anchors = [];
+          while ((cm = caseRe.exec(body))) {
+            anchors.push(bStart+1 + cm.index);
+          }
+          anchors.push(bEnd); // sentinel
+          for (let c=0;c<anchors.length-1;c++){
+            const cs = anchors[c];
+            const ce = anchors[c+1]-1;
+            cases.push({ s: cs, e: ce });
+          }
+          nodes.push({ type:'switch', hStart:sStart, hEnd:pe+1, cases });
+          i = bEnd + 1; continue;
+        }
+      }
+
+      // Generic statement: consume until ';' or next brace (to avoid infinite loop)
+      const semi = code.indexOf(';', i);
+      const brace = code.indexOf('{', i);
+      if (semi !== -1 && (brace === -1 || semi < brace)){
+        nodes.push({ type:'stmt', s:i, e:semi });
+        i = semi + 1;
+      } else if (brace !== -1){
+        // unknown construct with block, skip its block
+        const bEnd = matchBrace(code, brace);
+        nodes.push({ type:'stmt', s:i, e:bEnd });
+        i = bEnd + 1;
+      } else {
+        // tail
+        nodes.push({ type:'stmt', s:i, e:end });
+        break;
+      }
+    }
+    return nodes;
+  }
+
+  /* =================== Cost models =================== */
+
+  function loopSelfTrip(header, body) {
+    const h = (header||'').replace(/\s+/g,' ');
+    const b = (body  ||'').replace(/\s+/g,' ');
+
+    // explicit halving/doubling patterns
+    if (/[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(h) || /i\s*=\s*i\s*\/\s*2\b/.test(h) ||
+        /[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(b)) {
       return 'log n';
     }
 
-    // Binary-search flavored while (lo<=hi) + mid update + boundary moves
-    const looksLikeBS =
-      /while\s*\(\s*\w+\s*<=\s*\w+\s*\)/i.test(h) &&
-      /\b(mid|m)\s*=\s*\w+\s*\+\s*\(\s*\w+\s*-\s*\w+\s*\)\s*\/\s*2\b/i.test(b) &&
-      (
-        /\b(low|left|lo|l)\s*=\s*(mid|m)\s*(\+|)\s*1?\b/i.test(b) ||
-        /\b(high|right|hi|r)\s*=\s*(mid|m)\s*(\-|)\s*1?\b/i.test(b) ||
-        /\b(low|left|lo|l)\s*=\s*(mid|m)\b/i.test(b) ||
-        /\b(high|right|hi|r)\s*=\s*(mid|m)\b/i.test(b)
-      );
-    if (looksLikeBS) return 'log n';
-
-    // For-loops that mutate an index by ±1 every iteration ⇒ O(n)
-    if (/for\s*\([^;]*;\s*[^;]*[<≤>≥!=]=?[^;]*;\s*[^;]*(\+\+|--|[\+\-]=\s*1)\s*\)/.test(h)) {
+    // canonical for (i=0; i<n; i++) / while(i<n){i++}
+    if (/\bfor\s*\([^;]*;\s*[^;]*[<≤>≥!=]=?[^;]*;\s*[^;]*(\+\+|--|[\+\-]=\s*1)\s*\)/.test(h)) {
       return 'n';
     }
-
-    // While-loops that check a bound and mutate by ±1 inside the body ⇒ O(n)
-    if (/while\s*\(\s*[\w\->\.\[\]]+\s*[<≤>≥!=]=?\s*[\w\->\.\[\]]+\s*\)/.test(h) &&
+    if (/\bwhile\s*\(\s*[\w\->\.\[\]]+\s*[<≤>≥!=]=?\s*[\w\->\.\[\]]+\s*\)/.test(h) &&
         /\b(\w+)\s*(\+\+|--|[\+\-]=\s*1)\b/.test(b)) {
       return 'n';
     }
 
-    // Two-pointer pattern: while(i<j) with one ++ and one -- in body ⇒ O(n)
+    // two-pointer like while(i<j){ i++; j--; }
     const twoPtr = /\bwhile\s*\(\s*\w+\s*<\s*\w+\s*\)/.test(h) &&
                    /\b\w+\s*(\+\+|[\+]=\s*1)\b/.test(b) &&
                    /\b\w+\s*(--|[\-]=\s*1)\b/.test(b);
     if (twoPtr) return 'n';
 
-    // Fallback: linear
+    // default linear
     return 'n';
   }
 
-  /* =================== Analyzer (Nested, Library-aware, C/C++) =================== */
+  function analyzeLibraryCosts(code){
+    const lib = [];
+    // C stdlib
+    if (/\bqsort\s*\(/.test(code))   lib.push('n log n');
+    if (/\bbsearch\s*\(/.test(code)) lib.push('log n');
+    if (/\bmemcpy\s*\(/.test(code))  lib.push('n');
+    if (/\bmemmove\s*\(/.test(code)) lib.push('n');
+    if (/\bmemset\s*\(/.test(code))  lib.push('n');
+    if (/\bstrlen\s*\(/.test(code))  lib.push('n');
+    if (/\bstrcmp\s*\(/.test(code))  lib.push('n'); // worst-case
 
-  function analyzeJavaComplexity(src){
-    const code = stripNoise(src);
-    const lines = code.split(/\r?\n/);
-    const linemap = posToLineMap(code);
+    // C++ STL
+    if (/\bstd::sort\s*\(/.test(code) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(code)) lib.push('n log n');
+    if (/\bstd::stable_sort\s*\(/.test(code)) lib.push('n log n');
+    if (/\bstd::binary_search\s*\(/.test(code)) lib.push('log n');
+    if (/\bstd::copy\s*\(/.test(code) || /\bcopy\s*\(\s*[^,]+,\s*[^,]+,\s*[^)]+\)/.test(code)) lib.push('n');
+    if (/\bstd::fill\s*\(/.test(code) || /\bfill\s*\(/.test(code)) lib.push('n');
+    if (/\bstd::accumulate\s*\(/.test(code)) lib.push('n');
 
-    const notes = [];
-    const pushNote = (line, type, cx, reason) =>
-      notes.push({ line, type, cx: `O(${cx})`, reason });
+    return lib.reduce((a,c)=>simplify.max(a,c),'1');
+  }
 
-    // ---- Space: detect allocations (C/C++ + keep Java-like new[]) ----
-    let spaceTerms = [];
-    function scanSpace(lineTxt, ln){
-      const L = lineTxt;
+  function analyzeSpace(lines, pushNote){
+    let spaceTerms=[];
+    lines.forEach((L, idx)=>{
+      const ln = idx+1;
 
-      // Java/C++ new T[a][b] or new T[a]
+      // new T[a][b]
       const arr2 = L.match(/\bnew\s+\w+(?:::\w+)?\s*\[\s*([^\]]+)\s*\]\s*\[\s*([^\]]+)\s*\]/);
       const arr1 = L.match(/\bnew\s+\w+(?:::\w+)?\s*\[\s*([^\]]+)\s*\]/);
       if (arr2){
         const a = /n|N|len|size|count|length|size\(\)/i.test(arr2[1]) ? 'n' : (/\d+/.test(arr2[1]) ? '1' : 'n');
         const b = /n|N|len|size|count|length|size\(\)/i.test(arr2[2]) ? 'n' : (/\d+/.test(arr2[2]) ? '1' : 'n');
         const cx = (a==='n' && b==='n') ? 'n^2' : (a==='n' || b==='n') ? 'n' : '1';
-        if (cx !== '1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'2D new[] allocation'); }
+        if (cx!=='1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'2D new[] allocation'); }
       } else if (arr1){
         const cx = /n|N|len|size|count|length|size\(\)/i.test(arr1[1]) ? 'n' : (/\d+/.test(arr1[1]) ? '1' : 'n');
-        if (cx !== '1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'new[] allocation'); }
+        if (cx!=='1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'new[] allocation'); }
       }
 
-      // C static arrays / VLAs
+      // C arrays
       const cArr2 = L.match(/\b(?:char|short|int|long|float|double|bool|size_t)\s+\**\w+\s*\[\s*([^\]\[]+)\s*\]\s*\[\s*([^\]\[]+)\s*\]/);
       const cArr1 = L.match(/\b(?:char|short|int|long|float|double|bool|size_t)\s+\**\w+\s*\[\s*([^\]\[]+)\s*\]/);
       if (cArr2){
         const a = /n|N|len|size|count|\.size|->size/i.test(cArr2[1]) ? 'n' : (/\d+/.test(cArr2[1]) ? '1' : 'n');
         const b = /n|N|len|size|count|\.size|->size/i.test(cArr2[2]) ? 'n' : (/\d+/.test(cArr2[2]) ? '1' : 'n');
         const cx = (a==='n' && b==='n') ? 'n^2' : (a==='n' || b==='n') ? 'n' : '1';
-        if (cx !== '1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'2D C array allocation'); }
+        if (cx!=='1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'2D C array allocation'); }
       } else if (cArr1){
         const cx = /n|N|len|size|count|\.size|->size/i.test(cArr1[1]) ? 'n' : (/\d+/.test(cArr1[1]) ? '1' : 'n');
-        if (cx !== '1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'C array allocation'); }
+        if (cx!=='1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'C array allocation'); }
       }
 
-      // C heap allocations: malloc/calloc/realloc
-      const m = L.match(/\b(malloc|calloc|realloc)\s*\(([^)]*)\)/i);
-      if (m){
-        const fn = m[1].toLowerCase();
-        const args = m[2];
+      // malloc/calloc/realloc
+      const mm = L.match(/\b(malloc|calloc|realloc)\s*\(([^)]*)\)/i);
+      if (mm){
+        const fn = mm[1].toLowerCase(), args = mm[2];
         let cx = '1';
         if (fn === 'calloc'){
           const aa = args.split(',').map(s=>s.trim());
@@ -229,221 +393,91 @@
         } else {
           cx = /n|N|len|size|count/i.test(args) ? 'n' : (/\*\s*n\b/i.test(args) ? 'n' : '1');
         }
-        if (cx !== '1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx, `${m[1]}(...)`); }
+        if (cx!=='1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx, `${mm[1]}(...)`); }
       }
 
-      // C++ vectors: vector<int> v(n) / resize(n) / reserve(n)
+      // vector capacity
       if (/\b(std::)?vector\s*<[^>]+>\s+\w+\s*\(\s*([^)]+)\s*\)/.test(L) ||
           /\.resize\s*\(\s*([^)]+)\s*\)/.test(L) ||
           /\.reserve\s*\(\s*([^)]+)\s*\)/.test(L)){
-        const mm = L.match(/\(([^)]+)\)/);
-        const arg = mm ? mm[1] : '';
+        const mm2 = L.match(/\(([^)]+)\)/);
+        const arg = mm2 ? mm2[1] : '';
         const cx = /n|N|len|size|count|capacity|\.size\(|\.capacity\(/.test(arg) ? 'n' : (/\d+/.test(arg) ? '1' : 'n');
-        if (cx !== '1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'vector capacity/resize'); }
+        if (cx!=='1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'vector capacity/resize'); }
+      }
+    });
+    return spaceTerms.length ? spaceTerms.reduce((a,c)=>simplify.max(a,c),'1') : '1';
+  }
+
+  /* =================== Recursion heuristics =================== */
+
+  function recursionHeuristic(fnName, body, pushNote, ln){
+    // Count self-calls
+    const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
+    const calls = (body.match(callRe) || []).length;
+
+    // Fibonacci-like: both (n-1) and (n-2)
+    const fibRe = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
+    const fib2Re= new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
+
+    // Halving / boundary shrink inside body
+    const halves = /[*/]\s*2\b|>>\s*1\b|<<\s*-1\b|\bn\s*\/\s*2\b/i.test(body) ||
+                   /\bmid\b/i.test(body);
+
+    // Linear work in body (suggesting merge or partition)
+    const hasLoop = /\b(for|while)\s*\(/.test(body);
+
+    if (calls >= 2 && fibRe.test(body) && fib2Re.test(body)){
+      pushNote(ln,'recursion','2^n', `${fnName}(): Fibonacci-like recursion`);
+      return '2^n';
+    }
+
+    if (calls >= 2) {
+      // tree recursion: two subproblems. If halving & linear work → n log n; else n
+      if (halves && hasLoop){
+        pushNote(ln,'recursion','n log n', `${fnName}(): divide & conquer with halving + linear work`);
+        return 'n log n';
+      } else {
+        pushNote(ln,'recursion','n', `${fnName}(): tree traversal style (visits branches)`);
+        return 'n';
       }
     }
-    lines.forEach((t,i)=> scanSpace(t, i+1));
 
-    // ---- Loops (nest-aware) ----
-    const roots = findLoopsWithBodies(code);
-
-    function costOfLoop(node){
-  const header = code.slice(node.headStart, node.headEnd);
-  const body   = code.slice(node.bodyStart, node.bodyEnd + 1);
-
-  let bodyCost = '1';
-  if (node.children.length){
-    let best = '1';
-    for (const ch of node.children){
-      const c = costOfLoop(ch);
-      best = simplify.max(best, c);
-    }
-    bodyCost = best;
-  }
-
-  const selfTrip = loopCost(header, body);
-  const total = simplify.mult(selfTrip, bodyCost);
-
-  // Robust line computation (never undefined)
-  let ln = lineFromPos(linemap, node.headStart);
-  if (!Number.isFinite(ln) || ln < 1) ln = 1;
-
-  // Ensure a note row is always produced
-  pushNote(ln, 'loop', selfTrip, `loop header: ${header.trim().slice(0,100)}`);
-
-  return total;
-}
-
-
-    let finalTimeCore = '1';
-    for (const root of roots){
-      const c = costOfLoop(root);
-      finalTimeCore = simplify.max(finalTimeCore, c);
+    if (calls === 1){
+      if (halves){
+        pushNote(ln,'recursion','log n', `${fnName}(): single-branch halving recursion`);
+        return 'log n';
+      } else {
+        pushNote(ln,'recursion','n', `${fnName}(): single-branch recursion (height h; balanced≈log n, worst n)`);
+        return 'n'; // conservative
+      }
     }
 
-    if ((!notes || notes.length === 0) && roots && roots.length) {
-  for (const r of roots) {
-    const header = code.slice(r.headStart, r.headEnd);
-    const ln = Math.max(1, lineFromPos(linemap, r.headStart) || 1);
-    pushNote(ln, 'loop', 'n', `loop header: ${header.trim().slice(0,100)}`);
-  }
-}
-
-    // ---- Library time costs (C/C++ + keep Java arraycopy/sort checks) ----
-    const libCosts = [];
-
-    // Java-like helpers if code includes them
-    if (/Arrays\.sort\s*\(/.test(code))         libCosts.push('n log n');
-    if (/Collections\.sort\s*\(/.test(code))    libCosts.push('n log n');
-    if (/System\.arraycopy\s*\(/.test(code))    libCosts.push('n');
-    if (/Arrays\.binarySearch\s*\(/.test(code)) libCosts.push('log n');
-
-    // C stdlib
-    if (/\bqsort\s*\(/.test(code))    libCosts.push('n log n');
-    if (/\bbsearch\s*\(/.test(code))  libCosts.push('log n');
-    if (/\bmemcpy\s*\(/.test(code))   libCosts.push('n');
-    if (/\bmemmove\s*\(/.test(code))  libCosts.push('n');
-    if (/\bmemset\s*\(/.test(code))   libCosts.push('n');
-    if (/\bstrlen\s*\(/.test(code))   libCosts.push('n');
-    if (/\bstrcmp\s*\(/.test(code))   libCosts.push('n'); // worst-case
-
-    // C++ STL
-    if (/\bstd::sort\s*\(/.test(code) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(code)) libCosts.push('n log n');
-    if (/\bstd::stable_sort\s*\(/.test(code))                                         libCosts.push('n log n');
-    if (/\bstd::binary_search\s*\(/.test(code))                                       libCosts.push('log n');
-    if (/\bstd::copy\s*\(/.test(code) || /\bcopy\s*\(\s*[^,]+,\s*[^,]+,\s*[^)]+\)/.test(code)) libCosts.push('n');
-    if (/\bstd::fill\s*\(/.test(code) || /\bfill\s*\(/.test(code))                    libCosts.push('n');
-    if (/\bstd::accumulate\s*\(/.test(code))                                          libCosts.push('n');
-
-    const libTime = libCosts.reduce((acc,cur)=> simplify.max(acc, cur), '1');
-
-    // ---- Final aggregation ----
-    const finalTime  = simplify.max(finalTimeCore, libTime);
-    const finalSpace = spaceTerms.length
-      ? spaceTerms.reduce((acc,cur)=> simplify.max(acc, cur), '1')
-      : '1';
-
-    return {
-      notes,
-      finalTime:  `O(${finalTime})`,
-      finalSpace: finalSpace === '1' ? 'O(1)' : `O(${finalSpace})`,
-    };
+    return '1';
   }
 
-  /* =================== Modal (unchanged) =================== */
+  /* =================== Statement cost (recursive over AST) =================== */
 
-  const MODAL_HTML = `
-<div id="complexityModal" class="pc-modal" aria-hidden="true">
-  <div class="pc-modal__backdrop" data-close></div>
-  <div class="pc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
-    <div class="pc-modal__header">
-      <h3 id="cxTitle">Complexity Analysis</h3>
-      <button class="pc-modal__close" data-close aria-label="Close">×</button>
-    </div>
-    <div class="pc-modal__body">
-      <div class="cx-summary">
-        <div><strong>Final Time:</strong> <span id="cxTime">—</span></div>
-        <div><strong>Final Space:</strong> <span id="cxSpace">—</span></div>
-      </div>
-      <hr/>
-      <table class="cx-table" id="cxTable">
-        <thead>
-          <tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div class="cx-notes" id="cxNotes"></div>
-    </div>
-    <div class="pc-modal__footer">
-      <button class="btn" data-close>Close</button>
-    </div>
-  </div>
-</div>
-`;
-
- function ensureModalInserted() {
-  let modal = document.getElementById('complexityModal');
-  if (!modal) {
-    document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
-    modal = document.getElementById('complexityModal');
-    if (modal) {
-      modal.addEventListener('click', (e) => {
-        const t = e.target;
-        if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
-      });
+  function costNode(node, code, linemap, pushNote){
+    if (node.type === 'loop'){
+      const header = code.slice(node.hStart, node.hEnd);
+      const body   = code.slice(node.bStart, node.bEnd+1);
+      // children cost
+      let inner = '1';
+      for (const ch of node.children){
+        const cc = costNode(ch, code, linemap, pushNote);
+        inner = simplify.max(inner, cc);
+      }
+      const self = loopSelfTrip(header, body);
+      const total = simplify.mult(self, inner);
+      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+      pushNote(ln, 'loop', self, `loop header: ${header.trim().slice(0,100)}`);
+      return total;
     }
-  }
-  return modal; // <-- return the element
-}
 
-
-  function openModal() {
-    const m = document.getElementById('complexityModal');
-    if (m) m.setAttribute('aria-hidden', 'false');
-  }
-  function closeModal() {
-    const m = document.getElementById('complexityModal');
-    if (m) m.setAttribute('aria-hidden', 'true');
-  }
-
-  /* =================== UI Binding (unchanged) =================== */
-
-  async function handleAnalyzeClick(getCode) {
-  const code =
-    (window.editor && window.editor.getValue && window.editor.getValue()) ||
-    (typeof getCode === 'function' ? getCode() : '') ||
-    (document.getElementById('code')?.value || '');
-
-  const { notes, finalTime, finalSpace } = analyzeJavaComplexity(code);
-
-  const modal = ensureModalInserted();              // <-- get the element
-  if (!modal) return;
-
-  const tEl = modal.querySelector('#cxTime');       // <-- scope to modal
-  const sEl = modal.querySelector('#cxSpace');
-  const tb  = modal.querySelector('#cxTable tbody');
-  const nt  = modal.querySelector('#cxNotes');
-  if (!tEl || !sEl || !tb || !nt) return;
-
-  tEl.textContent = finalTime || 'O(1)';
-  sEl.textContent = finalSpace || 'O(1)';
-
-  tb.innerHTML = '';
-  for (const n of notes) {
-    const tr = document.createElement('tr');
-    tr.innerHTML =
-      `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
-    tb.appendChild(tr);
-  }
-
-  nt.innerHTML =
-    `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
-
-  openModal();
-}
-
-
-  function initUI({ getCode } = {}) {
-    if (initUI._bound) return;
-    const btn = document.getElementById('btnComplexity');
-    if (!btn) return;
-    initUI._bound = true;
-    btn.addEventListener('click', () => handleAnalyzeClick(getCode));
-  }
-
-  // Public API
-  window.PolyComplexity = {
-    analyze: (code) => analyzeJavaComplexity(code),
-    initUI,
-    open: async () => { await ensureModalInserted(); openModal(); },
-    close: closeModal
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      if (document.getElementById('btnComplexity')) initUI({});
-    }, { once: true });
-  } else {
-    if (document.getElementById('btnComplexity')) initUI({});
-  }
-})();
+    if (node.type === 'if'){
+      let best = '1';
+      for (const b of node.branches){
+        const kids = parseBlock(code, b.s, b.e);
+        let cx = '1';
+        f
