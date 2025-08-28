@@ -244,43 +244,6 @@ int main(){
 
     
     /* ===== Monaco marker helpers ===== */
-let __markerGen = 0;
-
-function setEditorMarkers(list){
-  if (!window.monaco || !window.editor) return;
-  const model = window.editor.getModel(); if (!model) return;
-
-  // remember which “generation” put these markers on this model
-  model.__pcMarkerGen = __markerGen;
-
-  const items = Array.isArray(list) ? list : (list ? [list] : []);
-  const markers = items.map(e => {
-    const lineCount = model.getLineCount();
-    let line = Math.max(1, Math.min(lineCount, Number(e?.line) || 1));
-    const maxCol = model.getLineMaxColumn(line);
-    let start = Math.max(1, Math.min(maxCol - 1, Number(e?.col) || 1));
-    const end = Math.min(maxCol, start + 1);
-    const sev = ({warning:1,info:2,hint:3}[String(e?.sev).toLowerCase()] ?? 8); // Error
-    return { startLineNumber: line, endLineNumber: line, startColumn: start, endColumn: end,
-             message: String(e?.msg || 'Error'), severity: sev };
-  });
-  window.monaco.editor.setModelMarkers(model, 'c-compile', markers);
-}
-
-function clearEditorMarkers(){
-  if (!window.monaco || !window.editor) return;
-  const model = window.editor.getModel(); if (!model) return;
-
-  // only clear if we’re still on the same generation that set them
-  if (model.__pcMarkerGen === __markerGen) {
-    window.monaco.editor.setModelMarkers(model, 'c-compile', []);
-  }
-}
-
-
-
-
-
 
     function installCompileMarkerGuard(){
   if (!window.monaco || !window.editor || window.__pcGuardInstalled) return;
@@ -599,7 +562,7 @@ function clearEditorMarkers(){
     function markFirstErrorFromLog(){
       //const e = findFirstGccError(stripAnsi(__aggLog));
       //if (e){ setEditorMarker(e.line, e.msg, e.col); }
-      setEditorMarkers(findAllGccErrors(stripAnsi(__aggLog)));
+      window.setEditorMarkers(findAllGccErrors(stripAnsi(__aggLog)));
     }
     function finishUI(){ window.setRunUI?.(false); }
 
@@ -626,7 +589,7 @@ function clearEditorMarkers(){
     if (ok) {
       window.PolyShell?.setRunnerPhase?.('success');
       window.PolyShell.setStatus('Execution Success', 'ok');
-      clearEditorMarkers();
+      window.clearCompileMarkers();
       setComplexityEnabled(true);
     } else {
       window.PolyShell?.setRunnerPhase?.('error');
@@ -655,7 +618,7 @@ function clearEditorMarkers(){
   } else {
     window.PolyShell?.setRunnerPhase?.('success');
     window.PolyShell.setStatus('Execution Finished', 'ok');
-    clearEditorMarkers();
+    window.clearCompileMarkers();
     setComplexityEnabled(true);
   }
 
@@ -691,7 +654,7 @@ window.runLang = async function(){
   window.setRunUI?.(true);
  
   setConsole(''); document.getElementById('outV')?.classList.remove('error');
-  setComplexityEnabled(false); clearEditorMarkers();
+  setComplexityEnabled(false); window.clearCompileMarkers();
   try{ window.termWS?.close(); }catch{}
   window.termWS = null; window.wsRunInFlight = false;
 
@@ -726,7 +689,7 @@ window.runLang = async function(){
     const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
     setConsole((log||'').trim());
     __aggLog += String(log||'');
-    setEditorMarkers(findAllGccErrors(__aggLog));
+    window.setEditorMarkers(findAllGccErrors(__aggLog));
     updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
     setTimeout(hideRunnerOverlay, 300);
     window.PolyShell?.setRunnerPhase?.('error');
@@ -796,7 +759,7 @@ window.runLang = async function(){
         if (msg.type==='stdout'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); if ((msg.data||'').trim()) __cFlags.sawAnyOutput = true; return; }
         if (msg.type==='stderr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawRuntimeErr = true; return; }
         if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; 
-                                     setEditorMarkers(findAllGccErrors(__aggLog)); return; }
+                                     window.setEditorMarkers(findAllGccErrors(__aggLog)); return; }
         if (msg.type==='stdin_req'){ showInputRow(true); return; }
         if (msg.type==='exit'){
           __cFlags.exitCode = Number(msg.code);
@@ -849,7 +812,7 @@ if (errs.length) {
       window.termWS=null; window.wsRunInFlight=false;
       showInputRow(false); setComplexityEnabled(false);
       stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-      hideRunnerOverlay(); clearEditorMarkers(); finishUI();
+      hideRunnerOverlay(); window.clearCompileMarkers(); finishUI();
       window.PolyShell.setStatus('Ready','ok');
       clearCompileMarkers();
     };
