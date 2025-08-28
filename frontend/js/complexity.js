@@ -17,102 +17,70 @@
     mult(a, b) {
       if (a === '1') return b;
       if (b === '1') return a;
+      const norm = (x) => x.replace(/\s+/g,' ')
+                           .replace(/n\s*log\s*n/g,'n log n')
+                           .replace(/log\s*n/g,'log n')
+                           .trim();
+      a = norm(a); b = norm(b);
+
+      // If either side is exponential, keep exponential worst-case
+      if (/2\^n|phi\^n|FIB/i.test(a) || /2\^n|phi\^n|FIB/i.test(b)) return '2^n';
+
       const parts = (txt) => txt.split(/\s+/).filter(Boolean);
       const all = parts(a).concat(parts(b));
       const count = {};
       for (const t of all) count[t] = (count[t] || 0) + 1;
 
-      const mk = (sym, p) => (p === 1 ? sym : `${sym}^${p}`);
       const out = [];
-      // normalize 'log' → 'log n'
-      const keys = Object.keys(count);
-      for (const k of keys) {
-        if (k === 'log') { count['log n'] = (count['log n'] || 0) + count[k]; delete count[k]; }
-      }
-      // n first
-      if (count['n']) { out.push(mk('n', count['n'])); delete count['n']; }
-      if (count['log n']) { out.push(mk('log n', count['log n'])); delete count['log n']; }
-      // rest
-      for (const [k, p] of Object.entries(count)) out.push(mk(k, p));
+      const push = (sym) => {
+        if (count[sym]) {
+          out.push(count[sym] === 1 ? sym : `${sym}^${count[sym]}`);
+          delete count[sym];
+        }
+      };
+      push('n'); push('log n');
+      for (const [k, p] of Object.entries(count)) out.push(p === 1 ? k : `${k}^${p}`);
       return out.length ? out.join(' ') : '1';
     },
     max(a, b) {
       if (a === '1') return b;
       if (b === '1') return a;
-      const weight = (v) => {
+      const W = (v) => {
         v = v.replace(/\s+/g,'');
-        if (/2\^n|n!/.test(v)) return 7;
-        if (/n\^3/.test(v))    return 6;
-        if (/n\^2/.test(v))    return 5;
-        if (/nlogn|nlog/.test(v)) return 4;
-        if (/n(?!\^)/.test(v)) return 3;
-        if (/logn|log/.test(v)) return 2;
-        return 1; // constant/unknown
+        if (/2\^n|phi\^n|FIB/i.test(v)) return 9;
+        if (/n!/.test(v))               return 8;
+        if (/n\^3/.test(v))             return 7;
+        if (/n\^2/.test(v))             return 6;
+        if (/nlogn|nlog/.test(v))       return 5;
+        if (/n(?!\^)/.test(v))          return 4;
+        if (/h(?!\w)/.test(v))          return 3;
+        if (/logn|log/.test(v))         return 2;
+        return 1;
       };
-      return weight(a) >= weight(b) ? a : b;
+      return W(a) >= W(b) ? a : b;
     }
   };
 
-  /* =================== Loop Body Discovery (Nesting) =================== */
+  /* =================== Position helpers =================== */
 
-  function matchBrace(src, openIdx){
-    let depth = 0;
+  function matchParen(src, openIdx){
+    let d = 0;
     for (let i=openIdx; i<src.length; i++){
       const ch = src[i];
-      if (ch === '{') depth++;
-      else if (ch === '}'){ depth--; if (depth === 0) return i; }
+      if (ch === '(') d++;
+      else if (ch === ')'){ d--; if (d===0) return i; }
     }
     return -1;
   }
-
-  function findLoopsWithBodies(code){
-    const out = [];
-    const re = /\b(for|while)\s*\(/g;
-    let m;
-    while ((m = re.exec(code))){
-      const headStart = m.index;
-      // scan to header end ')'
-      let i = re.lastIndex, par=1;
-      while (i < code.length && par){
-        if (code[i] === '(') par++;
-        else if (code[i] === ')') par--;
-        i++;
-      }
-      const headEnd = i; // right after ')'
-      // skip spaces/newlines
-      while (i < code.length && /\s/.test(code[i])) i++;
-      let bodyStart = -1, bodyEnd = -1;
-      if (code[i] === '{'){
-        bodyStart = i;
-        bodyEnd   = matchBrace(code, i);
-      } else {
-        const semi  = code.indexOf(';', i);
-        const brace = code[i] === '{' ? matchBrace(code, i) : -1;
-        if (semi !== -1 && (brace === -1 || semi < brace)){
-          bodyStart = i; bodyEnd = semi;
-        } else if (brace !== -1){
-          bodyStart = i; bodyEnd = brace;
-        }
-      }
-      if (bodyStart !== -1 && bodyEnd !== -1){
-        out.push({ headStart, headEnd, bodyStart, bodyEnd });
-      }
-      re.lastIndex = headEnd;
+  function matchBrace(src, openIdx){
+    let d = 0;
+    for (let i=openIdx; i<src.length; i++){
+      const ch = src[i];
+      if (ch === '{') d++;
+      else if (ch === '}'){ d--; if (d===0) return i; }
     }
-    out.sort((a,b)=> a.bodyStart - b.bodyStart);
-    const stack = [];
-    for (const node of out){
-      node.children = [];
-      while (stack.length && !(node.bodyStart >= stack.at(-1).bodyStart && node.bodyEnd <= stack.at(-1).bodyEnd)){
-        stack.pop();
-      }
-      if (stack.length) stack.at(-1).children.push(node);
-      stack.push(node);
-    }
-    const isChild = new Set(out.flatMap(p => p.children));
-    return out.filter(n => !isChild.has(n));
+    return -1;
   }
-
   function posToLineMap(src){
     const lines = src.split(/\r?\n/);
     const acc = []; let pos=0;
@@ -125,41 +93,417 @@
   function lineFromPos(map, idx){
     let lo=0, hi=map.length-1, ans=1;
     while (lo<=hi){
-      const mid = (lo+hi)>>1;
-      if (idx < map[mid].start){ hi=mid-1; }
-      else if (idx > map[mid].end){ lo=mid+1; }
-      else { ans = map[mid].line; break; }
+      const mid=(lo+hi)>>1;
+      if (idx < map[mid].start) hi=mid-1;
+      else if (idx > map[mid].end) lo=mid+1;
+      else { ans=map[mid].line; break; }
       ans = Math.max(1, Math.min(map.length, mid+1));
     }
     return ans;
   }
 
-  /* =================== Loop Cost Heuristics =================== */
+  /* =================== Method discovery =================== */
 
-  function loopCost(header, body){
-    const h = header.replace(/\s+/g,' ');
-    const b = (body || '').replace(/\s+/g,' ');
+  // Java method definitions: capture name + body
+  function findMethods(code){
+    const fns = [];
+    const re = /(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(?:synchronized\s+)?(?:<[^>]+>\s*)?[\w\[\]<>]+\s+(\w+)\s*\([^;{}]*\)\s*\{/g;
+    let m;
+    while ((m = re.exec(code))){
+      const name = m[1];
+      const bodyStart = code.indexOf('{', m.index);
+      const bodyEnd = matchBrace(code, bodyStart);
+      fns.push({ name, headStart: m.index, bodyStart, bodyEnd });
+      re.lastIndex = bodyEnd + 1;
+    }
+    return fns;
+  }
 
-    const looksLikeBS =
-      /while\s*\(\s*\w+\s*<=\s*\w+\s*\)/i.test(h) &&
-      /\bmid\s*=\s*\w+\s*\+\s*\(\s*\w+\s*-\s*\w+\s*\)\s*\/\s*2\b/i.test(b) &&
-      (/\b(low|left)\s*=\s*mid\s*\+\s*1\b/i.test(b) || /\b(high|right)\s*=\s*mid\s*-\s*1\b/i.test(b) || /\b(low|left)\s*=\s*mid\b/i.test(b) || /\b(high|right)\s*=\s*mid\b/i.test(b));
-    if (looksLikeBS) return 'log n';
+  /* =================== Block parser (loops/ifs/switch/do/stmt) =================== */
 
-    if (/[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(h)) return 'log n';
+  function parseBlock(code, start, end){
+    const nodes = [];
+    let i = start|0;
+    while (i <= end){
+      while (i<=end && /\s/.test(code[i])) i++;
+      if (i > end) break;
 
+      // for(...)
+      if (/\bfor\s*\(/y.test(code.slice(i))){
+        const hStart = i + code.slice(i).match(/\bfor\s*\(/).index;
+        const po = code.indexOf('(', hStart);
+        const pe = matchParen(code, po);
+        let j = pe + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+        let bStart, bEnd;
+        if (code[j] === '{'){ bStart=j; bEnd=matchBrace(code, j); }
+        else { bStart=j; bEnd=code.indexOf(';', j); }
+        nodes.push({ type:'loop', kind:'for', hStart, hEnd:pe+1, bStart, bEnd,
+          children: parseBlock(code, bStart+(code[j]==='{'), bEnd-(code[j]==='{')) });
+        i = bEnd + 1; continue;
+      }
+
+      // while(...)
+      if (/\bwhile\s*\(/y.test(code.slice(i))){
+        const hStart = i + code.slice(i).match(/\bwhile\s*\(/).index;
+        const po = code.indexOf('(', hStart);
+        const pe = matchParen(code, po);
+        let j = pe + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+        let bStart, bEnd;
+        if (code[j] === '{'){ bStart=j; bEnd=matchBrace(code, j); }
+        else { bStart=j; bEnd=code.indexOf(';', j); }
+        nodes.push({ type:'loop', kind:'while', hStart, hEnd:pe+1, bStart, bEnd,
+          children: parseBlock(code, bStart+(code[j]==='{'), bEnd-(code[j]==='{')) });
+        i = bEnd + 1; continue;
+      }
+
+      // do { ... } while(...);
+      if (/\bdo\b/y.test(code.slice(i))){
+        const dStart = i + code.slice(i).match(/\bdo\b/).index;
+        let j = dStart + 2;
+        while (j<=end && /\s/.test(code[j])) j++;
+        if (code[j] === '{'){
+          const bStart=j, bEnd=matchBrace(code, j);
+          const wIdx = code.indexOf('while', bEnd);
+          if (wIdx !== -1){
+            const po = code.indexOf('(', wIdx);
+            const pe = matchParen(code, po);
+            nodes.push({ type:'loop', kind:'do-while', hStart:wIdx, hEnd:pe+1, bStart, bEnd,
+              children: parseBlock(code, bStart+1, bEnd-1) });
+            i = pe + 2; continue;
+          }
+        }
+      }
+
+      // if (...) { ... } [else if]* [else]?
+      if (/\bif\s*\(/y.test(code.slice(i))){
+        const hStart = i + code.slice(i).match(/\bif\s*\(/).index;
+        const po = code.indexOf('(', hStart);
+        const pe = matchParen(code, po);
+        let j = pe + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+        let thenStart, thenEnd;
+        if (code[j] === '{'){ thenStart=j; thenEnd=matchBrace(code, j); }
+        else { thenStart=j; thenEnd=code.indexOf(';', j); }
+
+        const branches = [];
+        branches.push({ s: thenStart+(code[j]==='{'), e: thenEnd-(code[j]==='{') });
+
+        let k = thenEnd + 1;
+        while (k<=end){
+          while (k<=end && /\s/.test(code[k])) k++;
+          if (!/\belse\b/y.test(code.slice(k))) break;
+          k += code.slice(k).match(/\belse\b/).index + 4;
+          while (k<=end && /\s/.test(code[k])) k++;
+          if (/\bif\s*\(/y.test(code.slice(k))){
+            const if2 = k + code.slice(k).match(/\bif\s*\(/).index;
+            const po2 = code.indexOf('(', if2);
+            const pe2 = matchParen(code, po2);
+            k = pe2 + 1;
+            while (k<=end && /\s/.test(code[k])) k++;
+            let s2,e2;
+            if (code[k] === '{'){ s2=k; e2=matchBrace(code, k); }
+            else { s2=k; e2=code.indexOf(';', k); }
+            branches.push({ s: s2+(code[k]==='{'), e: e2-(code[k]==='{') });
+            k = e2 + 1;
+          } else {
+            let s2,e2;
+            if (code[k] === '{'){ s2=k; e2=matchBrace(code, k); }
+            else { s2=k; e2=code.indexOf(';', k); }
+            branches.push({ s: s2+(code[k]==='{'), e: e2-(code[k]==='{') });
+            k = e2 + 1; break;
+          }
+        }
+        nodes.push({ type:'if', hStart, hEnd:pe+1, branches });
+        i = k; continue;
+      }
+
+      // switch
+      if (/\bswitch\s*\(/y.test(code.slice(i))){
+        const sStart = i + code.slice(i).match(/\bswitch\s*\(/).index;
+        const po = code.indexOf('(', sStart);
+        const pe = matchParen(code, po);
+        let j = pe + 1;
+        while (j<=end && /\s/.test(code[j])) j++;
+        if (code[j] === '{'){
+          const bStart=j, bEnd=matchBrace(code, j);
+          const body = code.slice(bStart+1, bEnd);
+          const cases = [];
+          const caseRe = /(?:\bcase\b[^\:]*\:|\bdefault\s*:)/g;
+          let cm, anchors = [];
+          while ((cm = caseRe.exec(body))) anchors.push(bStart+1 + cm.index);
+          anchors.push(bEnd);
+          for (let c=0;c<anchors.length-1;c++) cases.push({ s: anchors[c], e: anchors[c+1]-1 });
+          nodes.push({ type:'switch', hStart:sStart, hEnd:pe+1, cases });
+          i = bEnd + 1; continue;
+        }
+      }
+
+      // generic statement
+      const semi = code.indexOf(';', i);
+      const brace = code.indexOf('{', i);
+      if (semi !== -1 && (brace === -1 || semi < brace)){
+        nodes.push({ type:'stmt', s:i, e:semi });
+        i = semi + 1;
+      } else if (brace !== -1){
+        const bEnd = matchBrace(code, brace);
+        nodes.push({ type:'stmt', s:i, e:bEnd });
+        i = bEnd + 1;
+      } else {
+        nodes.push({ type:'stmt', s:i, e:end }); break;
+      }
+    }
+    return nodes;
+  }
+
+  /* =================== Loop self-trip =================== */
+
+  function loopSelfTrip(header, body) {
+    const h = (header||'').replace(/\s+/g,' ');
+    const b = (body  ||'').replace(/\s+/g,' ');
+
+    // halving / doubling hints
+    if (/[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(h) || /i\s*=\s*i\s*\/\s*2\b/.test(h) ||
+        /[*/]\s*2\b|<<\s*1\b|>>\s*1\b/.test(b)) return 'log n';
+
+    // for (...) with ++/-- step
+    if (/\bfor\s*\([^;]*;\s*[^;]*[<≤>≥!=]=?[^;]*;\s*[^;]*(\+\+|--|[\+\-]=\s*1)\s*\)/.test(h)) return 'n';
+
+    // while (i < N) { i++; } pattern
+    if (/\bwhile\s*\(\s*[\w\.\(\)]+\s*[<≤>≥!=]=?\s*[\w\.\(\)]+\s*\)/.test(h) &&
+        /\b(\w+)\s*(\+\+|--|[\+\-]=\s*1)\b/.test(b)) return 'n';
+
+    // two-pointer scan
     const twoPtr = /\bwhile\s*\(\s*\w+\s*<\s*\w+\s*\)/.test(h) &&
-                   /\b\w+\s*\+\+/.test(b) && /\b\w+\s*--/.test(b);
+                   /\b\w+\s*(\+\+|[\+]=\s*1)\b/.test(b) &&
+                   /\b\w+\s*(--|[\-]=\s*1)\b/.test(b);
     if (twoPtr) return 'n';
-
-    if (/for\s*\([^;]*;\s*[^;]*\b(length|size\(\)|n)\b[^;]*;/.test(h)) return 'n';
-
-    if (/while\s*\(\s*\w+\s*[<≤]\s*(\w+|n|\.length|size\(\))\s*\)/.test(h)) return 'n';
 
     return 'n';
   }
 
-  /* =================== Analyzer (Nested, Library-aware) =================== */
+  /* =================== Space scan (arrays + collections) =================== */
+
+  function analyzeSpace(lines, pushNote){
+    let terms = [];
+    lines.forEach((L, idx) => {
+      const ln = idx+1;
+
+      // new int[a][b] / new int[a]
+      const arr2 = L.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]\s*\[\s*([^\]]+)\s*\]/);
+      const arr1 = L.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]/);
+      if (arr2){
+        const A = /n|length|size\(\)/.test(arr2[1]) ? 'n' : (/\d+/.test(arr2[1]) ? '1':'n');
+        const B = /n|length|size\(\)/.test(arr2[2]) ? 'n' : (/\d+/.test(arr2[2]) ? '1':'n');
+        const cx = (A==='n' && B==='n') ? 'n^2' : (A==='n'||B==='n') ? 'n' : '1';
+        if (cx!=='1'){ terms.push(cx); pushNote(ln,'alloc',cx,'2D array allocation'); }
+      } else if (arr1){
+        const cx = /n|length|size\(\)/.test(arr1[1]) ? 'n' : (/\d+/.test(arr1[1]) ? '1':'n');
+        if (cx!=='1'){ terms.push(cx); pushNote(ln,'alloc',cx,'array allocation'); }
+      }
+
+      // Collections with capacity
+      const col = L.match(/new\s+(ArrayList|LinkedList|HashMap|HashSet|TreeMap|TreeSet)\s*<[^>]*>\s*\(\s*([^)]+)\s*\)/);
+      if (col){
+        const cap = col[2]; const cx = /n|length|size\(\)/.test(cap) ? 'n' : (/\d+/.test(cap) ? '1':'n');
+        if (cx!=='1'){ terms.push(cx); pushNote(ln,'alloc',cx,`${col[1]} capacity ~ ${cap.trim()}`); }
+      }
+    });
+    return terms.length ? terms.reduce((a,c)=>simplify.max(a,c),'1') : '1';
+  }
+
+  /* =================== Library (per-line notes; returns worst-case) =================== */
+
+  function analyzeLibraryCallsDetailed(lines, pushNote){
+    let worst = '1';
+    const add = (ln, cx, note) => { pushNote(ln,'library',cx,note); worst = simplify.max(worst, cx); };
+
+    lines.forEach((L, idx) => {
+      const ln = idx+1;
+
+      // Arrays.sort: primitives = Dual-Pivot QuickSort (avg n log n, worst n^2)
+      // Objects = TimSort (avg/worst n log n). We show worst-case safely.
+      if (/Arrays\.sort\s*\(/.test(L)){
+        add(ln, 'n^2', 'Arrays.sort(): primitives → avg O(n log n), worst O(n^2); objects (TimSort) → worst O(n log n)');
+      }
+      if (/Collections\.sort\s*\(/.test(L)){
+        add(ln, 'n log n', 'Collections.sort(): TimSort → average/worst O(n log n)');
+      }
+      if (/System\.arraycopy\s*\(/.test(L)){
+        add(ln, 'n', 'System.arraycopy(): copies range → O(n)');
+      }
+      if (/Arrays\.binarySearch\s*\(/.test(L)){
+        add(ln, 'log n', 'Arrays.binarySearch(): O(log n)');
+      }
+
+      // Common Collections ops (avg vs worst)
+      if (/\bHashMap<[^>]*>\b/.test(L) && /\.(put|get|remove)\s*\(/.test(L)){
+        add(ln, 'n', 'HashMap op: average O(1), worst O(n) due to collisions');
+      }
+      if (/\bTreeMap<[^>]*>\b/.test(L) && /\.(put|get|remove)\s*\(/.test(L)){
+        add(ln, 'log n', 'TreeMap op: balanced tree → O(log n)');
+      }
+      if (/\bArrayList<[^>]*>\b/.test(L) && /\.add\s*\(/.test(L)){
+        add(ln, 'n', 'ArrayList.add(): amortized O(1), worst O(n) on resize/insert at index');
+      }
+      if (/\bArrayList<[^>]*>\b/.test(L) && /\.(remove|add)\s*\(\s*\d+/.test(L)){
+        add(ln, 'n', 'ArrayList insert/remove at index: shifts → O(n) worst');
+      }
+      if (/\bLinkedList<[^>]*>\b/.test(L) && /\.(addFirst|addLast|removeFirst|removeLast)\s*\(/.test(L)){
+        add(ln, '1', 'LinkedList deque ops: O(1)');
+      }
+      if (/\bLinkedList<[^>]*>\b/.test(L) && /\.get\s*\(\s*\d+/.test(L)){
+        add(ln, 'n', 'LinkedList.get(index): walk list → O(n)');
+      }
+    });
+
+    return worst;
+  }
+
+  /* =================== Recursion heuristics (worst-case + teaching notes) =================== */
+
+  function recursionHeuristic(fnName, body, pushNote, ln){
+    const callRe = new RegExp(`\\b${fnName}\\s*\\(`, 'g');
+    const calls = (body.match(callRe) || []).length;
+
+    // halving / mid hints
+    const halves = /[*/]\s*2\b|>>\s*1\b|\bmid\b|\b(high\s*-\s*low)\s*\/\s*2|\b(low\s*\+\s*high)\s*\/\s*2/i.test(body);
+
+    // linear combine/partition hints
+    const hasLinearCombine = /\b(for|while)\s*\(/.test(body) || /\bpartition\s*\(|\bmerge\s*\(|\bcombine\s*\(/i.test(body);
+
+    // two self-calls in same path (no else separation)
+    const twoCallsSamePath = (calls >= 2) && !/\belse\b/.test(body);
+
+    const fib1 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*1\\s*\\)`, 'i');
+    const fib2 = new RegExp(`\\b${fnName}\\s*\\(\\s*\\w+\\s*[-]\\s*2\\s*\\)`, 'i');
+
+    // --- worst-case classification with notes ---
+    if (calls >= 2 && fib1.test(body) && fib2.test(body)) {
+      pushNote(ln, 'recursion', '2^n', `${fnName}(): Fibonacci-like recursion → worst O(2^n)`);
+      return '2^n';
+    }
+
+    if (twoCallsSamePath){
+      if (halves && hasLinearCombine){
+        pushNote(ln, 'recursion', 'n log n',
+          `${fnName}(): divide & conquer with halving + linear combine (e.g., merge sort) → worst O(n log n)`);
+        return 'n log n';
+      }
+      if (!halves && hasLinearCombine){
+        pushNote(ln, 'recursion', 'n^2',
+          `${fnName}(): two recursive calls + linear partition/combine (e.g., quicksort) → worst O(n^2), average O(n log n)`);
+        return 'n^2';
+      }
+      pushNote(ln,'recursion','n',`${fnName}(): tree recursion (visits multiple branches) → worst O(n)`);
+      return 'n';
+    }
+
+    if (calls >= 1){
+      if (halves){
+        pushNote(ln,'recursion','log n',`${fnName}(): single-branch halving recursion → worst O(log n)`);
+        return 'log n';
+      }
+      pushNote(ln,'recursion','n',`${fnName}(): single-branch recursion (e.g., BST insert/search) → worst O(n); balanced avg ≈ O(log n)`);
+      return 'n';
+    }
+
+    return '1';
+  }
+
+  /* =================== Statement cost (recursive AST) with call substitution =================== */
+
+  function costNode(node, code, linemap, pushNote, fnCostMap, selfName){
+    if (node.type === 'loop'){
+      const header = code.slice(node.hStart, node.hEnd);
+      const body   = code.slice(node.bStart, node.bEnd+1);
+      let inner = '1';
+      for (const ch of node.children){
+        inner = simplify.max(inner, costNode(ch, code, linemap, pushNote, fnCostMap, selfName));
+      }
+      const self = loopSelfTrip(header, body);
+      const total = simplify.mult(self, inner);
+      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+      pushNote(ln, 'loop', self, `loop header: ${header.trim().slice(0,100)}`);
+      return total;
+    }
+
+    if (node.type === 'if'){
+      let best = '1';
+      for (const b of node.branches){
+        const kids = parseBlock(code, b.s, b.e);
+        let cx = '1';
+        for (const kn of kids){
+          cx = simplify.max(cx, costNode(kn, code, linemap, pushNote, fnCostMap, selfName));
+        }
+        best = simplify.max(best, cx);
+      }
+      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+      pushNote(ln, 'branch', best, `if/else chain`);
+      return best;
+    }
+
+    if (node.type === 'switch'){
+      let best = '1';
+      for (const c of node.cases){
+        const kids = parseBlock(code, c.s, c.e);
+        let cx = '1';
+        for (const kn of kids){
+          cx = simplify.max(cx, costNode(kn, code, linemap, pushNote, fnCostMap, selfName));
+        }
+        best = simplify.max(best, cx);
+      }
+      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+      pushNote(ln, 'branch', best, `switch`);
+      return best;
+    }
+
+    if (node.type === 'stmt'){
+      const snip = code.slice(node.s, node.e+1);
+      let cx = '1';
+
+      // quick library hints (detail pass adds notes/worst elsewhere)
+      if (/System\.arraycopy\s*\(/.test(snip)) cx = simplify.max(cx,'n');
+      if (/Arrays\.binarySearch\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
+      if (/Arrays\.sort\s*\(/.test(snip)) cx = simplify.max(cx,'n log n'); // avg
+      if (/Collections\.sort\s*\(/.test(snip)) cx = simplify.max(cx,'n log n');
+
+      // substitute known method calls (excluding self to avoid recursion double-counting)
+      if (fnCostMap && Object.keys(fnCostMap).length){
+        for (const [callee, calleeCx] of Object.entries(fnCostMap)){
+          if (callee === selfName) continue;
+          const re = new RegExp(`\\b${callee}\\s*\\(`);
+          if (re.test(snip)){
+            cx = simplify.max(cx, calleeCx);
+            const ln = Math.max(1, lineFromPos(linemap, node.s));
+            pushNote(ln, 'call', calleeCx, `calls ${callee}()`);
+          }
+        }
+      }
+      return cx;
+    }
+
+    return '1';
+  }
+
+  function analyzeMethod(fn, code, linemap, pushNote, fnCostMap){
+    const nodes = parseBlock(code, fn.bodyStart + 1, fn.bodyEnd - 1);
+
+    let worstTime = '1';
+    for (const n of nodes){
+      const t = costNode(n, code, linemap, pushNote, fnCostMap, fn.name);
+      worstTime = simplify.max(worstTime, t);
+    }
+
+    const body = code.slice(fn.bodyStart + 1, fn.bodyEnd);
+    const ln   = Math.max(1, lineFromPos(linemap, fn.headStart));
+    const recWorst = recursionHeuristic(fn.name, body, pushNote, ln);
+
+    return simplify.max(worstTime, recWorst);
+  }
+
+  /* =================== Main analyzer (call-aware fixed point) =================== */
 
   function analyzeJavaComplexity(src){
     const code = stripNoise(src);
@@ -169,88 +513,51 @@
     const notes = [];
     const pushNote = (line, type, cx, reason) => notes.push({ line, type, cx: `O(${cx})`, reason });
 
-    // Space: detect allocations
-    let spaceTerms = [];
-    function scanSpace(lineTxt, ln){
-      const arr2 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]\s*\[\s*([^\]]+)\s*\]/);
-      const arr1 = lineTxt.match(/new\s+\w+\s*\[\s*([^\]]+)\s*\]/);
-      if (arr2){
-        const a = /n|length|size\(\)/.test(arr2[1]) ? 'n' : '1';
-        const b = /n|length|size\(\)/.test(arr2[2]) ? 'n' : '1';
-        const cx = (a==='n' && b==='n') ? 'n^2' : (a==='n' || b==='n') ? 'n' : '1';
-        if (cx !== '1'){ spaceTerms.push(cx); pushNote(ln,'alloc',cx,'2D array allocation'); }
-      } else if (arr1){
-        const cx = /n|length|size\(\)/.test(arr1[1]) ? 'n' : '1';
-        if (cx !== '1'){ spaceTerms.push('n'); pushNote(ln,'alloc','n','array allocation'); }
-      }
-      const col = lineTxt.match(/new\s+(ArrayList|LinkedList|HashMap|HashSet)\s*<[^>]*>\s*\(\s*([^)]+)\s*\)/);
-      if (col){
-        const cap = col[2]; const cx = /n|length|size\(\)/.test(cap) ? 'n' : '1';
-        if (cx !== '1'){ spaceTerms.push('n'); pushNote(ln,'alloc','n',`${col[1]} capacity ~ ${cap.trim()}`); }
-      }
-    }
-    lines.forEach((t,i)=> scanSpace(t, i+1));
+    // Space
+    const spaceWorst = analyzeSpace(lines, pushNote);
 
-    const roots = findLoopsWithBodies(code);
+    // Methods
+    const fns = findMethods(code);
 
-    function costOfLoop(node){
-      const header = code.slice(node.headStart, node.headEnd);
-      const body   = code.slice(node.bodyStart, node.bodyEnd+1);
-
-      let bodyCost = '1';
-      if (node.children.length){
-        let best = '1';
-        for (const ch of node.children){
-          const c = costOfLoop(ch);
-          best = simplify.max(best, c);
-        }
-        bodyCost = best;
-      }
-
-      const selfTrip = loopCost(header, body);
-      const total = simplify.mult(selfTrip, bodyCost);
-
-      const ln = lineFromPos(linemap, node.headStart);
-      pushNote(ln, 'loop', selfTrip, `loop header: ${header.trim().slice(0,100)}`);
-
-      return total;
+    // Pass 1: seed costs without cross-call substitution
+    let fnCost = {};
+    for (const fn of fns){
+      const t0 = analyzeMethod(fn, code, linemap, ()=>{}, {}); // silent
+      fnCost[fn.name] = t0;
     }
 
-    let finalTimeCore = '1';
-    for (const root of roots){
-      const c = costOfLoop(root);
-      finalTimeCore = simplify.max(finalTimeCore, c);
+    // Pass 2: iterate to fixed point with call substitution
+    for (let iter=0; iter<5; iter++){
+      let changed = false;
+      for (const fn of fns){
+        const t = analyzeMethod(fn, code, linemap, pushNote, fnCost);
+        if (t !== fnCost[fn.name]) { fnCost[fn.name] = t; changed = true; }
+      }
+      if (!changed) break;
     }
 
-    const libCosts = [];
-    if (/Arrays\.sort\s*\(/.test(code)) libCosts.push('n log n');
-    if (/Collections\.sort\s*\(/.test(code)) libCosts.push('n log n');
-    if (/System\.arraycopy\s*\(/.test(code)) libCosts.push('n');
-    if (/Arrays\.binarySearch\s*\(/.test(code)) libCosts.push('log n');
+    // Aggregate what actually runs: prefer main() if present
+    const mainCx = fnCost['main'] || fnCost['Main'] || '1';
+    let others   = '1';
+    for (const [name, cx] of Object.entries(fnCost)){
+      if (name !== 'main' && name !== 'Main') others = simplify.max(others, cx);
+    }
 
-    const libTime = libCosts.reduce((acc,cur)=> simplify.max(acc, cur), '1');
+    // Library (per-line; adds notes; worst-case)
+    const libWorst = analyzeLibraryCallsDetailed(lines, pushNote);
 
-    const finalTime = simplify.max(finalTimeCore, libTime);
+    let finalTimeCore = mainCx !== '1' ? mainCx : others;
+    finalTimeCore = simplify.max(finalTimeCore, libWorst);
 
-    const finalSpace = spaceTerms.length
-      ? spaceTerms.reduce((acc,cur)=> simplify.max(acc, cur), '1')
-      : '1';
+    const finalTime  = `O(${finalTimeCore})`;                 // worst-case
+    const finalSpace = spaceWorst === '1' ? 'O(1)' : `O(${spaceWorst})`;
 
-    return {
-      notes,
-      finalTime: `O(${finalTime})`,
-      finalSpace: finalSpace === '1' ? 'O(1)' : `O(${finalSpace})`,
-    };
+    return { notes, finalTime, finalSpace };
   }
 
-  /* =================== Modal: inject on demand =================== */
+  /* =================== Modal (inline) =================== */
 
-
-/* =================== Modal: inline, no fetch =================== */
-
-// 🔧 replace any PARTIAL_PATH/ensureModalInserted you have with this:
-
-const MODAL_HTML = `
+  const MODAL_HTML = `
 <div id="complexityModal" class="pc-modal" aria-hidden="true">
   <div class="pc-modal__backdrop" data-close></div>
   <div class="pc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
@@ -279,42 +586,30 @@ const MODAL_HTML = `
 </div>
 `;
 
-function ensureModalInserted() {
-  if (document.getElementById('complexityModal')) return 'exists';
-  document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
-  const modal = document.getElementById('complexityModal');
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      const t = e.target;
-      if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
-    });
+  function ensureModalInserted() {
+    if (document.getElementById('complexityModal')) return 'exists';
+    document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
+    const modal = document.getElementById('complexityModal');
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        const t = e.target;
+        if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
+      });
+    }
+    return 'inserted';
   }
-  return 'inserted';
-}
+  function openModal() {
+    const m = document.getElementById('complexityModal');
+    if (m) m.setAttribute('aria-hidden', 'false');
+  }
+  function closeModal() {
+    const m = document.getElementById('complexityModal');
+    if (m) m.setAttribute('aria-hidden', 'true');
+  }
 
-function openModal() {
-  const m = document.getElementById('complexityModal');
-  if (m) m.setAttribute('aria-hidden', 'false');
-}
-function closeModal() {
-  const m = document.getElementById('complexityModal');
-  if (m) m.setAttribute('aria-hidden', 'true');
-}
-
-
-
-
-
-
-
-
-
-
-  
   /* =================== UI Binding =================== */
 
   async function handleAnalyzeClick(getCode) {
-    // Get code from Monaco/editor/textarea
     const code =
       (window.editor && window.editor.getValue && window.editor.getValue()) ||
       (typeof getCode === 'function' ? getCode() : '') ||
@@ -340,8 +635,13 @@ function closeModal() {
         `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
       tb.appendChild(tr);
     }
+
     nt.innerHTML =
-      `<p><strong>Heuristic:</strong> Nest-aware; detects halving/binary-search patterns, two-pointer loops, and common library costs. Space scans arrays/containers. Path-dependent math is approximated.</p>`;
+      `<p><strong>Heuristic:</strong> Nest-aware loops (for/while/do-while), if/else & switch (max branch), method + recursion patterns (single-branch, tree, Fibonacci, divide&amp;conquer). Space scans arrays/collections. Library calls add costs. Path-dependent math is approximated.</p>`;
+    nt.innerHTML +=
+      `<p><strong>Teaching note:</strong> The “Final Time” is always the <u>worst-case</u>. Line-by-line notes may also mention average-case so you learn both. In interviews/exams, quote worst-case unless asked otherwise.</p>`;
+    nt.innerHTML +=
+      `<p><strong>Library note:</strong> Arrays.sort on primitives uses dual-pivot quicksort (average O(n log n), worst O(n^2)); on objects it is TimSort (worst O(n log n)). Collections.sort is TimSort. We surface the worst-case in the total.</p>`;
 
     openModal();
   }
@@ -349,20 +649,18 @@ function closeModal() {
   function initUI({ getCode } = {}) {
     if (initUI._bound) return;
     const btn = document.getElementById('btnComplexity');
-    if (!btn) return; // try again later if needed
+    if (!btn) return;
     initUI._bound = true;
     btn.addEventListener('click', () => handleAnalyzeClick(getCode));
   }
 
-  // Public API
   window.PolyComplexity = {
     analyze: (code) => analyzeJavaComplexity(code),
-    initUI,           // ({ getCode })
+    initUI,
     open: async () => { await ensureModalInserted(); openModal(); },
     close: closeModal
   };
 
-  // Auto-bind once DOM is parsed if the button is present
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       if (document.getElementById('btnComplexity')) initUI({});
