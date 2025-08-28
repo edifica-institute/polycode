@@ -30,7 +30,7 @@ const MODAL_CSS = `
 }
 
 /* Notes — smaller font & margins to reduce bottom footprint */
-.cx-notes{ opacity:.9; font-size:.50rem; line-height:1.28; margin-top:6px; }
+.cx-notes{ opacity:.9; font-size:.70rem; line-height:1.28; margin-top:6px; }
 
 /* Buttons */
 .pc-modal__close{ all:unset; cursor:pointer; font-size:18px; padding:0 4px; }
