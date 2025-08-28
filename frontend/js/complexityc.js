@@ -480,4 +480,206 @@
       for (const b of node.branches){
         const kids = parseBlock(code, b.s, b.e);
         let cx = '1';
-        f
+        for (const kn of kids){
+          cx = simplify.max(cx, costNode(kn, code, linemap, pushNote));
+        }
+        best = simplify.max(best, cx);
+      }
+      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+      pushNote(ln, 'branch', best, `if/else chain`);
+      return best;
+    }
+
+    if (node.type === 'switch'){
+      let best = '1';
+      for (const c of node.cases){
+        const kids = parseBlock(code, c.s, c.e);
+        let cx = '1';
+        for (const kn of kids){
+          cx = simplify.max(cx, costNode(kn, code, linemap, pushNote));
+        }
+        best = simplify.max(best, cx);
+      }
+      const ln = Math.max(1, lineFromPos(linemap, node.hStart));
+      pushNote(ln, 'branch', best, `switch`);
+      return best;
+    }
+
+    // generic statement: check for known library costs inside the slice
+    if (node.type === 'stmt'){
+      const snip = code.slice(node.s, node.e+1);
+      let cx = '1';
+      if (/\b(memcpy|memmove|memset|strlen|strcmp)\s*\(/.test(snip)) cx = 'n';
+      if (/\b(bsearch)\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
+      if (/\b(qsort)\s*\(/.test(snip))   cx = simplify.max(cx,'n log n');
+      if (/\bstd::(sort|stable_sort)\s*\(/.test(snip) || /\bsort\s*\(\s*[^,]+,\s*[^)]+\)/.test(snip)) cx = simplify.max(cx,'n log n');
+      if (/\bstd::binary_search\s*\(/.test(snip)) cx = simplify.max(cx,'log n');
+      return cx;
+    }
+
+    return '1';
+  }
+
+  function analyzeFunction(fn, code, linemap, pushNote){
+    // parse statements in function body
+    const nodes = parseBlock(code, fn.bodyStart+1, fn.bodyEnd-1);
+    let time = '1';
+    for (const n of nodes){
+      time = simplify.max(time, costNode(n, code, linemap, pushNote));
+    }
+    // recursion heuristic on whole body
+    const body = code.slice(fn.bodyStart+1, fn.bodyEnd);
+    const ln = Math.max(1, lineFromPos(linemap, fn.headStart));
+    const rec = recursionHeuristic(fn.name, body, pushNote, ln);
+    time = simplify.max(time, rec);
+    return time;
+  }
+
+  /* =================== Main analyzer =================== */
+
+  function analyzeCComplexity(src){
+    const code = stripNoise(src);
+    const lines = code.split(/\r?\n/);
+    const linemap = posToLineMap(code);
+    const notes = [];
+    const pushNote = (line, type, cx, reason) => notes.push({ line, type, cx:`O(${cx})`, reason });
+
+    // Space analysis
+    const spaceAgg = analyzeSpace(lines, pushNote);
+
+    // Function analysis
+    const fns = findFunctions(code);
+    let timeMain = '1', timeOthers = '1';
+    for (const fn of fns){
+      const t = analyzeFunction(fn, code, linemap, pushNote);
+      if (fn.name === 'main') timeMain = simplify.max(timeMain, t);
+      else timeOthers = simplify.max(timeOthers, t);
+    }
+
+    // Library costs anywhere (also captured in stmt nodes, but keep a global pass)
+    const libTime = analyzeLibraryCosts(code);
+
+    // Final time: prefer main if present, else max across functions, else lib
+    let finalTimeCore = timeMain !== '1' ? timeMain : simplify.max(timeOthers, '1');
+    finalTimeCore = simplify.max(finalTimeCore, libTime);
+
+    const finalTime = `O(${finalTimeCore})`;
+    const finalSpace = spaceAgg === '1' ? 'O(1)' : `O(${spaceAgg})`;
+
+    return { notes, finalTime, finalSpace };
+  }
+
+  /* =================== Modal (same UI) =================== */
+
+  const MODAL_HTML = `
+<div id="complexityModal" class="pc-modal" aria-hidden="true">
+  <div class="pc-modal__backdrop" data-close></div>
+  <div class="pc-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="cxTitle">
+    <div class="pc-modal__header">
+      <h3 id="cxTitle">Complexity Analysis</h3>
+      <button class="pc-modal__close" data-close aria-label="Close">×</button>
+    </div>
+    <div class="pc-modal__body">
+      <div class="cx-summary">
+        <div><strong>Final Time:</strong> <span id="cxTime">—</span></div>
+        <div><strong>Final Space:</strong> <span id="cxSpace">—</span></div>
+      </div>
+      <hr/>
+      <table class="cx-table" id="cxTable">
+        <thead>
+          <tr><th>Line</th><th>Type</th><th>Complexity</th><th>Reason</th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="cx-notes" id="cxNotes"></div>
+    </div>
+    <div class="pc-modal__footer">
+      <button class="btn" data-close>Close</button>
+    </div>
+  </div>
+</div>`;
+
+  function ensureModalInserted() {
+    let modal = document.getElementById('complexityModal');
+    if (!modal) {
+      document.body.insertAdjacentHTML('beforeend', MODAL_HTML);
+      modal = document.getElementById('complexityModal');
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          const t = e.target;
+          if (t && t.hasAttribute && t.hasAttribute('data-close')) closeModal();
+        });
+      }
+    }
+    return modal;
+  }
+  function openModal() {
+    const m = document.getElementById('complexityModal');
+    if (m) m.setAttribute('aria-hidden', 'false');
+  }
+  function closeModal() {
+    const m = document.getElementById('complexityModal');
+    if (m) m.setAttribute('aria-hidden', 'true');
+  }
+
+  /* =================== UI Binding =================== */
+
+  async function handleAnalyzeClick(getCode) {
+    const code =
+      (window.editor && window.editor.getValue && window.editor.getValue()) ||
+      (typeof getCode === 'function' ? getCode() : '') ||
+      (document.getElementById('code')?.value || '');
+
+    const { notes, finalTime, finalSpace } = analyzeCComplexity(code);
+
+    const modal = ensureModalInserted();
+    if (!modal) return;
+
+    const tEl = modal.querySelector('#cxTime');
+    const sEl = modal.querySelector('#cxSpace');
+    const tb  = modal.querySelector('#cxTable tbody');
+    const nt  = modal.querySelector('#cxNotes');
+    if (!tEl || !sEl || !tb || !nt) return;
+
+    tEl.textContent = finalTime || 'O(1)';
+    sEl.textContent = finalSpace || 'O(1)';
+
+    tb.innerHTML = '';
+    for (const n of notes) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td>${n.line}</td><td>${n.type}</td><td>${n.cx}</td><td>${String(n.reason || '').replace(/</g,'&lt;')}</td>`;
+      tb.appendChild(tr);
+    }
+
+    nt.innerHTML =
+      `<p><strong>Heuristic:</strong> Nest-aware loops (for/while/do-while), if/else & switch (max branch), function + recursion patterns (single-branch, tree, Fibonacci, divide&amp;conquer). Space scans arrays/containers/heap. Library calls add costs. Path-dependent math is approximated.</p>`;
+
+    openModal();
+  }
+
+  function initUI({ getCode } = {}) {
+    if (initUI._bound) return;
+    const btn = document.getElementById('btnComplexity');
+    if (!btn) return;
+    initUI._bound = true;
+    btn.addEventListener('click', () => handleAnalyzeClick(getCode));
+  }
+
+  // Public API (unchanged)
+  window.PolyComplexity = {
+    analyze: (code) => analyzeCComplexity(code),
+    initUI,
+    open: async () => { await ensureModalInserted(); openModal(); },
+    close: closeModal
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (document.getElementById('btnComplexity')) initUI({});
+    }, { once: true });
+  } else {
+    if (document.getElementById('btnComplexity')) initUI({});
+  }
+})();
+</script>
