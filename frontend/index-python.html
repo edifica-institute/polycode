@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>polycode | Python</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="./assets/logo.png" />
+  <link rel="stylesheet" href="./css/shell.css" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <meta name="color-scheme" content="dark light" />
+
+  <style>
+    /* kill any token-like styling on the input row */
+    #consoleRow span{ background:transparent!important; padding:0!important; border-radius:0!important }
+    /* make the input caret clean, no borders/outline */
+    #consoleInput{
+      display:inline-block; min-width:5ch; background:transparent; border:0; outline:0; box-shadow:none;
+      caret-color: currentColor; user-select:text; -webkit-user-modify: read-write-plaintext-only;
+    }
+    #consoleInput:focus{ outline:0 }
+    #consoleInput::selection{ background:rgba(255,255,255,.15) }
+
+    /* stop attention animations once disabled */
+    .btn[disabled], .btn.attn[disabled]{ animation:none!important }
+
+    .pane-foot .msg{ white-space:nowrap }
+    .panel .pane-head{ display:flex; align-items:center }
+
+    /* --- Complexity modal skeleton (kept for consistency; button disabled) --- */
+    .pc-modal{ position:fixed; inset:0; display:none; z-index:1000 }
+    .pc-modal[aria-hidden="false"]{ display:block }
+    .pc-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.45) }
+    .pc-modal__dialog{
+      position:relative; margin:5vh auto; max-width:800px; background:var(--panel,#111);
+      color:inherit; border:1px solid rgba(255,255,255,.1); border-radius:14px;
+      box-shadow:0 20px 50px rgba(0,0,0,.35); padding:14px;
+    }
+    .pc-modal__header{ display:flex; align-items:center; justify-content:space-between }
+    .pc-modal__close{ background:transparent; border:0; font-size:22px; cursor:pointer }
+    .pc-modal__body{ max-height:60vh; overflow:auto }
+    .pc-modal__footer{ display:flex; justify-content:flex-end; gap:8px }
+
+    /* One-time subtle pulse when the button first unlocks (not used here) */
+    @media (prefers-reduced-motion:no-preference){
+      @keyframes pc-pulse-brief{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
+      .btn-pulse{ animation:pc-pulse-brief .9s ease-out }
+    }
+  </style>
+</head>
+
+<body class="page-fade">
+  <!-- Header -->
+  <header class="site-header">
+    <div class="brand-wrap">
+      <div class="brand-grid">
+        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
+        <div class="brand-title2">polycode</div>
+        <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
+      </div>
+    </div>
+
+    <nav class="site-nav">
+      <a href="./index.html">Home</a>
+      <a href="./about.html">About</a>
+      <a href="./contact.html">Contact</a>
+    </nav>
+  </header>
+
+  <!-- App -->
+  <div class="stage">
+    <div class="app">
+      <!-- LEFT -->
+      <section class="panel left" id="leftPanel">
+        <div class="pane-head">
+          <select id="langSelect" class="select" aria-label="Choose language" onchange="location.href=this.value">
+            <option value="./index-python.html" selected>Python</option>
+            <option value="./index-c.html">C</option>
+            <option value="./index-cpp.html">C++</option>
+            <option value="./index-web.html">HTML/CSS/JS</option>
+            <option value="./index-java.html">Java</option>
+            <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
+          </select>
+        </div>
+        <div class="pane-body"><div id="leftContent" style="margin-top:12px;"></div></div>
+        <div class="pane-foot"><span class="msg" id="leftFoot">About Python</span></div>
+      </section>
+
+      <!-- RESIZER -->
+      <div class="v-resize"><div id="dragLeft"></div></div>
+
+      <!-- CENTER (Monaco) -->
+      <section class="panel center" id="centerPanel">
+        <div class="pane-head">
+          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
+            <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          </button>
+
+          <span class="title" id="centerTitle" style="margin-left:8px;">Python – Editor | Polycode</span>
+
+          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+            <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
+              <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7l-4-4zm-5 16a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm3-10H6V5h9v4z" fill="currentColor"/></svg>
+            </button>
+            <button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
+              <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 2z" fill="currentColor"/></svg>
+            </button>
+            <button id="btnRun" class="btn primary attn" title="Execute (Click or Press F9)" aria-label="Run">
+              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="editor"></div>
+        <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
+      </section>
+
+      <!-- RESIZER -->
+      <div class="v-resize right"><div id="dragRight"></div></div>
+
+      <!-- RIGHT (Console) -->
+      <section class="panel right" id="rightPanel">
+        <div class="pane-head">
+          <span class="title">Python – Console | Polycode</span>
+          <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
+            <button id="btnComplexity" class="btn" title="Analyze Time & Space" aria-label="Complexity" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 9.5c.9-1 2-1.5 3-1.5s2.1.5 3 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span class="sr-only">Complexity</span>
+            </button>
+            <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
+              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 0 0 7.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="output" class="screen-dim" style="padding:12px;">
+          <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
+          <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;">
+            <span id="consolePrefix"></span>
+            <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
+          </div>
+        </div>
+
+        <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Floating chevron for collapse/expand -->
+  <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
+    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="footer-grid">
+      <div class="footer-left">
+        <img src="./assets/logo.png" alt="Edifica" class="footer-logo" />
+        <div class="txt">
+          <span class="powered">powered by edifica</span>
+          <span class="subline">education<span class="dot">.</span>consultation<span class="dot">.</span>assistance</span>
+          <div class="siteurl"><a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a></div>
+        </div>
+      </div>
+      <div class="footer-center">
+        <span class="label">Follow us</span>
+        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg></a>
+        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg></a>
+        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg></a>
+      </div>
+      <div class="footer-right">
+        <a href="./privacy.html">Privacy Policy</a>
+        <a href="./terms.html">Terms &amp; Conditions</a>
+        <a href="./legal.html">Legal Information</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
+  <script src="./js/shell.js" defer></script>
+
+  <!-- Page script -->
+  <script>
+    /* --- Sample Python for the editor --- */
+    const SAMPLE_PYTHON = `name = input("Enter your name: ") \nprint("Hello,", name)`;
+
+    /* --- Make bootstrap visible for shell.js --- */
+    window.bootstrap = async function bootstrap() {
+      await window.PolyShell.initMonaco({ value: SAMPLE_PYTHON, language: 'python' });
+      window.PolyShell.setStatus('Ready', 'ok');
+      window.PolyShell.loadLeftContent('python'); // loads /content/python.html
+    };
+
+    // ===== Input-wait countdown =====
+    let __inputDeadline = 0, __inputCountdownTimer = null;
+    function getCountdownText(){
+      if (!__inputDeadline) return '';
+      const ms = Math.max(0, __inputDeadline - Date.now());
+      const s  = Math.floor(ms/1000), mm = String(Math.floor(s/60)).padStart(2,'0'), ss = String(s%60).padStart(2,'0');
+      return ` — ${mm}:${ss}`;
+    }
+    function startInputCountdown(ms){ stopInputCountdown(); __inputDeadline = Date.now()+Math.max(0,Number(ms)||0); __inputCountdownTimer = setInterval(()=>{}, 500); }
+    function stopInputCountdown(){ __inputDeadline = 0; if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer=null; } }
+
+    // --- UI: animated dots in status ---
+    let __statusTimer = null, __statusBase = '';
+    window.__closingByUser = false;
+    function startStatusDots(base){ stopStatusDots(); __statusBase = base||'Executing'; let dots=0;
+      __statusTimer = setInterval(()=>{ dots=(dots+1)%4; const el=document.getElementById('statusDots'); if(el) el.textContent = __statusBase + '.'.repeat(dots) + getCountdownText(); }, 400); }
+    function stopStatusDots(){ if(__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
+
+    function printToConsole({ stderr = '', stdout = '', exitCode = null }){
+      const el = document.getElementById('jconsole'); if(!el) return;
+      const parts = [];
+      if (stderr.trim()) parts.push(stderr.trim());
+      if (stdout.trim()) parts.push(stdout.trim());
+      if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
+      el.textContent = parts.join('\\n') + (parts.length ? '\\n' : '');
+      document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
+    }
+
+    // Python traceback: File "main.py", line N
+    function findPythonErrorLine(text){
+      const m = /File\\s+"[^"]+",\\s+line\\s+(\\d+)/.exec(String(text)||'');
+      return m ? Math.max(1, parseInt(m[1],10)) : 1;
+    }
+
+    // --- Console helpers ---
+    function setConsole(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent = t||''; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
+    function termWrite(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
+
+    function setComplexityEnabled(on){ // keep disabled for Python
+      const b = document.getElementById('btnComplexity'); if (!b) return;
+      b.disabled = true;
+      b.classList.remove('btn-pulse');
+    }
+    window.setComplexityEnabled = setComplexityEnabled;
+
+    function focusConsoleInput(){
+      const el = document.getElementById('consoleInput'); if(!el) return;
+      el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
+      const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    }
+    function showInputRow(show){
+      const row=document.getElementById('consoleRow'); const pre=document.getElementById('jconsole'); const prefix=document.getElementById('consolePrefix');
+      if (row) row.style.display = show ? 'flex' : 'none';
+      if (show){
+        const txt = pre.textContent, i = txt.lastIndexOf('\\n'), tail = txt.slice(i+1);
+        if (tail && !/^\\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); } else { prefix.textContent = ''; }
+        window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase); startInputCountdown(inputWaitMs);
+        window.PolyShell?.startInputTicker?.(getCountdownText, 500); focusConsoleInput();
+      } else {
+        window.PolyShell?.stopInputTicker?.(); stopInputCountdown();
+      }
+    }
+
+    /* --- Monaco markers --- */
+    function clearEditorMarkers(){ if(!window.monaco || !window.editor) return; const model=window.editor.getModel(); if(model) monaco.editor.setModelMarkers(model,'py',[]); }
+    function setEditorMarker(line,message){
+      if(!window.monaco || !window.editor) return;
+      const model=window.editor.getModel(); if(!model) return; const maxCol=Math.max(1, model.getLineMaxColumn(line||1));
+      monaco.editor.setModelMarkers(model,'py',[{startLineNumber:line||1,endLineNumber:line||1,startColumn:1,endColumn:maxCol,message:String(message||'Error'),severity:window.monaco.MarkerSeverity.Error}]);
+    }
+
+    // ---- Input detection for Python ----
+    function codeNeedsInput(code){ return /\\binput\\s*\\(/.test(code); }
+
+    // ---- Runner URLs (change if your Render URL differs) ----
+    const PY_WS_URL = 'wss://polycode-python.onrender.com/python';
+    async function wakeRunner(){ try { await fetch('https://polycode-python.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch{} }
+
+    // ---- Robust connect with retries (+ overlay) ----
+    function startHeartbeat(ws){
+      let hbInterval=null, hbTimeout=null;
+      function stop(){ if(hbInterval) clearInterval(hbInterval); if(hbTimeout) clearTimeout(hbTimeout); }
+      hbInterval = setInterval(()=>{ try{ if(ws.readyState!==1) return; ws.send(JSON.stringify({type:'ping'})); clearTimeout(hbTimeout); hbTimeout=setTimeout(()=>console.warn('Runner heartbeat missed'),5000);}catch{} }, 25000);
+      ws._stopHeartbeat = stop;
+    }
+
+    function showRunnerOverlay(msg='Connecting to Python runner…', pct=10, hint='Warming up backend…'){
+      const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'), m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
+      if(!ov||!bar||!m||!h) return; ov.style.display='flex'; m.textContent=msg; h.textContent=hint; bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
+    }
+    function updateRunnerOverlay({msg,pct,hint}){ const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'), bar=document.getElementById('runnerBar'); if(msg&&m)m.textContent=msg; if(hint&&h)h.textContent=hint; if(typeof pct==='number'&&bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%'; }
+    function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if(ov) ov.style.display='none'; }
+
+    async function ensureRunnerWS(maxTotalMs=20000,{showOverlay=false}={}){
+      if (showOverlay) showRunnerOverlay('Connecting to Python runner…', 8, 'Opening WebSocket…');
+      if (!navigator.onLine){ if(showOverlay) updateRunnerOverlay({pct:100, hint:'You appear to be offline.'}); return null; }
+      const start = Date.now(); const steps=[400,900,1500,2500,4000,6000,8000]; let attempt=0;
+
+      while (Date.now()-start < maxTotalMs){
+        attempt++;
+        const perTimeout = Math.min(7000, maxTotalMs - (Date.now()-start));
+        const ws = await new Promise((resolve)=>{
+          let done=false, timer, w;
+          const finish=v=>{ if(!done){ done=true; clearTimeout(timer); resolve(v); } };
+          timer=setTimeout(()=>{ try{w?.close()}catch{} finish(null); }, perTimeout);
+          try{
+            w = new WebSocket(PY_WS_URL);
+            w.onopen  = ()=>finish(w);
+            w.onerror = ()=>{/* close fires */};
+            w.onclose = ()=>finish(null);
+          }catch{ finish(null) }
+        });
+        if (ws && ws.readyState===1){ if(showOverlay){ updateRunnerOverlay({pct:95, hint:'Finalizing…'}); hideRunnerOverlay(); } startHeartbeat(ws); return ws; }
+
+        const wait = steps[Math.min(attempt-1, steps.length-1)];
+        if (showOverlay){ const pct=Math.min(92, 18 + Math.floor((attempt/(steps.length+3))*70)); updateRunnerOverlay({ pct, hint:`Retry ${attempt}…` }); }
+        await new Promise(r=>setTimeout(r,wait));
+      }
+      if (showOverlay) updateRunnerOverlay({ pct:100, hint:'Runner unavailable.' });
+      return null;
+    }
+
+    // ---- Enter => send stdin ----
+    document.addEventListener('keydown', (e) => {
+      const el = document.getElementById('consoleInput'); if(!el || el.offsetParent===null) return; if (e.target!==el) return;
+      if (e.key === 'Enter'){
+        e.preventDefault();
+        stopInputCountdown(); __statusBase='Executing'; startStatusDots(__statusBase);
+        window.PolyShell?.stopInputTicker?.(); window.PolyShell?.setRunnerPhase?.('running');
+        const line = el.textContent;
+
+        const pre=document.getElementById('jconsole'), prefix=document.getElementById('consolePrefix');
+        if (prefix && prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
+        termWrite(line + '\\n'); el.textContent = '';
+        try { if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){ window.termWS.send(JSON.stringify({ type:'stdin', data: line+'\\n' })); } } catch {}
+        focusConsoleInput?.();
+      }
+    }, { capture:true });
+
+    let inputWaitMs = 5 * 60 * 1000; // 5 minutes
+    let needsStdin  = false;
+
+    // ---- MAIN RUN ----
+    window.runLang = async function(codeOverride){
+      clearEditorMarkers();
+      const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent='';
+      showInputRow(false);
+      setComplexityEnabled(false); // keep disabled for Python
+
+      const raw = (typeof codeOverride==='string' && codeOverride.trim()) ? codeOverride : (window.editor ? window.editor.getValue() : '');
+      const code = raw + '';
+
+      setConsole('');
+      document.getElementById('output')?.classList.remove('error');
+
+      needsStdin = codeNeedsInput(code);
+
+      let ws = (window.termWS && window.termWS.readyState===1) ? window.termWS : null;
+      if (!ws) ws = await ensureRunnerWS(10000, { showOverlay:true });
+      if (!ws){ try{ await wakeRunner(); }catch{} ws = await ensureRunnerWS(60000, { showOverlay:true }); }
+      if (!ws){
+        hideRunnerOverlay();
+        window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
+        window.setRunUI?.(false);
+        throw new Error('runner_unavailable');
+      }
+      window.termWS = ws;
+
+      // Handle messages
+      const acc = { stderr:'', stdout:'' };
+      const waitForExit = new Promise((resolve,reject)=>{
+        const onMsg = (ev)=>{
+          try{
+            const m = JSON.parse(String(ev.data));
+            if (m.type === 'pong') return;
+
+            if (m.type === 'stdout'){
+              acc.stdout += m.data; termWrite(m.data);
+              // if we expected input but no prompt came, still reveal input shortly
+              if (needsStdin){ setTimeout(()=>{ if(window.wsRunInFlight) showInputRow(true); }, 400); }
+            } else if (m.type === 'stderr'){
+              acc.stderr += m.data; termWrite(m.data);
+            } else if (m.type === 'exit'){
+              window.PolyShell?.stopInputTicker?.(); stopInputCountdown(); stopStatusDots();
+              window.termWS.removeEventListener('message', onMsg);
+              window.wsRunInFlight = false; showInputRow(false);
+
+              if (m.code === 0){
+                window.PolyShell?.setRunnerPhase?.('success'); window.PolyShell?.setStatus('Execution Success', 'ok');
+                clearEditorMarkers();
+                // Complexity stays disabled for Python
+                resolve();
+              } else {
+                const errText = (acc.stderr || 'Execution failed').trim();
+                const firstLine = (errText.split('\\n')[0] || 'Execution failed');
+                const line = findPythonErrorLine(errText);
+                setEditorMarker(line, firstLine);
+                window.PolyShell?.setStatus('Execution Failed', 'error');
+                reject(new Error(`line ${line}: ${firstLine}`));
+              }
+              window.setRunUI?.(false);
+            }
+          }catch{}
+        };
+        const onClose = ()=>{
+          try{ window.termWS?.removeEventListener('message', onMsg); }catch{}
+          const userClose = !!window.__closingByUser; window.__closingByUser = false;
+          try{ window.termWS?._stopHeartbeat?.(); }catch{} stopStatusDots(); window.setRunUI?.(false);
+          stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
+
+          if (userClose){ window.wsRunInFlight = false; showInputRow(false); window.termWS=null; return; }
+          window.PolyShell?.setRunnerPhase?.('error', { detail:'Runner disconnected' });
+          if (window.wsRunInFlight){ window.wsRunInFlight=false; showInputRow(false); window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error'); try{ reject(new Error('line 1: runner disconnected')); }catch{} }
+          window.termWS = null;
+        };
+        window.termWS.addEventListener('message', onMsg);
+        window.termWS.addEventListener('close', onClose, { once:true });
+      });
+
+      try{
+        const argsStr = document.getElementById('progArgs')?.value || '';
+        const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
+        inputWaitMs = 5 * 60 * 1000;
+
+        window.wsRunInFlight = true;
+        __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
+        startStatusDots(__statusBase);
+        showInputRow(false);
+        window.PolyShell?.setStatus(needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…','busy');
+
+        window.termWS.send(JSON.stringify({ type:'run', code, args, inputWaitMs }));
+
+        // if code needs input but no prompt appears, reveal input row gently
+        if (needsStdin){ setTimeout(()=>{ if(window.wsRunInFlight) showInputRow(true); }, 600); }
+      }catch{
+        try{ window.termWS.close(); }catch{}
+        showInputRow(false);
+        window.PolyShell?.setStatus('Runner unavailable', 'error');
+        setComplexityEnabled(false);
+        throw new Error('line 1: runner unavailable');
+      }
+
+      await waitForExit;
+    };
+
+    // ---- Reset ----
+    window.clearLang = function(){
+      window.__closingByUser = true;
+      setConsole('');
+      document.getElementById('output')?.style.setProperty('background','transparent','important');
+      try{ const prefix=document.getElementById('consolePrefix'); if(prefix) prefix.textContent=''; }catch{}
+      try{ const row=document.getElementById('consoleRow'); if(row) row.style.display='none'; }catch{}
+      try{ if (window.monaco && window.editor){ const model=window.editor.getModel(); model && monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
+      try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
+      setComplexityEnabled(false); // keep disabled
+    };
+
+    // --- Start after shell.js ---
+    (function startWhenReady(){
+      function start(){
+        if(!window.PolyShell){
+          const id=setInterval(()=>{ if(window.PolyShell){ clearInterval(id); window.bootstrap(); } },25);
+          setTimeout(()=>clearInterval(id),3000); return;
+        }
+        window.bootstrap();
+      }
+      if (document.readyState==='loading') { document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
+    })();
+
+    // Gentle background wake
+    let __wakeTimer=0;
+    function requestWakeSoon(){
+      clearTimeout(__wakeTimer);
+      __wakeTimer=setTimeout(async ()=>{ if(!window.termWS || window.termWS.readyState!==1){ try{ await wakeRunner(); }catch{} } }, 300);
+    }
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) requestWakeSoon(); });
+    window.addEventListener('focus', requestWakeSoon);
+    window.addEventListener('pageshow', (e)=>{ if(e.persisted) requestWakeSoon(); });
+  </script>
+
+  <!-- Connecting overlay -->
+  <div id="runnerOverlay" style="position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999;">
+    <div style="min-width:280px; max-width:420px; padding:16px 18px; border-radius:12px; background:var(--panel,#111); color:inherit; box-shadow:0 6px 24px rgba(0,0,0,.35); font:14px/1.4 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto;">
+      <div id="runnerMsg"  style="font-weight:600; margin-bottom:8px;">Connecting to Python runner…</div>
+      <div style="height:8px; background:rgba(255,255,255,.15); border-radius:999px; overflow:hidden;"><div id="runnerBar" style="height:100%; width:10%; background:currentColor; opacity:.9;"></div></div>
+      <div id="runnerHint" style="margin-top:8px; opacity:.8;">Warming up backend…</div>
+    </div>
+  </div>
+
+  <!-- (Complexity script kept but button disabled) -->
+  <script src="./js/complexity.js" defer></script>
+</body>
+</html>
