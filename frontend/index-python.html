@@ -183,297 +183,312 @@
   <script src="./js/shell.js" defer></script>
 
   <!-- Page script -->
-  <script>
-    /* --- Sample Python for the editor --- */
-    const SAMPLE_PYTHON = `name = input("Enter your name: ") \nprint("Hello,", name)`;
 
-    /* --- Make bootstrap visible for shell.js --- */
-    window.bootstrap = async function bootstrap() {
-      await window.PolyShell.initMonaco({ value: SAMPLE_PYTHON, language: 'python' });
-      window.PolyShell.setStatus('Ready', 'ok');
-      window.PolyShell.loadLeftContent('python'); // loads /content/python.html
-    };
 
-    // ===== Input-wait countdown =====
-    let __inputDeadline = 0, __inputCountdownTimer = null;
-    function getCountdownText(){
-      if (!__inputDeadline) return '';
-      const ms = Math.max(0, __inputDeadline - Date.now());
-      const s  = Math.floor(ms/1000), mm = String(Math.floor(s/60)).padStart(2,'0'), ss = String(s%60).padStart(2,'0');
-      return ` — ${mm}:${ss}`;
+<script>
+  /* --- Sample Python for the editor --- */
+  const SAMPLE_PYTHON = `name = input("Enter your name: ")\nprint("Hello,", name)`;
+
+  /* --- Make bootstrap visible for shell.js --- */
+  window.bootstrap = async function bootstrap() {
+    await window.PolyShell.initMonaco({ value: SAMPLE_PYTHON, language: 'python' });
+    window.PolyShell.setStatus('Ready', 'ok');
+    window.PolyShell.loadLeftContent('python'); // loads /content/python.html
+  };
+
+  // ===== Input-wait countdown (visual only) =====
+  let __inputDeadline = 0, __inputCountdownTimer = null;
+  function getCountdownText(){
+    if (!__inputDeadline) return '';
+    const ms = Math.max(0, __inputDeadline - Date.now());
+    const s  = Math.floor(ms/1000), mm = String(Math.floor(s/60)).padStart(2,'0'), ss = String(s%60).padStart(2,'0');
+    return ` — ${mm}:${ss}`;
+  }
+  function startInputCountdown(ms){ stopInputCountdown(); __inputDeadline = Date.now()+Math.max(0,Number(ms)||0); __inputCountdownTimer = setInterval(()=>{}, 500); }
+  function stopInputCountdown(){ __inputDeadline = 0; if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer=null; } }
+
+  // --- Status dots in footer ---
+  let __statusTimer = null, __statusBase = '';
+  window.__closingByUser = false;
+  function startStatusDots(base){ stopStatusDots(); __statusBase = base||'Executing'; let dots=0;
+    __statusTimer = setInterval(()=>{ dots=(dots+1)%4; const el=document.getElementById('statusDots'); if(el) el.textContent = __statusBase + '.'.repeat(dots) + getCountdownText(); }, 400); }
+  function stopStatusDots(){ if(__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
+
+  // --- Console helpers ---
+  function setConsole(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent = t||''; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
+  function termWrite(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
+  function printToConsole({ stderr = '', stdout = '', exitCode = null }){
+    const el = document.getElementById('jconsole'); if(!el) return;
+    const parts = [];
+    if (stderr.trim()) parts.push(stderr.trim());
+    if (stdout.trim()) parts.push(stdout.trim());
+    if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
+    el.textContent = parts.join('\n') + (parts.length ? '\n' : '');
+    document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
+  }
+
+  // Python traceback: File "main.py", line N
+  function findPythonErrorLine(text){
+    const m = /File\s+"[^"]+",\s+line\s+(\d+)/.exec(String(text)||'');
+    return m ? Math.max(1, parseInt(m[1],10)) : 1;
+  }
+
+  // --- Input row (triggered strictly by backend `stdin_req`) ---
+  let inputShown = false, inputWaitMs = 5 * 60 * 1000; // 5 minutes
+  function focusConsoleInput(){
+    const el = document.getElementById('consoleInput'); if(!el) return;
+    el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
+    const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  }
+  function showInputRow(show){
+    const row=document.getElementById('consoleRow'); const prefix=document.getElementById('consolePrefix');
+    if (!row) return;
+    row.style.display = show ? 'flex' : 'none';
+    if (show){
+      if (prefix) prefix.textContent = ''; // do NOT trim prior output
+      window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase); startInputCountdown(inputWaitMs);
+      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+      inputShown = true; focusConsoleInput();
+    } else {
+      window.PolyShell?.stopInputTicker?.(); stopInputCountdown();
+      inputShown = false;
     }
-    function startInputCountdown(ms){ stopInputCountdown(); __inputDeadline = Date.now()+Math.max(0,Number(ms)||0); __inputCountdownTimer = setInterval(()=>{}, 500); }
-    function stopInputCountdown(){ __inputDeadline = 0; if (__inputCountdownTimer){ clearInterval(__inputCountdownTimer); __inputCountdownTimer=null; } }
+  }
 
-    // --- UI: animated dots in status ---
-    let __statusTimer = null, __statusBase = '';
-    window.__closingByUser = false;
-    function startStatusDots(base){ stopStatusDots(); __statusBase = base||'Executing'; let dots=0;
-      __statusTimer = setInterval(()=>{ dots=(dots+1)%4; const el=document.getElementById('statusDots'); if(el) el.textContent = __statusBase + '.'.repeat(dots) + getCountdownText(); }, 400); }
-    function stopStatusDots(){ if(__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
+  /* --- Monaco markers --- */
+  function clearEditorMarkers(){ if(!window.monaco || !window.editor) return; const model=window.editor.getModel(); if(model) monaco.editor.setModelMarkers(model,'py',[]); }
+  function setEditorMarker(line,message){
+    if(!window.monaco || !window.editor) return;
+    const model=window.editor.getModel(); if(!model) return; const maxCol=Math.max(1, model.getLineMaxColumn(line||1));
+    monaco.editor.setModelMarkers(model,'py',[{startLineNumber:line||1,endLineNumber:line||1,startColumn:1,endColumn:maxCol,message:String(message||'Error'),severity:window.monaco.MarkerSeverity.Error}]);
+  }
 
-    function printToConsole({ stderr = '', stdout = '', exitCode = null }){
-      const el = document.getElementById('jconsole'); if(!el) return;
-      const parts = [];
-      if (stderr.trim()) parts.push(stderr.trim());
-      if (stdout.trim()) parts.push(stdout.trim());
-      if (exitCode != null && exitCode !== 0) parts.push(`Exit code: ${exitCode}`);
-      el.textContent = parts.join('\\n') + (parts.length ? '\\n' : '');
-      document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
-    }
+  // ---- Input detection for hints only (not to drive UI) ----
+  function codeNeedsInput(code){ return /\binput\s*\(/.test(code); }
 
-    // Python traceback: File "main.py", line N
-    function findPythonErrorLine(text){
-      const m = /File\\s+"[^"]+",\\s+line\\s+(\\d+)/.exec(String(text)||'');
-      return m ? Math.max(1, parseInt(m[1],10)) : 1;
-    }
+  // ---- Runner URLs (adjust if your Render URL differs) ----
+  const PY_WS_URL = 'wss://polycode-python.onrender.com/python';
+  async function wakeRunner(){
+    try{
+      await fetch('https://polycode-python.onrender.com/health', { cache:'no-store', mode:'no-cors' });
+      await new Promise(r => setTimeout(r, 1000)); // let dyno settle
+    }catch{}
+  }
 
-    // --- Console helpers ---
-    function setConsole(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent = t||''; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
-    function termWrite(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
+  // Overlay + heartbeat
+  function showRunnerOverlay(msg='Connecting to Python runner…', pct=10, hint='Warming up backend…'){
+    const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'), m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
+    if(!ov||!bar||!m||!h) return; ov.style.display='flex'; m.textContent=msg; h.textContent=hint; bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
+  }
+  function updateRunnerOverlay({msg,pct,hint}){ const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'), bar=document.getElementById('runnerBar'); if(msg&&m)m.textContent=msg; if(hint&&h)h.textContent=hint; if(typeof pct==='number'&&bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%'; }
+  function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if(ov) ov.style.display='none'; }
+  function startHeartbeat(ws){
+    let hbInterval=null, hbTimeout=null;
+    function stop(){ if(hbInterval) clearInterval(hbInterval); if(hbTimeout) clearTimeout(hbTimeout); }
+    hbInterval = setInterval(()=>{ try{ if(ws.readyState!==1) return; ws.send(JSON.stringify({type:'ping'})); clearTimeout(hbTimeout); hbTimeout=setTimeout(()=>console.warn('Runner heartbeat missed'),5000);}catch{} }, 25000);
+    ws._stopHeartbeat = stop;
+  }
 
-    function setComplexityEnabled(on){ // keep disabled for Python
-      const b = document.getElementById('btnComplexity'); if (!b) return;
-      b.disabled = true;
-      b.classList.remove('btn-pulse');
-    }
-    window.setComplexityEnabled = setComplexityEnabled;
-
-    function focusConsoleInput(){
-      const el = document.getElementById('consoleInput'); if(!el) return;
-      el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
-      const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
-    }
-    function showInputRow(show){
-      const row=document.getElementById('consoleRow'); const pre=document.getElementById('jconsole'); const prefix=document.getElementById('consolePrefix');
-      if (row) row.style.display = show ? 'flex' : 'none';
-      if (show){
-        const txt = pre.textContent, i = txt.lastIndexOf('\\n'), tail = txt.slice(i+1);
-        if (tail && !/^\\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); } else { prefix.textContent = ''; }
-        window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase); startInputCountdown(inputWaitMs);
-        window.PolyShell?.startInputTicker?.(getCountdownText, 500); focusConsoleInput();
-      } else {
-        window.PolyShell?.stopInputTicker?.(); stopInputCountdown();
-      }
-    }
-
-    /* --- Monaco markers --- */
-    function clearEditorMarkers(){ if(!window.monaco || !window.editor) return; const model=window.editor.getModel(); if(model) monaco.editor.setModelMarkers(model,'py',[]); }
-    function setEditorMarker(line,message){
-      if(!window.monaco || !window.editor) return;
-      const model=window.editor.getModel(); if(!model) return; const maxCol=Math.max(1, model.getLineMaxColumn(line||1));
-      monaco.editor.setModelMarkers(model,'py',[{startLineNumber:line||1,endLineNumber:line||1,startColumn:1,endColumn:maxCol,message:String(message||'Error'),severity:window.monaco.MarkerSeverity.Error}]);
-    }
-
-    // ---- Input detection for Python ----
-    function codeNeedsInput(code){ return /\binput\s*\(/.test(code); }
-
-    // ---- Runner URLs (change if your Render URL differs) ----
-    const PY_WS_URL = 'wss://polycode-python.onrender.com/python';
-    async function wakeRunner(){ try { await fetch('https://polycode-python.onrender.com/health', { cache:'no-store', mode:'no-cors' }); } catch{} }
-
-    // ---- Robust connect with retries (+ overlay) ----
-    function startHeartbeat(ws){
-      let hbInterval=null, hbTimeout=null;
-      function stop(){ if(hbInterval) clearInterval(hbInterval); if(hbTimeout) clearTimeout(hbTimeout); }
-      hbInterval = setInterval(()=>{ try{ if(ws.readyState!==1) return; ws.send(JSON.stringify({type:'ping'})); clearTimeout(hbTimeout); hbTimeout=setTimeout(()=>console.warn('Runner heartbeat missed'),5000);}catch{} }, 25000);
-      ws._stopHeartbeat = stop;
-    }
-
-    function showRunnerOverlay(msg='Connecting to Python runner…', pct=10, hint='Warming up backend…'){
-      const ov=document.getElementById('runnerOverlay'), bar=document.getElementById('runnerBar'), m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint');
-      if(!ov||!bar||!m||!h) return; ov.style.display='flex'; m.textContent=msg; h.textContent=hint; bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%';
-    }
-    function updateRunnerOverlay({msg,pct,hint}){ const m=document.getElementById('runnerMsg'), h=document.getElementById('runnerHint'), bar=document.getElementById('runnerBar'); if(msg&&m)m.textContent=msg; if(hint&&h)h.textContent=hint; if(typeof pct==='number'&&bar) bar.style.width=Math.max(5,Math.min(100,Math.floor(pct)))+'%'; }
-    function hideRunnerOverlay(){ const ov=document.getElementById('runnerOverlay'); if(ov) ov.style.display='none'; }
-
-    async function ensureRunnerWS(maxTotalMs=20000,{showOverlay=false}={}){
-      if (showOverlay) showRunnerOverlay('Connecting to Python runner…', 8, 'Opening WebSocket…');
-      if (!navigator.onLine){ if(showOverlay) updateRunnerOverlay({pct:100, hint:'You appear to be offline.'}); return null; }
-      const start = Date.now(); const steps=[400,900,1500,2500,4000,6000,8000]; let attempt=0;
-
-      while (Date.now()-start < maxTotalMs){
-        attempt++;
-        const perTimeout = Math.min(7000, maxTotalMs - (Date.now()-start));
-        const ws = await new Promise((resolve)=>{
-          let done=false, timer, w;
-          const finish=v=>{ if(!done){ done=true; clearTimeout(timer); resolve(v); } };
-          timer=setTimeout(()=>{ try{w?.close()}catch{} finish(null); }, perTimeout);
-          try{
-            w = new WebSocket(PY_WS_URL);
-            w.onopen  = ()=>finish(w);
-            w.onerror = ()=>{/* close fires */};
-            w.onclose = ()=>finish(null);
-          }catch{ finish(null) }
-        });
-        if (ws && ws.readyState===1){ if(showOverlay){ updateRunnerOverlay({pct:95, hint:'Finalizing…'}); hideRunnerOverlay(); } startHeartbeat(ws); return ws; }
-
-        const wait = steps[Math.min(attempt-1, steps.length-1)];
-        if (showOverlay){ const pct=Math.min(92, 18 + Math.floor((attempt/(steps.length+3))*70)); updateRunnerOverlay({ pct, hint:`Retry ${attempt}…` }); }
-        await new Promise(r=>setTimeout(r,wait));
-      }
-      if (showOverlay) updateRunnerOverlay({ pct:100, hint:'Runner unavailable.' });
+  // Robust connect (handles "opened then closed")
+  async function ensureRunnerWS(maxTotalMs = 90000, { showOverlay = false } = {}) {
+    if (showOverlay) showRunnerOverlay('Connecting to Python runner…', 8, 'Opening WebSocket…');
+    if (!navigator.onLine) {
+      if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'You appear to be offline.' });
       return null;
     }
+    const startTime = Date.now();
+    const waits = [400, 800, 1200, 1800, 2500, 3500, 5000, 7000, 9000, 11000];
+    let attempt = 0;
 
-    // ---- Enter => send stdin ----
-    document.addEventListener('keydown', (e) => {
-      const el = document.getElementById('consoleInput'); if(!el || el.offsetParent===null) return; if (e.target!==el) return;
-      if (e.key === 'Enter'){
-        e.preventDefault();
-        stopInputCountdown(); __statusBase='Executing'; startStatusDots(__statusBase);
-        window.PolyShell?.stopInputTicker?.(); window.PolyShell?.setRunnerPhase?.('running');
-        const line = el.textContent;
+    while (Date.now() - startTime < maxTotalMs) {
+      attempt++;
+      try { await wakeRunner(); } catch {}
 
-        const pre=document.getElementById('jconsole'), prefix=document.getElementById('consolePrefix');
-        if (prefix && prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
-        termWrite(line + '\\n'); el.textContent = '';
-        try { if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){ window.termWS.send(JSON.stringify({ type:'stdin', data: line+'\\n' })); } } catch {}
-        focusConsoleInput?.();
-      }
-    }, { capture:true });
-
-    let inputWaitMs = 5 * 60 * 1000; // 5 minutes
-    let needsStdin  = false;
-
-    // ---- MAIN RUN ----
-    window.runLang = async function(codeOverride){
-      clearEditorMarkers();
-      const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent='';
-      showInputRow(false);
-      setComplexityEnabled(false); // keep disabled for Python
-
-      const raw = (typeof codeOverride==='string' && codeOverride.trim()) ? codeOverride : (window.editor ? window.editor.getValue() : '');
-      const code = raw + '';
-
-      setConsole('');
-      document.getElementById('output')?.classList.remove('error');
-
-      needsStdin = codeNeedsInput(code);
-
-      let ws = (window.termWS && window.termWS.readyState===1) ? window.termWS : null;
-      if (!ws) ws = await ensureRunnerWS(10000, { showOverlay:true });
-      if (!ws){ try{ await wakeRunner(); }catch{} ws = await ensureRunnerWS(60000, { showOverlay:true }); }
-      if (!ws){
-        hideRunnerOverlay();
-        window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
-        window.setRunUI?.(false);
-        throw new Error('runner_unavailable');
-      }
-      window.termWS = ws;
-
-      // Handle messages
-      const acc = { stderr:'', stdout:'' };
-      const waitForExit = new Promise((resolve,reject)=>{
-        const onMsg = (ev)=>{
-          try{
-            const m = JSON.parse(String(ev.data));
-            if (m.type === 'pong') return;
-
-            if (m.type === 'stdout'){
-              acc.stdout += m.data; termWrite(m.data);
-              // if we expected input but no prompt came, still reveal input shortly
-              if (needsStdin){ setTimeout(()=>{ if(window.wsRunInFlight) showInputRow(true); }, 400); }
-            } else if (m.type === 'stderr'){
-              acc.stderr += m.data; termWrite(m.data);
-            } else if (m.type === 'exit'){
-              window.PolyShell?.stopInputTicker?.(); stopInputCountdown(); stopStatusDots();
-              window.termWS.removeEventListener('message', onMsg);
-              window.wsRunInFlight = false; showInputRow(false);
-
-              if (m.code === 0){
-                window.PolyShell?.setRunnerPhase?.('success'); window.PolyShell?.setStatus('Execution Success', 'ok');
-                clearEditorMarkers();
-                // Complexity stays disabled for Python
-                resolve();
-              } else {
-                const errText = (acc.stderr || 'Execution failed').trim();
-                const firstLine = (errText.split('\\n')[0] || 'Execution failed');
-                const line = findPythonErrorLine(errText);
-                setEditorMarker(line, firstLine);
-                window.PolyShell?.setStatus('Execution Failed', 'error');
-                reject(new Error(`line ${line}: ${firstLine}`));
-              }
-              window.setRunUI?.(false);
-            }
-          }catch{}
-        };
-        const onClose = ()=>{
-          try{ window.termWS?.removeEventListener('message', onMsg); }catch{}
-          const userClose = !!window.__closingByUser; window.__closingByUser = false;
-          try{ window.termWS?._stopHeartbeat?.(); }catch{} stopStatusDots(); window.setRunUI?.(false);
-          stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
-
-          if (userClose){ window.wsRunInFlight = false; showInputRow(false); window.termWS=null; return; }
-          window.PolyShell?.setRunnerPhase?.('error', { detail:'Runner disconnected' });
-          if (window.wsRunInFlight){ window.wsRunInFlight=false; showInputRow(false); window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error'); try{ reject(new Error('line 1: runner disconnected')); }catch{} }
-          window.termWS = null;
-        };
-        window.termWS.addEventListener('message', onMsg);
-        window.termWS.addEventListener('close', onClose, { once:true });
+      const perTimeout = Math.min(8000, maxTotalMs - (Date.now() - startTime));
+      const ws = await new Promise((resolve) => {
+        let done=false, timer=null, openedAt=0, w;
+        const finish=v=>{ if(!done){ done=true; clearTimeout(timer); resolve(v); } };
+        timer=setTimeout(()=>{ try{w?.close();}catch{} finish(null); }, perTimeout);
+        try{
+          w = new WebSocket(PY_WS_URL);
+          w.onopen  = ()=>{ openedAt=Date.now(); finish(w); };
+          w.onerror = ()=>{/* close will fire */};
+          w.onclose = ()=>{
+            if (openedAt && Date.now()-openedAt < 500) return finish(null);
+            finish(null);
+          };
+        }catch{ finish(null); }
       });
 
-      try{
-        const argsStr = document.getElementById('progArgs')?.value || '';
-        const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
-        inputWaitMs = 5 * 60 * 1000;
-
-        window.wsRunInFlight = true;
-        __statusBase = needsStdin ? 'Running (interactive)' : 'Running';
-        startStatusDots(__statusBase);
-        showInputRow(false);
-        window.PolyShell?.setStatus(needsStdin ? 'Running (interactive – waiting for input)…' : 'Running (interactive)…','busy');
-
-        window.termWS.send(JSON.stringify({ type:'run', code, args, inputWaitMs }));
-
-        // if code needs input but no prompt appears, reveal input row gently
-        if (needsStdin){ setTimeout(()=>{ if(window.wsRunInFlight) showInputRow(true); }, 600); }
-      }catch{
-        try{ window.termWS.close(); }catch{}
-        showInputRow(false);
-        window.PolyShell?.setStatus('Runner unavailable', 'error');
-        setComplexityEnabled(false);
-        throw new Error('line 1: runner unavailable');
+      if (ws && ws.readyState === 1) {
+        if (showOverlay) { updateRunnerOverlay({ pct: 95, hint: 'Finalizing…' }); hideRunnerOverlay(); }
+        startHeartbeat(ws);
+        return ws;
       }
 
-      await waitForExit;
-    };
-
-    // ---- Reset ----
-    window.clearLang = function(){
-      window.__closingByUser = true;
-      setConsole('');
-      document.getElementById('output')?.style.setProperty('background','transparent','important');
-      try{ const prefix=document.getElementById('consolePrefix'); if(prefix) prefix.textContent=''; }catch{}
-      try{ const row=document.getElementById('consoleRow'); if(row) row.style.display='none'; }catch{}
-      try{ if (window.monaco && window.editor){ const model=window.editor.getModel(); model && monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
-      try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
-      setComplexityEnabled(false); // keep disabled
-    };
-
-    // --- Start after shell.js ---
-    (function startWhenReady(){
-      function start(){
-        if(!window.PolyShell){
-          const id=setInterval(()=>{ if(window.PolyShell){ clearInterval(id); window.bootstrap(); } },25);
-          setTimeout(()=>clearInterval(id),3000); return;
-        }
-        window.bootstrap();
+      const wait = waits[Math.min(attempt - 1, waits.length - 1)];
+      if (showOverlay) {
+        const pct = Math.min(92, 18 + Math.floor((attempt / (waits.length + 3)) * 70));
+        updateRunnerOverlay({ pct, hint: `Retry ${attempt}…` });
       }
-      if (document.readyState==='loading') { document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
-    })();
-
-    // Gentle background wake
-    let __wakeTimer=0;
-    function requestWakeSoon(){
-      clearTimeout(__wakeTimer);
-      __wakeTimer=setTimeout(async ()=>{ if(!window.termWS || window.termWS.readyState!==1){ try{ await wakeRunner(); }catch{} } }, 300);
+      await new Promise(r => setTimeout(r, wait));
     }
-    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) requestWakeSoon(); });
-    window.addEventListener('focus', requestWakeSoon);
-    window.addEventListener('pageshow', (e)=>{ if(e.persisted) requestWakeSoon(); });
-  </script>
+
+    if (showOverlay) updateRunnerOverlay({ pct: 100, hint: 'Runner unavailable.' });
+    return null;
+  }
+
+  // ---- Enter => send stdin ----
+  document.addEventListener('keydown', (e) => {
+    const el = document.getElementById('consoleInput'); if(!el || el.offsetParent===null) return; if (e.target!==el) return;
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      stopInputCountdown(); __statusBase='Executing'; startStatusDots(__statusBase);
+      window.PolyShell?.stopInputTicker?.(); window.PolyShell?.setRunnerPhase?.('running');
+      const line = el.textContent;
+      termWrite(line + '\n'); el.textContent = '';
+      try { if (window.termWS && window.termWS.readyState===1 && window.wsRunInFlight){ window.termWS.send(JSON.stringify({ type:'stdin', data: line+'\n' })); } } catch {}
+      document.getElementById('consoleInput')?.focus();
+    }
+  }, { capture:true });
+
+  // ---- MAIN RUN ----
+  window.runLang = async function(codeOverride){
+    clearEditorMarkers();
+    const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent='';
+    showInputRow(false);
+    // Complexity remains disabled for Python
+    const setComplexityEnabled = (on)=>{ const b=document.getElementById('btnComplexity'); if(b){ b.disabled=true; b.classList.remove('btn-pulse'); } };
+    setComplexityEnabled(false);
+
+    const raw = (typeof codeOverride==='string' && codeOverride.trim()) ? codeOverride : (window.editor ? window.editor.getValue() : '');
+    const code = raw + '';
+
+    setConsole('');
+    document.getElementById('output')?.classList.remove('error');
+
+    let ws = (window.termWS && window.termWS.readyState===1) ? window.termWS : null;
+    if (!ws) ws = await ensureRunnerWS(10000, { showOverlay:true });
+    if (!ws){ try{ await wakeRunner(); }catch{} ws = await ensureRunnerWS(60000, { showOverlay:true }); }
+    if (!ws){
+      hideRunnerOverlay();
+      window.PolyShell?.setStatus('Runner unavailable — please retry', 'error');
+      window.setRunUI?.(false);
+      throw new Error('runner_unavailable');
+    }
+    window.termWS = ws;
+
+    const acc = { stderr:'', stdout:'' };
+    const waitForExit = new Promise((resolve,reject)=>{
+      const onMsg = (ev)=>{
+        try{
+          const m = JSON.parse(String(ev.data));
+          if (m.type === 'pong') return;
+
+          if (m.type === 'stdout'){
+            acc.stdout += m.data; termWrite(m.data);
+          } else if (m.type === 'stderr'){
+            acc.stderr += m.data; termWrite(m.data);
+          } else if (m.type === 'stdin_req'){
+            // BACKEND signal to show input (exactly like Java/C)
+            showInputRow(true);
+          } else if (m.type === 'exit'){
+            window.PolyShell?.stopInputTicker?.(); stopInputCountdown(); stopStatusDots();
+            window.termWS.removeEventListener('message', onMsg);
+            window.wsRunInFlight = false; showInputRow(false);
+
+            if (m.code === 0){
+              window.PolyShell?.setRunnerPhase?.('success'); window.PolyShell?.setStatus('Execution Success', 'ok');
+              clearEditorMarkers(); resolve();
+            } else {
+              const errText = (acc.stderr || 'Execution failed').trim();
+              const firstLine = (errText.split('\n')[0] || 'Execution failed');
+              const line = findPythonErrorLine(errText);
+              setEditorMarker(line, firstLine);
+              window.PolyShell?.setStatus('Execution Failed', 'error');
+              reject(new Error(`line ${line}: ${firstLine}`));
+            }
+            window.setRunUI?.(false);
+          }
+        }catch{}
+      };
+      const onClose = ()=>{
+        try{ window.termWS?.removeEventListener('message', onMsg); }catch{}
+        const userClose = !!window.__closingByUser; window.__closingByUser = false;
+        try{ window.termWS?._stopHeartbeat?.(); }catch{} stopStatusDots(); window.setRunUI?.(false);
+        stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
+
+        if (userClose){ window.wsRunInFlight = false; showInputRow(false); window.termWS=null; return; }
+        window.PolyShell?.setRunnerPhase?.('error', { detail:'Runner disconnected' });
+        if (window.wsRunInFlight){ window.wsRunInFlight=false; showInputRow(false); window.PolyShell?.setStatus('Runner disconnected — click Run to reconnect','error'); try{ reject(new Error('line 1: runner disconnected')); }catch{} }
+        window.termWS = null;
+      };
+      window.termWS.addEventListener('message', onMsg);
+      window.termWS.addEventListener('close', onClose, { once:true });
+    });
+
+    try{
+      const argsStr = document.getElementById('progArgs')?.value || '';
+      const args = argsStr.trim() ? argsStr.match(/\S+/g) : [];
+      inputWaitMs = 5 * 60 * 1000;
+
+      window.wsRunInFlight = true;
+      const mayNeedInput = codeNeedsInput(code);
+      __statusBase = mayNeedInput ? 'Running (interactive)' : 'Running';
+      startStatusDots(__statusBase);
+      showInputRow(false);
+      window.PolyShell?.setStatus(mayNeedInput ? 'Running (interactive)…' : 'Running…','busy');
+
+      window.termWS.send(JSON.stringify({ type:'run', code, args, inputWaitMs }));
+    }catch{
+      try{ window.termWS.close(); }catch{}
+      showInputRow(false);
+      window.PolyShell?.setStatus('Runner unavailable', 'error');
+      throw new Error('line 1: runner unavailable');
+    }
+
+    await waitForExit;
+  };
+
+  // ---- Reset ----
+  window.clearLang = function(){
+    window.__closingByUser = true;
+    setConsole('');
+    document.getElementById('output')?.style.setProperty('background','transparent','important');
+    try{ const prefix=document.getElementById('consolePrefix'); if(prefix) prefix.textContent=''; }catch{}
+    try{ const row=document.getElementById('consoleRow'); if(row) row.style.display='none'; }catch{}
+    try{ if (window.monaco && window.editor){ const model=window.editor.getModel(); model && monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
+    try{ window.termWS?._stopHeartbeat?.(); }catch{}
+    try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
+    // complexity remains disabled
+  };
+
+  // --- Start after shell.js ---
+  (function startWhenReady(){
+    function start(){
+      if(!window.PolyShell){
+        const id=setInterval(()=>{ if(window.PolyShell){ clearInterval(id); window.bootstrap(); } },25);
+        setTimeout(()=>clearInterval(id),3000); return;
+      }
+      window.bootstrap();
+    }
+    if (document.readyState==='loading') { document.addEventListener('DOMContentLoaded', start, { once:true }); } else { start(); }
+  })();
+
+  // Background wake
+  let __wakeTimer=0;
+  function requestWakeSoon(){
+    clearTimeout(__wakeTimer);
+    __wakeTimer=setTimeout(async ()=>{ try{ await wakeRunner(); }catch{} }, 400);
+  }
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) requestWakeSoon(); });
+  window.addEventListener('focus', requestWakeSoon);
+  window.addEventListener('pageshow', (e)=>{ if(e.persisted) requestWakeSoon(); });
+</script>
+
+
+  
 
   <!-- Connecting overlay -->
   <div id="runnerOverlay" style="position:fixed; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.45); z-index:9999;">
