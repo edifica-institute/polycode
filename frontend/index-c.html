@@ -234,6 +234,7 @@ int main(){
     window.bootstrap = async function(){
       await window.PolyShell.initMonaco({ value: SAMPLE_C, language: 'c' });
       installCompileMarkerGuard(); 
+      window.clearEditorMarkers = window.clearCompileMarkers;
       window.PolyShell.setStatus('Ready', 'ok');
       window.PolyShell.loadLeftContent?.('c');
       window.setComplexityEnabled?.(false);
@@ -336,18 +337,24 @@ function clearEditorMarkers(){
 
   // Guard: block unintended clears of our owner; also LOG who did it
   monaco.editor.setModelMarkers = function(model, owner, markers){
-    const count = Array.isArray(markers) ? markers.length : 0;
+  // --- BEGIN: compatibility shims ---
+  // 1) Alias the old owner to the guarded owner
+  if (owner === 'c-compile') owner = MARK_OWNER;
 
-    if (owner === MARK_OWNER) {
-      console.log(`[markers] owner=${owner} count=${count} uri=${model?.uri?.toString?.()}`,
-                  '\n' + new Error('marker trace').stack.split('\n').slice(2, 12).join('\n'));
-      if (count === 0 && !__allowClear && __sticky.length && model === window.editor?.getModel()) {
-        // Re-assert our markers instead of letting them disappear
-        return realSetModelMarkers.call(monaco.editor, model, owner, __sticky);
-      }
-    }
-    return realSetModelMarkers.apply(monaco.editor, arguments);
-  };
+  // 2) If someone calls the old clearer, treat it as our guarded clearer
+  if (owner === MARK_OWNER && Array.isArray(markers) && markers.length === 0 && !__allowClear && __sticky.length) {
+    // Re-assert instead of clearing unintentionally
+    return realSetModelMarkers.call(monaco.editor, model, owner, __sticky);
+  }
+  // --- END: compatibility shims ---
+
+  const count = Array.isArray(markers) ? markers.length : 0;
+  if (owner === MARK_OWNER) {
+    console.log(`[markers] owner=${owner} count=${count} uri=${model?.uri?.toString?.()}`,
+                '\n' + new Error('marker trace').stack.split('\n').slice(2, 12).join('\n'));
+  }
+  return realSetModelMarkers.apply(monaco.editor, arguments);
+};
 
   // Re-assert after layout/model churn (e.g., RAF, resize)
   const reassert = () => {
