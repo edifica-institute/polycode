@@ -92,11 +92,37 @@ wss.on('connection', (ws) => {
       const file = path.join(workdir, 'main.py');
       await fs.writeFile(file, code, 'utf8');
 
+      // Write a tiny wrapper that signals input requests
+const wrapper = `
+import sys, runpy, builtins
+def _pc_input(prompt=''):
+    try:
+        sys.stderr.write('[[CTRL]]:stdin_req\\n'); sys.stderr.flush()
+    except: pass
+    if prompt:
+        try:
+            sys.stdout.write(str(prompt)); sys.stdout.flush()
+        except: pass
+    line = sys.stdin.readline()
+    if not line:
+        return ''
+    return line.rstrip('\\r\\n')
+builtins.input = _pc_input
+runpy.run_path('main.py', run_name='__main__')
+`.trim();
+const runnerFile = path.join(workdir, 'pc_runner.py');
+await fs.writeFile(runnerFile, wrapper, 'utf8');
+
+      
       const t0 = Date.now();
 
       // -u for unbuffered stdio to surface prompts without fflush
-      proc = spawn('python3', ['-u', file, ...args], { cwd: workdir });
+      //proc = spawn('python3', ['-u', file, ...args], { cwd: workdir });
 
+      proc = spawn('python3', ['-u', runnerFile, ...args], { cwd: workdir });
+
+
+      
       let accErr = '';
       let exitSent = false;
 
@@ -104,12 +130,31 @@ wss.on('connection', (ws) => {
       proc.stdout.on('data', (d) => {
         try { ws.send(JSON.stringify({ type:'stdout', data: d.toString() })); } catch {}
       });
-      proc.stderr.on('data', (d) => {
-        const s = d.toString();
-        accErr += s;
-        try { ws.send(JSON.stringify({ type:'stderr', data: s })); } catch {}
-      });
+      
+      
+      
+    let errBuf = '';
+proc.stderr.on('data', (d) => {
+  const s = d.toString();
+  errBuf += s;
 
+  // Scan for control lines [[CTRL]]:something
+  const lines = s.split(/\r?\n/);
+  for (const line of lines) {
+    if (!line) continue;
+    if (/\[\[CTRL\]\]:stdin_req/.test(line)) {
+      try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
+      continue; // do NOT forward the control line to the browser stderr
+    }
+    // Normal stderr passthrough
+    try { ws.send(JSON.stringify({ type: 'stderr', data: line + '\n' })); } catch {}
+  }
+});
+
+
+
+
+      
       // Basic heuristic: if program reads from input, the browser will show input UI itself.
       // We still enforce an input wait cap to avoid hanging containers.
       armHardKill(hardLimitMs);
