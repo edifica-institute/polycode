@@ -2043,3 +2043,12 @@ html, body { height: 100%; }
   line-height: 1; 
 }
 
+
+
+/* Let grid columns shrink even if content is wide */
+#leftPanel, #centerPanel, #rightPanel,
+.panel, .pane-body, #editor, #output, #jconsole { min-width: 0; }
+
+/* Either wrap console lines … */
+#jconsole { white-space: pre-wrap; overflow:auto; word-break: break-word; overflow-wrap: anywhere; }
+/* … or, if you really want pre (no wrap), keep min-width:0 above and still allow scroll */
