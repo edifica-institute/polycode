@@ -221,10 +221,15 @@ runpy.run_path('main.py', run_name='__main__')
         const lines = s.split(/\r?\n/);
         for (const line of lines) {
           if (!line) continue;
-          if (line.includes('[[CTRL]]:stdin_req')) {
-            try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
-            continue;
-          }
+          const mReq = line.match(/^\[\[CTRL\]\]:stdin_req(?::([A-Za-z0-9+/=]+))?$/);
+if (mReq) {
+  let prompt = '';
+  if (mReq[1]) {
+    try { prompt = Buffer.from(mReq[1], 'base64').toString('utf-8'); } catch {}
+  }
+  try { ws.send(JSON.stringify({ type: 'stdin_req', prompt })); } catch {}
+  continue;
+}
           try { ws.send(JSON.stringify({ type: 'stderr', data: line + '\n' })); } catch {}
         }
       });
