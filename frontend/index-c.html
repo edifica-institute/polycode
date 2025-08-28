@@ -244,25 +244,49 @@ int main(){
       const model = window.editor.getModel();
       if (model) window.monaco.editor.setModelMarkers(model, 'c-compile', []);
     }
-   function setEditorMarker(line, message, col){
+   function setEditorMarkers(list){
   if (!window.monaco || !window.editor) return;
   const model = window.editor.getModel(); if (!model) return;
-  const startCol = Math.max(1, col || 1);
-  const endCol   = Math.min(model.getLineMaxColumn(line || 1), startCol + 1);
-
-  window.monaco.editor.setModelMarkers(model, 'c-compile', [{
-    startLineNumber: line || 1,
-    endLineNumber:   line || 1,
-    startColumn:     startCol,
-    endColumn:       endCol,
-    message:         String(message || 'Error'),
+  const markers = (list||[]).map(e => ({
+    startLineNumber: e.line || 1,
+    endLineNumber:   e.line || 1,
+    startColumn:     Math.max(1, e.col || 1),
+    endColumn:       Math.max(1, (e.col || 1) + 1),
+    message:         String(e.msg || 'Error'),
     severity:        window.monaco.MarkerSeverity.Error
-  }]);
-
-  // bring the error into view
-  window.editor.revealPositionInCenter({ lineNumber: line || 1, column: startCol });
+  }));
+  window.monaco.editor.setModelMarkers(model, 'c-compile', markers);
+  if (markers[0]) window.editor.revealPositionInCenter({
+    lineNumber: markers[0].startLineNumber,
+    column: markers[0].startColumn
+  });
 }
 
+    function findAllGccErrors(text){
+  if (!text) return [];
+  const clean = text.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+  const out = [];
+  let m;
+
+  // path/to/file.c:LINE:COL: error: MSG
+  const re1 = /(?:^|\n)(?:.*?)(?:^|\/)([^\/\n]+?\.(?:c|h)):(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
+  while ((m = re1.exec(clean))) out.push({ file:m[1], line:+m[2], col:m[3]?+m[3]:1, msg:m[4] });
+
+  // <stdin>:LINE:COL: error: MSG
+  const re2 = /(?:^|\n)<stdin>:(\d+)(?::(\d+))?\s*:\s*(?:fatal\s+)?error\s*:\s*([^\n]+)/mg;
+  while ((m = re2.exec(clean))) out.push({ file:'<stdin>', line:+m[1], col:m[2]?+m[2]:1, msg:m[3] });
+
+  // file.c:LINE: error: MSG  (no column)
+  const re3 = /(?:^|\n)([^:\n]+?\.(?:c|h)):(\d+):\s*(?:fatal\s+)?error:\s*([^\n]+)/mg;
+  while ((m = re3.exec(clean))) out.push({ file:m[1], line:+m[2], col:1, msg:m[3] });
+
+  // de-dupe by (line,msg) to avoid repeats as log grows
+  const seen = new Set();
+  return out.filter(e => {
+    const k = `${e.line}|${e.col}|${e.msg}`;
+    if (seen.has(k)) return false; seen.add(k); return true;
+  });
+}
 
  function findFirstGccError(text){
   if (!text) return null;
@@ -462,8 +486,9 @@ int main(){
     const stripAnsi = (s)=> s.replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 
     function markFirstErrorFromLog(){
-      const e = findFirstGccError(stripAnsi(__aggLog));
-      if (e){ setEditorMarker(e.line, e.msg, e.col); }
+      //const e = findFirstGccError(stripAnsi(__aggLog));
+      //if (e){ setEditorMarker(e.line, e.msg, e.col); }
+      setEditorMarkers(findAllGccErrors(stripAnsi(__aggLog)));
     }
     function finishUI(){ window.setRunUI?.(false); }
 
@@ -657,7 +682,8 @@ window.runLang = async function(){
       if (msg && typeof msg==='object' && msg.type){
         if (msg.type==='stdout'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); if ((msg.data||'').trim()) __cFlags.sawAnyOutput = true; return; }
         if (msg.type==='stderr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawRuntimeErr = true; return; }
-        if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; const e=findFirstGccError(__aggLog); if(e) setEditorMarker(e.line, e.msg,e.col); return; }
+        if (msg.type==='compileErr'){ termWrite(msg.data||''); __aggLog += stripAnsi(String(msg.data||'')); __cFlags.sawCompileErr = true; 
+                                     setEditorMarkers(findAllGccErrors(__aggLog)); return; }
         if (msg.type==='stdin_req'){ showInputRow(true); return; }
         if (msg.type==='exit'){
           __cFlags.exitCode = Number(msg.code);
@@ -679,8 +705,7 @@ window.runLang = async function(){
              || /(^|\n).*?\berror\s*:\s*([^\n]+)/m.exec(__aggLog);
       if (m) {
         __cFlags.sawCompileErr = true;
-        const e = findFirstGccError(__aggLog);
-        if (e) setEditorMarker(e.line, e.msg, e.col);
+        setEditorMarkers(findAllGccErrors(__aggLog));
         window.PolyShell?.setRunnerPhase?.('error');
         window.PolyShell.setStatus('Compilation Failed', 'error');
       }
