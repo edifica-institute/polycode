@@ -1321,3 +1321,51 @@ try {
     }
   }, { passive:false });
 })();
+
+
+
+(function setupSplitters(){
+  const root = document.documentElement;
+  const leftHandle  = document.getElementById('dragLeft');
+  const rightHandle = document.getElementById('dragRight');
+
+  // restore last layout
+  try {
+    const saved = JSON.parse(localStorage.getItem('pcLayout') || '{}');
+    if (saved.left)  root.style.setProperty('--left',  saved.left);
+    if (saved.right) root.style.setProperty('--right', saved.right);
+  } catch {}
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  function startDrag(which, startX){
+    const leftNow  = parseInt(getComputedStyle(root).getPropertyValue('--left'))  || 300;
+    const rightNow = parseInt(getComputedStyle(root).getPropertyValue('--right')) || 380;
+
+    const onMove = (e) => {
+      const dx = e.clientX - startX;
+      if (which === 'left') {
+        root.style.setProperty('--left',  clamp(leftNow + dx, 180, window.innerWidth - 300) + 'px');
+      } else {
+        root.style.setProperty('--right', clamp(rightNow - dx, 220, window.innerWidth - 300) + 'px');
+      }
+      try { window.editor?.layout(); } catch {}
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      localStorage.setItem('pcLayout', JSON.stringify({
+        left:  getComputedStyle(root).getPropertyValue('--left').trim(),
+        right: getComputedStyle(root).getPropertyValue('--right').trim()
+      }));
+      requestAnimationFrame(() => { try { window.editor?.layout(); } catch {} });
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp, { once: true });
+  }
+
+  document.getElementById('dragLeft') ?.addEventListener('mousedown',  e => startDrag('left',  e.clientX));
+  document.getElementById('dragRight')?.addEventListener('mousedown', e => startDrag('right', e.clientX));
+})();
