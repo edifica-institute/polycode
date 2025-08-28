@@ -548,19 +548,23 @@ const waitForExit = new Promise((resolve,reject)=>{
   // We only mark when there's enough info:
   //  - we saw a frame line, ideally for main.py, OR
   //  - we saw "Traceback" followed by an exception line.
-  const hasFrame = /File\s+"[^"]+",\s+line\s+\d+/.test(acc.stderr);
-  const hasMain  = /File\s+"[^"]*main\.py",\s+line\s+\d+/.test(acc.stderr);
-  const hasTb    = /\bTraceback\b/.test(acc.stderr);
-  const hasExc   = /\n[A-Za-z_]\w*Error\b.*\n?$/.test(acc.stderr); // ends with “...Error: ...”
+  const s = acc.stderr;
+const hasFrame = /File\s+"[^"]+",\s+line\s+\d+/.test(s);
+const hasMain  = /File\s+"[^"]*main\.py",\s+line\s+\d+/.test(s);
+const hasTb    = /\bTraceback\b/.test(s);
+const hasExc   = /\n[A-Za-z_]\w*Error\b/.test(s);
+const hasSyn   = /\bSyntaxError\b/.test(s);
 
-  if (hasMain || (hasTb && hasExc) || (hasFrame && /\bSyntaxError\b/.test(acc.stderr))) {
-    const line = findPythonErrorLine(acc.stderr);
-    const firstLine =
-      (acc.stderr.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
-    setEditorMarker(line, firstLine);
-    window.PolyShell?.setStatus('Execution Failed', 'error');
-    flagFatalError();   // stop spinner early; exit may still be in-flight
-  }
+// Eager mark on any SyntaxError, or once we have a main.py frame, or traceback+exception.
+if (hasSyn || hasMain || (hasTb && hasExc) || (hasFrame && hasExc)) {
+  const line = findPythonErrorLine(s);
+  const firstLine = (s.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
+  setEditorMarker(line, firstLine);
+  const execMs = Math.max(0, Math.round(performance.now() - __tStart));
+  window.PolyShell?.setRunnerPhase?.('error', { metrics: { execMs } });
+  window.PolyShell?.setStatus(`Execution Failed — ${execMs} ms`, 'error');
+  flagFatalError();
+}
   return;
 }
 
