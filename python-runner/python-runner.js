@@ -143,25 +143,19 @@ os.environ['POLY_TMP'] = ${JSON.stringify(tmpForImgs)}
 import pc_bootstrap  # noqa: F401
 
 def _pc_input(prompt=''):
-    # 1) print prompt so it appears in stdout immediately
-    try:
-        if prompt:
-            sys.stdout.write(str(prompt)); sys.stdout.flush()
-    except:
-        pass
-
-    # 2) send a control line with the prompt so UI can render input row pre-filled
+    # 1) send stdin_req first, with prompt payload (no stdout print)
     try:
         b64 = base64.b64encode(str(prompt).encode('utf-8')).decode('ascii')
-        sys.stderr.write(f"[[CTRL]]:stdin_req:{b64}\\n"); sys.stderr.flush()
+        sys.stderr.write(f"[[CTRL]]:stdin_req:{b64}\n"); sys.stderr.flush()
     except:
         pass
 
-    # 3) read a line from stdin
+    # 2) read a line
     line = sys.stdin.readline()
     if not line:
         return ''
-    return line.rstrip('\\r\\n')
+    return line.rstrip('\r\n')
+
 
 builtins.input = _pc_input
 
