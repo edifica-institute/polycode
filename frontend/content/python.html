@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Python Core Modules — Modules • Functions • Use • Syntax • Examples</title>
+<title>Python Core Reference — Built-ins • Data Types • Modules • Examples</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-/* Row-wise cards for any table.resp */
 .resp { width: 100%; border-collapse: collapse; }
 .resp thead { display: none; }
 .resp tbody { display: block; }
@@ -21,15 +20,11 @@
   display: block;
   padding: .35rem 0;
 }
-
-/* Heading (first cell) */
 .resp td:first-child {
   font-weight: 700;
   font-size: 1.05rem;
   margin-bottom: .15rem;
 }
-
-/* Label + content */
 .resp td:not(:first-child)::before {
   content: attr(data-label);
   display: block;
@@ -38,17 +33,13 @@
   color: #6b7280;
   margin-bottom: .15rem;
 }
-
-/* Code blocks */
 .resp pre {
   margin: .25rem 0;
   padding: .5rem .75rem;
-  background: #f8fafc;
   border-radius: 8px;
   white-space: pre-wrap;
   word-break: break-word;
 }
-
 @media print {
   .resp tbody tr { page-break-inside: avoid; box-shadow: none; }
 }
@@ -57,187 +48,188 @@
 <body>
 <div class="wrap">
 
-<h1>Python Core Modules — Modules • Functions • Use • Syntax • Examples</h1>
-<p>This reference highlights widely used <b>Python standard library</b> modules and built-ins. Each row shows purpose, syntax, and a short example. Static, no scripts, print-friendly.</p>
+<h1>Python Core Reference — Built-ins • Data Types • Modules • Examples</h1>
+<p>Reference of Python built-ins, data types, OOP, and key libraries like NumPy, Pandas, Matplotlib, Statistics. Row-wise cards for readability.</p>
 
 <!-- ========================================================= -->
-<h2>Built-ins — Core Functions & Types</h2>
+<h2>Strings</h2>
 <table class="resp">
-  <thead><tr><th>Function / Type</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
   <tbody>
     <tr>
-      <td data-label="Function / Type"><b>print</b></td>
-      <td data-label="Use">Output to console</td>
-      <td data-label="Syntax"><code>print(*objects, sep=' ', end='\\n')</code></td>
-      <td data-label="Example"><pre>print("Hello", "World", sep=", ")  # Hello, World</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function / Type"><b>len</b></td>
-      <td data-label="Use">Length of object</td>
-      <td data-label="Syntax"><code>len(obj)</code></td>
-      <td data-label="Example"><pre>len([1,2,3])  # 3</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function / Type"><b>range</b></td>
-      <td data-label="Use">Sequence of numbers</td>
-      <td data-label="Syntax"><code>range(stop)</code>, <code>range(start, stop, step)</code></td>
-      <td data-label="Example"><pre>for i in range(1,5): print(i)</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function / Type"><b>enumerate</b></td>
-      <td data-label="Use">Index + value pairs</td>
-      <td data-label="Syntax"><code>enumerate(iterable, start=0)</code></td>
-      <td data-label="Example"><pre>for i,v in enumerate(['a','b']): print(i,v)</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function / Type"><b>map</b>, <b>filter</b></td>
-      <td data-label="Use">Apply function / filter items</td>
-      <td data-label="Syntax"><code>map(func, iterable)</code> • <code>filter(func, iterable)</code></td>
-      <td data-label="Example"><pre>list(map(str.upper, ["a","b"]))</pre></td>
+      <td data-label="Type"><b>str</b></td>
+      <td data-label="Use">Immutable text sequence</td>
+      <td data-label="Syntax"><code>s.upper()</code> • <code>s.lower()</code> • <code>s.split()</code> • <code>s.replace(a,b)</code></td>
+      <td data-label="Example"><pre>"Hello".replace("H","Y")  # 'Yello'</pre></td>
     </tr>
   </tbody>
 </table>
 
 <!-- ========================================================= -->
-<h2>os — Operating System Interfaces</h2>
+<h2>Lists</h2>
 <table class="resp">
-  <thead><tr><th>Function</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
   <tbody>
     <tr>
-      <td data-label="Function"><b>getcwd</b> / <b>chdir</b></td>
-      <td data-label="Use">Get or change current directory</td>
-      <td data-label="Syntax"><code>os.getcwd()</code> • <code>os.chdir(path)</code></td>
-      <td data-label="Example"><pre>import os; print(os.getcwd())</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function"><b>listdir</b> / <b>mkdir</b></td>
-      <td data-label="Use">List / create directories</td>
-      <td data-label="Syntax"><code>os.listdir(path)</code> • <code>os.mkdir(name)</code></td>
-      <td data-label="Example"><pre>os.listdir('.')  # files in cwd</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function"><b>remove</b> / <b>rename</b></td>
-      <td data-label="Use">File deletion/rename</td>
-      <td data-label="Syntax"><code>os.remove(file)</code> • <code>os.rename(src,dst)</code></td>
-      <td data-label="Example"><pre>os.rename("a.txt","b.txt")</pre></td>
+      <td data-label="Type"><b>list</b></td>
+      <td data-label="Use">Mutable ordered collection</td>
+      <td data-label="Syntax"><code>append</code> • <code>extend</code> • <code>remove</code> • <code>sort</code></td>
+      <td data-label="Example"><pre>nums = [1,2,3]; nums.append(4)</pre></td>
     </tr>
   </tbody>
 </table>
 
 <!-- ========================================================= -->
-<h2>sys — Interpreter Services</h2>
+<h2>Tuples</h2>
 <table class="resp">
-  <thead><tr><th>Function / Var</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
   <tbody>
     <tr>
-      <td data-label="Function / Var"><b>argv</b></td>
-      <td data-label="Use">Command line args</td>
-      <td data-label="Syntax"><code>sys.argv</code></td>
-      <td data-label="Example"><pre>import sys; print(sys.argv)</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function / Var"><b>exit</b></td>
-      <td data-label="Use">Exit program</td>
-      <td data-label="Syntax"><code>sys.exit([code])</code></td>
-      <td data-label="Example"><pre>sys.exit(1)</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function / Var"><b>path</b></td>
-      <td data-label="Use">Module search path</td>
-      <td data-label="Syntax"><code>sys.path</code></td>
-      <td data-label="Example"><pre>print(sys.path)</pre></td>
+      <td data-label="Type"><b>tuple</b></td>
+      <td data-label="Use">Immutable ordered collection</td>
+      <td data-label="Syntax"><code>(a,b,c)</code></td>
+      <td data-label="Example"><pre>t = (1,2,3); print(t[0])</pre></td>
     </tr>
   </tbody>
 </table>
 
 <!-- ========================================================= -->
-<h2>datetime — Dates & Times</h2>
+<h2>Dictionaries</h2>
 <table class="resp">
-  <thead><tr><th>Class / Function</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
   <tbody>
     <tr>
-      <td data-label="Class / Function"><b>date</b> / <b>datetime</b></td>
-      <td data-label="Use">Represent dates & times</td>
-      <td data-label="Syntax"><code>datetime.now()</code> • <code>date.today()</code></td>
-      <td data-label="Example"><pre>from datetime import date; print(date.today())</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Class / Function"><b>timedelta</b></td>
-      <td data-label="Use">Arithmetic with dates</td>
-      <td data-label="Syntax"><code>timedelta(days=7)</code></td>
-      <td data-label="Example"><pre>from datetime import timedelta; print(datetime.now()+timedelta(days=1))</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Class / Function"><b>strftime</b> / <b>strptime</b></td>
-      <td data-label="Use">Format & parse</td>
-      <td data-label="Syntax"><code>dt.strftime("%d-%m-%Y")</code></td>
-      <td data-label="Example"><pre>datetime.now().strftime("%Y-%m-%d")</pre></td>
+      <td data-label="Type"><b>dict</b></td>
+      <td data-label="Use">Key-value mapping</td>
+      <td data-label="Syntax"><code>d[key] = value</code> • <code>d.get()</code> • <code>d.items()</code></td>
+      <td data-label="Example"><pre>d = {"a":1}; print(d["a"])</pre></td>
     </tr>
   </tbody>
 </table>
 
 <!-- ========================================================= -->
-<h2>math — Mathematical Functions</h2>
+<h2>Sets</h2>
 <table class="resp">
-  <thead><tr><th>Function</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
   <tbody>
     <tr>
-      <td data-label="Function"><b>sqrt</b>, <b>pow</b></td>
-      <td data-label="Use">Square root / power</td>
-      <td data-label="Syntax"><code>math.sqrt(x)</code> • <code>math.pow(x,y)</code></td>
-      <td data-label="Example"><pre>import math; print(math.sqrt(16))</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function"><b>ceil</b>, <b>floor</b>, <b>round</b></td>
-      <td data-label="Use">Rounding</td>
-      <td data-label="Syntax"><code>math.ceil(x)</code></td>
-      <td data-label="Example"><pre>math.floor(3.7)  # 3</pre></td>
-    </tr>
-    <tr>
-      <td data-label="Function"><b>pi</b>, <b>e</b></td>
-      <td data-label="Use">Constants</td>
-      <td data-label="Syntax"><code>math.pi</code>, <code>math.e</code></td>
-      <td data-label="Example"><pre>print(math.pi)</pre></td>
+      <td data-label="Type"><b>set</b></td>
+      <td data-label="Use">Unique unordered elements</td>
+      <td data-label="Syntax"><code>s.add(x)</code> • <code>s.union()</code> • <code>s.intersection()</code></td>
+      <td data-label="Example"><pre>{1,2,3} | {3,4}  # {1,2,3,4}</pre></td>
     </tr>
   </tbody>
 </table>
 
 <!-- ========================================================= -->
-<h2>re — Regular Expressions</h2>
+<h2>OOP — Classes & Objects</h2>
 <table class="resp">
-  <thead><tr><th>Function</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
   <tbody>
     <tr>
-      <td data-label="Function"><b>match</b>, <b>search</b>, <b>findall</b></td>
-      <td data-label="Use">Pattern matching</td>
-      <td data-label="Syntax"><code>re.match(p,s)</code> • <code>re.findall(p,s)</code></td>
-      <td data-label="Example"><pre>import re; print(re.findall(r"\d+","a1b23"))</pre></td>
+      <td data-label="Topic"><b>class</b></td>
+      <td data-label="Use">Blueprint for objects</td>
+      <td data-label="Syntax"><code>class Name: def __init__(...): ...</code></td>
+      <td data-label="Example"><pre>class Dog: 
+  def __init__(self,n): self.name=n
+d = Dog("Tommy")</pre></td>
     </tr>
     <tr>
-      <td data-label="Function"><b>sub</b></td>
-      <td data-label="Use">Replace pattern</td>
-      <td data-label="Syntax"><code>re.sub(p, repl, s)</code></td>
-      <td data-label="Example"><pre>re.sub(r"cat","dog","catnap")</pre></td>
+      <td data-label="Topic"><b>Inheritance</b></td>
+      <td data-label="Use">Reuse & extend classes</td>
+      <td data-label="Syntax"><code>class Sub(Base): ...</code></td>
+      <td data-label="Example"><pre>class Puppy(Dog): pass</pre></td>
     </tr>
   </tbody>
 </table>
 
 <!-- ========================================================= -->
-<h2>json — JSON Encoding/Decoding</h2>
+<h2>LEGB Rule — Scopes</h2>
 <table class="resp">
-  <thead><tr><th>Function</th><th>Use</th><th>Syntax</th><th>Example</th></tr></thead>
   <tbody>
     <tr>
-      <td data-label="Function"><b>dump</b> / <b>dumps</b></td>
-      <td data-label="Use">Serialize to JSON</td>
-      <td data-label="Syntax"><code>json.dumps(obj)</code></td>
-      <td data-label="Example"><pre>import json; print(json.dumps({"a":1}))</pre></td>
+      <td data-label="Topic"><b>LEGB</b></td>
+      <td data-label="Use">Name lookup order</td>
+      <td data-label="Syntax">Local → Enclosing → Global → Built-in</td>
+      <td data-label="Example"><pre>x="global"
+def outer(): x="enclosing"
+  def inner(): x="local"; print(x)
+  inner()
+outer()</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>NumPy — Arrays</h2>
+<table class="resp">
+  <tbody>
+    <tr>
+      <td data-label="Type"><b>ndarray</b></td>
+      <td data-label="Use">Efficient n-D arrays</td>
+      <td data-label="Syntax"><code>np.array()</code> • <code>reshape</code> • <code>dtype</code></td>
+      <td data-label="Example"><pre>import numpy as np
+a = np.array([1,2,3])</pre></td>
     </tr>
     <tr>
-      <td data-label="Function"><b>load</b> / <b>loads</b></td>
-      <td data-label="Use">Parse JSON</td>
-      <td data-label="Syntax"><code>json.loads(str)</code></td>
-      <td data-label="Example"><pre>json.loads('{"a":1}')['a']</pre></td>
+      <td data-label="Type"><b>2D Array</b></td>
+      <td data-label="Use">Matrix-like data</td>
+      <td data-label="Syntax"><code>np.array([[...],[...]])</code></td>
+      <td data-label="Example"><pre>m = np.array([[1,2],[3,4]])</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>Pandas — Data Analysis</h2>
+<table class="resp">
+  <tbody>
+    <tr>
+      <td data-label="Object"><b>Series</b></td>
+      <td data-label="Use">1D labeled array</td>
+      <td data-label="Syntax"><code>pd.Series(data)</code></td>
+      <td data-label="Example"><pre>import pandas as pd
+s = pd.Series([1,2,3])</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Object"><b>DataFrame</b></td>
+      <td data-label="Use">2D labeled table</td>
+      <td data-label="Syntax"><code>pd.DataFrame(dict)</code></td>
+      <td data-label="Example"><pre>df = pd.DataFrame({"a":[1,2],"b":[3,4]})</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>Matplotlib — Pyplot</h2>
+<table class="resp">
+  <tbody>
+    <tr>
+      <td data-label="Function"><b>plot</b></td>
+      <td data-label="Use">Basic line plotting</td>
+      <td data-label="Syntax"><code>plt.plot(x,y)</code> • <code>plt.show()</code></td>
+      <td data-label="Example"><pre>import matplotlib.pyplot as plt
+plt.plot([1,2,3],[4,5,6]); plt.show()</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function"><b>bar</b> / <b>scatter</b></td>
+      <td data-label="Use">Bar/scatter plots</td>
+      <td data-label="Syntax"><code>plt.bar()</code> • <code>plt.scatter()</code></td>
+      <td data-label="Example"><pre>plt.bar([1,2,3],[3,4,5])</pre></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- ========================================================= -->
+<h2>statistics — Data Stats</h2>
+<table class="resp">
+  <tbody>
+    <tr>
+      <td data-label="Function"><b>mean</b> / <b>median</b> / <b>mode</b></td>
+      <td data-label="Use">Basic statistics</td>
+      <td data-label="Syntax"><code>statistics.mean(data)</code></td>
+      <td data-label="Example"><pre>import statistics as st
+print(st.mean([1,2,3]))</pre></td>
+    </tr>
+    <tr>
+      <td data-label="Function"><b>stdev</b> / <b>variance</b></td>
+      <td data-label="Use">Spread measures</td>
+      <td data-label="Syntax"><code>statistics.stdev(data)</code></td>
+      <td data-label="Example"><pre>st.stdev([10,20,30])</pre></td>
     </tr>
   </tbody>
 </table>
