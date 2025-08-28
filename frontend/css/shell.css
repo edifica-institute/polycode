@@ -2085,5 +2085,5 @@ html, body { height: 100%; }
 }
 
 
-#output{ padding:12px 12px 12px 0 !important; }  /* top right bottom left */
+#output{ padding:10px 10px 10px 10px !important; }  /* top right bottom left */
 #jconsole{ padding:0 !important; }               /* ensure the <pre> adds none */
