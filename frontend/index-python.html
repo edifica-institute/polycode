@@ -45,6 +45,15 @@
       @keyframes pc-pulse-brief{0%{transform:scale(1)}40%{transform:scale(1.08)}100%{transform:scale(1)}}
       .btn-pulse{ animation:pc-pulse-brief .9s ease-out }
     }
+
+    /* Visible error line highlight + small glyph in gutter (fallback to Monaco squiggle) */
+.pc-line-error { background: rgba(255, 0, 0, .12) !important; }
+.monaco-editor .pc-glyph-error {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; display: inline-block;
+}
+
+    
   </style>
 </head>
 
@@ -257,13 +266,57 @@
   }
 
   /* --- Monaco markers --- */
-  function clearEditorMarkers(){ if(!window.monaco || !window.editor) return; const model=window.editor.getModel(); if(model) monaco.editor.setModelMarkers(model,'py',[]); }
-  function setEditorMarker(line,message){
-    if(!window.monaco || !window.editor) return;
-    const model=window.editor.getModel(); if(!model) return; const maxCol=Math.max(1, model.getLineMaxColumn(line||1));
-    monaco.editor.setModelMarkers(model,'py',[{startLineNumber:line||1,endLineNumber:line||1,startColumn:1,endColumn:maxCol,message:String(message||'Error'),severity:window.monaco.MarkerSeverity.Error}]);
+
+   let __pyDecorations = [];
+
+  function setEditorMarker(line, message, __retryOnce = true) {
+    const m = window.monaco, ed = window.editor;
+    if (!m || !ed) {
+      if (__retryOnce) {
+        // Monaco not ready yet; try on next frame
+        return requestAnimationFrame(() => setEditorMarker(line, message, false));
+      }
+      return;
+    }
+    const model = ed.getModel();
+    if (!model) return;
+
+    const ln = Math.max(1, Number(line) || 1);
+    const maxCol = Math.max(1, model.getLineMaxColumn(ln));
+
+    // 1) Monaco marker (squiggle + gutter red bar)
+    m.editor.setModelMarkers(model, 'py', [{
+      startLineNumber: ln,
+      endLineNumber:   ln,
+      startColumn:     1,
+      endColumn:       maxCol,
+      message:         String(message || 'Error'),
+      severity:        m.MarkerSeverity.Error
+    }]);
+
+    // 2) Extra visible decoration (whole-line highlight + glyph)
+    __pyDecorations = ed.deltaDecorations(__pyDecorations, [{
+      range: new m.Range(ln, 1, ln, 1),
+      options: {
+        isWholeLine: true,
+        className: 'pc-line-error',
+        glyphMarginClassName: 'pc-glyph-error'
+      }
+    }]);
+
+    // 3) Reveal the error line
+    ed.revealLineInCenter(ln);
   }
 
+  function clearEditorMarkers() {
+    const m = window.monaco, ed = window.editor;
+    if (!m || !ed) return;
+    const model = ed.getModel();
+    if (model) m.editor.setModelMarkers(model, 'py', []);
+    __pyDecorations = ed.deltaDecorations(__pyDecorations, []); // remove decorations
+  }
+
+  
 
   // Python traceback parser — extracts "line N"
 function findPythonErrorLine(text) {
@@ -468,6 +521,9 @@ const waitForExit = new Promise((resolve,reject)=>{
           const firstLine = (errText.split('\n')[0] || 'Execution failed');
           const line = findPythonErrorLine(errText);
           setEditorMarker(line, firstLine);
+const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
+  window.PolyShell?.setRunnerPhase?.('error', { metrics: { execMs } });
+          
           // status already set by flagFatalError if patterns matched; ensure it's error anyway
           window.PolyShell?.setStatus('Execution Failed', 'error');
           reject(new Error(`line ${line}: ${firstLine}`));
@@ -515,7 +571,7 @@ const waitForExit = new Promise((resolve,reject)=>{
       startStatusDots(__statusBase);
       showInputRow(false);
       window.PolyShell?.setStatus(mayNeedInput ? 'Running (interactive)…' : 'Running…','busy');
-
+      const __tStart = performance.now();
       window.termWS.send(JSON.stringify({ type:'run', code, args, inputWaitMs }));
     }catch{
       try{ window.termWS.close(); }catch{}
