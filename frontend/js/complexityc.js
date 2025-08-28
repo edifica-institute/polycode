@@ -1,4 +1,3 @@
-<script>
 (function () {
   'use strict';
 
@@ -682,4 +681,3 @@
     if (document.getElementById('btnComplexity')) initUI({});
   }
 })();
-</script>
