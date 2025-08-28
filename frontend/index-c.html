@@ -567,7 +567,7 @@ int main(){
     function finishUI(){ window.setRunUI?.(false); }
 
     function finalizeStatus(){
-      clearCompileMarkers();
+      
   stopHeartbeat();
   stopStatusDots();
   stopInputCountdown();
@@ -780,7 +780,7 @@ window.runLang = async function(){
      const errs = findAllGccErrors(__aggLog);
 if (errs.length) {
   __cFlags.sawCompileErr = true;
-  setEditorMarkers(errs);
+ window.setEditorMarkers(errs);
   window.PolyShell?.setRunnerPhase?.('error');
   window.PolyShell.setStatus('Compilation Failed', 'error');
 }
@@ -814,7 +814,7 @@ if (errs.length) {
       stopStatusDots(); stopInputCountdown(); window.PolyShell?.stopInputTicker?.();
       hideRunnerOverlay(); window.clearCompileMarkers(); finishUI();
       window.PolyShell.setStatus('Ready','ok');
-      clearCompileMarkers();
+      
     };
 
     /* ===== Startup ===== */
