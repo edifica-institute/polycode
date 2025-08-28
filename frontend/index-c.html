@@ -244,23 +244,32 @@ int main(){
       const model = window.editor.getModel();
       if (model) window.monaco.editor.setModelMarkers(model, 'c-compile', []);
     }
-   function setEditorMarkers(list){
+  function setEditorMarkers(list){
   if (!window.monaco || !window.editor) return;
   const model = window.editor.getModel(); if (!model) return;
-  const markers = (list||[]).map(e => ({
-    startLineNumber: e.line || 1,
-    endLineNumber:   e.line || 1,
-    startColumn:     Math.max(1, e.col || 1),
-    endColumn:       Math.max(1, (e.col || 1) + 1),
-    message:         String(e.msg || 'Error'),
-    severity:        window.monaco.MarkerSeverity.Error
-  }));
+
+  const markers = (list || []).map(e => {
+    const line  = Math.max(1, e.line || 1);
+    const start = Math.max(1, e.col  || 1);
+    const end   = Math.min(model.getLineMaxColumn(line), start + 1); // <-- clamp to line length
+    return {
+      startLineNumber: line,
+      endLineNumber:   line,
+      startColumn:     start,
+      endColumn:       end,
+      message:         String(e.msg || 'Error'),
+      severity:        window.monaco.MarkerSeverity.Error
+    };
+  });
+
   window.monaco.editor.setModelMarkers(model, 'c-compile', markers);
+
   if (markers[0]) window.editor.revealPositionInCenter({
     lineNumber: markers[0].startLineNumber,
-    column: markers[0].startColumn
+    column:     markers[0].startColumn
   });
 }
+
 
     function findAllGccErrors(text){
   if (!text) return [];
@@ -502,9 +511,9 @@ int main(){
   hideRunnerOverlay();
 
   const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
-  const hasCompileErr = __cFlags.sawCompileErr
-    || /(^|\n).*?\bmain\.c:\d+(?::\d+)?:\s*error:/i.test(cleanLog)
-    || /(^|\n).*?\berror\s*:\s*/i.test(cleanLog);
+  const hasCompileErr =
+  __cFlags.sawCompileErr ||
+  /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
   const hasRuntimeErr = __cFlags.sawRuntimeErr
     || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
 
@@ -613,7 +622,7 @@ window.runLang = async function(){
     const log = (prep && (prep.compileLog||prep.stderr||prep.stdout)) || 'Compilation failed.';
     setConsole((log||'').trim());
     __aggLog += String(log||'');
-    const e = findFirstGccError(__aggLog); if (e) setEditorMarker(e.line, e.msg, e.col);
+    setEditorMarkers(findAllGccErrors(__aggLog));
     updateRunnerOverlay({ pct:100, hint:'Compilation failed' });
     setTimeout(hideRunnerOverlay, 300);
     window.PolyShell?.setRunnerPhase?.('error');
@@ -644,9 +653,9 @@ window.runLang = async function(){
   function computeOutcome(){
   const cleanLog = stripAnsi(__aggLog || (document.getElementById('jconsole')?.textContent || ''));
 
-  const hasCompileErr = __cFlags.sawCompileErr
-    || /(^|\n).*?\bmain\.c:\d+(?::\d+)?:\s*error:/i.test(cleanLog)
-    || /(^|\n).*?\berror\s*:\s*/i.test(cleanLog);
+  const hasCompileErr =
+  __cFlags.sawCompileErr ||
+  /(^|\n)[^:\n]+:\d+(?::\d+)?:\s*(?:fatal\s+)?error\s*:/i.test(cleanLog);
 
   const hasRuntimeErr = __cFlags.sawRuntimeErr
     || /undefined reference|segmentation fault|floating point exception|abort|stack smashing|fault|core dumped/i.test(cleanLog);
