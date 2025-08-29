@@ -2803,3 +2803,76 @@ html, body { height: 100%; }
 @media (max-width:1024px){
   html, body{ overflow-x:hidden !important; }
 }
+
+
+/* =========================
+   POLYCODE — ultra-targeted fixes
+   (append at very end)
+   ========================= */
+
+/* 1) Editor title must stay single-line; buttons can wrap */
+#centerPanel .pane-head { flex-wrap: wrap !important; row-gap: 6px !important; }
+#centerPanel .pane-head .title{
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 0 1 auto !important;
+}
+#centerPanel .pane-head .right-controls{
+  margin-left: auto !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+}
+
+/* 2) On smaller screens: auto-hide ONLY the left pane (#leftPanel) */
+/*    (editor/output remain visible; user can re-open via .show-left on .app) */
+@media (max-width: 1200px){
+  #leftPanel{ display: none !important; }
+  .app.show-left #leftPanel{ display: block !important; }
+}
+
+/* 3) Header: keep logo left, links right, allow wrapping (no truncation) */
+@media (max-width: 1024px){
+  body > header.site-header{
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important; /* logo | spacer | nav */
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 8px 12px !important;
+    position: sticky; top: 0; z-index: 100;
+    background: var(--glass) !important;
+    border-bottom: 1px solid var(--glass-brd) !important;
+  }
+  body > header.site-header .brand-wrap{
+    grid-column: 1 !important; justify-self: start !important;
+  }
+  body > header.site-header nav,
+  body > header.site-header .site-nav{
+    grid-column: 3 !important; justify-self: end !important;
+    display: flex !important; flex-wrap: wrap !important; gap: 10px !important;
+    min-width: 0 !important;
+  }
+  body > header.site-header nav a,
+  body > header.site-header .site-nav a{
+    font-size: 12px !important; line-height: 1 !important;
+  }
+}
+
+/* 4) Footer: always show legal links and “Follow us” */
+.site-footer{ overflow: visible !important; }
+.site-footer .footer-grid{
+  display: grid !important;
+  grid-template-columns: 1fr auto 1fr !important;  /* left | center | right */
+  align-items: center !important; gap: 12px !important;
+}
+.site-footer .footer-left{  justify-self: start !important; }
+.site-footer .footer-right{ justify-self: center !important; display:flex !important; gap:14px !important; flex-wrap:wrap !important; }
+.site-footer .footer-center{ justify-self: end !important; display:flex !important; gap:10px !important; align-items:center !important; }
+
+@media (max-width: 640px){
+  .site-footer .footer-grid{ grid-template-columns: 1fr !important; row-gap: 10px !important; }
+  .site-footer .footer-left,
+  .site-footer .footer-right,
+  .site-footer .footer-center{ justify-self: start !important; }
+}
