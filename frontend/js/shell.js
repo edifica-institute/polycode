@@ -1044,20 +1044,11 @@ try {
       return;
     }
 
-    /*if (e.key === 'F5') {
+    if (e.key === 'F5') {
       if(!confirm("Are you sure you want to reload the page?"))
       e.preventDefault();
       return;
-    }*/
-
-    if (e.key === 'F5' || (mod && (e.key === 'r' || e.key === 'R'))) {
-    e.preventDefault();
-    if (confirm('Your Data will be Lost.\nStill Reload the Page?')) {
-      // Do a real reload (cache-respecting)
-      location.reload();
     }
-    return;
-  }
 
     
     
