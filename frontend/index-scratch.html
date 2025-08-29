@@ -72,7 +72,7 @@
           </div>
         </div>
         <div id="editor" style="position:relative; height:100%;">
-        <iframe id="scratchFrame" title="Scratch Editor" src=""
+        <iframe id="scratchFrame" title="Scratch Editor"
           allow="clipboard-read; clipboard-write"
           style="position:absolute; inset:0; width:100%; height:100%; border:0;"></iframe>
 
@@ -134,12 +134,13 @@
   <script>
     const TW_BASE = '/tw';
 
-  function buildTWEditorURL(opts){
-    const p = new URLSearchParams({ fps: '60', turbo: 'false' });
-    if (opts?.projectId) p.set('project_id', String(opts.projectId).trim());
-    // IMPORTANT: editor.html and NO embed=1
-    return `${TW_BASE}/editor.html?${p.toString()}`;
-  }
+function buildTWEditorURL(opts){
+  // Add embed=1  👇
+  const p = new URLSearchParams({ embed:'1', fps:'60', turbo:'false' });
+  if (opts?.projectId) p.set('project_id', String(opts.projectId).trim());
+  return `${TW_BASE}/editor.html?${p.toString()}`;
+}
+
 
     function setEditorSrc(url){
       const f = document.getElementById('scratchFrame');
