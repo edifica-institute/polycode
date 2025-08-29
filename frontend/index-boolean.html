@@ -48,6 +48,8 @@
           <span class="muted">Vars (optional, comma):</span>
           <input id="vars" placeholder="A,B,C" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:#141922;color:var(--text)">
           <button class="btn" id="btnSimplify">Simplify</button>
+          <button class="btn secondary" id="btnCircuit">Circuit</button>
+
           <button class="btn secondary" id="btnClear">Clear</button>
         </div>
       </section>
@@ -237,6 +239,105 @@ if (km) {
       ttCard.style.display="none"; ttEl.innerHTML="";
     }
   });
+
+
+document.getElementById("btnCircuit").addEventListener("click", async () => {
+  const text = exprEl.value.trim();
+  const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+  if (!text) { alert("Enter an expression"); return; }
+  resEl.textContent = "Generating circuit…";
+  ttCard.style.display="none"; ttEl.innerHTML="";
+
+  try{
+    const r = await fetch(API + "/api/ba/netlist", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ expr: text, vars })
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "netlist error");
+    resEl.innerHTML = renderCircuitSVG(j); // inject SVG string
+  }catch(e){
+    resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
+  }
+});
+
+// dumb layout: layer by distance from inputs
+function renderCircuitSVG(net){
+  const inSet = new Set(net.inputs.map(i=>i.id));
+  const fan = new Map(); // id -> list of users
+  const nodes = new Map(); // id -> {id,type,ins,label}
+  for (const g of net.gates){ nodes.set(g.id, {...g}); for (const i of g.ins){ (fan.get(i)||fan.set(i,[]),fan.get(i)).push(g.id);} }
+  for (const i of net.inputs) nodes.set(i.id, { id:i.id, type:"IN", ins:[], label:i.label });
+  nodes.set(net.output, nodes.get(net.output)||{id:net.output, type:"OUT", ins:[]});
+
+  // level = longest path from any input
+  const level = new Map();
+  function lev(id){
+    if (level.has(id)) return level.get(id);
+    const n = nodes.get(id);
+    const v = (n.type==="IN" || id==="VCC_1" || id==="GND_0") ? 0 : Math.max(0, ...(n.ins||[]).map(lev)) + 1;
+    level.set(id, v); return v;
+  }
+  [...nodes.keys()].forEach(lev);
+  const layers = [];
+  for (const [id,v] of level.entries()){ (layers[v]|| (layers[v]=[])).push(id); }
+
+  const XSTEP=160, YSTEP=90, PAD=20;
+  const width = (layers.length+1)*XSTEP + PAD*2;
+  const height = Math.max(...layers.map(a=>a.length))*YSTEP + PAD*2;
+
+  const pos = new Map();
+  layers.forEach((ids,x)=>ids.forEach((id,y)=>pos.set(id,{x:PAD+x*XSTEP, y:PAD+y*YSTEP})));
+
+  function gateShape(g){
+    const p = pos.get(g.id); const w=60,h=40;
+    const cx=p.x, cy=p.y;
+    if (g.type==="IN") return `<rect x="${cx}" y="${cy}" width="50" height="26" rx="6"/><text x="${cx+25}" y="${cy+18}" text-anchor="middle">${g.label||g.id}</text>`;
+    const label = g.type;
+    return `<rect x="${cx}" y="${cy}" width="${w}" height="${h}" rx="10"/><text x="${cx+w/2}" y="${cy+h/2+5}" text-anchor="middle">${label}</text>`;
+  }
+  function wires(g){
+    const p = pos.get(g.id); const gx=p.x, gy=p.y;
+    const targets = (g.ins||[]);
+    return targets.map(inp=>{
+      const pi = pos.get(inp)||{x:gx-60,y:gy}; // const nodes
+      const x1 = pi.x + 60, y1 = pi.y + 20;
+      const x2 = gx,       y2 = gy + 20;
+      const mx = (x1+x2)/2;
+      return `<path d="M${x1},${y1} C ${mx},${y1} ${mx},${y2} ${x2},${y2}" fill="none" stroke="currentColor"/>`;
+    }).join("");
+  }
+
+  const nodesSVG = [...nodes.values()].map(g=>gateShape(g)).join("");
+  const wiresSVG = [...net.gates].map(g=>wires(g)).join("") + wires({id:"OUT", ins:[net.output], ...nodes.get(net.output)});
+
+  return `<svg viewBox="0 0 ${width} ${height}" width="100%" style="max-height:520px">
+    <g fill="none" stroke="currentColor" stroke-width="2">
+      ${wiresSVG}
+    </g>
+    <g fill="currentColor" stroke="none">
+      ${nodesSVG}
+      <!-- output label -->
+      <text x="${pos.get(net.output).x+80}" y="${pos.get(net.output).y+25}" >F</text>
+    </g>
+  </svg>`;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 </script>
 
 
