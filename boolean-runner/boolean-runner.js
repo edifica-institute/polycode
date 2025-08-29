@@ -380,7 +380,9 @@ app.post("/api/ba/truthtable", (req,res)=>{
   try{
     const { expr, vars:varsIn } = req.body || {};
     if (!expr) return res.status(400).json({ ok:false, error:"expr required" });
-    const rpn = toRPN(insertImplicitAnd(tokenize(expr)));
+    //const rpn = toRPN(insertImplicitAnd(tokenize(expr)));
+    const exprNorm = normalizeImplicitLetterAND(expr, varsIn);
+const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
     const vars = (varsIn && varsIn.length)? varsIn : detectVars(rpn);
     const varsSorted = [...vars].sort(); // deterministic
     const tt = truthTable(rpn, varsSorted);
@@ -394,7 +396,9 @@ app.post("/api/ba/simplify", (req,res)=>{
   try{
     const { expr, vars:varsIn, dontCares=[] , includeTable=false } = req.body || {};
     if (!expr) return res.status(400).json({ ok:false, error:"expr required" });
-    const rpn = toRPN(insertImplicitAnd(tokenize(expr)));
+    //const rpn = toRPN(insertImplicitAnd(tokenize(expr)));
+   const exprNorm = normalizeImplicitLetterAND(expr, varsIn);
+const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
     const vars = (varsIn && varsIn.length)? varsIn : detectVars(rpn);
     const varsSorted = [...vars].sort();
     const tt = truthTable(rpn, varsSorted);
