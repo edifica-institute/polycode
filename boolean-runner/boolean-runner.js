@@ -331,6 +331,108 @@ function normalizeImplicitLetterAND(s, varsIn) {
 
 
 
+
+
+
+  
+
+
+// ---- RPN -> AST (uses your existing tokens/op names) ----
+function rpnToAst(rpn){
+  const st = [];
+  for (const tk of rpn){
+    if (tk.t === "const") st.push({type:"CONST", val: tk.v === "1"});
+    else if (tk.t === "var") st.push({type:"VAR", name: tk.v});
+    else if (tk.t === "op"){
+      const op = (SYM_TO_OP.get(tk.v) || tk.v);
+      if (op === "NOT") { const a = st.pop(); st.push({type:"NOT", a}); }
+      else {
+        const b = st.pop(), a = st.pop();
+        if (op === "AND") st.push({type:"AND", a, b});
+        else if (op === "OR") st.push({type:"OR", a, b});
+        else if (op === "XOR") st.push({type:"XOR", a, b});
+        else if (tk.v === "->") st.push({type:"OR", a:{type:"NOT", a}, b});         // a->b = !a + b
+        else if (tk.v === "<->") {                                                  // a<->b = (a·b)+(!a·!b)
+          st.push({type:"OR",
+            a:{type:"AND", a, b},
+            b:{type:"AND", a:{type:"NOT", a}, b:{type:"NOT", a:b}}
+          });
+        } else throw new Error("netlist: unsupported op " + tk.v);
+      }
+    }
+  }
+  if (st.length !== 1) throw new Error("netlist: bad expression");
+  return st[0];
+}
+
+// ---- AST -> gate netlist (dedup simple repeats) ----
+function astToNetlist(ast){
+  const gates = [];
+  const memo = new Map();
+  const inputs = new Map(); // name -> id
+
+  let idn = 0;
+  const newId = p => `${p}${++idn}`;
+
+  function emit(node){
+    const key = JSON.stringify(node);
+    if (memo.has(key)) return memo.get(key);
+
+    if (node.type === "VAR"){
+      if (!inputs.has(node.name)) inputs.set(node.name, `in_${node.name}`);
+      const id = inputs.get(node.name);
+      memo.set(key, id);
+      return id;
+    }
+    if (node.type === "CONST"){
+      const id = node.val ? "VCC_1" : "GND_0";
+      memo.set(key, id); // pseudo-sources (no gate record)
+      return id;
+    }
+    if (node.type === "NOT"){
+      const ain = emit(node.a);
+      const id = newId("n");
+      gates.push({ id, type:"NOT", ins:[ain] });
+      memo.set(key, id);
+      return id;
+    }
+    const ain = emit(node.a);
+    const bin = emit(node.b);
+    const id = newId("n");
+    if (node.type === "AND") gates.push({ id, type:"AND", ins:[ain, bin] });
+    else if (node.type === "OR") gates.push({ id, type:"OR", ins:[ain, bin] });
+    else if (node.type === "XOR") gates.push({ id, type:"XOR", ins:[ain, bin] });
+    else throw new Error("netlist: unknown node " + node.type);
+    memo.set(key, id);
+    return id;
+  }
+
+  const out = emit(ast);
+  return {
+    inputs: [...inputs.entries()].map(([label,id]) => ({ id, label })),
+    gates, output: out
+  };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function implicantsToExpression(imps, vars){
   if (imps.length===0) return "0";
   const n = vars.length;
@@ -463,6 +565,20 @@ app.post("/api/ba/kmap", (req,res)=>{
     return res.json({ ok:true, ...km });
   }catch(e){
     return res.status(400).json({ ok:false, error:String(e.message||e) });
+  }
+});
+
+app.post("/api/ba/netlist", (req, res) => {
+  try {
+    const { expr, vars: varsIn } = req.body || {};
+    if (!expr) return res.status(400).json({ ok:false, error:"expr required" });
+    const exprNorm = normalizeImplicitLetterAND(expr, varsIn);
+    const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
+    const ast = rpnToAst(rpn);
+    const net = astToNetlist(ast);
+    res.json({ ok:true, ...net });
+  } catch (e) {
+    res.status(400).json({ ok:false, error: String(e.message||e) });
   }
 });
 
