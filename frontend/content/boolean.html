@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Boolean Algebra — Reference • Rules • K-map • Q–M</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{ --text:#e9edf3; --muted:#aeb5bd; --panel:#1e2024; --border:#2b2f34; --link:#9ecbff; }
+@media (prefers-color-scheme: light){ :root{ --text:#0b0f13; --muted:#475161; --panel:#fff; --border:#e6e8ec; --link:#225ce2; } }
+*{ box-sizing:border-box }
+body{ margin:0; padding:18px; font:14px/1.6 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif; color:var(--text); }
+h1{ font-size:20px; margin:0 0 6px }
+h2{ font-size:16px; margin:18px 0 8px }
+h3{ font-size:14px; margin:14px 0 6px }
+p{ margin:0 0 10px }
+small,.muted{ color:var(--muted) }
+code,kbd,.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:13px }
+hr{ border:0; border-top:1px solid var(--border); margin:14px 0 }
+ul,ol{ margin:8px 0 10px 18px; padding:0 }
+.note{ border:1px solid var(--border); border-radius:4px; padding:10px; }
+.tbl{ width:100%; border-collapse:collapse; margin:8px 0 }
+.tbl th,.tbl td{ border:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top }
+.tbl th{ background:rgba(255,255,255,.04) }
+.kex{ display:grid; grid-template-columns:auto 1fr; gap:6px 10px; align-items:center }
+pre.ascii{ border:1px solid var(--border); border-radius:4px; padding:10px; overflow:auto; }
+</style>
+</head>
+<body>
+  <h1>Boolean Algebra — Quick Reference</h1>
+  <p class="muted">Syntax & tools for PolyCode’s Boolean module. Supports implicit AND, common operators, SOP/POS, K-maps, and Quine–McCluskey.</p>
+
+  <hr>
+
+  <h2>Notation & Operators</h2>
+  <div class="kex">
+    <div class="mono">OR</div><div><code>+</code> or <code>|</code> &nbsp; e.g., <code>A + B</code></div>
+    <div class="mono">AND</div><div><code>·</code>/<code>*</code>/<code>&</code> &nbsp; e.g., <code>A·B</code> or <code>A*B</code> — <b>implicit AND</b> allowed: <code>AB</code></div>
+    <div class="mono">NOT</div><div><code>¬</code>/<code>~</code>/<code>!</code> (prefix) e.g., <code>¬A</code></div>
+    <div class="mono">XOR</div><div><code>^</code> (exclusive OR) e.g., <code>A ^ B</code></div>
+    <div class="mono">→</div><div><code>-></code> (implication) ≡ <code>¬A + B</code></div>
+    <div class="mono">↔</div><div><code><-></code> (equivalence/XNOR) ≡ <code>AB + ¬A¬B</code></div>
+    <div class="mono">()</div><div>parentheses; adjacency implies AND: <code>(A+B)(A+¬B)</code> ≡ <code>(A+B)·(A+¬B)</code></div>
+  </div>
+
+  <h3>Precedence (high → low)</h3>
+  <ol>
+    <li>NOT <span class="mono">¬ ~ !</span></li>
+    <li>AND <span class="mono">· * &</span></li>
+    <li>XOR <span class="mono">^</span></li>
+    <li>OR <span class="mono">+ |</span>, then <span class="mono">-></span>, then <span class="mono"><-></span></li>
+  </ol>
+
+  <div class="note"><b>Constants:</b> <span class="mono">1</span>=true, <span class="mono">0</span>=false. Variables: <span class="mono">A, B, C, X1, Y_2</span> etc.</div>
+
+  <hr>
+
+  <h2>Core Laws & Identities</h2>
+  <table class="tbl">
+    <thead><tr><th>Law</th><th>Form</th><th>Dual / Note</th></tr></thead>
+    <tbody>
+      <tr><td>Idempotent</td><td class="mono">A + A = A, &nbsp; A·A = A</td><td></td></tr>
+      <tr><td>Null / Identity</td><td class="mono">A + 0 = A, &nbsp; A·1 = A</td><td class="mono">A + 1 = 1, &nbsp; A·0 = 0</td></tr>
+      <tr><td>Complement</td><td class="mono">A + ¬A = 1, &nbsp; A·¬A = 0</td><td></td></tr>
+      <tr><td>Commutative</td><td class="mono">A + B = B + A, &nbsp; A·B = B·A</td><td></td></tr>
+      <tr><td>Associative</td><td class="mono">(A+B)+C = A+(B+C)</td><td class="mono">(A·B)·C = A·(B·C)</td></tr>
+      <tr><td>Distributive</td><td class="mono">A·(B+C) = A·B + A·C</td><td class="mono">A + B·C = (A+B)(A+C)</td></tr>
+      <tr><td>Absorption</td><td class="mono">A + A·B = A</td><td class="mono">A(A + B) = A</td></tr>
+      <tr><td>De Morgan</td><td class="mono">¬(A·B) = ¬A + ¬B</td><td class="mono">¬(A + B) = ¬A · ¬B</td></tr>
+      <tr><td>Consensus</td><td class="mono">A·B + ¬A·C + B·C = A·B + ¬A·C</td><td>Remove redundant <span class="mono">B·C</span></td></tr>
+      <tr><td>XOR/XNOR</td><td class="mono">A ^ B = A·¬B + ¬A·B</td><td class="mono">XNOR: AB + ¬A¬B</td></tr>
+    </tbody>
+  </table>
+
+  <hr>
+
+  <h2>Canonical Forms</h2>
+  <p><b>SOP (Sum of Minterms)</b>: <span class="mono">F(A,B,...) = Σ m(indices)</span></p>
+  <p><b>POS (Product of Maxterms)</b>: <span class="mono">F(A,B,...) = Π M(indices)</span></p>
+  <div class="note">
+    <b>Minterm numbering (PolyCode):</b> Order is the given vars; if omitted, auto-detected and sorted alphabetically.  
+    Index is binary <span class="mono">A B C …</span> with <b>A as MSB</b>. Example (3 vars): <span class="mono">A=0,B=1,C=1 → 0b011 = m(3)</span>.
+  </div>
+
+  <h3>Quick examples</h3>
+  <ul>
+    <li><span class="mono">AB + ¬A·C</span> → SOP already.</li>
+    <li><span class="mono">(A + B)(A + ¬B)</span> → <span class="mono">A</span> (by absorption).</li>
+    <li><span class="mono">Σm(1,3,5,7)</span> (3 vars, A MSB) → <b>F = C</b> (all odd indices have C=1).</li>
+  </ul>
+
+  <hr>
+
+  <h2>K-map — ASCII Templates (Gray order)</h2>
+
+  <h3>2-Var (A rows, B cols)</h3>
+  <pre class="ascii mono">
+      B
+      0   1
+    +---+---+
+A 0 | m0| m1|
+    +---+---+
+  1 | m2| m3|
+    +---+---+
+  (Row = A, Col = B)  Indices: 00→m0, 01→m1, 10→m2, 11→m3
+  </pre>
+
+  <h3>3-Var (A rows; BC cols = 00,01,11,10)</h3>
+  <pre class="ascii mono">
+          BC (Gray)
+          00  01  11  10
+        +---+---+---+---+
+A 0     | m0| m1| m3| m2|
+        +---+---+---+---+
+  1     | m4| m5| m7| m6|
+        +---+---+---+---+
+  Example: Σm(1,3,5,7) → mark the middle two columns (01,11) → F = C
+  </pre>
+
+  <h3>4-Var (AB rows = 00,01,11,10; CD cols = 00,01,11,10)</h3>
+  <pre class="ascii mono">
+                CD (Gray)
+                00  01  11  10
+             +---+---+---+---+
+AB 00 (00)   | m0| m1| m3| m2|
+             +---+---+---+---+
+   01 (01)   | m4| m5| m7| m6|
+             +---+---+---+---+
+   11 (11)   |m12|m13|m15|m14|
+             +---+---+---+---+
+   10 (10)   | m8| m9|m11|m10|
+             +---+---+---+---+
+  Tips: group 1,2,4,8… cells; wrap edges; remove variables that change within a group.
+  </pre>
+
+  <div class="note">
+    <b>Reading a term:</b> If a variable is constant (0 or 1) across the group, include it as <span class="mono">¬A</span> (for 0) or <span class="mono">A</span> (for 1).  
+    Variables that flip within the group are eliminated.
+  </div>
+
+  <hr>
+
+  <h2>Quine–McCluskey (Q–M) — Mini Example</h2>
+  <p>Example: <span class="mono">F(A,B,C) = Σm(1,3,5,7)</span></p>
+  <pre class="ascii mono">
+1) Group minterms by 1-count (A is MSB):
+   m1=001 (1 one)
+   m3=011 (2 ones)
+   m5=101 (2 ones)
+   m7=111 (3 ones)
+
+2) Combine adjacent (differs by 1 bit):
+   001 + 011 → 0-1   (covers m1,m3)
+   101 + 111 → 1-1   (covers m5,m7)
+   001 + 101 → -01   (covers m1,m5)
+   011 + 111 → -11   (covers m3,m7)
+
+3) Combine again where possible (same mask, differ by 1 bit):
+   0-1 + 1-1 → --1   (covers m1,m3,m5,m7)  ← prime implicant
+
+4) Essential primes & cover:
+   Single implicant "--1" covers all minterms ⇒ F = C
+   ( "--1" means A,B are don't-cares; C=1 )
+  </pre>
+
+  <p class="muted">PolyCode uses essentials + greedy cover; supports ≤ 8 vars (256 rows). For deterministic minterm order, specify vars explicitly (e.g., <span class="mono">A,B,C</span>).</p>
+
+  <hr>
+
+  <h2>Module Input Cheatsheet</h2>
+  <div class="note">
+    <b>Syntax:</b> <span class="mono">+</span> OR, <span class="mono">·/*/&</span> AND (implicit allowed), <span class="mono">¬/~/!</span> NOT, <span class="mono">^</span> XOR, <span class="mono">-></span>, <span class="mono"><-></span>.  
+    Examples: <span class="mono">A·B + ¬A·C</span>, <span class="mono">(X + Y)(¬X + Z)</span>, <span class="mono">A^B</span>
+  </div>
+</body>
+</html>
