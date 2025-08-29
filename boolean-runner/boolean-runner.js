@@ -338,7 +338,7 @@ function normalizeImplicitLetterAND(s, varsIn) {
 
 
 // ---- RPN -> AST (uses your existing tokens/op names) ----
-function rpnToAst(rpn){
+/*function rpnToAst(rpn){
   const st = [];
   for (const tk of rpn){
     if (tk.t === "const") st.push({type:"CONST", val: tk.v === "1"});
@@ -363,7 +363,169 @@ function rpnToAst(rpn){
   }
   if (st.length !== 1) throw new Error("netlist: bad expression");
   return st[0];
+}*/
+
+
+
+// === RPN -> AST (expand ->, <-> already handled in your toRPN stage) ===
+function rpnToAst(rpn){
+  const st = [];
+  for (const tk of rpn){
+    if (tk.t === "const") st.push({type:"CONST", val: tk.v === "1"});
+    else if (tk.t === "var") st.push({type:"VAR", name: tk.v});
+    else if (tk.t === "op"){
+      const op = (SYM_TO_OP.get(tk.v) || tk.v);
+      if (op === "NOT") { const a = st.pop(); st.push({type:"NOT", a}); }
+      else {
+        const b = st.pop(), a = st.pop();
+        if (op === "AND") st.push({type:"AND", a, b});
+        else if (op === "OR")  st.push({type:"OR",  a, b});
+        else if (op === "XOR") st.push({type:"XOR", a, b});
+        else if (tk.v === "->")  st.push({type:"OR", a:{type:"NOT", a}, b}); // a->b = ¬a + b
+        else if (tk.v === "<->") // a<->b = ab + ¬a¬b
+          st.push({type:"OR",
+            a:{type:"AND", a, b},
+            b:{type:"AND", a:{type:"NOT", a}, b:{type:"NOT", a:b}}
+          });
+        else throw new Error("netlist: unsupported op " + tk.v);
+      }
+    }
+  }
+  if (st.length !== 1) throw new Error("netlist: bad expression");
+  return st[0];
 }
+
+// Lower XOR to {AND,OR,NOT}: XOR(a,b) = (a·¬b) + (¬a·b)
+function lowerXor(ast){
+  if (!ast || typeof ast !== "object") return ast;
+  if (ast.type === "XOR"){
+    const a = lowerXor(ast.a), b = lowerXor(ast.b);
+    return { type:"OR",
+      a:{ type:"AND", a, b:{ type:"NOT", a:b } },
+      b:{ type:"AND", a:{ type:"NOT", a }, b }
+    };
+  }
+  if (ast.a) ast.a = lowerXor(ast.a);
+  if (ast.b) ast.b = lowerXor(ast.b);
+  return ast;
+}
+
+
+
+
+function astToNetlistStyled(ast, style="mixed"){
+  // Style can be: "mixed" | "nand" | "nor"
+  const gates = [];
+  const inputs = new Map(); // label -> id
+  let seq = 0;
+  const newId = p => `${p}${++seq}`;
+  const memo = new Map();
+
+  function inId(name){
+    if (!inputs.has(name)) inputs.set(name, `in_${name}`);
+    return inputs.get(name);
+  }
+
+  function emitMixed(node){
+    const key = "M:"+JSON.stringify(node);
+    if (memo.has(key)) return memo.get(key);
+
+    if (node.type === "VAR") return inId(node.name);
+    if (node.type === "CONST") return node.val ? "VCC_1" : "GND_0";
+    if (node.type === "NOT"){
+      const a = emitMixed(node.a);
+      const id = newId("n"); gates.push({ id, type:"NOT", ins:[a] }); memo.set(key,id); return id;
+    }
+    const a = emitMixed(node.a), b = emitMixed(node.b);
+    const id = newId("n");
+    gates.push({ id, type: node.type, ins:[a,b] }); memo.set(key,id); return id;
+  }
+
+  // NAND primitives only
+  function nand1(x){ // NOT via NAND
+    const id = newId("n"); gates.push({ id, type:"NAND", ins:[x,x] }); return id;
+  }
+  function emitNAND(node){
+    const key = "D:"+JSON.stringify(node);
+    if (memo.has(key)) return memo.get(key);
+
+    if (node.type === "VAR") return inId(node.name);
+    if (node.type === "CONST") return node.val ? "VCC_1" : "GND_0";
+
+    if (node.type === "NOT"){
+      const a = emitNAND(node.a);
+      const id = nand1(a); memo.set(key,id); return id;
+    }
+    // Ensure XOR lowered beforehand
+    const a = emitNAND(node.a), b = emitNAND(node.b);
+    let id;
+    if (node.type === "AND"){
+      const t = newId("n"); gates.push({ id:t, type:"NAND", ins:[a,b] });
+      id = nand1(t); // NOT(NAND) = AND
+    } else if (node.type === "OR"){
+      const na = nand1(a), nb = nand1(b);
+      id = newId("n"); gates.push({ id, type:"NAND", ins:[na, nb] }); // OR = NAND(¬a, ¬b)
+    } else {
+      throw new Error("NAND synth: unexpected node "+node.type);
+    }
+    memo.set(key,id); return id;
+  }
+
+  // NOR primitives only
+  function nor1(x){ // NOT via NOR
+    const id = newId("n"); gates.push({ id, type:"NOR", ins:[x,x] }); return id;
+  }
+  function emitNOR(node){
+    const key = "R:"+JSON.stringify(node);
+    if (memo.has(key)) return memo.get(key);
+
+    if (node.type === "VAR") return inId(node.name);
+    if (node.type === "CONST") return node.val ? "VCC_1" : "GND_0";
+
+    if (node.type === "NOT"){
+      const a = emitNOR(node.a);
+      const id = nor1(a); memo.set(key,id); return id;
+    }
+    const a = emitNOR(node.a), b = emitNOR(node.b);
+    let id;
+    if (node.type === "OR"){
+      const t = newId("n"); gates.push({ id:t, type:"NOR", ins:[a,b] });
+      id = nor1(t); // NOT(NOR) = OR
+    } else if (node.type === "AND"){
+      const na = nor1(a), nb = nor1(b);
+      id = newId("n"); gates.push({ id, type:"NOR", ins:[na, nb] }); // AND = NOR(¬a, ¬b)
+    } else {
+      throw new Error("NOR synth: unexpected node "+node.type);
+    }
+    memo.set(key,id); return id;
+  }
+
+  // Orchestrate
+  let core = ast;
+  if (style === "mixed"){
+    // keep XOR if present; draw as XOR gate
+    const out = emitMixed(core);
+    return {
+      inputs: [...inputs.entries()].map(([label,id]) => ({ id, label })),
+      gates, output: out, style
+    };
+  } else {
+    // lower to {AND,OR,NOT} first
+    core = lowerXor(JSON.parse(JSON.stringify(core)));
+    const out = (style === "nand") ? emitNAND(core) : emitNOR(core);
+    return {
+      inputs: [...inputs.entries()].map(([label,id]) => ({ id, label })),
+      gates, output: out, style
+    };
+  }
+}
+
+
+
+
+
+
+
 
 // ---- AST -> gate netlist (dedup simple repeats) ----
 function astToNetlist(ast){
@@ -568,18 +730,20 @@ app.post("/api/ba/kmap", (req,res)=>{
   }
 });
 
+
 app.post("/api/ba/netlist", (req, res) => {
   try {
-    const { expr, vars: varsIn } = req.body || {};
+    const { expr, vars: varsIn, style = "mixed" } = req.body || {};
     if (!expr) return res.status(400).json({ ok:false, error:"expr required" });
     const exprNorm = normalizeImplicitLetterAND(expr, varsIn);
     const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
     const ast = rpnToAst(rpn);
-    const net = astToNetlist(ast);
+    const net = astToNetlistStyled(ast, style);
     res.json({ ok:true, ...net });
   } catch (e) {
     res.status(400).json({ ok:false, error: String(e.message||e) });
   }
 });
+
 
 app.listen(PORT, ()=> console.log(`[boolean-runner] listening on :${PORT}`));
