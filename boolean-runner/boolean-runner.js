@@ -591,6 +591,23 @@ function astToNetlist(ast){
 
 
 
+function implicantsToPOS(imps, vars){
+  // Build F as product of sums from implicants that cover 0-cells.
+  if (imps.length === 0) return "1"; // no 0s ⇒ function is 1
+  const n = vars.length;
+  const sums = imps.map(p => {
+    const lits = [];
+    for (let i=0;i<n;i++){
+      const bitPos = n-1-i;
+      if ( (p.mask >> bitPos) & 1 ) continue;      // don't care for this implicant
+      const val = (p.bits >> bitPos) & 1;
+      // For POS (grouping 0s): val=0 ⇒ A ; val=1 ⇒ ¬A
+      lits.push(val ? `¬${vars[i]}` : vars[i]);
+    }
+    return `(${lits.join(" + ")})`;
+  });
+  return sums.join(" · ");
+}
 
 
 
@@ -859,30 +876,37 @@ const varsSorted = vars;
   }
 });
 
+//-app.post("/api/ba/kmap", (req,res)=>{
 app.post("/api/ba/kmap", (req,res)=>{
-  try{
-    const { vars, minterms = [], full = false, dontCares = [] } = req.body || {};
+   try{
+//-    const { vars, minterms=[] } = req.body || {};
+    const { vars, minterms = [], maxterms = [], mode = "ones", full = false, dontCares = [] } = req.body || {};
      if (!vars || !vars.length) return res.status(400).json({ ok:false, error:"vars required" });
+//-    const km = kmapGroups(minterms, vars);
+//-    return res.json({ ok:true, ...km });
+    const n = vars.length;
+    const cells = (mode === "zeros") ? maxterms : minterms; // cells to group on
 
-    //const km = kmapGroups(minterms, vars);
-    //return res.json({ ok:true, ...km });
+   // Basic dims + a light greedy grouping (existing helper)
+    const km = kmapGroups(cells, vars);
+    if (!full) return res.json({ ok:true, mode, ...km });
 
-const n = vars.length;
-    const km = kmapGroups(minterms, vars);  // existing quick shape (rows/cols)
-    if (!full){
-      return res.json({ ok:true, ...km });
-    }
-    // ALL valid power-of-two rectangles that cover only 1-cells
-    const allGroups = enumerateAllRectGroups(minterms, n);
-    // Minimal cover from Q–M
-    const chosen = qmMinimize(minterms, dontCares, n); // your existing function
+    // ALL valid rect groups on the chosen cells
+    const allGroups = enumerateAllRectGroups(cells, n);
+
+    // Minimal cover via Q–M
+    const chosen = qmMinimize(cells, dontCares, n);
     const solutionGroups = chosen.map(p => implicantToRect(p, n));
-    const simplified = implicantsToExpression(chosen, vars);
-    return res.json({ ok:true, ...km, allGroups, solutionGroups, simplified });
+    const simplified = (mode === "zeros")
+      ? implicantsToPOS(chosen, vars)
+      : implicantsToExpression(chosen, vars);
+
+    return res.json({ ok:true, mode, ...km, allGroups, solutionGroups, simplified });
    }catch(e){
      return res.status(400).json({ ok:false, error:String(e.message||e) });
    }
  });
+
 
 
 app.post("/api/ba/netlist", (req, res) => {
