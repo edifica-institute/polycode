@@ -2099,14 +2099,20 @@ html, body { height: 100%; }
 /* Pyplot button glow */
 #btnPlotPreview { position: relative; z-index: 1; }
 
+/* White glow for Pyplot button */
+@keyframes glowWhite {
+  0%, 100% { box-shadow: 0 0 0 rgba(255,255,255,0); }
+  50%      { box-shadow: 0 0 18px rgba(255,255,255,0.9), 
+                       0 0 28px rgba(255,255,255,0.6); }
+}
+
 #btnPlotPreview:not([disabled])::after {
   content: "";
   position: absolute;
   inset: -6px;
   border-radius: inherit;
   pointer-events: none;
-  animation:glow 1.2s ease-in-out infinite;
-  z-index: -1; /* keeps glow behind button */
+  animation: glowWhite 1.2s ease-in-out infinite; /* use white keyframes */
+  z-index: -1; /* glow sits behind the button */
 }
-
 
