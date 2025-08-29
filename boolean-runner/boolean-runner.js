@@ -877,35 +877,38 @@ const varsSorted = vars;
 });
 
 //-app.post("/api/ba/kmap", (req,res)=>{
-app.post("/api/ba/kmap", (req,res)=>{
-   try{
-//-    const { vars, minterms=[] } = req.body || {};
-    const { vars, minterms = [], maxterms = [], mode = "ones", full = false, dontCares = [] } = req.body || {};
-     if (!vars || !vars.length) return res.status(400).json({ ok:false, error:"vars required" });
-//-    const km = kmapGroups(minterms, vars);
-//-    return res.json({ ok:true, ...km });
-    const n = vars.length;
-    const cells = (mode === "zeros") ? maxterms : minterms; // cells to group on
+app.post("/api/ba/kmap", (req, res) => {
+  try {
+    const { vars, minterms = [], maxterms = [], mode = "ones", dontCares = [] } = req.body || {};
+    if (!vars || !vars.length) return res.status(400).json({ ok:false, error:"vars required" });
 
-   // Basic dims + a light greedy grouping (existing helper)
-    const km = kmapGroups(cells, vars);
-    if (!full) return res.json({ ok:true, mode, ...km });
+    // If POS mode was requested with maxterms, convert to minterms for the real function
+    let mins = minterms;
+    if (mode === "zeros" && maxterms.length) {
+      const U = Array.from({length: 1 << vars.length}, (_,i)=>i);
+      const bad = new Set([...maxterms, ...dontCares]);
+      mins = U.filter(i => !bad.has(i));
+    }
 
-    // ALL valid rect groups on the chosen cells
-    const allGroups = enumerateAllRectGroups(cells, n);
+    // (optional) your grouping hints:
+    const km = kmapGroups(mins, vars);
 
-    // Minimal cover via Q–M
-    const chosen = qmMinimize(cells, dontCares, n);
-    const solutionGroups = chosen.map(p => implicantToRect(p, n));
-    const simplified = (mode === "zeros")
-      ? implicantsToPOS(chosen, vars)
-      : implicantsToExpression(chosen, vars);
+    // *** Minimal expression via QM ***
+    const chosen = qmMinimize(mins, dontCares, vars.length);
+    const simplified = implicantsToExpression(chosen, vars);
 
-    return res.json({ ok:true, mode, ...km, allGroups, solutionGroups, simplified });
-   }catch(e){
-     return res.status(400).json({ ok:false, error:String(e.message||e) });
-   }
- });
+    return res.json({
+      ok: true,
+      mode,
+      solutionGroups: km.groups,     // or map 'chosen' to rectangles if you prefer
+      allGroups: km.groups,          // (keep your existing payload shape)
+      simplified                      // << use this on the frontend title
+    });
+  } catch (e) {
+    res.status(400).json({ ok:false, error:String(e.message||e) });
+  }
+});
+
 
 
 
