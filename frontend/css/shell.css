@@ -2105,13 +2105,8 @@ html, body { height: 100%; }
   inset: -6px;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow: 0 0 14px 6px rgba(100,200,255,.7);
-  animation: glowIdle 1.4s ease-in-out infinite,
+  animation:glow 1.2s ease-in-out infinite;
   z-index: -1; /* keeps glow behind button */
 }
 
-@keyframes pulseGlow {
-  0%   { box-shadow: 0 0 8px 4px rgba(100,200,255,.6); }
-  50%  { box-shadow: 0 0 18px 8px rgba(100,200,255,.9); }
-  100% { box-shadow: 0 0 8px 4px rgba(100,200,255,.6); }
-}
+
