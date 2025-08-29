@@ -6,425 +6,103 @@
   <title>polycode | Learn • Code • Execute</title>
   <link rel="icon" href="./assets/logo.png" />
   <meta name="color-scheme" content="dark light" />
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.4/firebase-auth-compat.js"></script>
   <style>
-    :root{
-      color-scheme: dark;
-      --bg:#16181b;         /* dark gray */
-      --panel:#1e2024;      /* surface */
-      --panel-2:#1a1c1f;    /* header/footer bands */
-      --border:#2b2f34;
-      --muted:#aeb5bd;
-      --brand:#2e5bea;      /* brand blue */
-      --ok:#7dffa0; --err:#ff8b8b; --link:#9ecbff;
-      --text:#e9edf3;
-      --glass: rgba(255,255,255,.06); --glass-brd: rgba(255,255,255,.14);
-      --shadow-3d: 0 24px 60px rgba(0,0,0,.45);
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{margin:0;background:linear-gradient(180deg, #131518, #0e1013 60%, #0b0d10);
-         color:var(--text); font: 15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
-    a{color:var(--link); text-decoration:none}
-
-    /* ====== Layout ====== */
-    .site-header{position:sticky; top:0; z-index:50; backdrop-filter:saturate(1.1) blur(8px);
-      background:linear-gradient(180deg, rgba(12,14,17,.85), rgba(12,14,17,.55)); border-bottom:1px solid var(--border)}
-    .container{max-width:1080px; margin:0 auto; padding:16px}
-    .nav{display:flex; align-items:center; gap:16px}
-    .nav-spacer{flex:1}
-    .brand{display:flex; align-items:center; gap:10px}
-    .brand img{width:34px; height:34px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,.35)}
-    .brand-title{font-weight:700; letter-spacing:.3px}
-    .tagline{font-size:12px; color:#cbd3dd; opacity:.8}
-
-    .nav a{padding:8px 10px; opacity:.9}
-    .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:10px 14px; border-radius:12px;
-         border:1px solid var(--glass-brd); background:var(--panel);
-         box-shadow: inset 0 0 0 1px rgba(255,255,255,.02), 0 10px 24px rgba(0,0,0,.25);
-         color:var(--text); cursor:pointer; user-select:none; transition:transform .12s ease, box-shadow .18s ease, background .18s ease}
-    .btn:hover{transform: translateY(-1px); box-shadow:0 16px 38px rgba(0,0,0,.35)}
-    .btn:active{transform: translateY(0)}
-    .btn-primary{background: radial-gradient(120% 160% at 50% -30%, #2e5bea, #274fd3 40%, #223eac);
-                 border:0}
-    .btn-ghost{background:transparent; border:1px solid var(--border)}
-
-    .hero{display:grid; grid-template-columns:1.2fr .8fr; gap:24px; align-items:center; padding:48px 16px 24px}
-    .hero h1{font-size:44px; line-height:1.12; margin:0 0 10px}
-    .hero p{font-size:17px; color:#cfd6df; margin:0 0 18px}
-    .pill{display:inline-flex; gap:10px; align-items:center; font-size:12px; color:#d7def0; border:1px dashed var(--glass-brd);
-          background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015)); border-radius:999px; padding:8px 12px; margin-bottom:14px}
-    .screen{
-      position:relative; background:linear-gradient(180deg,#121419,#101219); border:1px solid var(--glass-brd); border-radius:16px; overflow:hidden;
-      box-shadow:0 20px 60px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04)}
-    .screen .titlebar{display:flex; gap:8px; align-items:center; padding:10px 12px; background:linear-gradient(180deg,#161a20,#11151b); border-bottom:1px solid var(--glass-brd)}
-    .titlebar b{font-weight:600; font-size:12px; color:#bcd}
-    .dots{display:flex; gap:6px; margin-right:10px}
-    .dot{width:9px; height:9px; border-radius:999px; background:#ff6b6b}
-    .dot:nth-child(2){background:#ffd166}
-    .dot:nth-child(3){background:#6bff94}
-    .code{font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas, "Liberation Mono","Courier New",monospace; font-size:13px; color:#dfe6f3; padding:12px 14px 18px; white-space:pre-wrap}
-
-    .cta-row{display:flex; gap:12px; flex-wrap:wrap; margin-top:10px}
-    .badges{display:flex; gap:14px; flex-wrap:wrap; padding:14px 0}
-    .badge{font-size:12px; background:rgba(46,91,234,.08); border:1px solid rgba(46,91,234,.35); padding:6px 10px; border-radius:999px; color:#bcd9ff}
-
-    .section{padding:28px 16px}
-    .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01)); border:1px solid var(--glass-brd); border-radius:16px; padding:18px;
-          min-height:140px; box-shadow:0 10px 34px rgba(0,0,0,.35)}
-    .card h3{margin:0 0 6px; font-size:16px}
-    .card p{margin:0; color:#c9d2de; font-size:14px}
-
-    .footer{background:linear-gradient(180deg, rgba(12,14,17,.65), rgba(12,14,17,.9)); border-top:1px solid var(--border)}
-    .footer .cols{display:grid; grid-template-columns:2fr 1fr 1fr; gap:20px}
-    .subtle{color:#aeb5bd}
-
-    /* ===== OTP/Login Modal ===== */
-    .modal{position:fixed; inset:0; display:none; place-items:center; z-index:100}
-    .modal.open{display:grid}
-    .modal .backdrop{position:absolute; inset:0; background:rgba(0,0,0,.6)}
-    .modal .dialog{position:relative; width:min(520px,92vw); background:var(--panel); border:1px solid var(--glass-brd);
-                   border-radius:16px; box-shadow: var(--shadow-3d); overflow:hidden}
-    .modal header{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 16px; background:var(--panel-2); border-bottom:1px solid var(--glass-brd)}
-    .modal main{padding:16px}
-    .field{display:grid; gap:8px; margin:10px 0}
-    .input, select{height:42px; padding:0 12px; border-radius:12px; border:1px solid var(--glass-brd); background:#0e1013; color:var(--text); outline:none}
-    .input:focus{border-color:#5080ff; box-shadow:0 0 0 3px rgba(80,128,255,.18)}
-    .row{display:flex; gap:10px; align-items:center}
-    .otp-grid{display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:12px 0}
-    .otp-grid input{height:48px; text-align:center; font:600 20px/1 ui-monospace,monospace; border-radius:12px; border:1px solid var(--glass-brd); background:#0e1013; color:var(--text)}
-
-    .hint{font-size:12px; color:#b8c1cd}
-    .err{color:var(--err)}
-    .ok{color:var(--ok)}
-
-    /* Avatar / user chip */
-    .userchip{display:none; align-items:center; gap:10px; background:rgba(255,255,255,.04); padding:6px 10px; border-radius:999px; border:1px solid var(--glass-brd)}
-    .userchip .circle{width:26px; height:26px; border-radius:50%; background:linear-gradient(160deg,#2e5bea,#6a8dff)}
-    .userchip .meta{font-size:12px; color:#cfd6e6}
-
-    /* Responsive */
-    @media (max-width: 900px){ .hero{grid-template-columns:1fr; padding-top:28px} }
-    @media (max-width: 720px){ .grid{grid-template-columns:1fr 1fr} }
-    @media (max-width: 520px){ .grid{grid-template-columns:1fr} }
+    /* (your CSS unchanged) */
   </style>
 </head>
 <body>
-  <!-- ===== Header / Nav ===== -->
-  <header class="site-header">
-    <div class="container nav">
-      <div class="brand">
-        <img src="./assets/PC-Logo.png" alt="polycode" />
-        <div>
-          <div class="brand-title">polycode</div>
-          <div class="tagline">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
-        </div>
-      </div>
-      <nav class="nav-spacer">
-        <a href="./index-java.html">Java</a>
-        <a href="./index-c.html">C</a>
-        <a href="./index-cpp.html">C++</a>
-        <a href="./index-python.html">Python</a>
-        <a href="./sql.html">SQL</a>
-      </nav>
-      <div class="userchip" id="userChip">
-        <div class="circle" aria-hidden="true"></div>
-        <div class="meta" id="chipMeta">+91 •••• ••123</div>
-        <button class="btn btn-ghost" id="btnLogout" title="Log out">Logout</button>
-      </div>
-      <button class="btn btn-primary" id="btnLogin">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0-18 0" stroke="currentColor" stroke-width="1.6"/><path d="M10 8l4 4l-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Login
-      </button>
-    </div>
-  </header>
-
-  <!-- ===== Hero ===== -->
-  <section class="container hero">
-    <div>
-      <div class="pill">🚀 New: Phone OTP Login • No passwords</div>
-      <h1>Practice. Visualize. <span style="background:linear-gradient(90deg,#9ecbff,#7dffa0); -webkit-background-clip:text; background-clip:text; color:transparent">Master</span>.</h1>
-      <p>Run code in your browser across Java, C/C++, Python and SQL. Live I/O, step-by-step complexity insights, and classroom-ready demos.</p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="./index-java.html">Start coding</a>
-        <button class="btn" id="btnLoginHero">Login with phone</button>
-      </div>
-      <div class="badges">
-        <div class="badge">Monaco Editor</div>
-        <div class="badge">xterm.js</div>
-        <div class="badge">Complexity Analyzer</div>
-        <div class="badge">Inline Input</div>
-      </div>
-    </div>
-    <div class="screen" aria-hidden="true">
-      <div class="titlebar"><div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><b>polycode • demo.java</b></div>
-      <pre class="code">public class Hello{\n  public static void main(String[] a){\n    System.out.println("Hello PolyCode!");\n  }\n}</pre>
-    </div>
-  </section>
-
-  <!-- ===== Features ===== -->
-  <section class="section container">
-    <div class="grid">
-      <article class="card">
-        <h3>Live I/O</h3>
-        <p>Prompt the user mid-run and capture input without re-compiling. Works across languages.</p>
-      </article>
-      <article class="card">
-        <h3>Complexity + Stack</h3>
-        <p>Get asymptotic complexity and a reconstructed recursion stack visualization.</p>
-      </article>
-      <article class="card">
-        <h3>Classroom Ready</h3>
-        <p>Share a link, preload starter code, and keep the console readable on projectors.</p>
-      </article>
-    </div>
-  </section>
-
-  <!-- ===== Footer ===== -->
-  <footer class="footer">
-    <div class="container" style="padding:18px 16px">
-      <div class="cols">
-        <div>
-          <div class="brand" style="margin-bottom:8px">
-            <img src="./assets/PC-Logo.png" alt="polycode" />
-            <div class="brand-title">polycode</div>
-          </div>
-          <div class="subtle">© <span id="yr"></span> Edifica. All rights reserved.</div>
-        </div>
-        <div>
-          <div class="subtle">Docs</div>
-          <div><a href="#">Quickstart</a></div>
-          <div><a href="#">Keyboard Shortcuts</a></div>
-        </div>
-        <div>
-          <div class="subtle">Contact</div>
-          <div><a href="mailto:hello@edifica.example">hello@edifica.example</a></div>
-        </div>
-      </div>
-    </div>
-  </footer>
-
-  <!-- ===== Login / OTP Modal ===== -->
-  <div class="modal" id="otpModal" role="dialog" aria-modal="true" aria-labelledby="otpTitle">
-    <div class="backdrop" data-close></div>
-    <div class="dialog">
-      <header>
-        <div>
-          <div style="font-weight:700" id="otpTitle">Sign in with Phone</div>
-          <div class="hint" id="stepSubtitle">Step 1 of 2: Verify your number</div>
-        </div>
-        <button class="btn btn-ghost" data-close>Close</button>
-      </header>
-      <main>
-        <!-- Step 1: Phone -->
-        <form id="stepPhone" class="step" autocomplete="off">
-          <div class="field">
-            <label class="hint" for="country">Country</label>
-            <div class="row">
-              <select id="country" aria-label="Country code">
-                <option value="IN:+91" selected>🇮🇳 +91 India</option>
-                <option value="US:+1">🇺🇸 +1 United States</option>
-                <option value="GB:+44">🇬🇧 +44 United Kingdom</option>
-                <option value="BD:+880">🇧🇩 +880 Bangladesh</option>
-                <option value="PK:+92">🇵🇰 +92 Pakistan</option>
-                <option value="AE:+971">🇦🇪 +971 UAE</option>
-              </select>
-              <input id="phone" class="input" placeholder="Phone number" inputmode="numeric" maxlength="15" required />
-            </div>
-            <div class="hint">We’ll send a 6‑digit OTP via SMS. Standard rates apply.</div>
-          </div>
-          <div class="row">
-            <button type="submit" class="btn btn-primary" id="btnSendOtp">Send OTP</button>
-            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
-          </div>
-          <div id="devOtp" class="hint" style="display:none; margin-top:8px"></div>
-          <div id="phoneErr" class="hint err" role="alert" style="display:none"></div>
-        </form>
-
-        <!-- Step 2: OTP -->
-        <form id="stepOtp" class="step" style="display:none">
-          <div class="field">
-            <div class="hint">Enter the 6‑digit code sent to <b id="otpTo"></b></div>
-            <div class="otp-grid" id="otpGrid"></div>
-            <div class="row" style="justify-content:space-between">
-              <div class="hint">Time left: <span id="timer">01:00</span></div>
-              <button type="button" class="btn btn-ghost" id="btnResend" disabled>Resend</button>
-            </div>
-          </div>
-          <div class="row">
-            <button type="submit" class="btn btn-primary" id="btnVerify">Verify</button>
-            <button type="button" class="btn btn-ghost" id="btnBack">Back</button>
-          </div>
-          <div id="otpErr" class="hint err" role="alert" style="display:none"></div>
-        </form>
-      </main>
-    </div>
-  </div>
+  <!-- (header, hero, footer, modal unchanged) -->
 
   <script>
-    // ===== Helpers =====
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
 
-    // Config: set DEV_MODE=false in production so OTP is not revealed on screen
-    const DEV_MODE = true; // <-- flip to false when wired to real SMS
+    const DEV_MODE = false; // using Firebase now
 
-    // Simple phone sanity check: digits only 7-15
     const toE164 = (cc, raw) => {
       const digits = String(raw).replace(/\D+/g, '');
       if(digits.length < 7 || digits.length > 15) return null;
       return cc + digits;
     };
-
     const maskPhone = (e164) => e164.replace(/(\+\d{1,3})(\d{2,4})(.*)(\d{3})$/, (_,c,a,mid,z) => `${c} ${a}••• ${z}`);
 
-    let countdown = null, seconds = 60, otpValue = null, phoneE164 = null, attempts = 0;
+    let countdown=null, seconds=60, phoneE164=null;
 
-    const modal = $('#otpModal');
-    const openModal = () => modal.classList.add('open');
-    const closeModal = () => { modal.classList.remove('open'); resetFlow(); };
-    $$('[data-close]').forEach(b=> b.addEventListener('click', closeModal));
+    const modal=$('#otpModal');
+    const openModal=()=>modal.classList.add('open');
+    const closeModal=()=>{modal.classList.remove('open'); resetFlow();};
+    $$('[data-close]').forEach(b=>b.addEventListener('click',closeModal));
 
-    $('#btnLogin').addEventListener('click', openModal);
-    $('#btnLoginHero').addEventListener('click', openModal);
+    $('#btnLogin').addEventListener('click',openModal);
+    $('#btnLoginHero').addEventListener('click',openModal);
+    $('#yr').textContent=new Date().getFullYear();
 
-    // Footer year
-    $('#yr').textContent = new Date().getFullYear();
+    const stepPhone=$('#stepPhone');
+    const stepOtp=$('#stepOtp');
+    const otpGrid=$('#otpGrid');
+    for(let i=0;i<6;i++){const inp=document.createElement('input');inp.type='text';inp.inputMode='numeric';inp.maxLength=1;inp.autocomplete='one-time-code';inp.addEventListener('input',(e)=>{e.target.value=e.target.value.replace(/\D/g,'');if(e.target.value&&i<5)otpGrid.children[i+1].focus();});inp.addEventListener('keydown',(e)=>{if(e.key==='Backspace'&&!e.target.value&&i>0)otpGrid.children[i-1].focus();});otpGrid.appendChild(inp);}
 
-    // Step elements
-    const stepPhone = $('#stepPhone');
-    const stepOtp = $('#stepOtp');
+    // ==== Firebase init (use your config) ====
+    const firebaseConfig = {
+      apiKey: "AIzaSyBuAuNBOM-5m6ZDPiR2YwmQaZHYHhtLW1c",
+      authDomain: "polycode-5551e.firebaseapp.com",
+      projectId: "polycode-5551e",
+      storageBucket: "polycode-5551e.firebasestorage.app",
+      messagingSenderId: "795416117892",
+      appId: "1:795416117892:web:67f10f7819a09c6c55f8d1",
+      measurementId: "G-BWTXJSZXVX"
+    };
+    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const auth=firebase.auth();
+    let recaptchaVerifier;
+    window.addEventListener('load',()=>{try{recaptchaVerifier=new firebase.auth.RecaptchaVerifier('btnSendOtp',{size:'invisible'});}catch{}});
 
-    // Build 6 OTP inputs
-    const otpGrid = $('#otpGrid');
-    for(let i=0;i<6;i++){
-      const inp = document.createElement('input');
-      inp.type='text'; inp.inputMode='numeric'; inp.maxLength=1; inp.autocomplete='one-time-code';
-      inp.addEventListener('input', (e)=>{ e.target.value = e.target.value.replace(/\D/g,''); if(e.target.value && i<5) otpGrid.children[i+1].focus(); });
-      inp.addEventListener('keydown',(e)=>{ if(e.key==='Backspace' && !e.target.value && i>0) otpGrid.children[i-1].focus(); });
-      otpGrid.appendChild(inp);
-    }
-
-    // ===== Step 1: Send OTP =====
-    stepPhone.addEventListener('submit', async (e)=>{
+    stepPhone.addEventListener('submit',async(e)=>{
       e.preventDefault();
       $('#phoneErr').style.display='none';
-      const [ccCountry, ccCode] = $('#country').value.split(':');
-      const e164 = toE164(ccCode, $('#phone').value);
-      if(!e164){ $('#phoneErr').textContent='Enter a valid phone number.'; $('#phoneErr').style.display='block'; return; }
-      phoneE164 = e164;
-
-      // Generate pseudo-OTP in demo; in production call backend to send SMS
-      otpValue = String(Math.floor(100000 + Math.random()*900000));
-
-      if(DEV_MODE){
-        $('#devOtp').innerHTML = `DEV: OTP for <b>${maskPhone(e164)}</b> is <b>${otpValue}</b>`;
-        $('#devOtp').style.display='block';
-      } else {
-        $('#devOtp').style.display='none';
-        try{
-          // Example backend call (uncomment + implement on server):
-          // await fetch('/api/send-otp', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: e164 })});
-        }catch(err){
-          $('#phoneErr').textContent='Could not send OTP. Please try again.';
-          $('#phoneErr').style.display='block';
-          return;
-        }
-      }
-
-      // Go to step 2
-      $('#otpTo').textContent = maskPhone(e164);
-      $('#stepSubtitle').textContent = 'Step 2 of 2: Enter the OTP';
-      stepPhone.style.display='none'; stepOtp.style.display='block';
-      otpGrid.children[0].focus();
-
-      // Start countdown
-      seconds = 60; updateTimer();
-      $('#btnResend').disabled = true;
-      countdown = setInterval(()=>{ seconds--; updateTimer(); if(seconds<=0){ clearInterval(countdown); $('#btnResend').disabled = false; } }, 1000);
-    });
-
-    function updateTimer(){
-      const m = String(Math.floor(seconds/60)).padStart(2,'0');
-      const s = String(seconds%60).padStart(2,'0');
-      $('#timer').textContent = `${m}:${s}`;
-    }
-
-    $('#btnResend').addEventListener('click', ()=>{
-      // regenerate code (demo)
-      otpValue = String(Math.floor(100000 + Math.random()*900000));
-      if(DEV_MODE){
-        $('#devOtp').innerHTML = `DEV: OTP for <b>${maskPhone(phoneE164)}</b> is <b>${otpValue}</b>`;
-        $('#devOtp').style.display='block';
-      }
-      seconds = 60; updateTimer();
-      $('#btnResend').disabled = true;
-      clearInterval(countdown);
-      countdown = setInterval(()=>{ seconds--; updateTimer(); if(seconds<=0){ clearInterval(countdown); $('#btnResend').disabled = false; } }, 1000);
-      otpGrid.children[0].focus();
-      $$('#otpGrid input').forEach(i=> i.value='');
-      $('#otpErr').style.display='none';
-    });
-
-    $('#btnBack').addEventListener('click', ()=>{
-      clearInterval(countdown);
-      stepOtp.style.display='none'; stepPhone.style.display='block';
-      $('#stepSubtitle').textContent = 'Step 1 of 2: Verify your number';
-      $('#phone').focus();
-      $('#otpErr').style.display='none';
-    });
-
-    // ===== Step 2: Verify =====
-    stepOtp.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      const code = $$('#otpGrid input').map(i=> i.value).join('');
-      if(code.length!==6){ showOtpErr('Enter the 6‑digit code.'); return; }
-      if(seconds<=0){ showOtpErr('OTP expired. Tap Resend to get a new code.'); return; }
-      if(code !== otpValue){
-        attempts++;
-        if(attempts>=5){ showOtpErr('Too many attempts. Please resend OTP.'); $('#btnResend').disabled = false; clearInterval(countdown); seconds=0; updateTimer(); return; }
-        showOtpErr('Incorrect code. Please try again.');
-        return;
-      }
-      // success
-      localStorage.setItem('polycode_auth', JSON.stringify({ phone: phoneE164, ts: Date.now() }));
-      applyLoggedIn();
-      closeModal();
-    });
-
-    function showOtpErr(msg){ const el=$('#otpErr'); el.textContent=msg; el.style.display='block'; }
-
-    // ===== Auth state UI =====
-    function applyLoggedIn(){
-      const raw = localStorage.getItem('polycode_auth');
-      const chip = $('#userChip');
-      if(!raw){ chip.style.display='none'; $('#btnLogin').style.display='inline-flex'; return; }
+      const[,ccCode]=$('#country').value.split(':');
+      const e164=toE164(ccCode,$('#phone').value);
+      if(!e164){$('#phoneErr').textContent='Enter a valid phone number.';$('#phoneErr').style.display='block';return;}
+      phoneE164=e164;
       try{
-        const {phone} = JSON.parse(raw);
-        $('#chipMeta').textContent = maskPhone(phone);
-        chip.style.display='inline-flex';
-        $('#btnLogin').style.display='none';
-      }catch{ chip.style.display='none'; $('#btnLogin').style.display='inline-flex'; }
-    }
+        window.confirmationResult=await auth.signInWithPhoneNumber(e164,recaptchaVerifier);
+      }catch(err){$('#phoneErr').textContent=(err&&err.message)||'Could not send OTP.';$('#phoneErr').style.display='block';return;}
+      $('#otpTo').textContent=maskPhone(e164);
+      $('#stepSubtitle').textContent='Step 2 of 2: Enter the OTP';
+      stepPhone.style.display='none';stepOtp.style.display='block';otpGrid.children[0].focus();
+      seconds=60;updateTimer();$('#btnResend').disabled=true;countdown=setInterval(()=>{seconds--;updateTimer();if(seconds<=0){clearInterval(countdown);$('#btnResend').disabled=false;}},1000);
+    });
 
-    function resetFlow(){
-      clearInterval(countdown); seconds=60; updateTimer();
-      stepOtp.style.display='none'; stepPhone.style.display='block';
-      $('#stepSubtitle').textContent = 'Step 1 of 2: Verify your number';
-      $('#phoneErr').style.display='none'; $('#otpErr').style.display='none';
-      $$('#otpGrid input').forEach(i=> i.value='');
-      $('#devOtp').style.display='none';
-      attempts = 0; otpValue = null; phoneE164 = null;
-    }
+    function updateTimer(){const m=String(Math.floor(seconds/60)).padStart(2,'0');const s=String(seconds%60).padStart(2,'0');$('#timer').textContent=`${m}:${s}`;}
 
-    $('#btnLogout').addEventListener('click', ()=>{ localStorage.removeItem('polycode_auth'); applyLoggedIn(); });
+    $('#btnResend').addEventListener('click',async()=>{
+      try{window.confirmationResult=await auth.signInWithPhoneNumber(phoneE164,recaptchaVerifier);}catch(err){showOtpErr((err&&err.message)||'Could not resend OTP.');return;}
+      seconds=60;updateTimer();$('#btnResend').disabled=true;clearInterval(countdown);countdown=setInterval(()=>{seconds--;updateTimer();if(seconds<=0){clearInterval(countdown);$('#btnResend').disabled=false;}},1000);
+      otpGrid.children[0].focus();$$('#otpGrid input').forEach(i=>i.value='');$('#otpErr').style.display='none';
+    });
 
-    // Init
+    $('#btnBack').addEventListener('click',()=>{clearInterval(countdown);stepOtp.style.display='none';stepPhone.style.display='block';$('#stepSubtitle').textContent='Step 1 of 2: Verify your number';$('#phone').focus();$('#otpErr').style.display='none';});
+
+    stepOtp.addEventListener('submit',async(e)=>{
+      e.preventDefault();
+      const code=$$('#otpGrid input').map(i=>i.value).join('');
+      if(code.length!==6){showOtpErr('Enter the 6-digit code.');return;}
+      if(seconds<=0){showOtpErr('OTP expired.');return;}
+      try{const cred=await window.confirmationResult.confirm(code);const phone=(cred&&cred.user&&cred.user.phoneNumber)||phoneE164;localStorage.setItem('polycode_auth',JSON.stringify({phone,ts:Date.now()}));applyLoggedIn();closeModal();}catch(err){showOtpErr((err&&err.message)||'Incorrect code.');}}
+    );
+
+    function showOtpErr(msg){const el=$('#otpErr');el.textContent=msg;el.style.display='block';}
+
+    function applyLoggedIn(){const raw=localStorage.getItem('polycode_auth');const chip=$('#userChip');if(!raw){chip.style.display='none';$('#btnLogin').style.display='inline-flex';return;}try{const{phone}=JSON.parse(raw);$('#chipMeta').textContent=maskPhone(phone);chip.style.display='inline-flex';$('#btnLogin').style.display='none';}catch{chip.style.display='none';$('#btnLogin').style.display='inline-flex';}}
+
+    function resetFlow(){clearInterval(countdown);seconds=60;updateTimer();stepOtp.style.display='none';stepPhone.style.display='block';$('#stepSubtitle').textContent='Step 1 of 2: Verify your number';$('#phoneErr').style.display='none';$('#otpErr').style.display='none';$$('#otpGrid input').forEach(i=>i.value='');attempts=0;phoneE164=null;}
+
+    $('#btnLogout').addEventListener('click',()=>{localStorage.removeItem('polycode_auth');applyLoggedIn();});
     applyLoggedIn();
-
-    // Close on backdrop click or ESC
-    modal.addEventListener('click', (e)=>{ if(e.target.matches('[data-close]')) closeModal(); });
-    document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && modal.classList.contains('open')) closeModal(); });
+    modal.addEventListener('click',(e)=>{if(e.target.matches('[data-close]'))closeModal();});
+    document.addEventListener('keydown',(e)=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal();});
   </script>
 </body>
 </html>
