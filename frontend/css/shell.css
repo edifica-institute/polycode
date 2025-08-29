@@ -2130,3 +2130,134 @@ html, body { height: 100%; }
   animation: glowWhite 1.2s ease-in-out infinite;
   z-index: -1;
 }
+
+
+
+/* =========================
+   MOBILE RESCUE OVERRIDES
+   (append at very end)
+   ========================= */
+
+/* 0) Hygiene: avoid duplicate header rules fighting on mobile */
+@media (max-width: 1024px){
+  /* kill earlier header grid overrides so this block wins */
+  .site-header{
+    all: unset;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--glass);
+    border-bottom: 1px solid var(--glass-brd);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  /* center brand lockup */
+  .brand-wrap{ grid-column: 2; justify-self: center; }
+  .brand-grid{ column-gap: 10px; row-gap: 2px; }
+  .brand-logo{
+    width: clamp(36px, 10vw, 48px);
+    height: clamp(36px, 10vw, 48px);
+  }
+  .brand-title2{
+    font-size: clamp(18px, 4.8vw, 24px);
+    line-height: 1.05;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  .brand-tagline2{
+    font-size: clamp(11px, 3.6vw, 13px);
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .site-nav{
+    grid-column: 3;
+    justify-self: end;
+    display: flex;
+    gap: 12px;
+  }
+}
+
+/* 1) Layout: stack panels vertically, remove resizers on touch */
+@media (max-width: 1024px){
+  .stage{ padding: 8px 12px; }
+  .app{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+  .v-resize{ display: none !important; }
+
+  /* left panel collapses by default; toggle via your chevron */
+  .left.panel{ display: none; }
+  .app:not(.collapsed-left) .left.panel{ display: block; }
+
+  /* consistent heads/controls sizing */
+  .pane-head{ padding: 8px 10px; min-height: 40px; }
+  .btn{ width: 40px; height: 40px; }
+  .select{ font-size: 16px; }
+
+  /* make panels own their scroll, not the page */
+  .panel, .pane-body, #editor, #output{ min-height: 0 !important; }
+  #editor{ min-height: 46svh; flex: 1 1 0; }
+  #output{ min-height: 36svh; flex: 1 1 0; overflow: auto !important; }
+}
+
+/* 2) Console/output: single scroll container, no nested scrollers */
+@media (max-width: 1024px){
+  #output{
+    background: transparent !important;
+    overflow: auto !important;         /* one scroller */
+    -webkit-overflow-scrolling: touch; /* smooth */
+    padding: 10px !important;
+  }
+  #jconsole{
+    display: inline-block;
+    min-width: 100%;
+    white-space: pre;                   /* keep monospace lines */
+    overflow: visible !important;       /* no inner scrollbar */
+  }
+}
+
+/* 3) Footer: never crop icons or wrap awkwardly */
+@media (max-width: 640px){
+  .site-footer{
+    background: var(--glass);
+    border-top: 1px solid var(--glass-brd);
+    padding: 12px 14px !important;
+  }
+  .footer-grid{
+    grid-template-columns: 1fr;
+    row-gap: 10px;
+    align-items: center;
+  }
+  .footer-right{ justify-content: flex-start; flex-wrap: wrap; gap: 12px; }
+  .footer-center{ justify-content: flex-start; gap: 8px; }
+  .footer-center .social{ width: 28px; height: 28px; }
+}
+
+/* 4) Kill conflicting/duplicate button animations on mobile */
+@media (max-width: 1024px){
+  .btn.idle-attract,
+  .btn.idle-attract:disabled{ animation: none !important; box-shadow: none !important; }
+  /* keep ONLY state-based glow when active */
+  .btn:not(.is-running):not(.is-resetting):not(.attn){ animation: none !important; box-shadow: none !important; }
+}
+
+/* 5) Safety: prevent horizontal jiggle & ensure children can shrink */
+@media (max-width: 1024px){
+  html, body{ overflow-x: hidden; }
+  #leftPanel, #centerPanel, #rightPanel,
+  .panel, .pane-body, #editor, #output, #jconsole{ min-width: 0 !important; }
+}
+
+/* 6) Optional: reduce sticky+blur jank on very low-end devices */
+@media (max-width: 640px) and (prefers-reduced-transparency: reduce){
+  .site-header{ backdrop-filter: none; background: var(--panel-2); }
+}
+
