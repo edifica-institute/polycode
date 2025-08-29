@@ -15,21 +15,31 @@ const app = express();
 
 // ---- CORS allowlist ----
 const ALLOW_ORIGINS = [
+ "https://www.polycode.in",
+  "https://polycode.in",
   "https://polycode.pages.dev",
   "https://edifica-polycode.pages.dev",
   "https://polycode.cc",
-  "http://localhost:3000",   // optional for local dev
+  "http://localhost:3000",   // dev
 ];
-app.use(cors({
+
+
+const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // server-to-server / curl
-    cb(null, ALLOW_ORIGINS.includes(origin));
+    if (!origin) return cb(null, true); // curl / health checks
+    if (ALLOW_ORIGINS.includes(origin)) return cb(null, true);
+    return cb(new Error("CORS: origin not allowed"));
   },
   methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
+  allowedHeaders: ["Content-Type", "X-Requested-With"],
   maxAge: 86400,
-}));
-app.options("*", cors());
+};
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));  // use SAME options for preflight
+
+
+
+
 app.use(express.json({ limit: "1mb" }));
 
 // ---- Health check ----
