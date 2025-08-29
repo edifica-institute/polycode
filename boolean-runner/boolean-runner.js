@@ -592,23 +592,22 @@ function astToNetlist(ast){
 
 
 function implicantsToPOS(imps, vars){
-  // Build F as product of sums from implicants that cover 0-cells.
-  if (imps.length === 0) return "1"; // no 0s ⇒ function is 1
+  if (imps.length===0) return "1"; // no zeros ⇒ f=1
   const n = vars.length;
-  const sums = imps.map(p => {
-    const lits = [];
+  const clauses = imps.map(p=>{
+    const lits=[];
     for (let i=0;i<n;i++){
       const bitPos = n-1-i;
-      if ( (p.mask >> bitPos) & 1 ) continue;      // don't care for this implicant
-      const val = (p.bits >> bitPos) & 1;
-      // For POS (grouping 0s): val=0 ⇒ A ; val=1 ⇒ ¬A
-      lits.push(val ? `¬${vars[i]}` : vars[i]);
+      if ((p.mask>>bitPos) & 1) continue;      // don't care
+      const val = (p.bits>>bitPos) & 1;
+      const v = vars[i];
+      // For zeros: 0 ⇒ literal v ; 1 ⇒ literal ¬v
+      lits.push(val ? `¬${v}` : v);
     }
     return `(${lits.join(" + ")})`;
   });
-  return sums.join(" · ");
+  return clauses.join(" · ");
 }
-
 
 
 
@@ -876,36 +875,40 @@ const varsSorted = vars;
   }
 });
 
-//-app.post("/api/ba/kmap", (req,res)=>{
-app.post("/api/ba/kmap", (req, res) => {
-  try {
-    const { vars, minterms = [], maxterms = [], mode = "ones", dontCares = [] } = req.body || {};
-    if (!vars || !vars.length) return res.status(400).json({ ok:false, error:"vars required" });
 
-    // If POS mode was requested with maxterms, convert to minterms for the real function
-    let mins = minterms;
-    if (mode === "zeros" && maxterms.length) {
-      const U = Array.from({length: 1 << vars.length}, (_,i)=>i);
-      const bad = new Set([...maxterms, ...dontCares]);
-      mins = U.filter(i => !bad.has(i));
+
+
+
+app.post("/api/ba/kmap", (req,res)=>{
+  try{
+    const { vars=[], minterms=[], maxterms=[], mode="ones", full=false } = req.body || {};
+    if (!vars.length) return res.status(400).json({ ok:false, error:"vars required" });
+
+    // Decide which cells to group on the map
+    const n = vars.length;
+    const cells = (mode === "zeros") ? maxterms : minterms;
+
+    // Reuse the greedy grouper on the chosen cells
+    const km = kmapGroups(cells, vars);  // <= same function, but fed with the set you want to group
+    // Minimization result for display line
+    let simplified;
+    if (mode === "zeros") {
+      const primes0 = qmMinimize(maxterms, [], n); // minimization on zeros
+      simplified = implicantsToPOS(primes0, vars); // POS text
+    } else {
+      const primes1 = qmMinimize(minterms, [], n); // minimization on ones
+      simplified = implicantsToExpression(primes1, vars); // SOP text
     }
 
-    // (optional) your grouping hints:
-    const km = kmapGroups(mins, vars);
-
-    // *** Minimal expression via QM ***
-    const chosen = qmMinimize(mins, dontCares, vars.length);
-    const simplified = implicantsToExpression(chosen, vars);
-
     return res.json({
-      ok: true,
+      ok:true,
       mode,
-      solutionGroups: km.groups,     // or map 'chosen' to rectangles if you prefer
-      allGroups: km.groups,          // (keep your existing payload shape)
-      simplified                      // << use this on the frontend title
+      allGroups: km.groups,          // all candidate rectangles
+      solutionGroups: km.groups,     // or a selected subset if you choose
+      simplified
     });
-  } catch (e) {
-    res.status(400).json({ ok:false, error:String(e.message||e) });
+  }catch(e){
+    return res.status(400).json({ ok:false, error:String(e.message||e) });
   }
 });
 
