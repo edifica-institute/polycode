@@ -15,6 +15,7 @@
         background:linear-gradient(90deg,#9ecbff,#7dffa0);
         -webkit-background-clip:text; background-clip:text; color:transparent }
     p{ color:#b8c1cd; margin:0 0 24px }
+    .tagline{ font-size:18px; font-weight:500; margin-bottom:28px; color:#9ecbff }
     .btn-row{display:flex; flex-wrap:wrap; gap:12px; justify-content:center}
     .btn{
       padding:12px 20px; border-radius:10px;
@@ -24,21 +25,23 @@
       transition:transform .15s ease, box-shadow .15s ease;
     }
     .btn:hover{ transform:translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,.5); }
+    .footer{ margin-top:40px; font-size:14px; color:#7f8b99 }
   </style>
 </head>
 <body>
   <div class="splash">
     <h1>Welcome to PolyCode 🚀</h1>
+    <div class="tagline">learn • code • execute</div>
     <p>Practice Java, C/C++, Python, and SQL with live I/O and complexity analysis.</p>
     <div class="btn-row">
-     <a href="./index-c.html" class="btn">C</a>
-       <a href="./index-cpp.html" class="btn">C++</a>
+      <a href="./index-c.html" class="btn">C</a>
+      <a href="./index-cpp.html" class="btn">C++</a>
       <a href="./index-java.html" class="btn">Java</a>
       <a href="./index-python.html" class="btn">Python</a>
       <a href="./index-sql.html" class="btn">SQL</a>
-       <a href="./index-web.html" class="btn">HTML/CSS</a>
-       
+      <a href="./index-web.html" class="btn">HTML/CSS</a>
     </div>
+    <div class="footer">powered by <b>Edifica</b></div>
   </div>
 </body>
 </html>
