@@ -56,6 +56,10 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 
   // Keyboard copy (Ctrl/Cmd+C, Ctrl+Insert)
   document.addEventListener('keydown', (e) => {
+
+
+
+    
     const isCopyKey =
       ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') ||
       ((e.ctrlKey || e.metaKey) && e.key === 'Insert'); // Ctrl+Insert
@@ -1397,16 +1401,24 @@ try {
   }, { capture: true });
 
   // Also provide a universal F10 handler that cancels connect/run
-  document.addEventListener('keydown', (ev) => {
-    if (ev.key !== 'F10') return;
+ // Only intercept F10 while CONNECTING (modal lock), otherwise let your app handle it
+document.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'F10') return;
+
+  // If UI is locked (i.e., Connecting modal visible), we intercept and cancel the connect
+  if (uiLock || (current && current.state === 'connecting')) {
     ev.preventDefault();
     ev.stopImmediatePropagation();
+    PC.cancelCurrentSession('user');     // abort fetch + gate WS
+    // uiLock = false; // optionally unlock/hide modal here if you don’t elsewhere
+    return;
+  }
 
-    // If we’re connecting or running, cancel everything globally
-    PC.cancelCurrentSession('user');
-    // Optional: if you want to ensure UI lock is lifted on cancel:
-    // uiLock = false;
-  }, { capture: true });
+  // Not locked: DO NOT preventDefault—let your existing F10 handler run.
+  // (If you want a centralized stop here too, expose one:)
+  // if (current && current.state === 'running') PC.cancelCurrentSession('user');
+}, { capture: true });
+
 
   // ---- Wrap fetch to make /prepare abortable & tied to session ----
   const _fetch = window.fetch.bind(window);
