@@ -942,36 +942,40 @@ const varsSorted = vars;
 
 app.post("/api/ba/kmap", (req, res) => {
   try {
-    const { vars = [], minterms = [], maxterms = [], mode = "ones", full = false } = req.body || {};
-    if (!vars.length) return res.status(400).json({ ok:false, error:"vars required" });
+    const {
+      vars = [],
+      minterms = [],
+      maxterms = [],
+      mode = "ones",          // "ones" => SOP on 1-cells, "zeros" => POS on 0-cells
+      full = false            // if true, also return all candidate groups
+    } = req.body || {};
+
+    if (!vars.length) {
+      return res.status(400).json({ ok: false, error: "vars required" });
+    }
 
     const n = vars.length;
     if (n < 2 || n > 4) {
-      return res.status(400).json({ ok:false, error:"K-map shown for 2–4 variables only." });
+      return res.status(400).json({ ok: false, error: "K-map shown for 2–4 variables only." });
     }
 
-    // Choose the universe to minimize / group on
-    let chosenImps, simplified, solutionGroups;
-
+    // 1) Minimize on the chosen universe
+    let chosenImps, simplified;
     if (mode === "zeros") {
-      // Minimize on 0-cells -> POS
-      chosenImps = qmMinimize(maxterms, [], n);     // your existing cover picker
-      simplified = implicantsToPOS(chosenImps, vars);
-
-      // Show rectangles where zeros live (we’ll overlay dashed on the grid)
-      const nvars = vars.length;
-solutionGroups = chosenImps.map(p => implicantToRect(p, nvars));
+      // Minimize on 0-cells → POS
+      chosenImps  = qmMinimize(maxterms, [], n);
+      simplified  = implicantsToPOS(chosenImps, vars);
     } else {
-      // Minimize on 1-cells -> SOP
-      chosenImps = qmMinimize(minterms, [], n);
-      simplified = implicantsToExpression(chosenImps, vars);
-
-      const nvars = vars.length;
-solutionGroups = chosenImps.map(p => implicantToRect(p, nvars));
+      // Minimize on 1-cells → SOP
+      chosenImps  = qmMinimize(minterms, [], n);
+      simplified  = implicantsToExpression(chosenImps, vars);
     }
 
-    // If you also want to return “allGroups” (e.g., all size-2 pairings), keep your
-    // old enumerator; otherwise just echo the minimal solution.
+    // 2) Convert implicants to K-map rectangles and **DEDUPE BEFORE** responding
+    const solRaw          = chosenImps.map(p => implicantToRect(p, n));
+    const solutionGroups  = dedupeRects(solRaw, n);
+
+    // 3) Build response
     const resp = {
       ok: true,
       mode,
@@ -979,20 +983,19 @@ solutionGroups = chosenImps.map(p => implicantToRect(p, nvars));
       solutionGroups
     };
 
- solutionGroups = dedupeRects(solutionGroups, n);
-
-if (full) {
-  const universe = (mode === "zeros") ? maxterms : minterms;
-  const all = enumerateAllRectGroups(universe, n);
-  resp.allGroups = dedupeRects(all, n);   // no repeats from wrap anchors
-}
-
+    // 4) Optionally include all candidate groups (e.g., all pairings)
+    if (full) {
+      const universe = (mode === "zeros") ? maxterms : minterms;
+      const allRaw   = enumerateAllRectGroups(universe, n);
+      resp.allGroups = dedupeRects(allRaw, n);
+    }
 
     return res.json(resp);
   } catch (e) {
-    return res.status(400).json({ ok:false, error: String(e.message || e) });
+    return res.status(400).json({ ok: false, error: String(e.message || e) });
   }
 });
+
 
 
 
