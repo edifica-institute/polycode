@@ -1309,3 +1309,246 @@ try {
     }
   }, { passive:false });
 })();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ===== PolyCode: Global connect guard & session gate (drop-in) =====
+(() => {
+  // ---- Config: tweak as needed ----
+  const CONNECT_MODAL_SELECTOR = '#connectModal';   // must exist for auto-detect
+  const MODAL_HIDDEN_CLASS = 'hide';
+  const PREPARE_PATH_REGEX = /\/api\/cc\/prepare(?:$|\?)/; // detect prepare POSTs
+  const WS_TOKEN_REGEX = /\/cc(?:$|\?)|token=/;            // detect runner WS
+
+  // App shortcuts you want to disable while connecting:
+  const SHORTCUT_KEYS = new Set(['F10']); // add 'F9','F5' etc. if used
+
+  // ---- State ----
+  const PC = (window.PC ||= {});
+  let uiLock = false;
+  let sessionSeq = 0;
+  let current = null; // { id, state: 'connecting'|'running'|'stopped'|'cancelled', ws }
+  let pendingAbort = null;
+
+  // ---- Helpers (public API if you need manual control) ----
+  PC.lockUI   = () => { uiLock = true; };
+  PC.unlockUI = () => { uiLock = false; };
+
+  PC.cancelCurrentSession = function(reason = 'user') {
+    // Abort prepare (if in-flight)
+    try { pendingAbort?.abort(); } catch {}
+    pendingAbort = null;
+
+    // Invalidate/gate session
+    if (current) {
+      current.state = 'cancelled';
+      try { current.ws?.close(); } catch {}
+      current.ws = null;
+      current = null;
+    }
+  };
+
+  // ---- Auto-lock based on modal visibility (no changes to pages) ----
+  const connectModal = document.querySelector(CONNECT_MODAL_SELECTOR);
+  if (connectModal) {
+    const updateLockFromModal = () => {
+      const visible = !connectModal.classList.contains(MODAL_HIDDEN_CLASS);
+      uiLock = visible;
+    };
+    updateLockFromModal();
+
+    // Observe class changes to toggle lock automatically
+    const mo = new MutationObserver(updateLockFromModal);
+    mo.observe(connectModal, { attributes: true, attributeFilter: ['class'] });
+  }
+
+  // ---- Global keyboard guard (capture) ----
+  document.addEventListener('keydown', (ev) => {
+    if (!uiLock) return;
+
+    // swallow app shortcuts while connecting
+    const key = ev.key;
+    const isShortcut =
+      SHORTCUT_KEYS.has(key) ||
+      (ev.ctrlKey && key.toLowerCase() === 'enter') || // Run
+      (ev.ctrlKey && key.toLowerCase() === 's');       // Save
+
+    if (isShortcut) {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+    }
+  }, { capture: true });
+
+  // Also provide a universal F10 handler that cancels connect/run
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'F10') return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+
+    // If we’re connecting or running, cancel everything globally
+    PC.cancelCurrentSession('user');
+    // Optional: if you want to ensure UI lock is lifted on cancel:
+    // uiLock = false;
+  }, { capture: true });
+
+  // ---- Wrap fetch to make /prepare abortable & tied to session ----
+  const _fetch = window.fetch.bind(window);
+  window.fetch = async function(input, init = {}) {
+    try {
+      const url = (typeof input === 'string' ? input : (input?.url || '')) || '';
+      const method = (init.method || (typeof input === 'object' && input.method) || 'GET').toUpperCase();
+
+      // Only intercept POST .../api/cc/prepare
+      if (method === 'POST' && PREPARE_PATH_REGEX.test(url)) {
+        // New connect session
+        const id = ++sessionSeq;
+        current = { id, state: 'connecting', ws: null };
+
+        // Ensure an AbortController is attached
+        if (pendingAbort) { try { pendingAbort.abort(); } catch {} }
+        pendingAbort = new AbortController();
+
+        const patchedInit = { ...init, signal: init.signal || pendingAbort.signal };
+
+        // Let page code show modal however it wants; we hard-lock via observer
+        const res = await _fetch(input, patchedInit);
+
+        // If user cancelled mid-flight, gate right here
+        if (!current || current.id !== id || current.state === 'cancelled') {
+          // Drop result; caller might still await it, but session is invalid
+          return res;
+        }
+
+        // Mark as prepared; page will open WS next. We keep state = 'connecting'
+        // until WS onopen (handled by patched WebSocket below).
+        return res;
+      }
+
+      // non-prepare requests pass through untouched
+      return await _fetch(input, init);
+    } catch (e) {
+      // If aborted, keep state consistent
+      if (current && current.state === 'connecting') {
+        current.state = 'cancelled';
+      }
+      throw e;
+    }
+  };
+
+  // ---- Wrap WebSocket for runner channel; gate late output ----
+  const _WS = window.WebSocket;
+  class PCWebSocket {
+    constructor(url, protocols) {
+      this._real = new _WS(url, protocols);
+      this._url = String(url || '');
+      this._sid = (current ? current.id : null);
+
+      // If this looks like the runner socket, tie it to the session
+      this._isRunner = WS_TOKEN_REGEX.test(this._url);
+      if (this._isRunner && current && current.state === 'connecting') {
+        current.ws = this._real;
+      }
+
+      // Proxy properties
+      Object.defineProperty(this, 'readyState', { get: () => this._real.readyState });
+      Object.defineProperty(this, 'url', { get: () => this._real.url });
+      Object.defineProperty(this, 'binaryType', {
+        get: () => this._real.binaryType,
+        set: (v) => { this._real.binaryType = v; }
+      });
+
+      // Handlers (we wrap them)
+      this._onopen = null;
+      this._onmessage = null;
+      this._onerror = null;
+      this._onclose = null;
+
+      // Wire through with gating
+      this._real.addEventListener('open', (ev) => {
+        if (this._isRunner) {
+          // If session invalidated, close immediately
+          if (!current || current.id !== this._sid || current.state === 'cancelled') {
+            try { this._real.close(); } catch {}
+            return;
+          }
+          current.state = 'running';      // go live
+          // Let page hide modal / enable UI; our keyboard guard auto-unlocks when modal hides
+        }
+        this._onopen && this._onopen.call(this, ev);
+      });
+
+      this._real.addEventListener('message', (ev) => {
+        if (this._isRunner) {
+          // Gate late output
+          if (!current || current.id !== this._sid || current.state !== 'running') {
+            return; // stale or cancelled — drop output
+          }
+        }
+        this._onmessage && this._onmessage.call(this, ev);
+      });
+
+      this._real.addEventListener('error', (ev) => {
+        this._onerror && this._onerror.call(this, ev);
+      });
+
+      this._real.addEventListener('close', (ev) => {
+        if (this._isRunner && current && current.id === this._sid) {
+          current.state = 'stopped';
+          current = null;
+        }
+        this._onclose && this._onclose.call(this, ev);
+      });
+    }
+
+    // Standard WS surface
+    send(data) { this._real.send(data); }
+    close(code, reason) { this._real.close(code, reason); }
+
+    // on* props
+    get onopen() { return this._onopen; }
+    set onopen(fn) { this._onopen = fn; }
+
+    get onmessage() { return this._onmessage; }
+    set onmessage(fn) { this._onmessage = fn; }
+
+    get onerror() { return this._onerror; }
+    set onerror(fn) { this._onerror = fn; }
+
+    get onclose() { return this._onclose; }
+    set onclose(fn) { this._onclose = fn; }
+
+    // EventTarget passthrough
+    addEventListener(...args) { return this._real.addEventListener(...args); }
+    removeEventListener(...args) { return this._real.removeEventListener(...args); }
+    dispatchEvent(...args) { return this._real.dispatchEvent(...args); }
+  }
+
+  // Only patch once
+  if (!_WS.__pcWrapped) {
+    PC._NativeWebSocket = _WS;
+    PC.WebSocket = PCWebSocket;
+    PC.cancel = PC.cancelCurrentSession;
+
+    // Replace global WebSocket with our wrapper
+    PCWebSocket.prototype = _WS.prototype;
+    window.WebSocket = PCWebSocket;
+    window.WebSocket.__pcWrapped = true;
+  }
+})();
