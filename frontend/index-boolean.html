@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>polycode | Boolean Algebra</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <link rel="icon" href="./assets/logo.png" />
+  <style>
+    :root{ --bg:#0b0f13; --bg2:#141922; --panel:#1e2024; --text:#e9edf3; --muted:#aeb5bd; --link:#9ecbff; --brand:#2e5bea; --border:#2b2f34; }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:linear-gradient(180deg,var(--bg),var(--bg2)); color:var(--text); font-family:system-ui,Roboto,Ubuntu,sans-serif; }
+    a{ color:var(--link); text-decoration:none }
+    a:hover{ text-decoration:underline }
+    header{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#1a1c1f; border-bottom:1px solid var(--border) }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700 }
+    .brand img{ width:26px; height:26px; border-radius:6px }
+    main{ max-width:1100px; margin:0 auto; padding:18px }
+    .grid{ display:grid; gap:16px; grid-template-columns:1fr; }
+    @media (min-width:980px){ .grid{ grid-template-columns:1.1fr .9fr; } }
+    .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:0 16px 50px rgba(0,0,0,.28) }
+    .card h2{ margin:0 0 10px; font-size:20px }
+    textarea{ width:100%; min-height:90px; background:#141922; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px; outline:none }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0 }
+    .btn{ padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--brand); color:#fff; font-weight:600; cursor:pointer }
+    .btn.secondary{ background:#24272d; color:#d5dbe4 }
+    .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+    table{ width:100%; border-collapse:collapse; font-size:14px }
+    th,td{ border:1px solid var(--border); padding:6px 8px; text-align:center }
+    th{ background:#1a1c1f }
+    .muted{ color:#aeb5bd }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand"><img src="./assets/logo.png" alt="polycode"/><div>PolyCode — Boolean Algebra</div></div>
+    <nav><a href="./index.html">Home</a></nav>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card">
+        <h2>Expression</h2>
+        <p class="muted mono">Ops: + (OR), ·/*/& (AND), ~(NOT), ^ (XOR), parentheses. Implicit AND allowed, e.g., <b>AB + A~C</b>.</p>
+        <textarea id="expr" placeholder="Example: A·B + ¬A·C"></textarea>
+        <div class="row">
+          <label class="muted"><input type="checkbox" id="includeTable"> Show truth table</label>
+          <span class="muted">Vars (optional, comma):</span>
+          <input id="vars" placeholder="A,B,C" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:#141922;color:var(--text)">
+          <button class="btn" id="btnSimplify">Simplify</button>
+          <button class="btn secondary" id="btnClear">Clear</button>
+        </div>
+      </section>
+
+      <aside class="card">
+        <h2>Result</h2>
+        <div id="result" class="mono"></div>
+      </aside>
+    </div>
+
+    <section class="card" id="ttCard" style="display:none">
+      <h2>Truth Table</h2>
+      <div id="tt"></div>
+    </section>
+  </main>
+
+  <script type="module">
+    const API = "https://polycode-ba.onrender.com"; // <-- set to your deployed boolean runner URL
+
+    const $ = s => document.querySelector(s);
+    const exprEl = $("#expr"), varsEl = $("#vars"), resEl = $("#result");
+    const includeTableEl = $("#includeTable"), ttCard = $("#ttCard"), ttEl = $("#tt");
+    $("#btnClear").addEventListener("click", () => { exprEl.value=""; resEl.innerHTML=""; ttCard.style.display="none"; ttEl.innerHTML=""; });
+
+    $("#btnSimplify").addEventListener("click", async () => {
+      const expr = exprEl.value.trim();
+      if (!expr) { alert("Enter an expression"); return; }
+      const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
+      resEl.textContent = "Working…";
+
+      try{
+        const r = await fetch(API + "/api/ba/simplify", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ expr, vars, includeTable: includeTableEl.checked })
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error||"error");
+        const { vars:V, minterms, maxterms, sop, pos, simplifiedSOP } = j;
+        resEl.innerHTML = `
+          <div>Vars: ${V.join(", ")}</div>
+          <div>Σ m: ${sop}</div>
+          <div>Π M: ${pos}</div>
+          <div>Simplified (SOP): <b>${simplifiedSOP}</b></div>
+          <div class="muted">Minterms: [${minterms.join(", ")}] — Maxterms: [${maxterms.join(", ")}]</div>
+        `;
+
+        if (includeTableEl.checked && j.table){
+          const rows = j.table;
+          const cols = V.map(v=>`<th>${v}</th>`).join("") + "<th>f</th>";
+          const trs = rows.map(r=>{
+            const tds = V.map(v=>`<td>${r.env[v]?1:0}</td>`).join("") + `<td>${r.out}</td>`;
+            return `<tr>${tds}</tr>`;
+          }).join("");
+          ttEl.innerHTML = `<table><thead><tr>${cols}</tr></thead><tbody>${trs}</tbody></table>`;
+          ttCard.style.display="";
+        } else {
+          ttCard.style.display="none";
+          ttEl.innerHTML="";
+        }
+      }catch(e){
+        resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
+        ttCard.style.display="none";
+        ttEl.innerHTML="";
+      }
+    });
+  </script>
+</body>
+</html>
