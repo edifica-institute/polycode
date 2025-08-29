@@ -3299,3 +3299,70 @@ body > header.site-header{
   .footer-center{ grid-area:center; justify-self:end; }
   .footer-right { grid-area:legal;  justify-self:center; }
 }
+
+
+
+
+/* === Footer: center legal links on large screens === */
+.site-footer .footer-grid{
+  display:grid !important;
+  grid-template-columns: 1fr auto 1fr !important;  /* left | legal | follow */
+  align-items:center !important;
+  gap:12px !important;
+}
+.site-footer .footer-left{  justify-self:start !important; }
+.site-footer .footer-right{ /* legal links */
+  justify-self:center !important;
+  display:flex !important; gap:14px !important; flex-wrap:wrap !important;
+}
+.site-footer .footer-center{ /* follow us */
+  justify-self:end !important;
+  display:flex !important; gap:10px !important; align-items:center !important;
+}
+@media (max-width:640px){
+  .site-footer .footer-grid{ grid-template-columns:1fr !important; row-gap:10px !important; }
+  .site-footer .footer-left,
+  .site-footer .footer-right,
+  .site-footer .footer-center{ justify-self:start !important; }
+}
+
+
+
+/* === Side chevrons: thinner, glow, clear state === */
+:root{ --chev-w:22px; --chev-h:44px; }
+
+.chevron-tab{
+  width:var(--chev-w); height:var(--chev-h);
+  border-radius:6px;
+  background:var(--glass);
+  border:1px solid var(--glass-brd);
+  display:grid; place-items:center;
+  transition: box-shadow .2s ease, background .2s ease, transform .2s ease;
+  color: var(--text);
+}
+.chevron-tab:hover{
+  background: color-mix(in oklab, var(--glass), white 6%);
+  box-shadow: 0 0 12px color-mix(in oklab, var(--brand), transparent 40%);
+}
+@keyframes chevGlow {
+  0%,100% { box-shadow: 0 0 0 rgba(46,91,234,0); }
+  50%     { box-shadow: 0 0 14px rgba(46,91,234,.7); }
+}
+.chevron-tab:not(:disabled):hover{ animation: chevGlow 1.2s ease-in-out infinite; }
+
+.chevron-tab svg{
+  width:14px; height:14px; fill: currentColor;
+  transition: transform .22s ease;
+}
+
+/* Arrow orientation by state (works for desktop + overlay) */
+/* LEFT: when visible -> arrow points left (<) to collapse; collapsed -> arrow points right (>) to open */
+.chevron-tab.left svg{ transform: rotate(180deg); }             /* visible */
+.app.collapsed-left .chevron-tab.left svg{ transform: rotate(0); }
+.app.show-left       .chevron-tab.left svg{ transform: rotate(180deg); }
+
+/* RIGHT: when visible -> arrow points right (>) to collapse; collapsed/open-drawer -> arrow points left (<) to open/close */
+.chevron-tab.right svg{ transform: rotate(0); }                  /* visible */
+.app.collapsed-right .chevron-tab.right svg{ transform: rotate(180deg); }
+.app.show-right      .chevron-tab.right svg{ transform: rotate(180deg); }
+
