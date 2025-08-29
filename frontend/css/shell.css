@@ -2666,3 +2666,133 @@ html, body { height: 100%; }
   .btn{ width: 34px; height: 34px; }
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ===========================================================
+   POLYCODE — MOBILE V5 (header/toolbar/footer fixes)
+   =========================================================== */
+@media (max-width:1024px){
+
+  /* --- Header: logo LEFT, links RIGHT — never clipped --- */
+  /* make header auto-height (so "Contact" never cuts off) */
+  body > header.site-header{
+    position: sticky !important; top:0; z-index:1000;
+    height:auto !important; padding:8px 12px !important;
+    display:grid !important; grid-template-columns:auto 1fr auto !important;
+    align-items:center !important; gap:10px !important;
+    background:var(--glass) !important; border-bottom:1px solid var(--glass-brd) !important;
+  }
+  /* brand/wordmark block stays on the left */
+  .brand-wrap{ grid-column:1 !important; justify-self:start !important; }
+  .brand-logo{ width:26px !important; height:26px !important; }
+  .brand-title2{ font-size:18px !important; line-height:1.05 !important; font-weight:400 !important; }
+  .brand-tagline2{ font-size:10px !important; line-height:1.1 !important; }
+
+  /* links live on the right and can wrap to a new line */
+  .site-nav, .site-header nav{
+    grid-column:3 !important; justify-self:end !important;
+    display:flex !important; flex-wrap:wrap !important; gap:8px !important;
+    max-width:min(58vw, 340px); /* prevent overflow; allow wrapping */
+  }
+  .site-nav a, .site-header nav a{
+    font-size:11px !important; line-height:1 !important;
+    white-space:nowrap;
+  }
+
+  /* If you previously added extra top padding for a fixed header, undo it */
+  .stage{ padding-top: var(--outer-gap, 8px) !important; }
+
+  /* --- Editor / Output: ensure ALL buttons are visible --- */
+  /* 1) allow multi-line toolbars; no clipping  */
+  .pane-head{
+    display:flex !important; align-items:center !important;
+    gap:8px !important; padding:8px 10px !important; min-height:36px !important;
+    flex-wrap:wrap !important; overflow:visible !important;
+  }
+  /* 2) controls can wrap; visible glows/popovers */
+  .pane-head .right-controls{
+    margin-left:auto !important;
+    display:flex !important; align-items:center !important;
+    gap:8px !important; flex-wrap:wrap !important; overflow:visible !important;
+    width:100%; /* lets items drop to a 2nd line if tight */
+  }
+  .btn{ width:36px; height:36px; }
+
+  /* 3) Ultra-narrow phones: force controls onto their own row */
+  @media (max-width:480px){
+    .pane-head{
+      display:grid !important;
+      grid-template-columns: 1fr auto;        /* title | theme */
+      grid-template-areas:
+        "title theme"
+        "controls controls";
+      row-gap:8px;
+    }
+    .pane-head .title{ grid-area:title; }
+    .pane-head .theme-btn{ grid-area:theme; justify-self:end; }
+    .pane-head .right-controls{ grid-area:controls; justify-content:flex-start; }
+  }
+
+  /* keep panels scroll-friendly */
+  .panel, .pane-body, #editor, #output{ min-height:0 !important; }
+  #editor{ min-height: clamp(260px, 54svh, 62svh) !important; }
+  #output{ min-height: clamp(200px, 36svh, 46svh) !important; overflow:auto !important; }
+  #jconsole{ display:inline-block; min-width:100%; white-space:pre; overflow:visible !important; }
+
+  /* --- Footer: powered-by LEFT • links CENTER • Follow us RIGHT --- */
+  .site-footer{ padding:10px 12px !important; background:var(--glass) !important;
+                border-top:1px solid var(--glass-brd) !important; }
+  .footer-grid{
+    display:grid !important;
+    grid-template-columns:1fr auto 1fr !important;    /* left | center | right */
+    grid-template-areas:"left center right" !important;
+    align-items:center !important; gap:12px !important;
+  }
+
+  /* map your existing blocks */
+  .footer-left{ grid-area:left; justify-self:start; }
+  /* many themes put nav links in .footer-right — center them */
+  .footer-right{
+    grid-area:center; justify-self:center;
+    display:flex; gap:14px; flex-wrap:wrap; justify-content:center; text-align:center;
+  }
+  /* "Follow us" sometimes lives in .footer-center or .footer-icons — treat both */
+  .footer-center, .footer-icons{
+    grid-area:right; justify-self:end;
+    display:flex; align-items:center; gap:10px;
+  }
+
+  /* smaller link text so it doesn’t feel chunky */
+  .site-footer a{ font-size:11px !important; line-height:1.1 !important; }
+  .footer-center .social, .footer-icons .social{ width:24px; height:24px; }
+}
+
+/* extra-tight phones */
+@media (max-width:380px){
+  .site-nav a{ font-size:10px !important; }
+  .btn{ width:34px; height:34px; }
+  .site-footer a{ font-size:10px !important; }
+}
