@@ -2607,7 +2607,7 @@ html, body { height: 100%; }
 
   /* header links to the right */
   .site-nav, .site-header nav{
-    grid-column: 3 !important; justify-self: end !important;
+    grid-column: 6 !important; justify-self: end !important;
     display: flex !important; gap: 10px !important; align-items: center !important;
   }
   .site-nav a, .site-header nav a{ font-size: 11px !important; line-height: 1 !important; }
