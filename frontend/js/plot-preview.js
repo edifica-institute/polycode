@@ -5,16 +5,37 @@
 
   // ---------- Utilities ----------
   function $(sel, root = document) { return root.querySelector(sel); }
-  function create(tag, attrs = {}, children = []) {
-    const el = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs)) {
-      if (k === "style" && typeof v === "object") Object.assign(el.style, v);
-      else if (k in el) el[k] = v;
-      else el.setAttribute(k, v);
+  // replace your current create() with this:
+function create(tag, attrs = {}, children = []) {
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const HTML_NS = "http://www.w3.org/1999/xhtml";
+  const isSvg = /^(svg|path|rect|circle|line|polyline|polygon|g|ellipse|text)$/.test(tag);
+
+  const el = isSvg
+    ? document.createElementNS(SVG_NS, tag)
+    : document.createElement(tag);
+
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "style" && v && typeof v === "object") {
+      Object.assign(el.style, v);
+    } else if (k === "className") {
+      // className works on HTML; for SVG use attribute
+      if (isSvg) el.setAttribute("class", v);
+      else el.className = v;
+    } else if (isSvg) {
+      el.setAttribute(k, String(v));
+    } else if (k in el) {
+      el[k] = v;
+    } else {
+      el.setAttribute(k, v);
     }
-    children.forEach(c => el.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
-    return el;
   }
+
+  for (const c of children) {
+    el.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return el;
+}
 
   function ensureModal() {
     let modal = $("#plotModal");
@@ -29,8 +50,8 @@
         create("div", { className: "pc-modal__body", id: "plotModalBody" }, [
           create("div", { id: "plotSpinner", style: { opacity: ".8" } }, ["Preparing Pyodide & rendering…"])
         ]),
-        create("div", { className: "pc-modal__footer" }, [
-          create("button", { className: "btn", "data-close": "modal" }, ["Close"])
+        ("div", { className: "pc-modal__footer" }, [
+          ("button", { className: "btn", "data-close": "modal" }, ["Close"])
         ])
       ])
     ]);
@@ -60,27 +81,27 @@
     if (btn) return btn;
     // Try to place next to Run button
     const right = $(".right-controls") || $("#centerPanel .pane-head .right-controls");
-    btn = create("button", {
+    btn = ("button", {
   id: "btnPlotPreview",
   className: "btn btn-ghost",
   title: "Preview pyplot figures",
   "aria-label": "Plot Preview",
   disabled: true
 }, [
-  create("svg", { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true" }, [
+  ("svg", { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true" }, [
     // chart axes
-    create("path", {
+    ("path", {
       d: "M3 3v18h18",
       fill: "none",
       stroke: "currentColor",
       "stroke-width": 2
     }),
     // bar 1
-    create("rect", { x: 6, y: 11, width: 3, height: 7, fill: "currentColor" }),
+    ("rect", { x: 6, y: 11, width: 3, height: 7, fill: "currentColor" }),
     // bar 2
-    create("rect", { x: 11, y: 7, width: 3, height: 11, fill: "currentColor" }),
+    ("rect", { x: 11, y: 7, width: 3, height: 11, fill: "currentColor" }),
     // bar 3
-    create("rect", { x: 16, y: 4, width: 3, height: 14, fill: "currentColor" })
+    ("rect", { x: 16, y: 4, width: 3, height: 14, fill: "currentColor" })
   ])
 ]);
 
@@ -122,7 +143,7 @@
       try {
         if (!window.loadPyodide) {
           await new Promise((res, rej) => {
-            const s = create("script", { src: PYODIDE_URL, defer: true });
+            const s = ("script", { src: PYODIDE_URL, defer: true });
             s.onload = res; s.onerror = () => rej(new Error("Pyodide loader failed"));
             document.head.appendChild(s);
           });
@@ -194,7 +215,7 @@ async function onPlotClick() {
       return;
     }
 
-    const frag = document.createDocumentFragment();
+    const frag = document.DocumentFragment();
     imgs.forEach((b64, i) => {
       const img = document.createElement('img');
       img.src = 'data:image/png;base64,' + b64;
