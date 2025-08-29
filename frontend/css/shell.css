@@ -2087,3 +2087,17 @@ html, body { height: 100%; }
 
 #output{ padding:10px 10px 10px 10px !important; }  /* top right bottom left */
 #jconsole{ padding:0 !important; }               /* ensure the <pre> adds none */
+
+
+/* Glow effect for enabled Pyplot button */
+#btnPlotPreview:not([disabled]) {
+  box-shadow: 0 0 8px 2px rgba(100, 200, 255, 0.6);
+  border-color: rgba(100, 200, 255, 0.8);
+  animation: pulseGlow 1.5s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0%   { box-shadow: 0 0 6px 2px rgba(100, 200, 255, 0.6); }
+  50%  { box-shadow: 0 0 14px 4px rgba(100, 200, 255, 0.9); }
+  100% { box-shadow: 0 0 6px 2px rgba(100, 200, 255, 0.6); }
+}
