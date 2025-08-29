@@ -311,6 +311,18 @@ groups.get(ones).push(imp);
   return chosen; // array of implicants {mask,bits}
 }
 
+// --- NEW: expand implicit letter-only AND, e.g. "AB" -> "A*B"
+function normalizeImplicitLetterAND(s, varsIn) {
+  // If the caller declares any multi-letter var (e.g. "AB"), don't split.
+  const shouldSplit =
+    !varsIn || (Array.isArray(varsIn) && varsIn.every(v => typeof v === "string" && v.length === 1));
+  if (!shouldSplit) return s;
+  // Insert * between adjacent letters; digits/underscores untouched.
+  return s.replace(/([A-Za-z])(?=[A-Za-z])/g, "$1*");
+}
+
+
+
 function implicantsToExpression(imps, vars){
   if (imps.length===0) return "0";
   const n = vars.length;
@@ -383,8 +395,14 @@ app.post("/api/ba/truthtable", (req,res)=>{
     //const rpn = toRPN(insertImplicitAnd(tokenize(expr)));
     const exprNorm = normalizeImplicitLetterAND(expr, varsIn);
 const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
-    const vars = (varsIn && varsIn.length)? varsIn : detectVars(rpn);
-    const varsSorted = [...vars].sort(); // deterministic
+
+// If caller provided vars, keep that exact order.
+ // Otherwise, detect and sort for determinism.
+ const vars = (varsIn && varsIn.length)
+   ? varsIn
+   : detectVars(rpn).sort();
+ const varsSorted = vars;
+    
     const tt = truthTable(rpn, varsSorted);
     return res.json({ ok:true, vars: varsSorted, rows: tt });
   }catch(e){
@@ -399,8 +417,14 @@ app.post("/api/ba/simplify", (req,res)=>{
     //const rpn = toRPN(insertImplicitAnd(tokenize(expr)));
    const exprNorm = normalizeImplicitLetterAND(expr, varsIn);
 const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
-    const vars = (varsIn && varsIn.length)? varsIn : detectVars(rpn);
-    const varsSorted = [...vars].sort();
+
+     // If caller provided vars, keep that exact order.
+ // Otherwise, detect and sort for determinism.
+ const vars = (varsIn && varsIn.length)
+   ? varsIn
+  : detectVars(rpn).sort();
+const varsSorted = vars;
+    
     const tt = truthTable(rpn, varsSorted);
     const mins = mintermsFromTT(tt, varsSorted);
     const maxs = maxtermsFromTT(tt, varsSorted);
