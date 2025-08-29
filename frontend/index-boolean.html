@@ -30,15 +30,12 @@
     th{ background:#1a1c1f }
     .muted{ color:#aeb5bd }
     .grid > .card.wide { grid-column: 1 / -1; }
-    /* Let Result span both columns when .wide is applied */
-.grid > .card.wide { grid-column: 1 / -1; }
 
-/* Ensure big SVGs aren’t clamped */
-#result svg { max-height: none !important; width: 100%; height: auto; }
+    /* Ensure big SVGs aren’t clamped */
+    #result svg { max-height: none !important; width: 100%; height: auto; }
 
-/* (optional) give the Result card more breathing room */
-aside.card.wide { padding-block: 24px; }
-
+    /* More room when wide */
+    aside.card.wide { padding-block: 24px; }
   </style>
 </head>
 <body>
@@ -117,7 +114,7 @@ aside.card.wide { padding-block: 24px; }
       const maxterms = parseList(mm[1]);
       const n = vars.length, U = Array.from({length:1<<n},(_,i)=>i);
       const bad = new Set([...maxterms, ...dontCares]);
-      const minterms = U.filter(i => !bad.has(i));                      // for grid display
+      const minterms = U.filter(i => !bad.has(i)); // for grid display
       return { vars, mode:"zeros", maxterms, minterms, dontCares };
     }
     if (/^[0-9,\s]+$/.test(rhs)) {
@@ -158,129 +155,182 @@ aside.card.wide { padding-block: 24px; }
     `;
   }
 
-  /* ---------- BIG SVG KMAP WITH GROUPS ---------- */
-function renderKmapSVG(vars, minterms, groups = [], title = "K-map", opts = {}) {
-  const mode   = opts.mode ?? "ones";      // "ones" (SOP) | "zeros" (POS)
-  const scale  = opts.scale ?? 2.0;
-  const cellW  = Math.round(42 * scale);
-  const cellH  = Math.round(30 * scale);
-  const pad    = Math.round(24 * scale);
-  const font14 = Math.round(14 * scale);
-  const font12 = Math.round(12 * scale);
+  /* ---------- BIG SVG KMAP WITH GROUPS (bridges + numbering) ---------- */
+  function renderKmapSVG(vars, minterms, groups = [], title = "K-map", opts = {}) {
+    const mode   = opts.mode ?? "ones";      // "ones" (SOP) | "zeros" (POS)
+    const scale  = opts.scale ?? 2.0;
+    const cellW  = Math.round(42 * scale);
+    const cellH  = Math.round(30 * scale);
+    const pad    = Math.round(24 * scale);
+    const font14 = Math.round(14 * scale);
+    const font12 = Math.round(12 * scale);
 
-  // --- dims
-  const n = vars.length;
-  const rbits = Math.floor(n/2), cbits = n - rbits;
-  const rows = 1<<rbits, cols = 1<<cbits;
+    // dims
+    const n = vars.length;
+    const rbits = Math.floor(n/2), cbits = n - rbits;
+    const rows = 1<<rbits, cols = 1<<cbits;
+    const gray = x => x ^ (x>>1);
 
-  const gray = x => x ^ (x>>1);
-
-  // --- grid values (1 = minterm)
-  const grid = Array.from({length:rows},()=>Array(cols).fill(0));
-  for (let i=0;i<(1<<n);i++){
-    const r = gray(i>>cbits)&(rows-1);
-    const c = gray(i&((1<<cbits)-1));
-    grid[r][c] = minterms.includes(i) ? 1 : 0;
-  }
-
-  const W = pad*2 + cols*cellW + 100, H = pad*2 + rows*cellH + 40;
-  const X0 = pad, Y0 = pad, X1 = pad + cols*cellW, Y1 = pad + rows*cellH;
-
-  // --- split a toroidal rect into up to 4 screen rects
-  function splitSegments(g){
-    const r0 = ((g.r % rows) + rows) % rows;
-    const c0 = ((g.c % cols) + cols) % cols;
-    const rh1 = Math.min(g.hr, rows - r0);
-    const cw1 = Math.min(g.wr, cols - c0);
-
-    const segs = [{ r:r0, c:c0, hr:rh1, wr:cw1 }];
-    if (g.wr > cw1) segs.push({ r:r0, c:0, hr:rh1, wr:g.wr - cw1 });
-    if (g.hr > rh1){
-      segs.push({ r:0, c:c0, hr:g.hr - rh1, wr:cw1 });
-      if (g.wr > cw1) segs.push({ r:0, c:0, hr:g.hr - rh1, wr:g.wr - cw1 });
+    // grid (1 = minterm)
+    const grid = Array.from({length:rows},()=>Array(cols).fill(0));
+    for (let i=0;i<(1<<n);i++){
+      const r = gray(i>>cbits)&(rows-1);
+      const c = gray(i&((1<<cbits)-1));
+      grid[r][c] = minterms.includes(i) ? 1 : 0;
     }
-    return { segs, r0, c0, wrapH: (c0 + g.wr) > cols, wrapV: (r0 + g.hr) > rows };
-  }
 
-  // --- palette & styles
-  const palette = [
-    "#FF6B6B","#4DD0E1","#FFD166","#A78BFA",
-    "#26A69A","#F48FB1","#64B5F6","#FF8A65",
-    "#81C784","#E57373"
-  ];
-  const dashAttr = (mode === "zeros")
-    ? ` stroke-dasharray="${Math.round(6*scale)} ${Math.round(4*scale)}"`
-    : "";
+    const W = pad*2 + cols*cellW + 100, H = pad*2 + rows*cellH + 40;
+    const X0 = pad, Y0 = pad, X1 = pad + cols*cellW, Y1 = pad + rows*cellH;
 
-  // --- draw cells
-  const cells = grid.map((row,ri)=>
-    row.map((v,ci)=>{
-      const x = X0 + ci*cellW, y = Y0 + ri*cellH;
-      return `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="none" stroke="currentColor" opacity="0.35"/>
-              <text x="${x+cellW/2}" y="${y+cellH/2+font14/3}" text-anchor="middle"
-                    class="mono" font-size="${font14}" fill="currentColor">${v}</text>`;
-    }).join("")
-  ).join("");
+    // split a toroidal rect into up to 4 screen rects
+    function splitSegments(g){
+      const r0 = ((g.r % rows) + rows) % rows;
+      const c0 = ((g.c % cols) + cols) % cols;
+      const rh1 = Math.min(g.hr, rows - r0);
+      const cw1 = Math.min(g.wr, cols - c0);
 
-  // --- labels
-  const colLbl = Array.from({length:cols},(_,c)=> (gray(c)>>>0).toString(2).padStart(cbits,'0'))
-    .map((l,i)=>`<text x="${X0 + i*cellW + cellW/2}" y="${Y0-6}" text-anchor="middle"
-                  class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
-  const rowLbl = Array.from({length:rows},(_,r)=> (gray(r)>>>0).toString(2).padStart(rbits,'0'))
-    .map((l,i)=>`<text x="${X0-6}" y="${Y0 + i*cellH + cellH/2+font12/3}"
-                  text-anchor="end" class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
+      const segs = [{ r:r0, c:c0, hr:rh1, wr:cw1 }];
+      if (g.wr > cw1) segs.push({ r:r0, c:0, hr:rh1, wr:g.wr - cw1 });
+      if (g.hr > rh1){
+        segs.push({ r:0, c:c0, hr:g.hr - rh1, wr:cw1 });
+        if (g.wr > cw1) segs.push({ r:0, c:0, hr:g.hr - rh1, wr:g.wr - cw1 });
+      }
+      return { segs, r0, c0, wrapH: (c0 + g.wr) > cols, wrapV: (r0 + g.hr) > rows };
+    }
 
-  // --- groups: colored outlines + numbers + wrap bridges
-  let rects = "", labels = "", bridges = "";
-  groups.forEach((g,gi)=>{
-    const color = palette[gi % palette.length];
-    const { segs, r0, c0, wrapH, wrapV } = splitSegments(g);
+    // palette & styles
+    const palette = [
+      "#FF6B6B","#4DD0E1","#FFD166","#A78BFA",
+      "#26A69A","#F48FB1","#64B5F6","#FF8A65",
+      "#81C784","#E57373"
+    ];
+    const dashAttr = (mode === "zeros")
+      ? ` stroke-dasharray="${Math.round(6*scale)} ${Math.round(4*scale)}"`
+      : "";
 
-    // draw per-segment rectangles & labels (same group number)
-    segs.forEach(s=>{
-      const x = X0 + s.c*cellW, y = Y0 + s.r*cellH;
-      const w = s.wr*cellW,    h = s.hr*cellH;
-      rects += `<rect x="${x+2}" y="${y+2}" width="${w-4}" height="${h-4}"
-                       rx="${Math.round(8*scale)}" fill="none"
-                       stroke="${color}" stroke-width="2"${dashAttr}
-                       vector-effect="non-scaling-stroke"/>`;
-      labels += `<text x="${x + w/2}" y="${y + h/2 + font12/3}" text-anchor="middle"
-                       class="mono" font-size="${font12}" fill="${color}">${gi+1}</text>`;
+    // cells
+    const cells = grid.map((row,ri)=>
+      row.map((v,ci)=>{
+        const x = X0 + ci*cellW, y = Y0 + ri*cellH;
+        return `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="none" stroke="currentColor" opacity="0.35"/>
+                <text x="${x+cellW/2}" y="${y+cellH/2+font14/3}" text-anchor="middle"
+                      class="mono" font-size="${font14}" fill="currentColor">${v}</text>`;
+      }).join("")
+    ).join("");
+
+    // labels
+    const colLbl = Array.from({length:cols},(_,c)=> (gray(c)>>>0).toString(2).padStart(cbits,'0'))
+      .map((l,i)=>`<text x="${X0 + i*cellW + cellW/2}" y="${Y0-6}" text-anchor="middle"
+                    class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
+    const rowLbl = Array.from({length:rows},(_,r)=> (gray(r)>>>0).toString(2).padStart(rbits,'0'))
+      .map((l,i)=>`<text x="${X0-6}" y="${Y0 + i*cellH + cellH/2+font12/3}"
+                    text-anchor="end" class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
+
+    // groups: outlines + numbers + wrap bridges
+    let rects = "", labels = "", bridges = "";
+    groups.forEach((g,gi)=>{
+      const color = palette[gi % palette.length];
+      const { segs, r0, c0, wrapH, wrapV } = splitSegments(g);
+
+      segs.forEach(s=>{
+        const x = X0 + s.c*cellW, y = Y0 + s.r*cellH;
+        const w = s.wr*cellW,    h = s.hr*cellH;
+        rects += `<rect x="${x+2}" y="${y+2}" width="${w-4}" height="${h-4}"
+                         rx="${Math.round(8*scale)}" fill="none"
+                         stroke="${color}" stroke-width="2"${dashAttr}
+                         vector-effect="non-scaling-stroke"/>`;
+        labels += `<text x="${x + w/2}" y="${y + h/2 + font12/3}" text-anchor="middle"
+                         class="mono" font-size="${font12}" fill="${color}">${gi+1}</text>`;
+      });
+
+      if (wrapH) {
+        const yMid = Y0 + ((r0 + g.hr/2) % rows) * cellH;
+        const L = Math.round(10 * scale);
+        bridges += `<path d="M${X0-L},${yMid} H${X0}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+        bridges += `<path d="M${X1},${yMid} H${X1+L}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+      }
+      if (wrapV) {
+        const xMid = X0 + ((c0 + g.wr/2) % cols) * cellW;
+        const L = Math.round(10 * scale);
+        bridges += `<path d="M${xMid},${Y0-L} V${Y0}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+        bridges += `<path d="M${xMid},${Y1} V${Y1+L}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+      }
     });
 
-    // wrap bridges: small outboard “straps” to show continuity
-    // horizontal wrap → short lines just outside left & right borders at group mid-row
-    if (wrapH) {
-      const yMid = Y0 + ((r0 + g.hr/2) % rows) * cellH;  // approximate visual mid of covered rows
-      const L = Math.round(10 * scale);
-      bridges += `<path d="M${X0-L},${yMid} H${X0}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
-      bridges += `<path d="M${X1},${yMid} H${X1+L}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+    const subtitle = (mode === "zeros")
+      ? `<div class="muted mono">Mode: POS — groups on 0-cells (dashed). Same color/number = one wrap-group.</div>`
+      : `<div class="muted mono">Mode: SOP — groups on 1-cells. Same color/number = one wrap-group.</div>`;
+
+    return `<div class="mono" style="margin:.5rem 0 .25rem">${title}</div>
+            ${subtitle}
+            <svg viewBox="0 0 ${W} ${H}" width="100%">
+              <g fill="none" stroke="currentColor">${cells}</g>
+              <g fill="currentColor">${colLbl}${rowLbl}</g>
+              <g fill="none">${rects}</g>
+              <g>${labels}</g>
+              <g fill="none">${bridges}</g>
+            </svg>`;
+  }
+
+  /* ---------- K-map de-dup helpers (client-side) ---------- */
+  function dimsFromVars(vars){
+    const n = vars.length, rbits = Math.floor(n/2);
+    return { rows: 1<<rbits, cols: 1<<(n-rbits) };
+  }
+  function rectCellKey(g, vars){
+    const { rows, cols } = dimsFromVars(vars);
+    const cells = [];
+    for (let i=0;i<g.hr;i++){
+      for (let j=0;j<g.wr;j++){
+        cells.push(`${(g.r+i)%rows},${(g.c+j)%cols}`);
+      }
     }
-    // vertical wrap → short lines just outside top & bottom borders at group mid-col
-    if (wrapV) {
-      const xMid = X0 + ((c0 + g.wr/2) % cols) * cellW;
-      const L = Math.round(10 * scale);
-      bridges += `<path d="M${xMid},${Y0-L} V${Y0}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
-      bridges += `<path d="M${xMid},${Y1} V${Y1+L}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+    cells.sort();
+    return cells.join("|");
+  }
+  function dedupeRectsClient(rects, vars){
+    const seen = new Set(), out = [];
+    for (const r of rects){
+      const k = rectCellKey(r, vars);
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(r);
     }
-  });
+    return out;
+  }
 
-  const subtitle = (mode === "zeros")
-    ? `<div class="muted mono">Mode: POS — groups on 0-cells (dashed). Same color/number = one wrap-group.</div>`
-    : `<div class="muted mono">Mode: SOP — groups on 1-cells. Same color/number = one wrap-group.</div>`;
+  const resultCard = document.querySelector("aside.card");
 
-  return `<div class="mono" style="margin:.5rem 0 .25rem">${title}</div>
-          ${subtitle}
-          <svg viewBox="0 0 ${W} ${H}" width="100%">
-            <g fill="none" stroke="currentColor">${cells}</g>
-            <g fill="currentColor">${colLbl}${rowLbl}</g>
-            <g fill="none">${rects}</g>
-            <g>${labels}</g>
-            <g fill="none">${bridges}</g>
-          </svg>`;
-}
+  async function drawCircuit(style){
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) { alert("Enter an expression"); return; }
 
+    resEl.textContent = `Generating ${style.toUpperCase()} circuit…`;
+    ttCard.style.display="none"; ttEl.innerHTML="";
 
+    resultCard?.classList.add("wide");
+
+    const r = await fetch(API + "/api/ba/netlist", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ expr: text, vars, style })
+    });
+    const j = await r.json();
+    if (!j.ok) { resEl.innerHTML = `<span class="muted">Error: ${j.error}</span>`; return; }
+
+    requestAnimationFrame(() => {
+      const fitWidth = resultCard.getBoundingClientRect().width - 32;
+      resEl.innerHTML = renderCircuitSVG(j, {
+        caption: exprEl.value.trim(),
+        scale: 'fit',
+        fitWidth,
+        zoom: 2.2
+      });
+    });
+  }
+
+  $("#btnCircuit").addEventListener("click", () => drawCircuit("mixed"));
+  $("#btnCircuitNAND").addEventListener("click", () => drawCircuit("nand"));
+  $("#btnCircuitNOR").addEventListener("click", () => drawCircuit("nor"));
 
   /* ---------- SIMPLIFY button ---------- */
   $("#btnSimplify").addEventListener("click", async () => {
@@ -288,62 +338,56 @@ function renderKmapSVG(vars, minterms, groups = [], title = "K-map", opts = {}) 
     if (!text) { alert("Enter an expression or a kmap command"); return; }
 
     // K-map command?
-// --- KMAP COMMAND? ---
-const km = parseKmapCommand(text);
-if (km) {
-  ttCard.style.display = "none"; ttEl.innerHTML = "";
-  resEl.textContent = "Building K-map…";
+    const km = parseKmapCommand(text);
+    if (km) {
+      ttCard.style.display = "none"; ttEl.innerHTML = "";
+      resEl.textContent = "Building K-map…";
 
-  try {
-    // If expression was provided after `kmap ...`, compute minterms for grid display
-    let displayMins = km.minterms;
-    if (km.expr) {
-      const r1 = await fetch(API + "/api/ba/simplify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
-      });
-      const j1 = await r1.json();
-      if (!j1.ok) throw new Error(j1.error || "simplify error");
-      displayMins = j1.minterms;
+      try {
+        // If expression was provided after `kmap ...`, compute minterms for grid display
+        let displayMins = km.minterms;
+        if (km.expr) {
+          const r1 = await fetch(API + "/api/ba/simplify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
+          });
+          const j1 = await r1.json();
+          if (!j1.ok) throw new Error(j1.error || "simplify error");
+          displayMins = j1.minterms;
+        }
+
+        // payload for kmap
+        const body =
+          km.mode === "zeros"
+            ? { vars: km.vars, mode: "zeros", maxterms: km.maxterms, full: true }
+            : { vars: km.vars, mode: "ones",  minterms: displayMins, full: true };
+
+        const r = await fetch(API + "/api/ba/kmap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || "kmap error");
+
+        // DE-DUPE solution groups before drawing
+        const solGroups = dedupeRectsClient(j.solutionGroups || [], km.vars);
+
+        resEl.innerHTML = renderKmapSVG(
+          km.vars,
+          displayMins,
+          solGroups,
+          j.mode === "zeros"
+            ? `Solution (POS): ${j.simplified}`
+            : `Solution (SOP): ${j.simplified}`,
+          { mode: j.mode, scale: 2.2 }
+        );
+      } catch (e) {
+        resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
+      }
+      return;
     }
-
-    // IMPORTANT: post the right payload to kmap
-    const body =
-      km.mode === "zeros"
-        ? { vars: km.vars, mode: "zeros", maxterms: km.maxterms, full: true }
-        : { vars: km.vars, mode: "ones",  minterms: displayMins, full: true };
-
-    const r = await fetch(API + "/api/ba/kmap", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "kmap error");
-
-    // Render a big SVG k-map with the correct grouping mode
-    resEl.innerHTML = renderKmapSVG(
-      km.vars,
-      displayMins,                 // the grid always shows 1-cells of f
-      j.solutionGroups,            // rectangles returned by backend
-      j.mode === "zeros"
-        ? `Solution (POS): ${j.simplified}`
-        : `Solution (SOP): ${j.simplified}`,
-      { mode: j.mode, scale: 2.2 } // 'zeros' => dashed rectangles on 0-cells
-    );
-  } catch (e) {
-    resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
-  }
-  return;
-}
-
-
-
-
-
-
-    
 
     // Otherwise, normal simplify flow
     const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
@@ -382,290 +426,60 @@ if (km) {
     }
   });
 
-  /* ---------- CIRCUIT SVG (ANSI/IEC shapes, fit-to-width, caption) ---------- */
-// Orthogonal (Manhattan) circuit renderer with barycenter ordering + fit-to-width
-// -----------------------------------------------------------------------------
-// Manhattan (90°) logic renderer with Sugiyama-style layout:
-// - Splits long edges into per-layer "WIRE" nodes
-// - 4 barycenter sweeps (forward + reverse) to reduce crossings
-// - Orthogonal H-V-H routing with per-input vertical tracks
-// - Fit-to-width scaling (opts.scale='fit', opts.fitWidth)
-// -----------------------------------------------------------------------------
-// Manhattan, color-coded logic renderer with barycenter ordering + wire splitting
-function renderCircuitSVG(net, opts = {}) {
-  const caption = opts.caption ?? "";
-  let   scale   = opts.scale ?? 'fit';          // 'fit' or number
-  const fitW    = opts.fitWidth ?? 1000;
-  const zoom    = opts.zoom ?? 1.6;             // extra size multiplier
-
-  // Base geometry (pre-scale)
-  const GW0=72, GH0=46, PIN0=10, XSTEP0=180, YSTEP0=100, PAD0=28;
-
-  // --- Shapes (ANSI/IEC-ish), no inline fill (CSS colors will paint them) ---
-  const bubble = (x, y, s) =>
-    `<circle cx="${x}" cy="${y}" r="${Math.round(6*s)}" stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
-
-  const gateAND = (x, y, s) => {
-    const GW=Math.round(GW0*s), GH=Math.round(GH0*s);
-    const r = GH/2, xr = x + GW - r;
-    return `<path d="M${x},${y} H${xr} A${r},${r} 0 0 1 ${xr},${y+GH} H${x} Z" stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
-  };
-  const gateOR = (x, y, s) => {
-    const GW=Math.round(GW0*s), GH=Math.round(GH0*s);
-    const xIn = x + Math.round(14*s), xOut = x + GW - Math.round(10*s);
-    const xm  = x + GW - Math.round(22*s), b = y + GH;
-    return `<path d="M${xIn},${y}
-                     C ${xm-22},${y} ${xm},${y+GH/2} ${xOut},${y+GH/2}
-                     C ${xm},${y+GH/2} ${xm-22},${b} ${xIn},${b}
-                     C ${x+6},${b-10} ${x+6},${y+10} ${xIn},${y}"
-             stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
-  };
-  const gateXOR = (x, y, s) => {
-    const or = gateOR(x, y, s);
-    const GW=Math.round(GW0*s), GH=Math.round(GH0*s);
-    const xIn = x + Math.round(8*s), xm = x + GW - Math.round(22*s), b=y+GH;
-    const extra = `<path d="M${xIn},${y} C ${xm-22},${y} ${xm},${y+GH/2} ${xIn},${b}"
-                   stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
-    return or + extra;
-  };
-  const gateNOT = (x, y, s) => {
-    const GW=Math.round(GW0*s), GH=Math.round(GH0*s);
-    const tri = `<path d="M${x},${y} L${x},${y+GH} L${x+GW-12},${y+GH/2} Z"
-                 stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
-    return tri + bubble(x + GW - 4*s, y + GH/2, s);
-  };
-
-  // --- Build graph with succ/pred maps ---
-  const nodes = new Map(), succ = new Map(), pred = new Map();
-  const addNode = n => { nodes.set(n.id, n); succ.has(n.id)||succ.set(n.id,[]); pred.has(n.id)||pred.set(n.id,[]); };
-
-  net.gates.forEach(g => addNode({...g}));
-  net.inputs.forEach(i => addNode({ id:i.id, type:"IN", ins:[], label:i.label }));
-  addNode({ id: net.output, type: nodes.get(net.output)?.type || "OUT", ins: nodes.get(net.output)?.ins || [] });
-
-  nodes.forEach(n => (n.ins||[]).forEach(p => { if(!nodes.has(p)) addNode({id:p,type:"WIRE",ins:[]}); succ.get(p).push(n.id); pred.get(n.id).push(p); }));
-
-  // --- Initial layering: longest path from inputs
-  const level = new Map();
-  const lev = id => level.has(id) ? level.get(id) :
-    level.set(id, (["IN","VCC","GND"].includes(nodes.get(id)?.type)||id==="VCC_1"||id==="GND_0") ? 0 : Math.max(0,...(pred.get(id)||[]).map(lev))+1).get(id);
-  nodes.forEach((_,id)=>lev(id));
-
-  // --- Split long edges into per-layer wire nodes
-  let wireSerial=0; const wid=()=>`_W${wireSerial++}`;
-  pred.forEach((parents, child)=>{
-    const lc=level.get(child);
-    parents.slice().forEach(p=>{
-      const lp=level.get(p);
-      if (lc-lp<=1) return;
-      succ.set(p,(succ.get(p)||[]).filter(x=>x!==child));
-      pred.set(child,(pred.get(child)||[]).filter(x=>x!==p));
-      let prev=p;
-      for (let L=lp+1; L<lc; L++){
-        const w=wid(); addNode({id:w,type:"WIRE",ins:[prev]}); level.set(w,L);
-        succ.get(prev).push(w); pred.get(w).push(prev); prev=w;
-      }
-      succ.get(prev).push(child); pred.get(child).push(prev);
-    });
-  });
-
-  // --- Layers array
-  let layers=[]; level.forEach((v,id)=> (layers[v]||(layers[v]=[])).push(id));
-
-  // --- Barycenter ordering (forward+reverse, 4 sweeps)
-  const pos = new Map(); const recompute=()=>{ pos.clear(); layers.forEach((ids,L)=>ids.forEach((id,i)=>pos.set(id,i))); };
-  const avg = arr => arr.length ? arr.reduce((a,b)=>a+(pos.get(b)||0),0)/arr.length : -1e9;
-
-  const sweepF=()=>{ for(let L=1;L<layers.length;L++){ layers[L].sort((a,b)=>avg(pred.get(a)||[])-avg(pred.get(b)||[])||a.localeCompare(b)); } };
-  const sweepR=()=>{ for(let L=layers.length-2;L>=0;L--){ layers[L].sort((a,b)=>avg(succ.get(a)||[])-avg(succ.get(b)||[])||a.localeCompare(b)); } };
-  for(let i=0;i<4;i++){ sweepF(); recompute(); sweepR(); recompute(); } recompute();
-
-  // --- Fit scale
-  if (scale==='fit') {
-    const baseW = (layers.length+1)*XSTEP0 + 2*PAD0;
-    scale = Math.max(1.15, (fitW*zoom) / baseW);
-  }
-  const s=+scale, GW=Math.round(GW0*s), GH=Math.round(GH0*s), PIN=Math.round(PIN0*s);
-  const XSTEP=Math.round(XSTEP0*s), YSTEP=Math.round(YSTEP0*s), PAD=Math.round(PAD0*s);
-
-  const abs = new Map(); layers.forEach((ids,lx)=>ids.forEach((id,ly)=>abs.set(id,{x:PAD+lx*XSTEP,y:PAD+ly*YSTEP})));
-  const width  = (layers.length+1)*XSTEP + 2*PAD;
-  const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?Math.round(28*s):0);
-
-  const pinY = (y,n,k)=> y + GH*((k+1)/(Math.max(1,n)+1));
-
-  // --- Gate glyphs with per-type color classes
-  function drawGate(n){
-    if (n.type==="WIRE") return "";
-    const p=abs.get(n.id); const nIns=(n.ins||[]).length||1;
-    const pins = Array.from({length:nIns},(_,k)=>`<line x1="${p.x-PIN}" y1="${pinY(p.y,nIns,k)}" x2="${p.x}" y2="${pinY(p.y,nIns,k)}"/>`).join("");
-    const wrap = (cls,body)=>`<g class="gate ${cls}" color="currentColor">${pins}${body}</g>`;
-    if (n.type==="IN"){
-      const w=Math.round(58*s), h=Math.round(26*s), r=Math.round(6*s);
-      return `<g class="gate IN"><rect x="${p.x}" y="${p.y}" width="${w}" height="${h}" rx="${r}"/>
-              <text x="${p.x+w/2}" y="${p.y+h/2+6}" text-anchor="middle" class="mono">${n.label||n.id}</text></g>`;
-    }
-    if (n.type==="NOT")  return wrap("NOT",  gateNOT(p.x,p.y,s));
-    if (n.type==="AND")  return wrap("AND",  gateAND(p.x,p.y,s));
-    if (n.type==="OR")   return wrap("OR",   gateOR(p.x,p.y,s));
-    if (n.type==="XOR")  return wrap("XOR",  gateXOR(p.x,p.y,s));
-    if (n.type==="NAND") return wrap("NAND", gateAND(p.x,p.y,s) + bubble(p.x+GW+Math.round(8*s), p.y+GH/2, s));
-    if (n.type==="NOR")  return wrap("NOR",  gateOR(p.x,p.y,s)  + bubble(p.x+GW+Math.round(8*s), p.y+GH/2, s));
-    if (n.type==="XNOR") return wrap("XNOR", gateXOR(p.x,p.y,s) + bubble(p.x+GW+Math.round(8*s), p.y+GH/2, s));
-    return wrap("OTHER", `<rect x="${p.x}" y="${p.y}" width="${GW}" height="${GH}" rx="${Math.round(10*s)}"/>
-                          <text x="${p.x+GW/2}" y="${p.y+GH/2+5}" text-anchor="middle" class="mono">${n.type}</text>`);
-  }
-
-  // --- Orthogonal H-V-H wires with per-input tracks
-  function wiresTo(tid){
-    const t = nodes.get(tid), dst = abs.get(tid);
-    const xL = dst.x, yT = dst.y, ins = (t.ins||[]);
-    return ins.map((sid,k)=>{
-      const sp = abs.get(sid) || {x:xL - XSTEP/2, y:yT};
-      const x1 = sp.x + GW, y1 = sp.y + GH/2;
-      const x2 = xL,        y2 = pinY(yT, ins.length||1, k);
-      const track = Math.round(22*s);
-      const bendX = x2 - Math.round(GW/4) - (k+1)*track;
-      return `M${x1},${y1} H${bendX} V${y2} H${x2}`;
-    }).join(" ");
-  }
-  const wiresSVG = Array.from(nodes.values()).filter(n=>(n.ins||[]).length).map(n=>`<path d="${wiresTo(n.id)}" class="wire"/>`).join("");
-  const gatesSVG = Array.from(nodes.values()).map(drawGate).join("");
-  const outPos = abs.get(net.output) || { x: width-80, y: height/2 };
-
-  // --- Embedded SVG style: color palette
-  const style = `
-  <style>
-    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: ${Math.max(12, Math.round(12*s))}px; }
-    .wire { stroke: #aab4c0; stroke-width: ${Math.max(2.8, 2.8*s)}; stroke-linecap: round; stroke-linejoin: round; fill: none; }
-    .gate line, .gate path, .gate rect { stroke-width: ${Math.max(2.8, 2.8*s)}; stroke-linecap: round; stroke-linejoin: round; }
-    .gate.IN   rect { stroke:#B0BEC5; fill: rgba(176,190,197,0.10); }
-    .gate.AND  path, .gate.AND rect  { stroke:#3DDC97; fill: rgba(61,220,151,0.12); }
-    .gate.OR   path                 { stroke:#FFB86B; fill: rgba(255,184,107,0.12); }
-    .gate.XOR  path                 { stroke:#FF79C6; fill: rgba(255,121,198,0.12); }
-    .gate.NOT  path                 { stroke:#8BE9FD; fill: rgba(139,233,253,0.10); }
-    .gate.NAND path, .gate.NAND rect{ stroke:#00C853; fill: rgba(0,200,83,0.12); }
-    .gate.NOR  path                 { stroke:#FF7043; fill: rgba(255,112,67,0.12); }
-    .gate.XNOR path                 { stroke:#8E44AD; fill: rgba(142,68,173,0.12); }
-    .gate.OTHER rect                { stroke:#9aa4b2; fill: rgba(154,164,178,0.10); }
-  </style>`;
-
-  const captionSVG = caption ? `<text x="${PAD}" y="${height - Math.round(10*s)}" class="mono" fill="currentColor">F = ${caption}</text>` : "";
-
-  return `<svg viewBox="0 0 ${width} ${height}" width="100%" preserveAspectRatio="xMinYMin meet">
-    ${style}
-    <g class="wires">${wiresSVG}</g>
-    <g class="gates">${gatesSVG}</g>
-    <g class="labels" fill="currentColor">
-      ${captionSVG}
-      <text x="${outPos.x + Math.round(90*s)}" y="${outPos.y + Math.round(24*s)}" class="mono">F</text>
-    </g>
-  </svg>`;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-  
-
-  const resultCard = document.querySelector("aside.card");
-
-async function drawCircuit(style){
-  const text = exprEl.value.trim();
-  const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
-  if (!text) { alert("Enter an expression"); return; }
-
-  resEl.textContent = `Generating ${style.toUpperCase()} circuit…`;
-  ttCard.style.display="none"; ttEl.innerHTML="";
-
-  // 1) make the Result card span both columns
-  resultCard?.classList.add("wide");
-
-  // 2) fetch the netlist
-  const r = await fetch(API + "/api/ba/netlist", {
-    method:"POST", headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({ expr: text, vars, style })
-  });
-  const j = await r.json();
-  if (!j.ok) { resEl.innerHTML = `<span class="muted">Error: ${j.error}</span>`; return; }
-
-  // 3) WAIT one frame so the card actually becomes wide → then measure
-  requestAnimationFrame(() => {
-    const fitWidth = resultCard.getBoundingClientRect().width - 32; // wide width
-    resEl.innerHTML = renderCircuitSVG(j, {
-      caption: exprEl.value.trim(),
-      scale: 'fit',
-      fitWidth,
-      zoom: 2.2       // try 1.8–2.4 for even bigger
-    });
-  });
-}
-
-
-  $("#btnCircuit").addEventListener("click", () => drawCircuit("mixed"));
-  $("#btnCircuitNAND").addEventListener("click", () => drawCircuit("nand"));
-  $("#btnCircuitNOR").addEventListener("click", () => drawCircuit("nor"));
-
   /* ---------- KMAP Pairings & Solution (big SVG) ---------- */
   async function showKmapGroups() {
-  const text = exprEl.value.trim();
-  if (!text) { alert("Type a kmap command or an expression."); return; }
+    const text = exprEl.value.trim();
+    if (!text) { alert("Type a kmap command or an expression."); return; }
 
-  let vars, mode = "ones", minterms, maxterms;
-  const km = parseKmapCommand(text);
+    let vars, mode = "ones", minterms, maxterms;
+    const km = parseKmapCommand(text);
 
-  if (km) {
-    vars = km.vars;
-    mode = km.mode;                // "ones" | "zeros"
-    if (km.expr) {
+    if (km) {
+      vars = km.vars;
+      mode = km.mode;                // "ones" | "zeros"
+      if (km.expr) {
+        const r1 = await fetch(API + "/api/ba/simplify", {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
+        });
+        const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error||"simplify error");
+        minterms = j1.minterms;
+      } else {
+        minterms = km.minterms;
+        maxterms = km.maxterms;
+      }
+    } else {
+      // plain expression: compute minterms; SOP by default
       const r1 = await fetch(API + "/api/ba/simplify", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
+        body: JSON.stringify({ expr: text, vars: varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined, includeTable: false })
       });
       const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error||"simplify error");
-      minterms = j1.minterms;
-    } else {
-      minterms = km.minterms;
-      maxterms = km.maxterms;
+      vars = j1.vars; minterms = j1.minterms;
     }
-  } else {
-    // plain expression: compute minterms; treat as SOP by default
-    const r1 = await fetch(API + "/api/ba/simplify", {
+
+    const body = (mode === "zeros")
+      ? { vars, mode:"zeros", maxterms: maxterms ?? [], full: true }
+      : { vars, mode:"ones",  minterms: minterms ?? [], full: true };
+
+    const r2 = await fetch(API + "/api/ba/kmap", {
       method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ expr: text, vars: varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined, includeTable: false })
+      body: JSON.stringify(body)
     });
-    const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error||"simplify error");
-    vars = j1.vars; minterms = j1.minterms;
+    const j2 = await r2.json();
+    if (!j2.ok) { resEl.innerHTML = `<span class="muted">Error: ${j2.error}</span>`; return; }
+
+    // DE-DUPE both pairings and solution groups
+    const pairsRaw = (j2.allGroups || []).filter(g => g.hr*g.wr === 2);
+    const pairs = dedupeRectsClient(pairsRaw, vars);
+    const solution = dedupeRectsClient(j2.solutionGroups || [], vars);
+
+    resEl.innerHTML =
+      renderKmapSVG(vars, minterms ?? [], pairs, "All pairings (size 2)", { mode, scale: 2.0 }) +
+      renderKmapSVG(vars, minterms ?? [], solution,
+        mode === "zeros" ? `Solution (POS): ${j2.simplified}` : `Solution (SOP): ${j2.simplified}`,
+        { mode, scale: 2.2 });
   }
-
-  // Ask backend for all groups IN THE CORRECT MODE
-  const body = (mode === "zeros")
-    ? { vars, mode:"zeros", maxterms: maxterms ?? [], full: true }
-    : { vars, mode:"ones",  minterms: minterms ?? [], full: true };
-
-  const r2 = await fetch(API + "/api/ba/kmap", {
-    method:"POST", headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify(body)
-  });
-  const j2 = await r2.json();
-  if (!j2.ok) { resEl.innerHTML = `<span class="muted">Error: ${j2.error}</span>`; return; }
-
-  resEl.innerHTML =
-    renderKmapSVG(vars, minterms ?? [], j2.allGroups.filter(g => g.hr*g.wr === 2),
-      "All pairings (size 2)", { mode, scale: 2.0 }) +
-    renderKmapSVG(vars, minterms ?? [], j2.solutionGroups,
-      mode === "zeros" ? `Solution (POS): ${j2.simplified}` : `Solution (SOP): ${j2.simplified}`,
-      { mode, scale: 2.2 });
-}
-
 
   $("#btnKmapGroups").addEventListener("click", () => {
     ttCard.style.display="none"; ttEl.innerHTML="";
