@@ -225,7 +225,8 @@ function qmMinimize(minterms, dc, nbits){
   for (const m of all){
     const imp = { mask:0, bits:m, terms: new Set([m]) };
     const ones = bitCount(m);
-    (groups.get(ones) || groups.set(ones, [])).push(imp);
+    if (!groups.has(ones)) groups.set(ones, []);
+groups.get(ones).push(imp);
   }
   let marked = new WeakSet();
   let nextGroups;
@@ -246,7 +247,8 @@ function qmMinimize(minterms, dc, nbits){
           any = true;
           marked.add(a); marked.add(b);
           const ones = bitCount(c.bits);
-          (nextGroups.get(ones) || nextGroups.set(ones, [])).push(c);
+           if (!nextGroups.has(ones)) nextGroups.set(ones, []);
+           nextGroups.get(ones).push(c);
         }
       }
     }
