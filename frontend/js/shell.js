@@ -1564,3 +1564,79 @@ document.addEventListener('keydown', (ev) => {
     window.WebSocket.__pcWrapped = true;
   }
 })();
+
+
+
+
+
+
+
+
+
+
+
+// ===== POLYCODE overlay / collapse wiring =====
+document.addEventListener('DOMContentLoaded', () => {
+  const app   = document.querySelector('.app');
+  if (!app) return;
+
+  const $ = (sel) => document.querySelector(sel);
+  const btnLeft   = $('#btnLeftToggle');
+  const btnRight  = $('#btnRightToggle');
+  const btnRun    = $('#btnRun');    // keep these ids consistent across pages
+  const btnReset  = $('#btnReset');
+
+  // Match the CSS var (--bp-overlay) if present, else 1500px fallback
+  const getOverlayQuery = () => {
+    const cssVal = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bp-overlay').trim();
+    return `(max-width: ${cssVal || '1500px'})`;
+  };
+  let mql = window.matchMedia(getOverlayQuery());
+  const isOverlay = () => mql.matches;
+
+  // Recompute when the CSS var changes or window resizes (rare but safe)
+  window.addEventListener('resize', () => { mql = window.matchMedia(getOverlayQuery()); });
+
+  // Left toggle
+  btnLeft?.addEventListener('click', () => {
+    if (isOverlay()) {
+      app.classList.toggle('show-left');
+      app.classList.remove('show-right');
+    } else {
+      app.classList.toggle('collapsed-left');   // desktop: collapse column
+    }
+  });
+
+  // Right toggle
+  btnRight?.addEventListener('click', () => {
+    if (isOverlay()) {
+      app.classList.toggle('show-right');
+      app.classList.remove('show-left');
+    } else {
+      app.classList.toggle('collapsed-right');  // desktop: collapse column
+    }
+  });
+
+  // Auto-open Output on Run (overlay mode)
+  btnRun?.addEventListener('click', () => {
+    if (isOverlay()) {
+      app.classList.add('show-right');
+      app.classList.remove('show-left');
+    }
+  });
+
+  // Auto-close Output on Reset (overlay mode)
+  btnReset?.addEventListener('click', () => {
+    if (isOverlay()) {
+      app.classList.remove('show-right');
+    }
+  });
+
+  // ESC closes any open drawer (overlay mode)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isOverlay()) {
+      app.classList.remove('show-left', 'show-right');
+    }
+  });
+});
