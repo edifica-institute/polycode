@@ -949,6 +949,10 @@ document.addEventListener('DOMContentLoaded', () => {
       setExpanded(btnRight, true, 'output');
       setExpanded(btnLeft,  false, 'reference');
     }
+    else {
+    // If the right column is collapsed on desktop, open it
+    app.classList.remove('collapsed-right');
+  }
   });
   btnReset?.addEventListener('click', () => {
     if (isOverlayMode()) {
