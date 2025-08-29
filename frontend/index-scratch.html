@@ -72,7 +72,13 @@
           </div>
         </div>
         <div id="editor" style="position:relative; height:100%;">
-       <iframe src="https://scratch.mit.edu/projects/1210491740/embed" allowtransparency="true" width="485" height="402" frameborder="0" scrolling="no" allowfullscreen></iframe>
+      <iframe
+  id="scratchFrame"
+  title="Scratch Editor"
+  src="/tw/editor.html?embed=1&fps=60&turbo=false"
+  allow="clipboard-read; clipboard-write; fullscreen"
+  style="position:absolute; inset:0; width:100%; height:100%; border:0;">
+</iframe>
 
         </div>
         <div class="pane-foot"><span class="msg" id="centerFoot">Ready — Scratch editor embedded</span></div>
@@ -129,69 +135,46 @@
 
   <!-- Scripts -->
   <script src="./js/shell.js" defer></script>
-  <script>
-    const TW_BASE = '/tw';
+ <script>
+  // Point directly to the self-hosted editor file
+  const TW_BASE = '/tw/editor.html';
 
-function buildTWEditorURL(opts){
-  // Add embed=1  👇
-  const p = new URLSearchParams({ embed:'1', fps:'60', turbo:'false' });
-  if (opts?.projectId) p.set('project_id', String(opts.projectId).trim());
-  return `${TW_BASE}/editor.html?${p.toString()}`;
-}
+  function parseProjectInput(v){
+    if (!v) return null;
+    v = String(v).trim();
+    const m = v.match(/(?:projects\/)?(\d{3,})/);   // accepts scratch URL or raw digits
+    if (m) return m[1];
+    const digits = v.replace(/\D/g,'');
+    return digits.length >= 3 ? digits : null;
+  }
 
+  function buildURL(projectId){
+    const p = new URLSearchParams({ embed: '1', fps: '60', turbo: 'false' });
+    if (projectId) p.set('project_id', projectId); // NOTE: correct key name
+    return `${TW_BASE}?${p.toString()}`;
+  }
 
-    function setEditorSrc(url){
-      const f = document.getElementById('scratchFrame');
-      if (f) f.src = url;
-      window.PolyShell?.setStatus('Ready','ok');
-    }
+  document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('projInput');
+    const btn   = document.getElementById('btnLoad');
+    const frame = document.getElementById('scratchFrame');
 
-    // Parse Scratch/TW project input
-    function parseProjectInput(v){
-      if (!v) return null;
-      v = String(v).trim();
-      const idMatch = v.match(/(?:projects\/)?(\d{3,})/);
-      if (idMatch) return idMatch[1];
-      const onlyDigits = v.replace(/\D/g,'');
-      return onlyDigits.length >= 3 ? onlyDigits : null;
-    }
-
-    // Bootstrap
-    window.bootstrap = async function(){
-      window.PolyShell?.setStatus('Loading Scratch Editor…','busy');
-      window.PolyShell?.loadLeftContent?.('scratch');
-      setEditorSrc(buildTWEditorURL({ projectid: '1210491740' }));
-      document.getElementById('centerFoot').textContent = 'Ready — Scratch editor embedded';
-    };
-
-    document.addEventListener('DOMContentLoaded', ()=>{
-      const input = document.getElementById('projInput');
-      const btnLoad = document.getElementById('btnLoad');
-      btnLoad?.addEventListener('click', ()=>{
-        const id  = parseProjectInput(input?.value || '');
-        const url = buildTWEditorURL(id ? { projectId:id } : {});
-        setEditorSrc(url);
-        window.PolyShell?.setStatus(id ? `Loaded project #${id}` : 'Opened blank editor','ok');
-      });
-      input?.addEventListener('keydown', e => {
-        if (e.key === 'Enter'){ e.preventDefault(); btnLoad?.click(); }
-      });
+    // Load by ID/URL when user clicks or presses Enter
+    btn?.addEventListener('click', () => {
+      const id = parseProjectInput(input?.value || '');
+      frame.src = buildURL(id);     // swap to specified project (or blank editor if no id)
+      window.PolyShell?.setStatus(id ? `Loaded project #${id}` : 'Opened blank editor','ok');
+    });
+    input?.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){ e.preventDefault(); btn?.click(); }
     });
 
-    // Polycode startup hook
-    (function startWhenReady(){
-      function start(){
-        if (!window.PolyShell){
-          const id = setInterval(()=>{ if (window.PolyShell){ clearInterval(id); window.bootstrap(); } }, 25);
-          setTimeout(()=>clearInterval(id), 3000);
-          return;
-        }
-        window.bootstrap();
-      }
-      if (document.readyState === 'loading'){
-        document.addEventListener('DOMContentLoaded', start, { once:true });
-      } else { start(); }
-    })();
-  </script>
+    // Polycode boot — keep iframe src set in HTML; don't override it here
+    window.PolyShell?.loadLeftContent?.('scratch');
+    window.PolyShell?.setStatus('Ready','ok');
+    document.getElementById('centerFoot').textContent = 'Ready — Scratch editor embedded';
+  });
+</script>
+
 </body>
 </html>
