@@ -224,27 +224,62 @@ aside.card.wide { padding-block: 24px; }
     if (!text) { alert("Enter an expression or a kmap command"); return; }
 
     // K-map command?
-    const km = parseKmapCommand(text);
-    if (km) {
-      ttCard.style.display = "none"; ttEl.innerHTML = "";
-      resEl.textContent = "Building K-map…";
-      try {
-        // If user gave an expr after "kmap", get minterms to draw the grid with F-values
-        let minForGrid = km.minterms;
-        if (km.expr) {
-          const r1 = await fetch(API + "/api/ba/simplify", {
-            method:"POST", headers:{ "Content-Type":"application/json" },
-            body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
-          });
-          const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error || "simplify error");
-          minForGrid = j1.minterms;
-        }
-        renderKmapTable(km.vars, minForGrid);
-      } catch (e) {
-        resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
-      }
-      return;
+// --- KMAP COMMAND? ---
+const km = parseKmapCommand(text);
+if (km) {
+  ttCard.style.display = "none"; ttEl.innerHTML = "";
+  resEl.textContent = "Building K-map…";
+
+  try {
+    // If expression was provided after `kmap ...`, compute minterms for grid display
+    let displayMins = km.minterms;
+    if (km.expr) {
+      const r1 = await fetch(API + "/api/ba/simplify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
+      });
+      const j1 = await r1.json();
+      if (!j1.ok) throw new Error(j1.error || "simplify error");
+      displayMins = j1.minterms;
     }
+
+    // IMPORTANT: post the right payload to kmap
+    const body =
+      km.mode === "zeros"
+        ? { vars: km.vars, mode: "zeros", maxterms: km.maxterms, full: true }
+        : { vars: km.vars, mode: "ones",  minterms: displayMins, full: true };
+
+    const r = await fetch(API + "/api/ba/kmap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "kmap error");
+
+    // Render a big SVG k-map with the correct grouping mode
+    resEl.innerHTML = renderKmapSVG(
+      km.vars,
+      displayMins,                 // the grid always shows 1-cells of f
+      j.solutionGroups,            // rectangles returned by backend
+      j.mode === "zeros"
+        ? `Solution (POS): ${j.simplified}`
+        : `Solution (SOP): ${j.simplified}`,
+      { mode: j.mode, scale: 2.2 } // 'zeros' => dashed rectangles on 0-cells
+    );
+  } catch (e) {
+    resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
+  }
+  return;
+}
+
+
+
+
+
+
+    
 
     // Otherwise, normal simplify flow
     const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
@@ -517,55 +552,56 @@ async function drawCircuit(style){
 
   /* ---------- KMAP Pairings & Solution (big SVG) ---------- */
   async function showKmapGroups() {
-    const text = exprEl.value.trim();
-    if (!text) { alert("Type a kmap command or an expression."); return; }
+  const text = exprEl.value.trim();
+  if (!text) { alert("Type a kmap command or an expression."); return; }
 
-    let vars, mode="ones", minForGrid, body;
+  let vars, mode = "ones", minterms, maxterms;
+  const km = parseKmapCommand(text);
 
-    const km = parseKmapCommand(text);
-    if (km) {
-      vars = km.vars;
-      if (km.expr) {
-        const r1 = await fetch(API + "/api/ba/simplify", {
-          method:"POST", headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
-        });
-        const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error||"simplify error");
-        minForGrid = j1.minterms;
-        mode = "ones";
-        body = { vars, minterms: minForGrid, full:true, mode };
-      } else if (km.mode === "zeros") {
-        vars = km.vars; mode = "zeros"; minForGrid = km.minterms;
-        body = { vars, maxterms: km.maxterms, full:true, mode };
-      } else {
-        vars = km.vars; mode = "ones"; minForGrid = km.minterms;
-        body = { vars, minterms: minForGrid, full:true, mode };
-      }
-    } else {
-      // plain expression: compute minterms
+  if (km) {
+    vars = km.vars;
+    mode = km.mode;                // "ones" | "zeros"
+    if (km.expr) {
       const r1 = await fetch(API + "/api/ba/simplify", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ expr: text, vars: varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined, includeTable: false })
+        body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
       });
       const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error||"simplify error");
-      vars = j1.vars; minForGrid = j1.minterms; mode = "ones";
-      body = { vars, minterms: minForGrid, full:true, mode };
+      minterms = j1.minterms;
+    } else {
+      minterms = km.minterms;
+      maxterms = km.maxterms;
     }
-
-    const r2 = await fetch(API + "/api/ba/kmap", {
-      method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body)
+  } else {
+    // plain expression: compute minterms; treat as SOP by default
+    const r1 = await fetch(API + "/api/ba/simplify", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ expr: text, vars: varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined, includeTable: false })
     });
-    const j2 = await r2.json(); if (!j2.ok) { resEl.innerHTML = `<span class="muted">Error: ${j2.error}</span>`; return; }
-
-    resEl.innerHTML =
-      renderKmapSVG(vars, minForGrid,
-        j2.allGroups.filter(g => g.hr*g.wr === 2),
-        mode === "zeros" ? "All pairings (size 2) · POS (0-groups)" : "All pairings (size 2) · SOP",
-        { mode, scale: 2.0 }) +
-      renderKmapSVG(vars, minForGrid, j2.solutionGroups,
-        mode === "zeros" ? `Solution (POS): ${j2.simplified}` : `Solution (SOP): ${j2.simplified}`,
-        { mode, scale: 1.6 });
+    const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error||"simplify error");
+    vars = j1.vars; minterms = j1.minterms;
   }
+
+  // Ask backend for all groups IN THE CORRECT MODE
+  const body = (mode === "zeros")
+    ? { vars, mode:"zeros", maxterms: maxterms ?? [], full: true }
+    : { vars, mode:"ones",  minterms: minterms ?? [], full: true };
+
+  const r2 = await fetch(API + "/api/ba/kmap", {
+    method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify(body)
+  });
+  const j2 = await r2.json();
+  if (!j2.ok) { resEl.innerHTML = `<span class="muted">Error: ${j2.error}</span>`; return; }
+
+  resEl.innerHTML =
+    renderKmapSVG(vars, minterms ?? [], j2.allGroups.filter(g => g.hr*g.wr === 2),
+      "All pairings (size 2)", { mode, scale: 2.0 }) +
+    renderKmapSVG(vars, minterms ?? [], j2.solutionGroups,
+      mode === "zeros" ? `Solution (POS): ${j2.simplified}` : `Solution (SOP): ${j2.simplified}`,
+      { mode, scale: 2.2 });
+}
+
 
   $("#btnKmapGroups").addEventListener("click", () => {
     ttCard.style.display="none"; ttEl.innerHTML="";
