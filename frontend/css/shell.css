@@ -2261,3 +2261,88 @@ html, body { height: 100%; }
   .site-header{ backdrop-filter: none; background: var(--panel-2); }
 }
 
+
+
+/* =========================
+   MOBILE STACKED MODE (≤1024px)
+   ========================= */
+@media (max-width:1024px){
+
+  /* 0) One column, explicit stacking order */
+  .stage{ padding:8px 12px; }
+  .app{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:8px !important;
+    height:100% !important;
+    min-height:0 !important;
+  }
+  /* order: Header(1) • Left(2 when open) • Editor(3) • Output(4) • Footer(5) */
+  header.site-header{ order:1; }
+  .left.panel{ order:2; }
+  .center.panel{ order:3; }
+  .right.panel{ order:4; }
+  footer.site-footer{ order:5; }
+
+  /* 1) Hide left panel by default; show when .app is NOT collapsed-left */
+  .left.panel{ display:none !important; }
+  .app:not(.collapsed-left) .left.panel{ display:block !important; }
+
+  /* 2) Kill resizers on touch */
+  .v-resize{ display:none !important; }
+
+  /* 3) Ensure children can shrink/scroll (no nested scrollbars) */
+  .panel, .pane-body, #editor, #output{ min-height:0 !important; }
+  #editor{ min-height:46svh; flex:1 1 0; }
+  #output{ min-height:36svh; flex:1 1 0; overflow:auto !important; }
+  #jconsole{ display:inline-block; min-width:100%; white-space:pre; overflow:visible !important; }
+
+  /* 4) Compact top navigation (smaller logo + links) */
+  .site-header{
+    display:grid !important;
+    grid-template-columns:1fr auto 1fr !important; /* center brand, right nav */
+    align-items:center !important;
+    gap:10px !important;
+    padding:8px 12px !important;
+    background:var(--glass) !important;
+    border-bottom:1px solid var(--glass-brd) !important;
+    backdrop-filter:blur(10px);
+    position:sticky; top:0; z-index:50;
+  }
+  .brand-wrap{ grid-column:2 !important; justify-self:center !important; }
+  .brand-logo{ width:clamp(28px,8vw,36px) !important; height:clamp(28px,8vw,36px) !important; }
+  .brand-title2{ font-size:clamp(18px,4.5vw,22px) !important; line-height:1.05 !important; font-weight:400 !important; }
+  .brand-tagline2{ font-size:clamp(11px,3.4vw,13px) !important; line-height:1.1 !important; }
+  .site-nav{ grid-column:3 !important; justify-self:end !important; display:flex !important; gap:10px !important; }
+  .site-nav a, .site-header nav a{
+    font-size:12px !important;
+    line-height:1 !important;
+    text-decoration:underline; text-underline-offset:3px;
+  }
+
+  /* 5) Compact panel heads + buttons */
+  .pane-head{ padding:8px 10px !important; min-height:38px !important; }
+  .btn{ width:36px; height:36px; }
+  .select{ font-size:16px; }
+
+  /* 6) Tight footer (bottom navigation smaller, complete) */
+  .site-footer{
+    padding:10px 12px !important;
+    background:var(--glass) !important;
+    border-top:1px solid var(--glass-brd) !important;
+  }
+  .footer-grid{ grid-template-columns:1fr !important; row-gap:8px !important; }
+  .footer-left .txt .powered{ font-size:13px !important; }
+  .footer-left .txt .subline, .footer-left .txt .siteurl{ font-size:11px !important; }
+  .footer-right{ justify-content:flex-start !important; gap:12px !important; flex-wrap:wrap !important; }
+  .footer-center{ justify-content:flex-start !important; gap:8px !important; }
+  .footer-center .social{ width:26px; height:26px; }
+  .footer-logo{ width:22px !important; height:22px !important; }
+
+  /* 7) Safety */
+  html, body{ overflow-x:hidden; }
+  #leftPanel, #centerPanel, #rightPanel,
+  .panel, .pane-body, #editor, #output, #jconsole{ min-width:0 !important; }
+}
+
+
