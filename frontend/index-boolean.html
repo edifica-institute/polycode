@@ -564,7 +564,7 @@ async function drawCircuit(style){
         { mode, scale: 2.0 }) +
       renderKmapSVG(vars, minForGrid, j2.solutionGroups,
         mode === "zeros" ? `Solution (POS): ${j2.simplified}` : `Solution (SOP): ${j2.simplified}`,
-        { mode, scale: 2.2 });
+        { mode, scale: 1.6 });
   }
 
   $("#btnKmapGroups").addEventListener("click", () => {
