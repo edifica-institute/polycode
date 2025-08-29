@@ -160,7 +160,7 @@ aside.card.wide { padding-block: 24px; }
 
   /* ---------- BIG SVG KMAP WITH GROUPS ---------- */
 function renderKmapSVG(vars, minterms, groups = [], title = "K-map", opts = {}) {
-  const mode   = opts.mode ?? "ones";
+  const mode   = opts.mode ?? "ones";      // "ones" (SOP) | "zeros" (POS)
   const scale  = opts.scale ?? 2.0;
   const cellW  = Math.round(42 * scale);
   const cellH  = Math.round(30 * scale);
@@ -168,13 +168,14 @@ function renderKmapSVG(vars, minterms, groups = [], title = "K-map", opts = {}) 
   const font14 = Math.round(14 * scale);
   const font12 = Math.round(12 * scale);
 
+  // --- dims
   const n = vars.length;
   const rbits = Math.floor(n/2), cbits = n - rbits;
   const rows = 1<<rbits, cols = 1<<cbits;
 
   const gray = x => x ^ (x>>1);
 
-  // grid values (unchanged) ...
+  // --- grid values (1 = minterm)
   const grid = Array.from({length:rows},()=>Array(cols).fill(0));
   for (let i=0;i<(1<<n);i++){
     const r = gray(i>>cbits)&(rows-1);
@@ -183,73 +184,102 @@ function renderKmapSVG(vars, minterms, groups = [], title = "K-map", opts = {}) 
   }
 
   const W = pad*2 + cols*cellW + 100, H = pad*2 + rows*cellH + 40;
+  const X0 = pad, Y0 = pad, X1 = pad + cols*cellW, Y1 = pad + rows*cellH;
 
-  // --- NEW: split a toroidal rectangle into 1–4 screen rectangles
+  // --- split a toroidal rect into up to 4 screen rects
   function splitSegments(g){
-    const segs = [];
-    const r1 = g.r % rows, c1 = g.c % cols;
-    const rh1 = Math.min(g.hr, rows - r1);
-    const cw1 = Math.min(g.wr, cols - c1);
+    const r0 = ((g.r % rows) + rows) % rows;
+    const c0 = ((g.c % cols) + cols) % cols;
+    const rh1 = Math.min(g.hr, rows - r0);
+    const cw1 = Math.min(g.wr, cols - c0);
 
-    // top-left
-    segs.push({ r:r1, c:c1, hr:rh1, wr:cw1 });
-
-    // horizontal overflow
-    if (g.wr > cw1) segs.push({ r:r1, c:0, hr:rh1, wr: g.wr - cw1 });
-
-    // vertical overflow
-    if (g.hr > rh1) {
-      segs.push({ r:0, c:c1, hr: g.hr - rh1, wr:cw1 });
-      // both overflow
-      if (g.wr > cw1) segs.push({ r:0, c:0, hr: g.hr - rh1, wr: g.wr - cw1 });
+    const segs = [{ r:r0, c:c0, hr:rh1, wr:cw1 }];
+    if (g.wr > cw1) segs.push({ r:r0, c:0, hr:rh1, wr:g.wr - cw1 });
+    if (g.hr > rh1){
+      segs.push({ r:0, c:c0, hr:g.hr - rh1, wr:cw1 });
+      if (g.wr > cw1) segs.push({ r:0, c:0, hr:g.hr - rh1, wr:g.wr - cw1 });
     }
-    return segs;
+    return { segs, r0, c0, wrapH: (c0 + g.wr) > cols, wrapV: (r0 + g.hr) > rows };
   }
 
-  // build cells (unchanged) ...
+  // --- palette & styles
+  const palette = [
+    "#FF6B6B","#4DD0E1","#FFD166","#A78BFA",
+    "#26A69A","#F48FB1","#64B5F6","#FF8A65",
+    "#81C784","#E57373"
+  ];
+  const dashAttr = (mode === "zeros")
+    ? ` stroke-dasharray="${Math.round(6*scale)} ${Math.round(4*scale)}"`
+    : "";
+
+  // --- draw cells
   const cells = grid.map((row,ri)=>
     row.map((v,ci)=>{
-      const x = pad + ci*cellW, y = pad + ri*cellH;
+      const x = X0 + ci*cellW, y = Y0 + ri*cellH;
       return `<rect x="${x}" y="${y}" width="${cellW}" height="${cellH}" fill="none" stroke="currentColor" opacity="0.35"/>
               <text x="${x+cellW/2}" y="${y+cellH/2+font14/3}" text-anchor="middle"
                     class="mono" font-size="${font14}" fill="currentColor">${v}</text>`;
     }).join("")
   ).join("");
 
-  // --- draw groups with wrap handling
-  const dash = (mode === "zeros")
-    ? ` stroke-dasharray="${Math.round(6*scale)} ${Math.round(4*scale)}"`
-    : "";
-
-  const rects = groups
-    .flatMap(splitSegments)
-    .map(s => {
-      const x = pad + s.c*cellW, y = pad + s.r*cellH;
-      const w = s.wr*cellW,      h = s.hr*cellH;
-      return `<rect x="${x+2}" y="${y+2}" width="${w-4}" height="${h-4}" rx="${Math.round(8*scale)}"
-                     fill="none" stroke="currentColor" stroke-width="2"${dash}
-                     vector-effect="non-scaling-stroke"/>`;
-    }).join("");
-
-  // headers + SVG (unchanged except `rects` now uses split) ...
+  // --- labels
   const colLbl = Array.from({length:cols},(_,c)=> (gray(c)>>>0).toString(2).padStart(cbits,'0'))
-    .map((l,i)=>`<text x="${pad + i*cellW + cellW/2}" y="${pad-6}" text-anchor="middle"
-                     class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
+    .map((l,i)=>`<text x="${X0 + i*cellW + cellW/2}" y="${Y0-6}" text-anchor="middle"
+                  class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
   const rowLbl = Array.from({length:rows},(_,r)=> (gray(r)>>>0).toString(2).padStart(rbits,'0'))
-    .map((l,i)=>`<text x="${pad-6}" y="${pad + i*cellH + cellH/2+font12/3}"
-                     text-anchor="end" class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
+    .map((l,i)=>`<text x="${X0-6}" y="${Y0 + i*cellH + cellH/2+font12/3}"
+                  text-anchor="end" class="mono" font-size="${font12}" fill="currentColor">${l||""}</text>`).join("");
+
+  // --- groups: colored outlines + numbers + wrap bridges
+  let rects = "", labels = "", bridges = "";
+  groups.forEach((g,gi)=>{
+    const color = palette[gi % palette.length];
+    const { segs, r0, c0, wrapH, wrapV } = splitSegments(g);
+
+    // draw per-segment rectangles & labels (same group number)
+    segs.forEach(s=>{
+      const x = X0 + s.c*cellW, y = Y0 + s.r*cellH;
+      const w = s.wr*cellW,    h = s.hr*cellH;
+      rects += `<rect x="${x+2}" y="${y+2}" width="${w-4}" height="${h-4}"
+                       rx="${Math.round(8*scale)}" fill="none"
+                       stroke="${color}" stroke-width="2"${dashAttr}
+                       vector-effect="non-scaling-stroke"/>`;
+      labels += `<text x="${x + w/2}" y="${y + h/2 + font12/3}" text-anchor="middle"
+                       class="mono" font-size="${font12}" fill="${color}">${gi+1}</text>`;
+    });
+
+    // wrap bridges: small outboard “straps” to show continuity
+    // horizontal wrap → short lines just outside left & right borders at group mid-row
+    if (wrapH) {
+      const yMid = Y0 + ((r0 + g.hr/2) % rows) * cellH;  // approximate visual mid of covered rows
+      const L = Math.round(10 * scale);
+      bridges += `<path d="M${X0-L},${yMid} H${X0}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+      bridges += `<path d="M${X1},${yMid} H${X1+L}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+    }
+    // vertical wrap → short lines just outside top & bottom borders at group mid-col
+    if (wrapV) {
+      const xMid = X0 + ((c0 + g.wr/2) % cols) * cellW;
+      const L = Math.round(10 * scale);
+      bridges += `<path d="M${xMid},${Y0-L} V${Y0}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+      bridges += `<path d="M${xMid},${Y1} V${Y1+L}" stroke="${color}" stroke-width="2" fill="none"${dashAttr} vector-effect="non-scaling-stroke"/>`;
+    }
+  });
 
   const subtitle = (mode === "zeros")
-    ? `<div class="muted mono">Mode: POS — groups on 0-cells (dashed)</div>`
-    : `<div class="muted mono">Mode: SOP — groups on 1-cells</div>`;
+    ? `<div class="muted mono">Mode: POS — groups on 0-cells (dashed). Same color/number = one wrap-group.</div>`
+    : `<div class="muted mono">Mode: SOP — groups on 1-cells. Same color/number = one wrap-group.</div>`;
 
   return `<div class="mono" style="margin:.5rem 0 .25rem">${title}</div>
           ${subtitle}
           <svg viewBox="0 0 ${W} ${H}" width="100%">
-            <g fill="none" stroke="currentColor">${cells}${rects}</g>
+            <g fill="none" stroke="currentColor">${cells}</g>
             <g fill="currentColor">${colLbl}${rowLbl}</g>
+            <g fill="none">${rects}</g>
+            <g>${labels}</g>
+            <g fill="none">${bridges}</g>
           </svg>`;
 }
+
 
 
   /* ---------- SIMPLIFY button ---------- */
