@@ -154,41 +154,50 @@ imgs
     return py.runPythonAsync(code);
   }
 
-  async function onPlotClick() {
-    const body = $("#plotModalBody");
-    openModal();
-    body.innerHTML = '<div id="plotSpinner" style="opacity:.8">Preparing Pyodide & rendering…</div>';
+async function onPlotClick() {
+  // Open/ensure the modal first so #plotModalBody exists
+  openModal();
+  const body = document.querySelector('#plotModalBody');
+  if (!body) return; // safety
 
-    try {
-      const code = window.editor ? window.editor.getValue() : "";
-      if (!codeLooksLikeMatplotlib(code)) {
-        body.innerHTML = '<div style="opacity:.8">No matplotlib usage detected.</div>';
-        return;
-      }
-      const imgs = await renderPlotsFromCode(code);
-      if (imgs.length === 1 && String(imgs[0]).startsWith("__PLOT_ERROR__:")) {
-        body.innerHTML = '<div style="color:#e66">Plot error: ' + imgs[0].replace("__PLOT_ERROR__:", "") + '</div>';
-        return;
-      }
-      if (!imgs.length) {
-        body.innerHTML = '<div style="opacity:.8">No figures found. Did you call plotting functions?</div>';
-        return;
-      }
-      const frag = document.createDocumentFragment();
-      imgs.forEach((b64, i) => {
-        const img = create("img", { src: "data:image/png;base64," + b64, alt: "Figure " + (i + 1) });
-        img.style.maxWidth = "100%";
-        img.style.display = "block";
-        img.style.margin = "10px auto";
-        frag.appendChild(img);
-      });
-      body.innerHTML = "";
-      body.appendChild(frag);
-    } catch (err) {
-      const msg = err?.message || String(err);
-      $("#plotModalBody").innerHTML = '<div style="color:#e66">Plot preview failed: ' + msg + '</div>';
+  body.innerHTML = '<div id="plotSpinner" style="opacity:.8">Preparing Pyodide & rendering…</div>';
+
+  try {
+    const code = window.editor ? window.editor.getValue() : "";
+    if (!codeLooksLikeMatplotlib(code)) {
+      body.innerHTML = '<div style="opacity:.8">No matplotlib usage detected.</div>';
+      return;
     }
+    const imgs = await renderPlotsFromCode(code);
+
+    if (imgs.length === 1 && String(imgs[0]).startsWith("__PLOT_ERROR__:")) {
+      body.innerHTML = '<div style="color:#e66">Plot error: ' +
+                       imgs[0].replace("__PLOT_ERROR__:", "") + '</div>';
+      return;
+    }
+    if (!imgs.length) {
+      body.innerHTML = '<div style="opacity:.8">No figures found. Did you call plotting functions?</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    imgs.forEach((b64, i) => {
+      const img = document.createElement('img');
+      img.src = 'data:image/png;base64,' + b64;
+      img.alt = 'Figure ' + (i + 1);
+      img.style.maxWidth = '100%';
+      img.style.display = 'block';
+      img.style.margin = '10px auto';
+      frag.appendChild(img);
+    });
+    body.innerHTML = '';
+    body.appendChild(frag);
+  } catch (err) {
+    body.innerHTML = '<div style="color:#e66">Plot preview failed: ' +
+                     (err?.message || String(err)) + '</div>';
   }
+}
+
 
   function init() {
     const btn = ensureButton();
