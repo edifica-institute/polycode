@@ -162,7 +162,7 @@ function buildTWEditorURL(opts){
     window.bootstrap = async function(){
       window.PolyShell?.setStatus('Loading Scratch Editor…','busy');
       window.PolyShell?.loadLeftContent?.('scratch');
-      setEditorSrc(buildTWEditorURL({}));
+      setEditorSrc(buildTWEditorURL({ projectid: '1210491740' }));
       document.getElementById('centerFoot').textContent = 'Ready — Scratch editor embedded';
     };
 
