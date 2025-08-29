@@ -99,10 +99,7 @@ function parseKmapCommand(s){
   // Optional don't-cares at end: ; d(...)
   let dontCares = [];
   const mDC = /(?:[,;]\s*d\s*\(\s*([0-9,\s]+)\s*\)\s*)$/i.exec(rhs);
-  if (mDC) {
-    dontCares = mDC[1].split(",").map(x=>+x.trim()).filter(Number.isFinite);
-    rhs = rhs.slice(0, mDC.index).trim();
-  }
+  if (mDC) { dontCares = mDC[1].split(",").map(x=>+x.trim()).filter(Number.isFinite); rhs = rhs.slice(0, mDC.index).trim(); }
 
   const parseList = str => str.split(",").map(x=>+x.trim()).filter(Number.isFinite);
   const reSigma = /^(?:Σ|sigma|s)\s*m?\s*\(\s*([0-9,\s]+)\s*\)$/i;
@@ -111,24 +108,31 @@ function parseKmapCommand(s){
   // Σm(...)
   if (reSigma.test(rhs)) {
     const mm = reSigma.exec(rhs);
-    return { vars, minterms: parseList(mm[1]), dontCares };
+    const minterms = parseList(mm[1]);
+    return { vars, mode: "ones", minterms, dontCares };
   }
-  // ΠM(...) => convert to minterms (exclude don't-cares)
+
+  // ΠM(...): keep maxterms for grouping (zeros), but also compute minterms for display.
   if (rePi.test(rhs)) {
     const mm = rePi.exec(rhs);
     const maxterms = parseList(mm[1]);
     const n = vars.length;
-    const universe = Array.from({length: 1<<n}, (_,i)=>i);
+    const universe = Array.from({length:1<<n}, (_,i)=>i);
     const bad = new Set([...maxterms, ...dontCares]);
-    return { vars, minterms: universe.filter(i => !bad.has(i)), dontCares };
+    const minterms = universe.filter(i => !bad.has(i)); // for grid display
+    return { vars, mode: "zeros", maxterms, minterms, dontCares };
   }
-  // Plain list 1,2,3
+
+  // Plain list 1,2,3 (assume Σ by default)
   if (/^[0-9,\s]+$/.test(rhs)) {
-    return { vars, minterms: parseList(rhs), dontCares };
+    const minterms = parseList(rhs);
+    return { vars, mode: "ones", minterms, dontCares };
   }
-  // Otherwise treat as a boolean expression (e.g., AB + A'C)
+
+  // Otherwise treat as Boolean expression (AB + A'C)
   return { vars, expr: rhs, dontCares };
 }
+
 
 
 
@@ -172,40 +176,45 @@ function parseKmapCommand(s){
     if (!text) { alert("Enter an expression or a kmap command"); return; }
 
     // --- KMAP COMMAND? ---
-    const km = parseKmapCommand(text);
+// KMAP COMMAND
+const km = parseKmapCommand(text);
 if (km) {
   ttCard.style.display = "none"; ttEl.innerHTML = "";
   resEl.textContent = "Building K-map…";
   try {
-    // NEW: if user gave an expression, get its minterms first
-    let minterms = km.minterms;
+    // If user typed an expression after "kmap ...", get minterms for display
+    let displayMins = km.minterms;
     if (km.expr) {
       const r1 = await fetch(API + "/api/ba/simplify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method:"POST", headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
       });
-      const j1 = await r1.json();
-      if (!j1.ok) throw new Error(j1.error || "simplify error");
-      minterms = j1.minterms;
+      const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error || "simplify error");
+      displayMins = j1.minterms;
     }
 
-    // Optional: ask backend for grouping hints (or skip and just render)
-    /* const r2 = await fetch(API + "/api/ba/kmap", {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify({ vars: km.vars, minterms })
-       });
-       const j2 = await r2.json();
-       if (!j2.ok) throw new Error(j2.error || "kmap error");
-    */
+    // Ask backend for groups in the right mode (ones or zeros)
+    const body = (km.mode === "zeros")
+      ? { vars: km.vars, maxterms: km.maxterms, full: true, mode: "zeros" }
+      : { vars: km.vars, minterms: displayMins, full: true, mode: "ones" };
 
-    renderKmap(km.vars, minterms);
+    const r = await fetch(API + "/api/ba/kmap", {
+      method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body)
+    });
+    const j = await r.json(); if (!j.ok) throw new Error(j.error||"kmap error");
+
+    // Render grid with true function values (1s = minterms), but overlay rectangles from j.solutionGroups
+    renderKmap(km.vars, displayMins);             // your existing grid (shows 1/0)
+    // If you have an SVG renderer that accepts groups, call it here instead:
+    // resEl.innerHTML = renderKmapSVG(km.vars, displayMins, j.solutionGroups,
+    //                                 j.mode === "zeros" ? `Solution (POS): ${j.simplified}` : `Solution (SOP): ${j.simplified}`);
+
   } catch (e) {
     resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
   }
   return;
 }
+
     // --- OTHERWISE: normal simplify flow ---
     const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
     resEl.textContent = "Working…";
