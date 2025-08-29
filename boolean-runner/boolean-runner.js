@@ -932,14 +932,15 @@ app.post("/api/ba/kmap", (req, res) => {
       simplified = implicantsToPOS(chosenImps, vars);
 
       // Show rectangles where zeros live (we’ll overlay dashed on the grid)
-      solutionGroups = chosenImps.map(p => implicantToKmapRect(p, vars));
-
+      const nvars = vars.length;
+solutionGroups = chosenImps.map(p => implicantToRect(p, nvars));
     } else {
       // Minimize on 1-cells -> SOP
       chosenImps = qmMinimize(minterms, [], n);
       simplified = implicantsToExpression(chosenImps, vars);
 
-      solutionGroups = chosenImps.map(p => implicantToKmapRect(p, vars));
+      const nvars = vars.length;
+solutionGroups = chosenImps.map(p => implicantToRect(p, nvars));
     }
 
     // If you also want to return “allGroups” (e.g., all size-2 pairings), keep your
