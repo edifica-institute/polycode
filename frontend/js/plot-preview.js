@@ -61,15 +61,29 @@
     // Try to place next to Run button
     const right = $(".right-controls") || $("#centerPanel .pane-head .right-controls");
     btn = create("button", {
-      id: "btnPlotPreview",
-      className: "btn btn-ghost",
-      title: "Preview pyplot figures",
-      "aria-label": "Plot Preview",
-      disabled: true
-    }, [
-      create("svg", { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true" },
-        [create("path", { d: "M3 3h18v18H3zM5 17l4-6 3 4 3-5 4 7z", fill: "currentColor" })])
-    ]);
+  id: "btnPlotPreview",
+  className: "btn btn-ghost",
+  title: "Preview pyplot figures",
+  "aria-label": "Plot Preview",
+  disabled: true
+}, [
+  create("svg", { viewBox: "0 0 24 24", width: 18, height: 18, "aria-hidden": "true" }, [
+    // chart axes
+    create("path", {
+      d: "M3 3v18h18",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": 2
+    }),
+    // bar 1
+    create("rect", { x: 6, y: 11, width: 3, height: 7, fill: "currentColor" }),
+    // bar 2
+    create("rect", { x: 11, y: 7, width: 3, height: 11, fill: "currentColor" }),
+    // bar 3
+    create("rect", { x: 16, y: 4, width: 3, height: 14, fill: "currentColor" })
+  ])
+]);
+
     if (right) right.appendChild(btn);
     else document.body.appendChild(btn); // fallback
     return btn;
