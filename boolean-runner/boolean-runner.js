@@ -951,11 +951,11 @@ app.post("/api/ba/kmap", (req, res) => {
       solutionGroups
     };
 
-    if (full) {
-      // Optional: include a very small "all groups" set. You can plug your previous
-      // detector here; leaving it empty keeps the payload lean.
-      resp.allGroups = [];  // or keep your old kmapGroups(...).groups if you like
-    }
+  if (full) {
+  const base = (mode === "zeros") ? maxterms : minterms;   // enumerate on the chosen cells
+  resp.allGroups = enumerateAllRectGroups(base, n);
+}
+
 
     return res.json(resp);
   } catch (e) {
