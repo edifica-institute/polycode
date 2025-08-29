@@ -307,6 +307,8 @@ function renderCircuitSVG(net, opts = {}) {
   let   scale   = opts.scale ?? 'fit';      // 'fit' or number
   const fitW    = opts.fitWidth ?? 1000;
   const zoom    = opts.zoom ?? 1.6;
+const FAN_STUB = Math.round(14 * s);   // short horizontal escape from a source
+const FAN_GAP  = Math.round(10 * s);   // vertical spacing between fanout lanes
 
   // Base geometry (pre-scale)
   const GW0=72, GH0=46, PIN0=10, XSTEP0=180, YSTEP0=100, PAD0=28;
@@ -429,9 +431,7 @@ function renderCircuitSVG(net, opts = {}) {
                           <text x="${p.x+GW/2}" y="${p.y+GH/2+5}" text-anchor="middle" class="mono">${n.type}</text>`);
   }
 
-  const FAN_STUB = Math.round(14 * s);   // short horizontal escape from a source
-const FAN_GAP  = Math.round(10 * s);   // vertical spacing between fanout lanes
-  // Orthogonal H-V-H wires
+    // Orthogonal H-V-H wires
   function wiresTo(tid){
   const t   = nodes.get(tid);
   const dst = abs.get(tid);
