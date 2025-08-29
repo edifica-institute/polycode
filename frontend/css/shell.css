@@ -2688,3 +2688,118 @@ html, body { height: 100%; }
 
 
 
+
+
+
+
+
+/* =========================
+   POLYCODE FIX PACK — 2025-08-29
+   Append at end of CSS
+   ========================= */
+
+/* --- 0) Hygiene: let children shrink & show their own scrollbars --- */
+#leftPanel, #centerPanel, #rightPanel,
+.panel, .pane-head, .pane-body, #editor, #output { min-width: 0 !important; }
+#output{ overflow:auto !important; -webkit-overflow-scrolling:touch; }
+
+/* --- 1) Editor title must stay on a single line; buttons wrap instead --- */
+/* (solves SS4: heading breaking into 2 lines) */
+.center .pane-head{ flex-wrap: wrap !important; row-gap: 6px !important; }
+.center .pane-head .title{
+  min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 0 1 auto;               /* allow ellipsis rather than wrapping */
+}
+.center .pane-head .right-controls{
+  margin-left: auto !important;
+  display: flex !important; flex-wrap: wrap !important; gap: 8px !important;
+}
+
+/* --- 2) Prefer shrinking the OUTPUT before shrinking the EDITOR title --- */
+@media (max-width: 1280px){
+  /* let right panel give up width first */
+  #rightPanel{ flex: 0 1 32% !important; }
+  #centerPanel{ flex: 1 1 0 !important; }
+}
+
+/* --- 3) Auto-hide the LEFT reference pane on narrower screens ------------ */
+/* (solves SS5: only left pane visible; editor/output pushed below) */
+@media (max-width: 1200px){
+  .left.panel{ display:none !important; }
+  /* user can still open it with your chevron: remove !important via class */
+  .app.show-left .left.panel{ display:block !important; }
+}
+/* If you already toggle .collapsed-left / .show-left in JS, keep that; this
+   rule simply ensures the default at smaller widths is "hidden". */
+
+/* --- 4) Mobile/Tablet: one-column stack in correct order ----------------- */
+@media (max-width: 1024px){
+  .app{
+    display:flex !important; flex-direction:column !important;
+    gap:8px !important; height:auto !important; min-height:0 !important;
+  }
+  header.site-header{ order:1 !important; }
+  .left.panel{ order:2 !important; display:none !important; }
+  .app.show-left .left.panel{ display:block !important; }  /* when toggled */
+  .center.panel{ order:3 !important; }
+  .right.panel{ order:4 !important; }
+  footer.site-footer{ order:5 !important; }
+
+  /* Comfortable minimum heights */
+  #editor{ min-height: clamp(260px, 52svh, 62svh) !important; }
+  #output{ min-height: clamp(180px, 34svh, 46svh) !important; }
+}
+
+/* --- 5) Header: logo left, links right; never clip; allow wrapping ------- */
+/* (solves SS6/SS7: “Contact” half-hidden) */
+@media (max-width: 1024px){
+  body > header.site-header{
+    position: sticky; top: 0; z-index: 100; background: var(--glass);
+    border-bottom:1px solid var(--glass-brd);
+    display: grid !important;
+    grid-template-columns: auto 1fr auto !important; /* logo | spacer | nav */
+    align-items: center !important;
+    gap: 10px !important; padding: 8px 12px !important;
+  }
+  .brand-wrap{ grid-column: 1 !important; justify-self: start !important; }
+  .site-header nav, .site-nav{
+    grid-column: 3 !important; justify-self: end !important;
+    display:flex !important; flex-wrap: wrap !important; gap:10px !important;
+  }
+  .site-header nav a, .site-nav a{
+    font-size: 12px !important; line-height: 1 !important;
+  }
+}
+
+/* --- 6) Footer: keep “Follow us” on the right; links always visible ------ */
+/* (solves SS6/SS7: “Follow us”/legal links missing) */
+.site-footer{ overflow: visible !important; }
+.footer-grid{
+  display:grid; grid-template-columns: 1fr auto 1fr; align-items:center; gap:12px;
+}
+.footer-left{ justify-self: start; }
+.footer-right{ justify-self: center; display:flex; gap:14px; flex-wrap:wrap; } /* legal links */
+.footer-center{ justify-self: end; display:flex; gap:10px; align-items:center; } /* Follow us */
+
+@media (max-width: 640px){
+  .footer-grid{ grid-template-columns: 1fr; row-gap:10px; }
+  .footer-left  { justify-self: start; }
+  .footer-right { justify-self: start; }
+  .footer-center{ justify-self: start; }
+}
+
+/* --- 7) No nested scrollbars in output; keep single scroller ------------- */
+#jconsole{
+  display: inline-block; min-width: 100%;
+  white-space: pre; overflow: visible !important;
+}
+
+/* --- 8) Kill stray “idle” animations that cause clipping on mobile ------- */
+@media (max-width:1024px){
+  .btn:not(.is-running):not(.is-resetting){ animation:none !important; box-shadow:none !important; }
+}
+
+/* --- 9) Last-resort safety: prevent horizontal jiggle -------------------- */
+@media (max-width:1024px){
+  html, body{ overflow-x:hidden !important; }
+}
