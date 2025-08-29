@@ -64,56 +64,135 @@
     </section>
   </main>
 
-  <script type="module">
-    const API = "https://polycode-ba.onrender.com"; // <-- set to your deployed boolean runner URL
 
-    const $ = s => document.querySelector(s);
-    const exprEl = $("#expr"), varsEl = $("#vars"), resEl = $("#result");
-    const includeTableEl = $("#includeTable"), ttCard = $("#ttCard"), ttEl = $("#tt");
-    $("#btnClear").addEventListener("click", () => { exprEl.value=""; resEl.innerHTML=""; ttCard.style.display="none"; ttEl.innerHTML=""; });
 
-    $("#btnSimplify").addEventListener("click", async () => {
-      const expr = exprEl.value.trim();
-      if (!expr) { alert("Enter an expression"); return; }
-      const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
-      resEl.textContent = "Working…";
+<script type="module">
+  const API = "https://polycode-ba.onrender.com";
 
-      try{
-        const r = await fetch(API + "/api/ba/simplify", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({ expr, vars, includeTable: includeTableEl.checked })
+  const $ = s => document.querySelector(s);
+  const exprEl = $("#expr"), varsEl = $("#vars"), resEl = $("#result");
+  const includeTableEl = $("#includeTable"), ttCard = $("#ttCard"), ttEl = $("#tt");
+
+  $("#btnClear").addEventListener("click", () => {
+    exprEl.value = "";
+    varsEl.value = "";
+    resEl.innerHTML = "";
+    ttCard.style.display = "none";
+    ttEl.innerHTML = "";
+  });
+
+  const gray = n => n ^ (n >> 1);
+
+  function parseKmapCommand(s){
+    // kmap A,B : 1,2,3 [; dc=0,5]  (dc parsed but not sent yet)
+    const m = /^kmap\s+([A-Za-z0-9_]+(?:\s*,\s*[A-Za-z0-9_]+){1,3})\s*:\s*([0-9,\s]+)(?:\s*;\s*dc\s*=\s*([0-9,\s]+))?$/i.exec(s.trim());
+    if (!m) return null;
+    const vars = m[1].split(",").map(x=>x.trim());
+    const minterms = m[2].split(",").map(x=>+x.trim()).filter(Number.isFinite);
+    const dontCares = m[3] ? m[3].split(",").map(x=>+x.trim()).filter(Number.isFinite) : [];
+    return { vars, minterms, dontCares };
+  }
+
+  function renderKmap(vars, minterms){
+    const n = vars.length;
+    const rbits = Math.floor(n/2), cbits = n - rbits;
+    const rows = 1 << rbits, cols = 1 << cbits;
+
+    const grid = Array.from({length:rows}, ()=>Array(cols).fill(0));
+    for (let i=0; i < (1<<n); i++){
+      const r = gray(i >> cbits) & (rows - 1);
+      const c = gray(i & ((1<<cbits)-1));
+      grid[r][c] = minterms.includes(i) ? 1 : 0;
+    }
+
+    const rowLabels = Array.from({length:rows}, (_,r)=> (gray(r) >>> 0).toString(2).padStart(rbits,'0'));
+    const colLabels = Array.from({length:cols}, (_,c)=> (gray(c) >>> 0).toString(2).padStart(cbits,'0'));
+
+    const head =
+      `<tr><th>${vars.slice(0,rbits).join("") || "&nbsp;"}</th>` +
+      colLabels.map(l=>`<th>${vars.slice(rbits).join("")? vars.slice(rbits).join("")+"="+l : l}</th>`).join("") +
+      `</tr>`;
+    const body = grid.map((row,r) =>
+      `<tr><th>${vars.slice(0,rbits).join("")? vars.slice(0,rbits).join("")+"="+rowLabels[r] : rowLabels[r]}</th>` +
+      row.map(v=>`<td>${v}</td>`).join("") + `</tr>`
+    ).join("");
+
+    resEl.innerHTML = `
+      <div class="mono">K-map (${n} vars): ${vars.join(", ")}</div>
+      <div class="muted mono">Minterms: [${minterms.join(", ")}]</div>
+      <table style="width:auto;border-collapse:collapse;margin-top:8px;font-size:14px">
+        <thead>${head}</thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div class="muted" style="margin-top:8px">Tip: groups are powers of 2; wrap edges when grouping.</div>
+    `;
+  }
+
+  $("#btnSimplify").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    if (!text) { alert("Enter an expression or a kmap command"); return; }
+
+    // --- KMAP COMMAND? ---
+    const km = parseKmapCommand(text);
+    if (km) {
+      ttCard.style.display = "none"; ttEl.innerHTML = "";
+      resEl.textContent = "Building K-map…";
+      try {
+        const r = await fetch(API + "/api/ba/kmap", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vars: km.vars, minterms: km.minterms })
         });
         const j = await r.json();
-        if (!j.ok) throw new Error(j.error||"error");
-        const { vars:V, minterms, maxterms, sop, pos, simplifiedSOP } = j;
-        resEl.innerHTML = `
-          <div>Vars: ${V.join(", ")}</div>
-          <div>Σ m: ${sop}</div>
-          <div>Π M: ${pos}</div>
-          <div>Simplified (SOP): <b>${simplifiedSOP}</b></div>
-          <div class="muted">Minterms: [${minterms.join(", ")}] — Maxterms: [${maxterms.join(", ")}]</div>
-        `;
-
-        if (includeTableEl.checked && j.table){
-          const rows = j.table;
-          const cols = V.map(v=>`<th>${v}</th>`).join("") + "<th>f</th>";
-          const trs = rows.map(r=>{
-            const tds = V.map(v=>`<td>${r.env[v]?1:0}</td>`).join("") + `<td>${r.out}</td>`;
-            return `<tr>${tds}</tr>`;
-          }).join("");
-          ttEl.innerHTML = `<table><thead><tr>${cols}</tr></thead><tbody>${trs}</tbody></table>`;
-          ttCard.style.display="";
-        } else {
-          ttCard.style.display="none";
-          ttEl.innerHTML="";
-        }
-      }catch(e){
+        if (!j.ok) throw new Error(j.error || "kmap error");
+        renderKmap(km.vars, km.minterms);
+      } catch (e) {
         resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
-        ttCard.style.display="none";
-        ttEl.innerHTML="";
       }
-    });
-  </script>
+      return;
+    }
+
+    // --- OTHERWISE: normal simplify flow ---
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
+    resEl.textContent = "Working…";
+    try{
+      const r = await fetch(API + "/api/ba/simplify", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ expr: text, vars, includeTable: includeTableEl.checked })
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error||"error");
+      const { vars:V, minterms, maxterms, sop, pos, simplifiedSOP } = j;
+      resEl.innerHTML = `
+        <div>Vars: ${V.join(", ")}</div>
+        <div>Σ m: ${sop}</div>
+        <div>Π M: ${pos}</div>
+        <div>Simplified (SOP): <b>${simplifiedSOP}</b></div>
+        <div class="muted">Minterms: [${minterms.join(", ")}] — Maxterms: [${maxterms.join(", ")}]</div>
+      `;
+      if (includeTableEl.checked && j.table){
+        const rows = j.table;
+        const cols = V.map(v=>`<th>${v}</th>`).join("") + "<th>f</th>";
+        const trs = rows.map(r=>{
+          const tds = V.map(v=>`<td>${r.env[v]?1:0}</td>`).join("") + `<td>${r.out}</td>`;
+          return `<tr>${tds}</tr>`;
+        }).join("");
+        ttEl.innerHTML = `<table><thead><tr>${cols}</tr></thead><tbody>${trs}</tbody></table>`;
+        ttCard.style.display="";
+      } else {
+        ttCard.style.display="none"; ttEl.innerHTML="";
+      }
+    }catch(e){
+      resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
+      ttCard.style.display="none"; ttEl.innerHTML="";
+    }
+  });
+</script>
+
+
+
+
+  
 </body>
 </html>
