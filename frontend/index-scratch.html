@@ -8,87 +8,40 @@
   <link rel="stylesheet" href="./css/shell.css" />
   <meta name="color-scheme" content="dark light" />
   <style>
-    /* Pane fills window height below header */
-    .main-wrap{ display:flex; flex-direction:column; height:calc(100vh - 80px); }
-    @media (max-width:680px){ .main-wrap{ height:calc(100vh - 72px); } }
-
-    /* Keep the editor iframe perfectly fitted */
-    .pane-body{ position:relative; min-height:420px; }
-    #twFrame{ position:absolute; inset:0; width:100%; height:100%; border:0; background:#111; }
-
-    /* Minor micro-tweaks to button row spacing */
-    .btn-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .muted{ opacity:.7; font-size:.9em }
+    .center { display:flex; align-items:center; justify-content:center; min-height:50vh; text-align:center; }
+    .muted{ opacity:.7 }
+    .big { font-size:1.1rem; padding:12px 18px }
   </style>
 </head>
-
 <body class="page-fade">
-  <!-- ===== Header (brand + top controls) ===== -->
   <header class="site-header">
     <div class="brand-wrap">
       <div class="brand-grid">
-        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
+        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" />
         <div class="brand-title2">polycode</div>
-        <div class="brand-tagline2">
-          learn<span class="dot">.</span>code<span class="dot">.</span>execute
-        </div>
+        <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
       </div>
     </div>
-
-    <!-- (Optional) Global controls could go here if you want -->
     <div class="top-controls">
-      <div class="btn-row">
-        <!-- Keeping top-controls minimal for Scratch -->
-        <span class="muted">Scratch workspace (TurboWarp editor). Nothing is stored unless user downloads manually.</span>
-      </div>
+      <span class="muted">Scratch workspace (TurboWarp). Nothing is stored unless user downloads manually.</span>
     </div>
   </header>
 
-  <!-- ===== Main content (single big pane with TurboWarp editor) ===== -->
-  <main class="main-wrap">
-    <section class="pane">
-      <div class="pane-head">
-        <div class="pane-title">Scratch — TurboWarp Editor</div>
-        <div class="btn-row">
-          <button id="twReset" class="btn">New / Reset</button>
-          <button id="twFullscreen" class="btn btn-ghost">Fullscreen</button>
-        </div>
+  <main class="center">
+    <div>
+      <h2>Open Scratch Workspace</h2>
+      <p class="muted" style="margin:6px 0 16px">
+        The Scratch editor can’t run inside a frame. Click below to launch a fresh blank editor.
+      </p>
+      <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+        <!-- Same tab (recommended) -->
+        <a class="btn big" href="https://turbowarp.org/editor?dark&fps=60">Launch (this tab)</a>
+        <!-- Or new tab -->
+        <a class="btn btn-ghost big" target="_blank" rel="noopener"
+           href="https://turbowarp.org/editor?dark&fps=60">Launch in new tab</a>
       </div>
-
-      <div class="pane-body">
-        <!-- Blank editor; add params as needed (dark theme, FPS, etc.) -->
-        <iframe id="twFrame"
-                src="https://turbowarp.org/editor?dark&fps=60"
-                title="TurboWarp Editor"
-                allow="clipboard-read; clipboard-write"
-                allowfullscreen>
-        </iframe>
-      </div>
-
-      <div class="pane-foot">
-        <div class="muted">
-          Tip: “New / Reset” reloads a fresh blank project. Close the page to discard work.
-          Users can still download from the editor menu if they want to save locally.
-        </div>
-      </div>
-    </section>
+      <p class="muted" style="margin-top:14px">Tip: Close the tab to discard work.</p>
+    </div>
   </main>
-
-  <script>
-    // Simple controls for a “work & discard” flow
-    const frame = document.getElementById('twFrame');
-    const BASE = "https://turbowarp.org/editor?dark&fps=60"; // start blank
-
-    // Reload the editor to a fresh state (cache-buster ensures a clean stage)
-    document.getElementById('twReset').onclick = () => {
-      frame.src = BASE + "&_=" + Date.now();
-    };
-
-    // Fullscreen just the editor pane
-    document.getElementById('twFullscreen').onclick = () => {
-      if (frame.requestFullscreen) frame.requestFullscreen();
-      else alert('Fullscreen not supported in this browser.');
-    };
-  </script>
 </body>
 </html>
