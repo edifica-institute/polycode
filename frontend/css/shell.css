@@ -2099,33 +2099,34 @@ html, body { height: 100%; }
 /* Pyplot button glow */
 #btnPlotPreview { position: relative; z-index: 1; }
 
-/* Base: Pyplot button no border */
+/* Pyplot button — always black, no border */
 #btnPlotPreview {
   position: relative;
   z-index: 1;
   border: none !important;
-}
-
-/* Enabled = solid black + white icon + glow */
-#btnPlotPreview:not([disabled]) {
   background: #000 !important;
   color: #fff !important;
 }
 
+/* Disabled = still black, just dimmed */
+#btnPlotPreview:disabled {
+  opacity: .6 !important;
+  cursor: not-allowed;
+}
+
+/* White glow only when enabled */
 @keyframes glowWhite {
   0%, 100% { box-shadow: 0 0 0 rgba(255,255,255,0); }
-  50%      { box-shadow: 0 0 18px rgba(255,255,255,0.9),
-                       0 0 28px rgba(255,255,255,0.6); }
+  50%      { box-shadow: 0 0 12px rgba(255,255,255,0.9),
+                       0 0 20px rgba(255,255,255,0.6); }
 }
 
 #btnPlotPreview:not([disabled])::after {
   content: "";
   position: absolute;
-  inset: -6px;
+  top: 0; left: 0; right: 0; bottom: 0; /* exactly button size */
   border-radius: inherit;
   pointer-events: none;
   animation: glowWhite 1.2s ease-in-out infinite;
   z-index: -1;
 }
-
-
