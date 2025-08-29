@@ -864,9 +864,7 @@ const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
 
 // If caller provided vars, keep that exact order.
  // Otherwise, detect and sort for determinism.
- const vars = (varsIn && varsIn.length)
-   ? varsIn
-   : detectVars(rpn).sort();
+ const vars = (varsIn && varsIn.length)? varsIn : detectVars(rpn);
  const varsSorted = vars;
     
     const tt = truthTable(rpn, varsSorted);
@@ -886,9 +884,7 @@ const rpn = toRPN(insertImplicitAnd(tokenize(exprNorm)));
 
      // If caller provided vars, keep that exact order.
  // Otherwise, detect and sort for determinism.
- const vars = (varsIn && varsIn.length)
-   ? varsIn
-  : detectVars(rpn).sort();
+const vars = (varsIn && varsIn.length)? varsIn : detectVars(rpn);
 const varsSorted = vars;
     
     const tt = truthTable(rpn, varsSorted);
