@@ -4,176 +4,91 @@
   <meta charset="utf-8" />
   <title>polycode | Scratch</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="icon" href="./assets/logo.png" />
+  <link rel="icon" href="./assets/PC-Logo.png" />
   <link rel="stylesheet" href="./css/shell.css" />
   <meta name="color-scheme" content="dark light" />
   <style>
-    #scratchFrame { position:absolute; inset:0; width:100%; height:100%; border:0; }
-    .pane-head .input { height:28px; padding:0 10px; border:1px solid var(--border,#2b2f34);
-      background:var(--panel,#1e2024); color:inherit; border-radius:8px; min-width:260px; }
-    .pane-head .btn svg { width:18px; height:18px }
-    .pane-foot .msg { white-space:nowrap }
+    /* Pane fills window height below header */
+    .main-wrap{ display:flex; flex-direction:column; height:calc(100vh - 80px); }
+    @media (max-width:680px){ .main-wrap{ height:calc(100vh - 72px); } }
+
+    /* Keep the editor iframe perfectly fitted */
+    .pane-body{ position:relative; min-height:420px; }
+    #twFrame{ position:absolute; inset:0; width:100%; height:100%; border:0; background:#111; }
+
+    /* Minor micro-tweaks to button row spacing */
+    .btn-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .muted{ opacity:.7; font-size:.9em }
   </style>
 </head>
-<body class="page-fade">
 
-  <!-- Header -->
+<body class="page-fade">
+  <!-- ===== Header (brand + top controls) ===== -->
   <header class="site-header">
     <div class="brand-wrap">
       <div class="brand-grid">
-        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" />
+        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
         <div class="brand-title2">polycode</div>
-        <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
+        <div class="brand-tagline2">
+          learn<span class="dot">.</span>code<span class="dot">.</span>execute
+        </div>
       </div>
     </div>
-    <nav class="site-nav">
-      <a href="./index.html">Home</a>
-      <a href="./about.html">About</a>
-      <a href="./contact.html">Contact</a>
-    </nav>
+
+    <!-- (Optional) Global controls could go here if you want -->
+    <div class="top-controls">
+      <div class="btn-row">
+        <!-- Keeping top-controls minimal for Scratch -->
+        <span class="muted">Scratch workspace (TurboWarp editor). Nothing is stored unless user downloads manually.</span>
+      </div>
+    </div>
   </header>
 
-  <!-- App -->
-  <div class="stage">
-    <div class="app">
-
-      <!-- LEFT -->
-      <section class="panel left" id="leftPanel">
-        <div class="pane-head">
-          <select id="langSelect" class="select" onchange="location.href=this.value">
-            <option value="./index-scratch.html" selected>Scratch</option>
-            <option value="./index-c.html">C</option>
-            <option value="./index-cpp.html">C++</option>
-            <option value="./index-web.html">HTML/CSS/JS</option>
-            <option value="./index-java.html">Java</option>
-            <option value="./index-python.html">Python</option>
-            <option value="./index-sql.html">SQL</option>
-          </select>
-        </div>
-        <div class="pane-body"><div id="leftContent" style="margin-top:12px;"></div></div>
-        <div class="pane-foot"><span class="msg" id="leftFoot">About Scratch</span></div>
-      </section>
-
-      <!-- RESIZER -->
-      <div class="v-resize"><div id="dragLeft"></div></div>
-
-      <!-- CENTER -->
-      <section class="panel center" id="centerPanel">
-        <div class="pane-head">
-          <button id="themeToggle" class="btn theme-btn" title="Toggle theme">
-            <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-          </button>
-          <span class="title" id="centerTitle" style="margin-left:8px;">Scratch — Editor | Polycode</span>
-          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-            <input id="projInput" class="input" placeholder="Project ID or URL" />
-            <button id="btnLoad" class="btn" title="Load project">
-              <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM5 4v6h4l5 5 4-4-5-5H5z"/></svg>
-            </button>
-          </div>
-        </div>
-        <div id="editor" style="position:relative; height:100%;">
-   <iframe
-    id="scratchFrame"
-    title="Scratch Editor"
-    src="/tw/editor.html?embed=1&fps=60&turbo=false"
-    allow="clipboard-read; clipboard-write; fullscreen"
-    style="position:absolute; inset:0; width:100%; height:100%; border:0;">
-  </iframe>
-        </div>
-        <div class="pane-foot"><span class="msg" id="centerFoot">Ready — Scratch editor embedded</span></div>
-      </section>
-
-      <!-- RESIZER -->
-      <div class="v-resize right"><div id="dragRight"></div></div>
-
-      <!-- RIGHT -->
-      <section class="panel right" id="rightPanel">
-        <div class="pane-head"><span class="title">Scratch — Tips</span></div>
-        <div id="output" class="screen-dim" style="padding:12px;">
-          <h3>Quick Start</h3>
-          <ol>
-            <li>Use the editor’s File menu to load or save SB3 projects.</li>
-            <li>Paste a project URL/ID in the box above to load a project.</li>
-            <li>Click the green flag to run.</li>
-          </ol>
-          <p>Editor powered by <b>TurboWarp</b> (self-hosted in <code>/tw</code>).</p>
-        </div>
-        <div class="pane-foot"><span class="msg" id="rightFoot">Guide — No backend needed</span></div>
-      </section>
-    </div>
-  </div>
-
-  <!-- Chevron -->
-  <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
-    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
-  </div>
-
-  <!-- Footer -->
-  <footer class="site-footer">
-    <div class="footer-grid">
-      <div class="footer-left">
-        <img src="./assets/logo.png" alt="Edifica" class="footer-logo" />
-        <div class="txt">
-          <span class="powered">powered by edifica</span>
-          <span class="subline">education<span class="dot">.</span>consultation<span class="dot">.</span>assistance</span>
-          <div class="siteurl"><a href="https://www.edifica.in" target="_blank">www.edifica.in</a></div>
+  <!-- ===== Main content (single big pane with TurboWarp editor) ===== -->
+  <main class="main-wrap">
+    <section class="pane">
+      <div class="pane-head">
+        <div class="pane-title">Scratch — TurboWarp Editor</div>
+        <div class="btn-row">
+          <button id="twReset" class="btn">New / Reset</button>
+          <button id="twFullscreen" class="btn btn-ghost">Fullscreen</button>
         </div>
       </div>
-      <div class="footer-center">
-        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank">FB</a>
-        <a class="social" href="https://instagram.com/edifica.ig" target="_blank">IG</a>
-        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank">YT</a>
-      </div>
-      <div class="footer-right">
-        <a href="./privacy.html">Privacy</a>
-        <a href="./terms.html">Terms</a>
-        <a href="./legal.html">Legal</a>
-      </div>
-    </div>
-  </footer>
 
-  <!-- Scripts -->
-  <script src="./js/shell.js" defer></script>
+      <div class="pane-body">
+        <!-- Blank editor; add params as needed (dark theme, FPS, etc.) -->
+        <iframe id="twFrame"
+                src="https://turbowarp.org/editor?dark&fps=60"
+                title="TurboWarp Editor"
+                allow="clipboard-read; clipboard-write"
+                allowfullscreen>
+        </iframe>
+      </div>
+
+      <div class="pane-foot">
+        <div class="muted">
+          Tip: “New / Reset” reloads a fresh blank project. Close the page to discard work.
+          Users can still download from the editor menu if they want to save locally.
+        </div>
+      </div>
+    </section>
+  </main>
 
   <script>
-  // Point directly to your editor file (do NOT append another /editor.html later)
-  const TW_BASE = '/tw/editor.html';
+    // Simple controls for a “work & discard” flow
+    const frame = document.getElementById('twFrame');
+    const BASE = "https://turbowarp.org/editor?dark&fps=60"; // start blank
 
-  function parseProjectInput(v){
-    if (!v) return null;
-    v = String(v).trim();
-    const m = v.match(/(?:projects\/)?(\d{3,})/); // accepts scratch URL or digits
-    if (m) return m[1];
-    const digits = v.replace(/\D/g, '');
-    return digits.length >= 3 ? digits : null;
-  }
+    // Reload the editor to a fresh state (cache-buster ensures a clean stage)
+    document.getElementById('twReset').onclick = () => {
+      frame.src = BASE + "&_=" + Date.now();
+    };
 
-  function buildURL(projectId){
-    const p = new URLSearchParams({ embed: '1', fps: '60', turbo: 'false' });
-    if (projectId) p.set('project_id', projectId);
-    return `${TW_BASE}?${p.toString()}`;
-  }
-
-  document.addEventListener('DOMContentLoaded', () => {
-    const input = document.getElementById('projInput');
-    const btn   = document.getElementById('btnLoad');
-    const frame = document.getElementById('scratchFrame');
-
-    // Load by ID/URL
-    btn?.addEventListener('click', () => {
-      const id = parseProjectInput(input?.value || '');
-      frame.src = buildURL(id);
-      window.PolyShell?.setStatus(id ? `Loaded project #${id}` : 'Opened blank editor', 'ok');
-    });
-    input?.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); btn?.click(); }});
-
-    // Let the iframe keep its initial src from the HTML. Don't overwrite it here.
-    window.PolyShell?.loadLeftContent?.('scratch');
-    window.PolyShell?.setStatus('Ready','ok');
-    document.getElementById('centerFoot').textContent = 'Ready — Scratch editor embedded';
-  });
-</script>
-
-
+    // Fullscreen just the editor pane
+    document.getElementById('twFullscreen').onclick = () => {
+      if (frame.requestFullscreen) frame.requestFullscreen();
+      else alert('Fullscreen not supported in this browser.');
+    };
+  </script>
 </body>
 </html>
