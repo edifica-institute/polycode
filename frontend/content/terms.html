@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PolyCode — Terms & Conditions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <link rel="icon" href="./assets/logo.png" />
+  <style>
+    :root{ --bg:#0b0f13; --bg2:#141922; --panel:#1e2024; --text:#e9edf3; --muted:#aeb5bd; --link:#9ecbff; --brand:#2e5bea; --border:#2b2f34; }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:linear-gradient(180deg,var(--bg),var(--bg2)); color:var(--text); font-family:system-ui,Roboto,Ubuntu,sans-serif; }
+    a{ color:var(--link); text-decoration:none }
+    a:hover{ text-decoration:underline }
+    .wrap{ max-width:980px; margin:0 auto; padding:24px 18px 80px }
+    /* Header */
+    .site-header{ position:sticky; top:0; z-index:10; background:rgba(20,25,34,.75); backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--border) }
+    .nav{ display:flex; align-items:center; justify-content:space-between; gap:16px; max-width:1100px; margin:0 auto; padding:14px 18px }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.2px }
+    .brand img{ width:28px; height:28px; border-radius:6px }
+    .brand .t{ font-size:18px }
+    .nav a.btn{ background:var(--brand); color:white; padding:8px 12px; border-radius:10px; font-weight:600; box-shadow:0 8px 18px rgba(0,0,0,.35); }
+    /* Hero / Title */
+    .hero{ padding:28px 0 6px }
+    h1{ margin:6px 0 8px; font-size:34px; background:linear-gradient(90deg,#9ecbff,#7dffa0); -webkit-background-clip:text; background-clip:text; color:transparent }
+    .sub{ color:var(--muted) }
+    /* Card */
+    .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:22px; margin:18px 0; box-shadow:0 16px 50px rgba(0,0,0,.28) }
+    .card h2{ margin:0 0 8px; font-size:22px }
+    .card h3{ margin:18px 0 8px; font-size:18px }
+    .card p, .card li{ color:#c9d1db; line-height:1.6 }
+    .card ul{ padding-left:20px }
+    .kbd{ font-family:ui-monospace,Menlo,Consolas,monospace; background:#12161c; border:1px solid var(--border); padding:2px 6px; border-radius:6px }
+    /* Footer */
+    .site-foot{ border-top:1px solid var(--border); color:#9aa3ad; padding:18px; text-align:center; }
+    .foot-grid{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:8px }
+    .tiny{ font-size:12px; color:#8f99a6 }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="nav">
+      <div class="brand">
+        <img src="./assets/logo.png" alt="polycode" />
+        <div class="t">PolyCode</div>
+      </div>
+      <nav class="links">
+        <a href="./index.html">Home</a> &nbsp;·&nbsp;
+        <a href="./about.html">About</a> &nbsp;·&nbsp;
+        <a href="./contact.html">Contact</a>
+        &nbsp;&nbsp;&nbsp;<a class="btn" href="./index-java.html">Launch App</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Terms & Conditions</h1>
+      <div class="sub">Last updated: August 29, 2025</div>
+    </section>
+
+    <section class="card">
+      <h2>1. Agreement to Terms</h2>
+      <p>By accessing or using PolyCode (“Service”), you agree to be bound by these Terms & Conditions (“Terms”). If you do not agree, do not use the Service.</p>
+
+      <h2>2. Service Description</h2>
+      <p>PolyCode provides browser-based learning and execution tools for programming languages (including Java, C/C++, Python, SQL) along with utilities such as complexity estimations. Features may be added, removed, or modified at any time.</p>
+
+      <h2>3. Accounts & Acceptable Use</h2>
+      <ul>
+        <li>You are responsible for your activity and any content you submit to the Service.</li>
+        <li>Do not upload malicious code, attempt to break platform security, or disrupt others’ usage.</li>
+        <li>Respect intellectual property rights. Only upload content you have the right to use.</li>
+      </ul>
+
+      <h2>4. Educational Use & No Warranties</h2>
+      <p>The Service is provided for educational purposes. Code analysis results (e.g., complexity) are best-effort and may vary by implementation. The Service is provided “as is” without warranties of any kind.</p>
+
+      <h2>5. Limitations of Liability</h2>
+      <p>To the maximum extent permitted by law, PolyCode and Edifica will not be liable for indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, whether incurred directly or indirectly.</p>
+
+      <h2>6. User Content & Licenses</h2>
+      <p>You maintain ownership of code you upload. By submitting content to the Service, you grant PolyCode a limited license to store, process, and display it solely for the purpose of providing the Service to you.</p>
+
+      <h2>7. Third-Party Services</h2>
+      <p>PolyCode may integrate with third-party services (e.g., hosting, CI/CD, analytics). Their use is subject to their respective terms and privacy policies.</p>
+
+      <h2>8. Termination</h2>
+      <p>We may suspend or terminate access for any breach of these Terms or for behavior that risks the security, stability, or integrity of the Service.</p>
+
+      <h2>9. Changes to Terms</h2>
+      <p>We may update these Terms at any time. Material changes will be indicated by updating the “Last updated” date.</p>
+
+      <h2>10. Contact</h2>
+      <p>Questions? Email us at <a href="mailto:support@polycode.in">support@polycode.in</a>.</p>
+
+      <p class="tiny">Note: This template is for general informational purposes and not legal advice. Consider legal review.</p>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="foot-grid">
+      <a href="./terms.html">Terms</a>
+      <a href="./privacy.html">Privacy</a>
+      <a href="./legal.html">Legal</a>
+      <a href="./about.html">About</a>
+      <a href="./contact.html">Contact</a>
+    </div>
+    <div>learn • code • execute · powered by <b>Edifica</b></div>
+  </footer>
+</body>
+</html>
