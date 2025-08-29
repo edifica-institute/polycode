@@ -64,6 +64,9 @@ function tokenize(expr){
       i++; continue;
     }
 
+    if (ch === "'") { out.push({ t: "postnot", v: "'" }); i++; continue; }
+
+    
     // variables or constants
     if (/[A-Za-z_]/.test(ch)) {
       let j=i+1;
@@ -86,7 +89,8 @@ function insertImplicitAnd(tokens){
     const t = tokens[k], prev = out[out.length-1];
     out.push(t);
     if (!prev) continue;
-    const prevCouldEnd = (prev.t==="var"||prev.t==="const"|| (prev.t==="par"&&prev.v===")"));
+    //const prevCouldEnd = (prev.t==="var"||prev.t==="const"|| (prev.t==="par"&&prev.v===")"));
+    const prevCouldEnd = (prev.t==="var"||prev.t==="const"|| (prev.t==="par"&&prev.v===")") || prev.t==="postnot");
     const nextCouldStart = (t.t==="var"||t.t==="const"|| (t.t==="par"&&t.v==="(") || (t.t==="op" && SYM_TO_OP.get(t.v)==="NOT"));
     if (prevCouldEnd && nextCouldStart){
       // insert implicit AND between prev and t, but not if t is an operator except NOT
@@ -124,6 +128,10 @@ function toRPN(tokens){
       if (!st.length) throw new Error("Mismatched parentheses");
       st.pop(); // pop '('
     }
+    else if (tk.t === "postnot") {
+  // Operand is already in output; append NOT as unary op.
+  out.push({ t: "op", v: "NOT" });
+}
   }
   while (st.length){
     const x = st.pop();
