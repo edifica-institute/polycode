@@ -121,12 +121,14 @@ function create(tag, attrs = {}, children = []) {
   const ed = window.editor, m = window.monaco;
 
   const evalNow = () => {
-    const code = ed ? ed.getValue() : "";
-    const hasPlot = codeLooksLikeMatplotlib(code);
+  const code = ed ? ed.getValue() : "";
+  const hasPlot = codeLooksLikeMatplotlib(code);
 
-    plotBtn.disabled = !hasPlot;
-    if (runBtn) runBtn.disabled = hasPlot;
-  };
+  // Toggle enabled states
+  plotBtn.disabled = !hasPlot;
+  if (runBtn) runBtn.disabled = hasPlot;
+};
+
 
   if (ed && m) {
     evalNow();
