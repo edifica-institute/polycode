@@ -613,6 +613,146 @@ function implicantsToExpression(imps, vars){
   return terms.join(" + ");
 }
 
+
+
+
+//KMap pair
+
+
+function invGray(g){ // inverse Gray
+  let b = 0;
+  for (; g; g >>= 1) b ^= g;
+  return b;
+}
+function dimsFor(n){
+  const rbits = Math.floor(n/2), cbits = n - rbits;
+  return { rbits, cbits, rows: 1<<rbits, cols: 1<<cbits };
+}
+function idxToRC(i, n){
+  const { cbits } = dimsFor(n);
+  const rowBits = i >> cbits;
+  const colBits = i & ((1<<cbits)-1);
+  return { r: (rowBits ^ (rowBits>>1)), c: (colBits ^ (colBits>>1)) }; // gray()
+}
+function rcToIdx(r, c, n){
+  const { rbits, cbits } = dimsFor(n);
+  const rowBits = invGray(r) & ((1<<rbits)-1);
+  const colBits = invGray(c) & ((1<<cbits)-1);
+  return (rowBits << cbits) | colBits;
+}
+function powersOf2(u){ const a=[]; for(let k=1;k<=u;k<<=1)a.push(k); return a; }
+
+function enumerateAllRectGroups(minterms, n){
+  const { rows, cols } = dimsFor(n);
+  // Build a set of 1-cells by (r,c) keys
+  const ones = new Set(minterms.map(i => {
+    const {r,c} = idxToRC(i, n);
+    return `${r},${c}`;
+  }));
+  const uniq = new Set();
+  const out  = [];
+  for (const hr of powersOf2(rows)){
+    for (const wr of powersOf2(cols)){
+      for (let r=0;r<rows;r++){
+        for (let c=0;c<cols;c++){
+          // check block (with wrap)
+          let ok = true;
+          const cells = [];
+          for (let i=0;i<hr && ok;i++){
+            for (let j=0;j<wr && ok;j++){
+              const rr = (r+i)%rows, cc=(c+j)%cols;
+              if (!ones.has(`${rr},${cc}`)) ok = false;
+              cells.push(`${rr},${cc}`);
+            }
+          }
+          if (!ok) continue;
+          cells.sort();
+          const key = cells.join("|");     // canonical by covered cells
+          if (uniq.has(key)) continue;
+          uniq.add(key);
+          out.push({ r, c, hr, wr });
+        }
+      }
+    }
+  }
+  // sort by area desc then position
+  out.sort((a,b)=> (b.hr*b.wr)-(a.hr*a.wr) || a.r-b.r || a.c-b.c);
+  return out;
+}
+
+function implicantCovers(p, n){
+  // all indices m with (m & ~mask) === bits
+  const out = [];
+  const size = 1<<n;
+  for (let m=0;m<size;m++){
+    if ((m & ~p.mask) === p.bits) out.push(m);
+  }
+  return out;
+}
+function ringStartFor(set, len, mod){
+  // set: set of indices on ring [0..mod-1], len is size of the set
+  for (let s=0;s<mod;s++){
+    let ok=true;
+    for (let k=0;k<len;k++){
+      if (!set.has((s+k)%mod)) { ok=false; break; }
+    }
+    if (ok) return s;
+  }
+  return 0;
+}
+function implicantToRect(p, n){
+  const covered = implicantCovers(p, n);
+  const { rows, cols } = dimsFor(n);
+  const rowSet = new Set(), colSet = new Set();
+  for (const i of covered){
+    const {r,c} = idxToRC(i, n);
+    rowSet.add(r); colSet.add(c);
+  }
+  const hr = rowSet.size, wr = colSet.size;
+  const r = ringStartFor(rowSet, hr, rows);
+  const c = ringStartFor(colSet, wr, cols);
+  return { r, c, hr, wr };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* ========= K-map helper (2–4 vars) ========= */
 function gray(n){ return n ^ (n>>1); }
 function kmapGroups(minterms, vars){
@@ -721,14 +861,28 @@ const varsSorted = vars;
 
 app.post("/api/ba/kmap", (req,res)=>{
   try{
-    const { vars, minterms=[] } = req.body || {};
-    if (!vars || !vars.length) return res.status(400).json({ ok:false, error:"vars required" });
-    const km = kmapGroups(minterms, vars);
-    return res.json({ ok:true, ...km });
-  }catch(e){
-    return res.status(400).json({ ok:false, error:String(e.message||e) });
-  }
-});
+    const { vars, minterms = [], full = false, dontCares = [] } = req.body || {};
+     if (!vars || !vars.length) return res.status(400).json({ ok:false, error:"vars required" });
+
+    //const km = kmapGroups(minterms, vars);
+    //return res.json({ ok:true, ...km });
+
+const n = vars.length;
+    const km = kmapGroups(minterms, vars);  // existing quick shape (rows/cols)
+    if (!full){
+      return res.json({ ok:true, ...km });
+    }
+    // ALL valid power-of-two rectangles that cover only 1-cells
+    const allGroups = enumerateAllRectGroups(minterms, n);
+    // Minimal cover from Q–M
+    const chosen = qmMinimize(minterms, dontCares, n); // your existing function
+    const solutionGroups = chosen.map(p => implicantToRect(p, n));
+    const simplified = implicantsToExpression(chosen, vars);
+    return res.json({ ok:true, ...km, allGroups, solutionGroups, simplified });
+   }catch(e){
+     return res.status(400).json({ ok:false, error:String(e.message||e) });
+   }
+ });
 
 
 app.post("/api/ba/netlist", (req, res) => {
