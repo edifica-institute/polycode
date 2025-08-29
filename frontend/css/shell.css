@@ -2106,7 +2106,7 @@ html, body { height: 100%; }
   border-radius: inherit;
   pointer-events: none;
   box-shadow: 0 0 14px 6px rgba(100,200,255,.7);
-  animation: pulseGlow 1.5s infinite ease-in-out;
+  animation: glowIdle 1.4s ease-in-out infinite,
   z-index: -1; /* keeps glow behind button */
 }
 
