@@ -158,14 +158,6 @@ a:hover{ color:#ffa043; }
 .footer-row .social svg{ width:18px; height:18px; fill:color-mix(in oklab, var(--text), #fff 20%); }
 .footer-row .social a:hover svg{ fill:var(--text); }
 
-/* Floating chevron */
-.chevron-tab{
-  position:fixed; left:6px; top:50%; transform:translateY(-50%);
-  width:24px; height:46px; display:flex; align-items:center; justify-content:center;
-  border-radius:0px; background:var(--glass); border:1px solid var(--glass-brd);
-  backdrop-filter: blur(8px); cursor:pointer; z-index:50;
-}
-.chevron-tab svg{ width:16px; height:16px; fill:var(--text); }
 
 
 .panel.frozen{
@@ -3138,96 +3130,7 @@ html, body { height: 100%; }
 
 
 /* ===== POLYCODE • Overlay panes for small screens + desktop collapses ===== */
-:root{
-  --bp-overlay: 1500px;                  /* your threshold */
-  --drawer-w: min(560px, 92vw);          /* overlay width */
-  --drawer-shadow: 0 22px 60px rgba(0,0,0,.45);
-}
 
-/* Let the overlay panels anchor to the app area (not the header/footer) */
-.app{ position: relative; }
-
-/* --- Small screens: Editor only; Left/Right become slide-in drawers --- */
-@media (max-width: 1500px){
-  /* Hide structural columns so Editor fills the grid (no empty space) */
-  #leftPanel, #rightPanel{ display:block !important; } /* keep in DOM to animate */
-  #centerPanel{ grid-column: 1 / -1 !important; width:100% !important; }
-
-  /* Turn both side panels into drawers sitting above the editor */
-  #leftPanel, #rightPanel{
-    position: absolute !important; top:0; bottom:0; z-index: 70;
-    height: 100%; background: var(--panel-bg, rgba(22,24,28,.55));
-    border: 1px solid var(--panel-border, rgba(255,255,255,.08));
-    box-shadow: var(--drawer-shadow); backdrop-filter: blur(6px);
-    pointer-events: none;                /* disabled until opened */
-    border-radius: 0;                    /* match your square panels */
-    min-width: 0;                        /* avoid overflow */
-  }
-
-  /* Start off-screen */
-  #leftPanel { left:0;  width: var(--drawer-w); transform: translateX(-104%); transition: transform .22s ease; }
-  #rightPanel{ right:0; width: var(--drawer-w); transform: translateX(104%);  transition: transform .22s ease; }
-
-  /* When toggled, slide in and become interactive */
-  .app.show-left  #leftPanel { transform: translateX(0);  pointer-events: auto; }
-  .app.show-right #rightPanel{ transform: translateX(0);  pointer-events: auto; }
-
-  /* Visual dim behind drawers (no click-to-close; spec says collapse button) */
-  .app::before{
-    content:""; position:absolute; inset:0; z-index:65; border-radius:0;
-    background: rgba(0,0,0,.45);
-    opacity:0; transition: opacity .2s ease; pointer-events: none;
-  }
-  .app.show-left::before, .app.show-right::before{ opacity:1; }
-
-  /* Side chevrons (expand buttons) visible in overlay mode */
-  .chevron-tab{ position:absolute; top:50%; transform:translateY(-50%); z-index:80; }
-  .chevron-tab.left  { left:6px; }
-  .chevron-tab.right { right:6px; transform: translateY(-50%) scaleX(-1); } /* mirror arrow */
-
-  /* Editor toolbar rules: keep title single-line; let buttons wrap or stack */
-  #centerPanel { container-type: inline-size; } /* enables smart scaling below */
-  #centerPanel .pane-head{
-    display:flex; align-items:center; gap:8px; flex-wrap:wrap; row-gap:6px;
-  }
-  #centerPanel .pane-head .title{
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:0 1 auto; min-width:0;
-  }
-  #centerPanel .pane-head .right-controls{
-    margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;
-  }
-  /* Option 1 — shrink a bit as the editor head narrows */
-  @container (max-width: 760px){
-    #centerPanel .pane-head .title{ font-size:13px; }
-    #centerPanel .pane-head .btn{ width:34px; height:34px; }
-  }
-  @container (max-width: 600px){
-    #centerPanel .pane-head .title{ font-size:12px; }
-    #centerPanel .pane-head .btn{ width:32px; height:32px; }
-  }
-  /* Option 2 — when very tight, stack buttons vertically on the right */
-  @container (max-width: 520px){
-    #centerPanel .pane-head{ align-items:flex-start; }
-    #centerPanel .pane-head .right-controls{ flex-direction:column; align-items:flex-end; gap:6px; }
-  }
-  
-  /* When a drawer is open, prevent the editor area from scrolling underneath */
-  .app.show-left, .app.show-right{ overflow:hidden; }
-}
-
-/* --- Desktop: keep your 3 columns; allow collapse/expand to grow Editor --- */
-@media (min-width: 1501px){
-  /* Optional convenience classes your JS can toggle on desktop */
-  .app.collapsed-left  #leftPanel  { display:none !important; }
-  .app.collapsed-right #rightPanel { display:none !important; }
-  /* Editor should naturally expand because your grid uses minmax() on center.
-     If not, you can explicitly span columns like this: */
-  /* .app.collapsed-left  #centerPanel{ grid-column: 1 / span 3 !important; } */
-  /* .app.collapsed-right #centerPanel{ grid-column: 3 / span 3 !important; } */
-
-  /* Hide overlay chevrons on desktop; your existing header buttons handle it */
-  .chevron-tab{ display:none !important; }
-}
 
 /* --- Header & Footer: keep layout; allow wrapping, never clip --- */
 .site-header{
