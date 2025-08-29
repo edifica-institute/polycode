@@ -49,6 +49,8 @@
           <input id="vars" placeholder="A,B,C" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:#141922;color:var(--text)">
           <button class="btn" id="btnSimplify">Simplify</button>
           <button class="btn secondary" id="btnCircuit">Circuit</button>
+          <button class="btn secondary" id="btnCircuitNAND">NAND-only</button>
+          <button class="btn secondary" id="btnCircuitNOR">NOR-only</button>
 
           <button class="btn secondary" id="btnClear">Clear</button>
         </div>
@@ -241,25 +243,6 @@ if (km) {
   });
 
 
-document.getElementById("btnCircuit").addEventListener("click", async () => {
-  const text = exprEl.value.trim();
-  const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
-  if (!text) { alert("Enter an expression"); return; }
-  resEl.textContent = "Generating circuit…";
-  ttCard.style.display="none"; ttEl.innerHTML="";
-
-  try{
-    const r = await fetch(API + "/api/ba/netlist", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ expr: text, vars })
-    });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error || "netlist error");
-    resEl.innerHTML = renderCircuitSVG(j); // inject SVG string
-  }catch(e){
-    resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
-  }
-});
 
 // dumb layout: layer by distance from inputs
 function renderCircuitSVG(net){
@@ -309,7 +292,8 @@ function renderCircuitSVG(net){
   }
 
   const nodesSVG = [...nodes.values()].map(g=>gateShape(g)).join("");
-  const wiresSVG = [...net.gates].map(g=>wires(g)).join("") + wires({id:"OUT", ins:[net.output], ...nodes.get(net.output)});
+  const wiresSVG = [...net.gates].map(g => wires(g)).join("");
+
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" style="max-height:520px">
     <g fill="none" stroke="currentColor" stroke-width="2">
@@ -324,6 +308,25 @@ function renderCircuitSVG(net){
 }
 
 
+async function drawCircuit(style){
+  const text = exprEl.value.trim();
+  const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+  if (!text) { alert("Enter an expression"); return; }
+  resEl.textContent = `Generating ${style.toUpperCase()} circuit…`;
+  ttCard.style.display="none"; ttEl.innerHTML="";
+
+  const r = await fetch(API + "/api/ba/netlist", {
+    method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ expr: text, vars, style })
+  });
+  const j = await r.json();
+  if (!j.ok) { resEl.innerHTML = `<span class="muted">Error: ${j.error}</span>`; return; }
+  resEl.innerHTML = renderCircuitSVG(j); // inject your SVG
+}
+
+document.getElementById("btnCircuit").addEventListener("click", () => drawCircuit("mixed"));
+document.getElementById("btnCircuitNAND").addEventListener("click", () => drawCircuit("nand"));
+document.getElementById("btnCircuitNOR").addEventListener("click", () => drawCircuit("nor"));
 
 
 
