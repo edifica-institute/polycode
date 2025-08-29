@@ -115,27 +115,33 @@ function create(tag, attrs = {}, children = []) {
     return /\bmatplotlib\b/.test(t) || /\bplt\s*\./.test(t) || /\bfrom\s+matplotlib\b/.test(t);
   }
 
-  function enablePlotBtnWhenRelevant() {
-    const btn = ensureButton();
-    const ed = window.editor, m = window.monaco;
-    const evalNow = () => {
-      const code = ed ? ed.getValue() : "";
-      btn.disabled = !codeLooksLikeMatplotlib(code);
-    };
-    if (ed && m) {
-      evalNow();
-      ed.onDidChangeModelContent(evalNow);
-    } else {
-      // try again a few times until Monaco is ready
-      let tries = 0;
-      const id = setInterval(() => {
-        tries++;
-        const ed2 = window.editor, m2 = window.monaco;
-        if (ed2 && m2) { clearInterval(id); enablePlotBtnWhenRelevant(); }
-        else if (tries > 40) { clearInterval(id); btn.disabled = false; } // best effort
-      }, 150);
-    }
+ function enablePlotBtnWhenRelevant() {
+  const plotBtn = ensureButton();
+  const runBtn  = document.getElementById("btnRun"); // your existing Run button
+  const ed = window.editor, m = window.monaco;
+
+  const evalNow = () => {
+    const code = ed ? ed.getValue() : "";
+    const hasPlot = codeLooksLikeMatplotlib(code);
+
+    plotBtn.disabled = !hasPlot;
+    if (runBtn) runBtn.disabled = hasPlot;
+  };
+
+  if (ed && m) {
+    evalNow();
+    ed.onDidChangeModelContent(evalNow);
+  } else {
+    let tries = 0;
+    const id = setInterval(() => {
+      tries++;
+      const ed2 = window.editor, m2 = window.monaco;
+      if (ed2 && m2) { clearInterval(id); enablePlotBtnWhenRelevant(); }
+      else if (tries > 40) { clearInterval(id); } // stop retrying
+    }, 150);
   }
+}
+
 
   async function ensurePyodide() {
     if (__pyodidePromise) return __pyodidePromise;
