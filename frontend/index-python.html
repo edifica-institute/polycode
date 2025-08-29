@@ -53,7 +53,7 @@
   background: currentColor; display: inline-block;
 }
 
-    #jconsoleImages img{ max-width:100%; display:block; margin:10px 0; border-radius:6px; }
+    
   </style>
 </head>
 
@@ -87,8 +87,6 @@
             <option value="./index-cpp.html">C++</option>
             <option value="./index-web.html">HTML/CSS/JS</option>
             <option value="./index-java.html">Java</option>
-            <option value="./index-scratch.html">Scratch</option>
-
             <option value="./index-sql.html">SQL (MySQL/SQLite)</option>
           </select>
         </div>
@@ -133,7 +131,13 @@
         <div class="pane-head">
           <span class="title">Python – Console | Polycode</span>
           <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
-            
+            <button id="btnComplexity" class="btn" title="Analyze Time & Space" aria-label="Complexity" disabled>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 9.5c.9-1 2-1.5 3-1.5s2.1.5 3 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <span class="sr-only">Complexity</span>
+            </button>
             <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
               <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 0 0 7.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
             </button>
@@ -142,7 +146,6 @@
 
         <div id="output" class="screen-dim" style="padding:12px;">
           <pre id="jconsole" class="console" style="margin:0; white-space:pre-wrap;"></pre>
-          <div id="jconsoleImages" style="display:block;"></div>
           <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace,Menlo,Consolas,monospace;">
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
@@ -221,19 +224,6 @@
   function stopStatusDots(){ if(__statusTimer){ clearInterval(__statusTimer); __statusTimer=null; } }
 
   // --- Console helpers ---
-
-  function termImage(name, dataUrl){
-  const wrap = document.getElementById('jconsoleImages');
-  if (!wrap) return;
-  const img = new Image();
-  img.alt = name || 'plot';
-  img.src = dataUrl;
-  wrap.appendChild(img);
-  document.getElementById('output')?.scrollTo({ top: 1e9, behavior: 'smooth' });
-}
-
-
-  
   function setConsole(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent = t||''; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
   function termWrite(t){ const el=document.getElementById('jconsole'); if(el){ el.textContent += t; document.getElementById('output')?.scrollTo({ top:1e9 }); } }
   function printToConsole({ stderr = '', stdout = '', exitCode = null }){
@@ -251,7 +241,6 @@
 // Prefer a frame for main.py; otherwise pick the last frame.
 function findPythonErrorLine(text) {
   const s = String(text || '');
-  // Prefer frames that mention main.py, else use the last frame
   const re = /File\s+"([^"]+)",\s+line\s+(\d+)/g;
   let m, last = null, main = null;
   while ((m = re.exec(s))) {
@@ -262,6 +251,7 @@ function findPythonErrorLine(text) {
   return main || last || 1;
 }
 
+
   // --- Input row (triggered strictly by backend `stdin_req`) ---
   let inputShown = false, inputWaitMs = 5 * 60 * 1000; // 5 minutes
   function focusConsoleInput(){
@@ -269,49 +259,21 @@ function findPythonErrorLine(text) {
     el.focus(); const r=document.createRange(); r.selectNodeContents(el); r.collapse(false);
     const s=window.getSelection(); s.removeAllRanges(); s.addRange(r);
   }
-
-
-  function showInputRow(show, promptFromServer = '') {
-  const row    = document.getElementById('consoleRow');
-  const pre    = document.getElementById('jconsole');
-  const prefix = document.getElementById('consolePrefix');
-  if (!row || !pre || !prefix) return;
-
-  row.style.display = show ? 'flex' : 'none';
-
-  if (show) {
-    // Prefer prompt from server (no race). Fallback to tail of console.
-    let prompt = String(promptFromServer || '');
-    if (!prompt) {
-      const txt  = pre.textContent;
-      const i    = txt.lastIndexOf('\n');
-      const tail = txt.slice(i + 1);
-      if (tail && !/^\s*$/.test(tail)) {
-        prompt = tail + ' ';
-        pre.textContent = txt.slice(0, i + 1);
-      }
+  function showInputRow(show){
+    const row=document.getElementById('consoleRow'); const prefix=document.getElementById('consolePrefix');
+    if (!row) return;
+    row.style.display = show ? 'flex' : 'none';
+    if (show){
+      if (prefix) prefix.textContent = ''; // do NOT trim prior output
+      window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase); startInputCountdown(inputWaitMs);
+      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+      inputShown = true; focusConsoleInput();
     } else {
-      // Ensure the printed prompt stays in the console too
-      if (!pre.textContent.endsWith('\n')) pre.textContent += '';
+      window.PolyShell?.stopInputTicker?.(); stopInputCountdown();
+      inputShown = false;
     }
-
-    prefix.textContent = prompt || '';
-    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-    __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
-    startInputCountdown(inputWaitMs);
-    window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-    focusConsoleInput();
-  } else {
-    // put the prefix back if any
-    if (prefix.textContent) {
-      pre.textContent += prefix.textContent;
-      prefix.textContent = '';
-    }
-    window.PolyShell?.stopInputTicker?.();
-    stopInputCountdown();
   }
-}
-
 
   /* --- Monaco markers --- */
 
@@ -460,8 +422,6 @@ function findPythonErrorLine(text) {
   }, { capture:true });
 
   // ---- MAIN RUN ----
-
-  let __tStart = 0;
   window.runLang = async function(codeOverride){
     clearEditorMarkers();
     const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent='';
@@ -525,13 +485,6 @@ const waitForExit = new Promise((resolve,reject)=>{
       const m = JSON.parse(String(ev.data));
       if (m.type === 'pong') return;
 
-      if (m.type === 'image') {
-  // m.name, m.data (data URL)
-  termImage(m.name, m.data);
-  return;
-}
-
-      
       if (m.type === 'stdout'){
         acc.stdout += m.data; termWrite(m.data);
         return;
@@ -544,30 +497,24 @@ const waitForExit = new Promise((resolve,reject)=>{
   // We only mark when there's enough info:
   //  - we saw a frame line, ideally for main.py, OR
   //  - we saw "Traceback" followed by an exception line.
-  const s = acc.stderr;
-const hasFrame = /File\s+"[^"]+",\s+line\s+\d+/.test(s);
-const hasMain  = /File\s+"[^"]*main\.py",\s+line\s+\d+/.test(s);
-const hasTb    = /\bTraceback\b/.test(s);
-const hasExc   = /\n[A-Za-z_]\w*Error\b/.test(s);
-const hasSyn   = /\bSyntaxError\b/.test(s);
+  const hasFrame = /File\s+"[^"]+",\s+line\s+\d+/.test(acc.stderr);
+  const hasMain  = /File\s+"[^"]*main\.py",\s+line\s+\d+/.test(acc.stderr);
+  const hasTb    = /\bTraceback\b/.test(acc.stderr);
+  const hasExc   = /\n[A-Za-z_]\w*Error\b.*\n?$/.test(acc.stderr); // ends with “...Error: ...”
 
-// Eager mark on any SyntaxError, or once we have a main.py frame, or traceback+exception.
-if (hasSyn || hasMain || (hasTb && hasExc) || (hasFrame && hasExc)) {
-  const line = findPythonErrorLine(s);
-  const firstLine = (s.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
-  setEditorMarker(line, firstLine);
-  const execMs = Math.max(0, Math.round(performance.now() - __tStart));
-  window.PolyShell?.setRunnerPhase?.('error', { metrics: { execMs } });
-  window.PolyShell?.setStatus(`Execution Failed — ${execMs} ms`, 'error');
-  flagFatalError();
-}
+  if (hasMain || (hasTb && hasExc) || (hasFrame && /\bSyntaxError\b/.test(acc.stderr))) {
+    const line = findPythonErrorLine(acc.stderr);
+    const firstLine =
+      (acc.stderr.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
+    setEditorMarker(line, firstLine);
+    window.PolyShell?.setStatus('Execution Failed', 'error');
+    flagFatalError();   // stop spinner early; exit may still be in-flight
+  }
   return;
 }
 
 
       if (m.type === 'stdin_req'){
-        const prefix = document.getElementById('consolePrefix');
-  if (prefix) prefix.textContent = m.prompt || '';
         showInputRow(true);
         return;
       }
@@ -648,7 +595,7 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
       startStatusDots(__statusBase);
       showInputRow(false);
       window.PolyShell?.setStatus(mayNeedInput ? 'Running (interactive)…' : 'Running…','busy');
-      __tStart = performance.now();
+      const __tStart = performance.now();
       window.termWS.send(JSON.stringify({ type:'run', code, args, inputWaitMs }));
     }catch{
       try{ window.termWS.close(); }catch{}
@@ -669,10 +616,6 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
     try{ const row=document.getElementById('consoleRow'); if(row) row.style.display='none'; }catch{}
     try{ if (window.monaco && window.editor){ const model=window.editor.getModel(); model && monaco.editor.setModelMarkers(model,'py',[]); } }catch{}
     try{ window.termWS?._stopHeartbeat?.(); }catch{}
-    try{
-  const wrap = document.getElementById('jconsoleImages');
-  if (wrap) wrap.innerHTML = '';
-}catch{}
     try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
     // complexity remains disabled
   };
