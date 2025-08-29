@@ -591,23 +591,62 @@ function astToNetlist(ast){
 
 
 
+// ---- POS string from implicants (for zeros) ----
 function implicantsToPOS(imps, vars){
-  if (imps.length===0) return "1"; // no zeros ⇒ f=1
+  if (!imps.length) return "1"; // no zeros => function is 1
   const n = vars.length;
   const clauses = imps.map(p=>{
     const lits=[];
     for (let i=0;i<n;i++){
       const bitPos = n-1-i;
-      if ((p.mask>>bitPos) & 1) continue;      // don't care
-      const val = (p.bits>>bitPos) & 1;
+      if ( (p.mask>>bitPos) & 1 ) continue;      // don't care on this var
+      const val = (p.bits>>bitPos) & 1;          // constant across the group
       const v = vars[i];
-      // For zeros: 0 ⇒ literal v ; 1 ⇒ literal ¬v
+      // maxterm mapping: bit=1 -> ¬v ; bit=0 -> v
       lits.push(val ? `¬${v}` : v);
     }
     return `(${lits.join(" + ")})`;
   });
   return clauses.join(" · ");
 }
+
+// ---- map implicant -> single K-map rectangle (2–4 vars) ----
+// n vars, first floor(n/2) are row vars; rest are column vars (same split you use in rendering)
+function implicantToKmapRect(p, vars){
+  const n = vars.length;
+  const rbits = Math.floor(n/2);
+  const cbits = n - rbits;
+
+  // count don't cares among row/col; build fixed binary values
+  let rowVal = 0, colVal = 0, rowDC = 0, colDC = 0;
+
+  for (let i=0;i<n;i++){
+    const bitPos = n-1-i;
+    const isDC = ((p.mask >> bitPos) & 1) === 1;
+    const val  =  (p.bits >> bitPos) & 1;
+
+    if (i < rbits) {
+      // row bit
+      if (isDC) rowDC++;
+      else rowVal = (rowVal << 1) | val;
+    } else {
+      // col bit
+      if (isDC) colDC++;
+      else colVal = (colVal << 1) | val;
+    }
+  }
+
+  const hr = 1 << rowDC;  // rectangle height (rows)
+  const wr = 1 << colDC;  // rectangle width  (cols)
+
+  // Gray encode the fixed parts to get the rectangle anchor
+  const gray = x => x ^ (x >> 1);
+  const r = gray(rowVal);
+  const c = gray(colVal);
+
+  return { r, c, hr, wr };
+}
+
 
 
 
@@ -879,38 +918,56 @@ const varsSorted = vars;
 
 
 
-app.post("/api/ba/kmap", (req,res)=>{
-  try{
-    const { vars=[], minterms=[], maxterms=[], mode="ones", full=false } = req.body || {};
+app.post("/api/ba/kmap", (req, res) => {
+  try {
+    const { vars = [], minterms = [], maxterms = [], mode = "ones", full = false } = req.body || {};
     if (!vars.length) return res.status(400).json({ ok:false, error:"vars required" });
 
-    // Decide which cells to group on the map
     const n = vars.length;
-    const cells = (mode === "zeros") ? maxterms : minterms;
-
-    // Reuse the greedy grouper on the chosen cells
-    const km = kmapGroups(cells, vars);  // <= same function, but fed with the set you want to group
-    // Minimization result for display line
-    let simplified;
-    if (mode === "zeros") {
-      const primes0 = qmMinimize(maxterms, [], n); // minimization on zeros
-      simplified = implicantsToPOS(primes0, vars); // POS text
-    } else {
-      const primes1 = qmMinimize(minterms, [], n); // minimization on ones
-      simplified = implicantsToExpression(primes1, vars); // SOP text
+    if (n < 2 || n > 4) {
+      return res.status(400).json({ ok:false, error:"K-map shown for 2–4 variables only." });
     }
 
-    return res.json({
-      ok:true,
+    // Choose the universe to minimize / group on
+    let chosenImps, simplified, solutionGroups;
+
+    if (mode === "zeros") {
+      // Minimize on 0-cells -> POS
+      chosenImps = qmMinimize(maxterms, [], n);     // your existing cover picker
+      simplified = implicantsToPOS(chosenImps, vars);
+
+      // Show rectangles where zeros live (we’ll overlay dashed on the grid)
+      solutionGroups = chosenImps.map(p => implicantToKmapRect(p, vars));
+
+    } else {
+      // Minimize on 1-cells -> SOP
+      chosenImps = qmMinimize(minterms, [], n);
+      simplified = implicantsToExpression(chosenImps, vars);
+
+      solutionGroups = chosenImps.map(p => implicantToKmapRect(p, vars));
+    }
+
+    // If you also want to return “allGroups” (e.g., all size-2 pairings), keep your
+    // old enumerator; otherwise just echo the minimal solution.
+    const resp = {
+      ok: true,
       mode,
-      allGroups: km.groups,          // all candidate rectangles
-      solutionGroups: km.groups,     // or a selected subset if you choose
-      simplified
-    });
-  }catch(e){
-    return res.status(400).json({ ok:false, error:String(e.message||e) });
+      simplified,
+      solutionGroups
+    };
+
+    if (full) {
+      // Optional: include a very small "all groups" set. You can plug your previous
+      // detector here; leaving it empty keeps the payload lean.
+      resp.allGroups = [];  // or keep your old kmapGroups(...).groups if you like
+    }
+
+    return res.json(resp);
+  } catch (e) {
+    return res.status(400).json({ ok:false, error: String(e.message || e) });
   }
 });
+
 
 
 
