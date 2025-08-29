@@ -612,37 +612,36 @@ function implicantsToPOS(imps, vars){
 
 // ---- map implicant -> single K-map rectangle (2–4 vars) ----
 // n vars, first floor(n/2) are row vars; rest are column vars (same split you use in rendering)
+// n vars, first floor(n/2) are row vars; rest are column vars
 function implicantToKmapRect(p, vars){
   const n = vars.length;
   const rbits = Math.floor(n/2);
   const cbits = n - rbits;
 
-  // count don't cares among row/col; build fixed binary values
+  // IMPORTANT: keep bit positions; insert 0 when it's don't-care
   let rowVal = 0, colVal = 0, rowDC = 0, colDC = 0;
 
-  for (let i=0;i<n;i++){
-    const bitPos = n-1-i;
+  for (let i = 0; i < n; i++) {
+    const bitPos = n - 1 - i;
     const isDC = ((p.mask >> bitPos) & 1) === 1;
     const val  =  (p.bits >> bitPos) & 1;
 
     if (i < rbits) {
-      // row bit
+      rowVal = (rowVal << 1) | (isDC ? 0 : val);
       if (isDC) rowDC++;
-      else rowVal = (rowVal << 1) | val;
     } else {
-      // col bit
+      colVal = (colVal << 1) | (isDC ? 0 : val);
       if (isDC) colDC++;
-      else colVal = (colVal << 1) | val;
     }
   }
 
-  const hr = 1 << rowDC;  // rectangle height (rows)
-  const wr = 1 << colDC;  // rectangle width  (cols)
-
-  // Gray encode the fixed parts to get the rectangle anchor
+  const hr = 1 << rowDC;     // height in rows
+  const wr = 1 << colDC;     // width  in cols
   const gray = x => x ^ (x >> 1);
-  const r = gray(rowVal);
-  const c = gray(colVal);
+
+  // anchor (top-left) indices in Gray ordering
+  const r = gray(rowVal) & ((1 << rbits) - 1);
+  const c = gray(colVal) & ((1 << cbits) - 1);
 
   return { r, c, hr, wr };
 }
