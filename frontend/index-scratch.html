@@ -72,14 +72,13 @@
           </div>
         </div>
         <div id="editor" style="position:relative; height:100%;">
-      <iframe
-  id="scratchFrame"
-  title="Scratch Editor"
-  src="/tw/editor.html?embed=1&fps=60&turbo=false"
-  allow="clipboard-read; clipboard-write; fullscreen"
-  style="position:absolute; inset:0; width:100%; height:100%; border:0;">
-</iframe>
-
+   <iframe
+    id="scratchFrame"
+    title="Scratch Editor"
+    src="/tw/editor.html?embed=1&fps=60&turbo=false"
+    allow="clipboard-read; clipboard-write; fullscreen"
+    style="position:absolute; inset:0; width:100%; height:100%; border:0;">
+  </iframe>
         </div>
         <div class="pane-foot"><span class="msg" id="centerFoot">Ready — Scratch editor embedded</span></div>
       </section>
@@ -135,22 +134,23 @@
 
   <!-- Scripts -->
   <script src="./js/shell.js" defer></script>
- <script>
-  // Point directly to the self-hosted editor file
+
+  <script>
+  // Point directly to your editor file (do NOT append another /editor.html later)
   const TW_BASE = '/tw/editor.html';
 
   function parseProjectInput(v){
     if (!v) return null;
     v = String(v).trim();
-    const m = v.match(/(?:projects\/)?(\d{3,})/);   // accepts scratch URL or raw digits
+    const m = v.match(/(?:projects\/)?(\d{3,})/); // accepts scratch URL or digits
     if (m) return m[1];
-    const digits = v.replace(/\D/g,'');
+    const digits = v.replace(/\D/g, '');
     return digits.length >= 3 ? digits : null;
   }
 
   function buildURL(projectId){
     const p = new URLSearchParams({ embed: '1', fps: '60', turbo: 'false' });
-    if (projectId) p.set('project_id', projectId); // NOTE: correct key name
+    if (projectId) p.set('project_id', projectId);
     return `${TW_BASE}?${p.toString()}`;
   }
 
@@ -159,22 +159,21 @@
     const btn   = document.getElementById('btnLoad');
     const frame = document.getElementById('scratchFrame');
 
-    // Load by ID/URL when user clicks or presses Enter
+    // Load by ID/URL
     btn?.addEventListener('click', () => {
       const id = parseProjectInput(input?.value || '');
-      frame.src = buildURL(id);     // swap to specified project (or blank editor if no id)
-      window.PolyShell?.setStatus(id ? `Loaded project #${id}` : 'Opened blank editor','ok');
+      frame.src = buildURL(id);
+      window.PolyShell?.setStatus(id ? `Loaded project #${id}` : 'Opened blank editor', 'ok');
     });
-    input?.addEventListener('keydown', e => {
-      if (e.key === 'Enter'){ e.preventDefault(); btn?.click(); }
-    });
+    input?.addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); btn?.click(); }});
 
-    // Polycode boot — keep iframe src set in HTML; don't override it here
+    // Let the iframe keep its initial src from the HTML. Don't overwrite it here.
     window.PolyShell?.loadLeftContent?.('scratch');
     window.PolyShell?.setStatus('Ready','ok');
     document.getElementById('centerFoot').textContent = 'Ready — Scratch editor embedded';
   });
 </script>
+
 
 </body>
 </html>
