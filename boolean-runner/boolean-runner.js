@@ -946,7 +946,7 @@ app.post("/api/ba/kmap", (req, res) => {
       vars = [],
       minterms = [],
       maxterms = [],
-      mode = "ones",      // "ones" (SOP) or "zeros" (POS)
+      mode = "ones",       // "ones" (SOP) | "zeros" (POS)
       full = false
     } = req.body || {};
 
@@ -959,25 +959,58 @@ app.post("/api/ba/kmap", (req, res) => {
       return res.status(400).json({ ok: false, error: "K-map shown for 2–4 variables only." });
     }
 
-    // --- minimize on the chosen universe (1-cells for SOP, 0-cells for POS) ---
-    let chosenImps, simplified;
+    // Universe we must cover (1-cells for SOP, 0-cells for POS)
+    const universe = (mode === "zeros") ? maxterms : minterms;
 
+    // --- Minimize on the chosen universe ---
+    let chosenImps, simplified;
     if (mode === "zeros") {
-      // POS: minimize maxterms (0-cells)
-      chosenImps = qmMinimize(maxterms, [], n);
+      chosenImps = qmMinimize(maxterms, [], n);              // POS
       simplified = implicantsToPOS(chosenImps, vars);
     } else {
-      // SOP: minimize minterms (1-cells)
-      chosenImps = qmMinimize(minterms, [], n);
+      chosenImps = qmMinimize(minterms, [], n);              // SOP
       simplified = implicantsToExpression(chosenImps, vars);
     }
 
-    // --- map implicants → K-map rectangles (on the torus) ---
-    const nvars = vars.length;
-    const solutionGroupsRaw = chosenImps.map(p => implicantToRect(p, nvars));
+    // --- Safety net: prune any redundant implicants ------------------------
+    // Keep only those implicants that are necessary to cover 'universe'.
+    function coversAll(imps) {
+      const covered = new Set();
+      for (const p of imps) {
+        for (const m of implicantCovers(p, n)) {
+          if (universe.includes(m)) covered.add(m);
+        }
+      }
+      return universe.every(m => covered.has(m));
+    }
 
-    // ⚠️ IMPORTANT: de-dupe BEFORE sending in the response
-    const solutionGroups = dedupeRects(solutionGroupsRaw, n);
+    function pruneRedundant(imps) {
+      const out = imps.slice();
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (let i = 0; i < out.length; i++) {
+          const trial = out.slice(0, i).concat(out.slice(i + 1));
+          if (coversAll(trial)) {
+            out.splice(i, 1);
+            changed = true;
+            break;
+          }
+        }
+      }
+      return out;
+    }
+
+    chosenImps = pruneRedundant(chosenImps);
+
+    // Recompute human string from the *pruned* set
+    simplified = (mode === "zeros")
+      ? implicantsToPOS(chosenImps, vars)
+      : implicantsToExpression(chosenImps, vars);
+
+    // --- Map implicants to K-map rectangles and dedupe on the torus --------
+    let solutionGroups = chosenImps.map(p => implicantToRect(p, n));
+    solutionGroups = dedupeRects(solutionGroups, n);          // make sure no wrap-dupes
 
     const resp = {
       ok: true,
@@ -986,9 +1019,8 @@ app.post("/api/ba/kmap", (req, res) => {
       solutionGroups
     };
 
-    // Optionally return *all* valid groups (UI can filter size==2 etc.)
+    // Optionally return *all* valid groups (client can filter size==2, etc.)
     if (full) {
-      const universe = (mode === "zeros") ? maxterms : minterms;
       const all = enumerateAllRectGroups(universe, n);
       resp.allGroups = dedupeRects(all, n);
     }
@@ -998,6 +1030,7 @@ app.post("/api/ba/kmap", (req, res) => {
     return res.status(400).json({ ok: false, error: String(e.message || e) });
   }
 });
+
 
 
 
