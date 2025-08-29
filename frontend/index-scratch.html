@@ -130,13 +130,14 @@
   <!-- Scripts -->
   <script src="./js/shell.js" defer></script>
   <script>
-    const TW_BASE = '/tw'; // self-hosted build folder
+    const TW_BASE = '/tw';
 
-    function buildTWEditorURL(opts){
-      const p = new URLSearchParams({ embed:'1', fps:'60', turbo:'false' });
-      if (opts?.projectId) p.set('project_id', String(opts.projectId).trim());
-      return `${TW_BASE}/editor.html?${p.toString()}`;
-    }
+  function buildTWEditorURL(opts){
+    const p = new URLSearchParams({ fps: '60', turbo: 'false' });
+    if (opts?.projectId) p.set('project_id', String(opts.projectId).trim());
+    // IMPORTANT: editor.html and NO embed=1
+    return `${TW_BASE}/editor.html?${p.toString()}`;
+  }
 
     function setEditorSrc(url){
       const f = document.getElementById('scratchFrame');
