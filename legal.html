@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>PolyCode — Legal Information</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <link rel="icon" href="./assets/logo.png" />
+  <style>
+    :root{ --bg:#0b0f13; --bg2:#141922; --panel:#1e2024; --text:#e9edf3; --muted:#aeb5bd; --link:#9ecbff; --brand:#2e5bea; --border:#2b2f34; }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:linear-gradient(180deg,var(--bg),var(--bg2)); color:var(--text); font-family:system-ui,Roboto,Ubuntu,sans-serif; }
+    a{ color:var(--link); text-decoration:none }
+    a:hover{ text-decoration:underline }
+    .wrap{ max-width:980px; margin:0 auto; padding:24px 18px 80px }
+    .site-header{ position:sticky; top:0; z-index:10; background:rgba(20,25,34,.75); backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--border) }
+    .nav{ display:flex; align-items:center; justify-content:space-between; gap:16px; max-width:1100px; margin:0 auto; padding:14px 18px }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.2px }
+    .brand img{ width:28px; height:28px; border-radius:6px }
+    .brand .t{ font-size:18px }
+    .nav a.btn{ background:var(--brand); color:white; padding:8px 12px; border-radius:10px; font-weight:600; box-shadow:0 8px 18px rgba(0,0,0,.35); }
+    .hero{ padding:28px 0 6px }
+    h1{ margin:6px 0 8px; font-size:34px; background:linear-gradient(90deg,#9ecbff,#7dffa0); -webkit-background-clip:text; background-clip:text; color:transparent }
+    .sub{ color:var(--muted) }
+    .grid{ display:grid; gap:18px; grid-template-columns:1fr; }
+    @media (min-width:840px){ .grid{ grid-template-columns:1fr 1fr; } }
+    .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:22px; box-shadow:0 16px 50px rgba(0,0,0,.28) }
+    .card h2{ margin:0 0 8px; font-size:20px }
+    .card p{ color:#c9d1db; line-height:1.6 }
+    .site-foot{ border-top:1px solid var(--border); color:#9aa3ad; padding:18px; text-align:center; }
+    .foot-grid{ display:flex; gap:14px; justify-content:center; flex-wrap:wrap; margin-bottom:8px }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="nav">
+      <div class="brand">
+        <img src="./assets/logo.png" alt="polycode" />
+        <div class="t">PolyCode</div>
+      </div>
+      <nav class="links">
+        <a href="./index.html">Home</a> &nbsp;·&nbsp;
+        <a href="./about.html">About</a> &nbsp;·&nbsp;
+        <a href="./contact.html">Contact</a>
+        &nbsp;&nbsp;&nbsp;<a class="btn" href="./index-java.html">Launch App</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <h1>Legal Information</h1>
+      <div class="sub">Last updated: August 29, 2025</div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>Entity</h2>
+        <p><b>Edifica</b><br/>Operating the PolyCode service<br/>[Add registered address / CIN / GST if applicable]</p>
+      </div>
+      <div class="card">
+        <h2>Contact</h2>
+        <p>Email: <a href="mailto:legal@polycode.in">legal@polycode.in</a><br/>Support: <a href="mailto:support@polycode.in">support@polycode.in</a></p>
+      </div>
+      <div class="card">
+        <h2>Copyright</h2>
+        <p>© <span id="year">2025</span> Edifica. All rights reserved. Logos and brand names are trademarks of their respective owners.</p>
+      </div>
+      <div class="card">
+        <h2>Open-Source Notices</h2>
+        <p>PolyCode may include or interact with open-source components. Licenses are respected in accordance with their terms. Specific attributions can be provided upon request.</p>
+      </div>
+      <div class="card">
+        <h2>Disclaimers</h2>
+        <p>Educational use only. No guarantee of fitness for a particular purpose. Code execution is sandboxed on a best-effort basis.</p>
+      </div>
+      <div class="card">
+        <h2>Jurisdiction</h2>
+        <p>These notices are governed by the laws of India unless otherwise required by applicable law.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-foot">
+    <div class="foot-grid">
+      <a href="./terms.html">Terms</a>
+      <a href="./privacy.html">Privacy</a>
+      <a href="./legal.html">Legal</a>
+      <a href="./about.html">About</a>
+      <a href="./contact.html">Contact</a>
+    </div>
+    <div>learn • code • execute · powered by <b>Edifica</b></div>
+  </footer>
+
+  <script>document.getElementById('year').textContent = new Date().getFullYear()</script>
+</body>
+</html>
