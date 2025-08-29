@@ -30,6 +30,15 @@
     th{ background:#1a1c1f }
     .muted{ color:#aeb5bd }
     .grid > .card.wide { grid-column: 1 / -1; }
+    /* Let Result span both columns when .wide is applied */
+.grid > .card.wide { grid-column: 1 / -1; }
+
+/* Ensure big SVGs aren’t clamped */
+#result svg { max-height: none !important; width: 100%; height: auto; }
+
+/* (optional) give the Result card more breathing room */
+aside.card.wide { padding-block: 24px; }
+
   </style>
 </head>
 <body>
@@ -468,28 +477,39 @@ function renderCircuitSVG(net, opts = {}) {
 
   
 
-  async function drawCircuit(style){
-    const text = exprEl.value.trim();
-    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
-    if (!text) { alert("Enter an expression"); return; }
-    resEl.textContent = `Generating ${style.toUpperCase()} circuit…`;
-    ttCard.style.display="none"; ttEl.innerHTML="";
+  const resultCard = document.querySelector("aside.card");
 
-    const r = await fetch(API + "/api/ba/netlist", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ expr: text, vars, style })
-    });
-    const j = await r.json();
-    if (!j.ok) { resEl.innerHTML = `<span class="muted">Error: ${j.error}</span>`; return; }
-    const fitWidth = resEl.clientWidth ? (resEl.clientWidth - 24) : undefined;
-    //resEl.innerHTML = renderCircuitSVG(j, { caption: exprEl.value.trim(), scale: 'fit', fitWidth });
+async function drawCircuit(style){
+  const text = exprEl.value.trim();
+  const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+  if (!text) { alert("Enter an expression"); return; }
+
+  resEl.textContent = `Generating ${style.toUpperCase()} circuit…`;
+  ttCard.style.display="none"; ttEl.innerHTML="";
+
+  // 1) make the Result card span both columns
+  resultCard?.classList.add("wide");
+
+  // 2) fetch the netlist
+  const r = await fetch(API + "/api/ba/netlist", {
+    method:"POST", headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ expr: text, vars, style })
+  });
+  const j = await r.json();
+  if (!j.ok) { resEl.innerHTML = `<span class="muted">Error: ${j.error}</span>`; return; }
+
+  // 3) WAIT one frame so the card actually becomes wide → then measure
+  requestAnimationFrame(() => {
+    const fitWidth = resultCard.getBoundingClientRect().width - 32; // wide width
     resEl.innerHTML = renderCircuitSVG(j, {
-  caption: exprEl.value.trim(),
-  scale: 'fit',
-  fitWidth: resEl.clientWidth - 24, zoom: 2.0   // or any target width you prefer
-});
+      caption: exprEl.value.trim(),
+      scale: 'fit',
+      fitWidth,
+      zoom: 2.2       // try 1.8–2.4 for even bigger
+    });
+  });
+}
 
-  }
 
   $("#btnCircuit").addEventListener("click", () => drawCircuit("mixed"));
   $("#btnCircuitNAND").addEventListener("click", () => drawCircuit("nand"));
