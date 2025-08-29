@@ -730,8 +730,10 @@ function enumerateAllRectGroups(minterms, n){
     }
   }
   // sort by area desc then position
-  out.sort((a,b)=> (b.hr*b.wr)-(a.hr*a.wr) || a.r-b.r || a.c-b.c);
-  return out;
+  // at the end of enumerateAllRectGroups
+out.sort((a,b)=> (b.hr*b.wr)-(a.hr*a.wr) || a.r-b.r || a.c-b.c);
+return dedupeRects(out, n);
+
 }
 
 function implicantCovers(p, n){
@@ -798,6 +800,31 @@ function implicantToRect(p, n){
 
 
 
+function rectCellsKey(g, n){
+  const { rows, cols } = dimsFor(n);
+  const cells = [];
+  for (let i=0;i<g.hr;i++){
+    for (let j=0;j<g.wr;j++){
+      const rr = (g.r + i) % rows;
+      const cc = (g.c + j) % cols;
+      cells.push(`${rr},${cc}`);
+    }
+  }
+  cells.sort();
+  return cells.join('|');     // canonical “wrap key”
+}
+
+function dedupeRects(rects, n){
+  const seen = new Set();
+  const out = [];
+  for (const g of rects){
+    const key = rectCellsKey(g, n);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(g);
+  }
+  return out;
+}
 
 
 
@@ -952,9 +979,12 @@ solutionGroups = chosenImps.map(p => implicantToRect(p, nvars));
       solutionGroups
     };
 
-  if (full) {
-  const base = (mode === "zeros") ? maxterms : minterms;   // enumerate on the chosen cells
-  resp.allGroups = enumerateAllRectGroups(base, n);
+ solutionGroups = dedupeRects(solutionGroups, n);
+
+if (full) {
+  const universe = (mode === "zeros") ? maxterms : minterms;
+  const all = enumerateAllRectGroups(universe, n);
+  resp.allGroups = dedupeRects(all, n);   // no repeats from wrap anchors
 }
 
 
