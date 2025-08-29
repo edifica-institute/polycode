@@ -946,8 +946,8 @@ app.post("/api/ba/kmap", (req, res) => {
       vars = [],
       minterms = [],
       maxterms = [],
-      mode = "ones",          // "ones" => SOP on 1-cells, "zeros" => POS on 0-cells
-      full = false            // if true, also return all candidate groups
+      mode = "ones",      // "ones" (SOP) or "zeros" (POS)
+      full = false
     } = req.body || {};
 
     if (!vars.length) {
@@ -959,23 +959,26 @@ app.post("/api/ba/kmap", (req, res) => {
       return res.status(400).json({ ok: false, error: "K-map shown for 2–4 variables only." });
     }
 
-    // 1) Minimize on the chosen universe
+    // --- minimize on the chosen universe (1-cells for SOP, 0-cells for POS) ---
     let chosenImps, simplified;
+
     if (mode === "zeros") {
-      // Minimize on 0-cells → POS
-      chosenImps  = qmMinimize(maxterms, [], n);
-      simplified  = implicantsToPOS(chosenImps, vars);
+      // POS: minimize maxterms (0-cells)
+      chosenImps = qmMinimize(maxterms, [], n);
+      simplified = implicantsToPOS(chosenImps, vars);
     } else {
-      // Minimize on 1-cells → SOP
-      chosenImps  = qmMinimize(minterms, [], n);
-      simplified  = implicantsToExpression(chosenImps, vars);
+      // SOP: minimize minterms (1-cells)
+      chosenImps = qmMinimize(minterms, [], n);
+      simplified = implicantsToExpression(chosenImps, vars);
     }
 
-    // 2) Convert implicants to K-map rectangles and **DEDUPE BEFORE** responding
-    const solRaw          = chosenImps.map(p => implicantToRect(p, n));
-    const solutionGroups  = dedupeRects(solRaw, n);
+    // --- map implicants → K-map rectangles (on the torus) ---
+    const nvars = vars.length;
+    const solutionGroupsRaw = chosenImps.map(p => implicantToRect(p, nvars));
 
-    // 3) Build response
+    // ⚠️ IMPORTANT: de-dupe BEFORE sending in the response
+    const solutionGroups = dedupeRects(solutionGroupsRaw, n);
+
     const resp = {
       ok: true,
       mode,
@@ -983,11 +986,11 @@ app.post("/api/ba/kmap", (req, res) => {
       solutionGroups
     };
 
-    // 4) Optionally include all candidate groups (e.g., all pairings)
+    // Optionally return *all* valid groups (UI can filter size==2 etc.)
     if (full) {
       const universe = (mode === "zeros") ? maxterms : minterms;
-      const allRaw   = enumerateAllRectGroups(universe, n);
-      resp.allGroups = dedupeRects(allRaw, n);
+      const all = enumerateAllRectGroups(universe, n);
+      resp.allGroups = dedupeRects(all, n);
     }
 
     return res.json(resp);
@@ -995,6 +998,7 @@ app.post("/api/ba/kmap", (req, res) => {
     return res.status(400).json({ ok: false, error: String(e.message || e) });
   }
 });
+
 
 
 
