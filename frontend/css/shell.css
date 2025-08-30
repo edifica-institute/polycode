@@ -3737,8 +3737,7 @@ body.light {
   --pad-x: 12px; --pad-y: 8px;
   display:inline-flex; align-items:center; gap:.5rem;
   padding: var(--pad-y) var(--pad-x);
-  border-radius: 4px;
-  border: 0px solid color-mix(in srgb, var(--chev-fg) 22%, transparent);
+  border-radius: 0px;
   background:
     linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0)) /* glaze */,
     rgba(255,255,255,.04); /* subtle fill for contrast */
