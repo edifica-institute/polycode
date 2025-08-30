@@ -307,8 +307,6 @@ function renderCircuitSVG(net, opts = {}) {
   let   scale   = opts.scale ?? 'fit';      // 'fit' or number
   const fitW    = opts.fitWidth ?? 1000;
   const zoom    = opts.zoom ?? 1.6;
-const FAN_STUB = Math.round(14 * s);   // short horizontal escape from a source
-const FAN_GAP  = Math.round(10 * s);   // vertical spacing between fanout lanes
 
   // Base geometry (pre-scale)
   const GW0=72, GH0=46, PIN0=10, XSTEP0=180, YSTEP0=100, PAD0=28;
@@ -404,6 +402,11 @@ const FAN_GAP  = Math.round(10 * s);   // vertical spacing between fanout lanes
   const s=+scale, GW=Math.round(GW0*s), GH=Math.round(GH0*s), PIN=Math.round(PIN0*s);
   const XSTEP=Math.round(XSTEP0*s), YSTEP=Math.round(YSTEP0*s), PAD=Math.round(PAD0*s);
 
+  const FAN_STUB = Math.round(14 * s);   // short horizontal escape from a source
+const FAN_GAP  = Math.round(10 * s);   // vertical spacing between fanout lanes
+
+
+  
   const abs = new Map(); layers.forEach((ids,lx)=>ids.forEach((id,ly)=>abs.set(id,{x:PAD+lx*XSTEP,y:PAD+ly*YSTEP})));
   const width  = (layers.length+1)*XSTEP + 2*PAD;
   const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?Math.round(28*s):0);
