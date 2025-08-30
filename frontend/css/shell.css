@@ -3866,4 +3866,23 @@ body { overflow: hidden; } /* page itself doesn’t scroll; panels do */
 .app, .panel, .site-header{ transform: none !important; }
 
 
+/* ==== FORCE FULLSCREEN EDITOR ON MOBILE ==== */
+@media (max-width: 1024px){
+  .center.panel{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  #editor{
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-height: 80svh !important;   /* editor fills most of viewport */
+    height: 80svh !important;
+  }
+  #output{
+    display: none !important;       /* collapsed by default */
+  }
+  .left.panel{
+    display: none !important;       /* collapsed by default */
+  }
+}
 
