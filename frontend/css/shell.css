@@ -3525,3 +3525,81 @@ body > header.site-header{
 .app.show-left  .chevron-tab.left::before  { content:"❮"; }
 .app.show-right .chevron-tab.right::before { content:"❯"; }
 
+
+
+
+/* ---------- Chevron tabs: transparent, large arrow, theme-aware glow ---------- */
+:root{
+  --chev-size: 34px;                       /* arrow size */
+  --chev-hit-w: 48px;                      /* invisible button width */
+  --chev-hit-h: 96px;                      /* invisible button height */
+  --chev-fg: #fff;                         /* arrow color (dark theme default) */
+  --chev-glow: rgba(255,255,255,0.45);     /* glow for dark theme */
+}
+body.light{
+  --chev-fg: #000;                         /* arrow color on light theme */
+  --chev-glow: rgba(0,0,0,0.35);           /* glow for light theme */
+}
+
+.chevron-tab{
+  /* keep your positioning (absolute at panel edge) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--chev-hit-w);
+  height: var(--chev-hit-h);
+  padding: 0;
+  margin: 0;
+  background: transparent !important;      /* transparent button */
+  border: 0 !important;
+  color: var(--chev-fg);                   /* arrow uses currentColor */
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.chevron-tab::before{
+  content: "";
+  width: var(--chev-size);
+  height: var(--chev-size);
+  background: currentColor;                /* arrow fill */
+  /* Left chevron SVG (we mirror it for the right side below) */
+  -webkit-mask: url('data:image/svg+xml;utf8,\
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">\
+  <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>') center / contain no-repeat;
+          mask: url('data:image/svg+xml;utf8,\
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">\
+  <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>') center / contain no-repeat;
+  filter: drop-shadow(0 0 2px var(--chev-glow));
+  opacity: 0.95;
+  transition: transform .15s ease, filter .15s ease, opacity .15s ease;
+}
+
+/* Right tab = mirror the left-arrow */
+.chevron-tab.right::before{
+  transform: scaleX(-1);
+}
+
+/* Hover/active/focus polish */
+.chevron-tab:hover::before{
+  filter: drop-shadow(0 0 8px var(--chev-glow));
+  opacity: 1;
+  transform: translateX(1px) scale(1.08);
+}
+.chevron-tab.right:hover::before{
+  transform: translateX(-1px) scale(1.08) scaleX(-1);
+}
+.chevron-tab:active::before{
+  transform: scale(0.98) translateY(1px);
+}
+
+/* Keyboard focus ring without a box background */
+.chevron-tab:focus-visible{
+  box-shadow: 0 0 0 2px var(--chev-glow) inset;
+  border-radius: 999px;
+}
+
+/* Optional: flip arrow to indicate "expand" when a panel is collapsed */
+.app.collapsed-left  .chevron-tab.left::before  { transform: scaleX(-1); } /* points right */
+.app.collapsed-right .chevron-tab.right::before { transform: none; }       /* points left */
+
