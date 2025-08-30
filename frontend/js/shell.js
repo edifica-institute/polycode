@@ -881,59 +881,97 @@ try {
   }
 })();
 
-// ===========================
-// Overlay drawers (<1500) & desktop collapse (≥1500)
-// ===========================
-document.addEventListener('DOMContentLoaded', () => {
-  const app = document.querySelector('.app');
-  const btnRun = document.getElementById('btnRun');
-  const btnReset = document.getElementById('btnReset');
-  const isOverlay = () => matchMedia(getOverlayQuery()).matches;
 
-  function toggle(which){
-    if (!app) return;
-    if (which === 'left'){
-      if (isOverlay()){
-        const open = !app.classList.contains('show-left');
-        app.classList.toggle('show-left', open);
-        app.classList.remove('show-right');
-      }else{
-        app.classList.toggle('collapsed-left');
-      }
-    }else{ // right
-      if (isOverlay()){
-        const open = !app.classList.contains('show-right');
-        app.classList.toggle('show-right', open);
-        app.classList.remove('show-left');
-      }else{
-        app.classList.toggle('collapsed-right');
-      }
+
+// === Chevron controller (desktop + overlay) — drop-in replacement ===
+document.addEventListener('DOMContentLoaded', () => {
+  const app     = document.querySelector('.app');
+  const leftBtn = document.querySelector('.chevron-tab.left');
+  const rightBtn= document.querySelector('.chevron-tab.right');
+  const runBtn  = document.getElementById('btnRun');
+  const resetBtn= document.getElementById('btnReset');
+  if (!app || !leftBtn || !rightBtn) return;
+
+  const mql = matchMedia(getOverlayQuery());
+  const isOverlay = () => mql.matches;
+
+  // Provide default labels if HTML didn't set data-label-* already
+  function ensureLabels(btn, openLabel, closedLabel){
+    if (!btn) return;
+    if (btn.dataset.labelOpen   == null) btn.dataset.labelOpen   = openLabel;
+    if (btn.dataset.labelClosed == null) btn.dataset.labelClosed = closedLabel;
+  }
+  ensureLabels(leftBtn,  'Hide Docs',   'Show Docs');
+  ensureLabels(rightBtn, 'Hide Output', 'Show Output');
+
+  function getOpen(which){
+    if (isOverlay()){
+      return app.classList.contains(which === 'left' ? 'show-left' : 'show-right');
+    }
+    return !app.classList.contains(which === 'left' ? 'collapsed-left' : 'collapsed-right');
+  }
+
+  function setOpen(which, open){
+    const btn = which === 'left' ? leftBtn : rightBtn;
+
+    if (isOverlay()){
+      const cls = which === 'left' ? 'show-left' : 'show-right';
+      app.classList.toggle(cls, open);
+      // On overlay, only one side visible at a time
+      if (open) app.classList.remove(which === 'left' ? 'show-right' : 'show-left');
+    } else {
+      const cls = which === 'left' ? 'collapsed-left' : 'collapsed-right';
+      app.classList.toggle(cls, !open);
+    }
+
+    // Keep accessibility + CSS hooks in sync (drives text/icon/glow)
+    if (btn) {
+      btn.setAttribute('aria-expanded', String(open));
+      const label = open ? btn.dataset.labelOpen : btn.dataset.labelClosed;
+      btn.setAttribute('aria-label', label);
+      btn.title = label;
     }
   }
 
-  // Single delegated handler for both chevrons
-  document.addEventListener('click', (e) => {
-    const left  = e.target.closest('.chevron-tab.left');
-    const right = e.target.closest('.chevron-tab.right');
-    if (left){  e.preventDefault(); toggle('left'); }
-    if (right){ e.preventDefault(); toggle('right'); }
-  });
- if (!isOverlayMode()) initCols();
-  // Auto show output when Run is clicked
-  btnRun?.addEventListener('click', () => {
-    if (isOverlay()){
-      app.classList.add('show-right');
-      app.classList.remove('show-left');
-    }else{
-      app.classList.remove('collapsed-right');
-    }
-  });
+  function sync(){
+    // Reflect current classes into aria-expanded/labels without changing layout
+    setOpen('left',  getOpen('left'));
+    setOpen('right', getOpen('right'));
+  }
 
-  // Optional: hide output drawer on Reset in overlay
-  btnReset?.addEventListener('click', () => {
-    if (isOverlay()) app.classList.remove('show-right');
+  // Initial sync + on breakpoint change
+  sync();
+  if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', sync);
+  } else {
+    mql.addListener(sync); // older browsers
+  }
+
+  // Also resync if any other code toggles classes on .app
+  const mo = new MutationObserver((muts) => {
+    if (muts.some(m => m.attributeName === 'class')) sync();
   });
+  mo.observe(app, { attributes:true, attributeFilter:['class'] });
+
+  // Single delegated click handler for both chevrons (prevents old handler conflicts)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.chevron-tab.left, .chevron-tab.right');
+    if (!btn) return;
+    e.preventDefault();
+    const which = btn.classList.contains('left') ? 'left' : 'right';
+    setOpen(which, !getOpen(which));
+  }, { capture:true });
+
+  // Nice-to-have: auto show output on Run; hide on Reset in overlay
+  runBtn?.addEventListener('click', () => setOpen('right', true));
+  resetBtn?.addEventListener('click', () => { if (isOverlay()) setOpen('right', false); });
 });
+
+
+
+
+
+
 
 
 // ===========================
@@ -946,40 +984,7 @@ function fmtDuration(ms){
 
 
 
-(function initChevronArrows() {
-  const app = document.querySelector('.app');
-  const left  = document.querySelector('.chevron-tab.left');
-  const right = document.querySelector('.chevron-tab.right');
-  if (!app || !left || !right) return;
 
-  const mql = window.matchMedia('(max-width:1500px)');
-
-  function syncChevronState() {
-    const overlay = mql.matches;
-
-    // "open" means the panel is visible
-    const leftOpen  = overlay
-      ? app.classList.contains('show-left')
-      : !app.classList.contains('collapsed-left');
-
-    const rightOpen = overlay
-      ? app.classList.contains('show-right')
-      : !app.classList.contains('collapsed-right');
-
-    left.setAttribute('aria-expanded',  String(leftOpen));
-    right.setAttribute('aria-expanded', String(rightOpen));
-  }
-
-  // run once on load + whenever we cross the 1500px breakpoint
-  if (typeof mql.addEventListener === 'function') {
-    mql.addEventListener('change', syncChevronState);
-  } else {
-    // older browsers
-    mql.addListener(syncChevronState);
-  }
-  window.addEventListener('DOMContentLoaded', syncChevronState);
-  syncChevronState();
-})();
 
 
 
