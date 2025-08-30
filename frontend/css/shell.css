@@ -3723,3 +3723,16 @@ body.light{
   #btnLeftToggle, #btnRightToggle{ z-index: 1001; }
 }
 
+
+
+/* App grid should fill the viewport */
+.app { height: 100vh; }
+
+/* Center panel is a vertical flex column */
+#centerPanel { display: flex; flex-direction: column; min-width: 0; }
+
+/* The scrollable body in the center must be allowed to grow and shrink */
+#centerPanel .pane-body { flex: 1 1 auto; min-height: 0; }
+
+/* Monaco host fills that body */
+#editor { width: 100%; height: 100%; }
