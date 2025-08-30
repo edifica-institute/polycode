@@ -1595,8 +1595,57 @@ document.addEventListener('DOMContentLoaded', () => {
   let mql = window.matchMedia(getOverlayQuery());
   const isOverlay = () => mql.matches;
 
+
+
+
+
+    // ADD: use your exact SVGs; just swap based on actual open/closed state
+  function renderToggleIcons() {
+    const overlay = isOverlay();
+
+    // open means panel is visible
+    const leftOpen  = overlay
+      ? app.classList.contains('show-left')
+      : !app.classList.contains('collapsed-left');
+
+    const rightOpen = overlay
+      ? app.classList.contains('show-right')
+      : !app.classList.contains('collapsed-right');
+
+    // Your original paths (unchanged)
+    const SVG_LEFT  = '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'; // ◀
+    const SVG_RIGHT = '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>'; // ▶
+
+    // LEFT button: when panel is open, show ◀ (collapse); when closed, show ▶ (expand)
+    if (btnLeft) {
+      btnLeft.setAttribute('aria-expanded', String(leftOpen));
+      btnLeft.innerHTML = leftOpen ? SVG_LEFT : SVG_RIGHT;
+    }
+
+    // RIGHT button: mirror the logic (open -> ▶ to collapse to the right, closed -> ◀ to expand from right)
+    if (btnRight) {
+      btnRight.setAttribute('aria-expanded', String(rightOpen));
+      btnRight.innerHTML = rightOpen ? SVG_RIGHT : SVG_LEFT;
+    }
+  }
+
+
+
+
+  
+
   // Recompute when the CSS var changes or window resizes (rare but safe)
-  window.addEventListener('resize', () => { mql = window.matchMedia(getOverlayQuery()); });
+ window.addEventListener('resize', () => {
+    mql = window.matchMedia(getOverlayQuery());
+    renderToggleIcons(); // keep icons in sync when auto-collapsing on resize
+  });
+
+    if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', renderToggleIcons);
+  } else {
+    mql.addListener(renderToggleIcons); // older Safari
+  }
+
 
   // Left toggle
   btnLeft?.addEventListener('click', () => {
@@ -1606,6 +1655,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       app.classList.toggle('collapsed-left');   // desktop: collapse column
     }
+    renderToggleIcons();
   });
 
   // Right toggle
@@ -1616,6 +1666,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       app.classList.toggle('collapsed-right');  // desktop: collapse column
     }
+    renderToggleIcons(); 
   });
 
   // Auto-open Output on Run (overlay mode)
@@ -1623,6 +1674,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isOverlay()) {
       app.classList.add('show-right');
       app.classList.remove('show-left');
+      renderToggleIcons();
+    }
+    else
+    {
+       app.classList.add('show-right');
+      renderToggleIcons();
     }
   });
 
@@ -1630,6 +1687,7 @@ document.addEventListener('DOMContentLoaded', () => {
   btnReset?.addEventListener('click', () => {
     if (isOverlay()) {
       app.classList.remove('show-right');
+      renderToggleIcons();
     }
   });
 
@@ -1637,6 +1695,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isOverlay()) {
       app.classList.remove('show-left', 'show-right');
+      renderToggleIcons();
     }
   });
+  renderToggleIcons();
 });
