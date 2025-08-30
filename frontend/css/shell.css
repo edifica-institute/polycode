@@ -3746,4 +3746,62 @@ body.light{
 
 
 
+/* ============================================== */
+/* Corrected CSS for Responsiveness               */
+/* ============================================== */
 
+/* Original CSS (Desktop and Large Screens) */
+.app {
+  display: grid;
+  grid-template-columns: 280px 8px minmax(360px, 1fr) 8px minmax(360px, 42%);
+  grid-template-rows: calc(100vh - 220px);
+  grid-template-areas: "left-panel-drag left-panel center-panel-drag center-panel right-panel-drag";
+  gap: 0;
+  height: 100vh;
+  padding: 0 var(--outer-gap, 8px);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* New CSS (Mobile and Small Screens) */
+@media (max-width: 640px) {
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: auto; /* Allow height to adjust to content */
+    padding: 0; /* Remove horizontal padding */
+  }
+
+  /* Adjust panel and drag elements for mobile view */
+  .left-panel, .center-panel, .right-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .left-panel-drag, .center-panel-drag, .right-panel-drag {
+    display: none; /* Hide drag handles on small screens */
+  }
+}
+
+/* Adjustments for the panels themselves */
+.left-panel {
+  grid-area: left-panel;
+}
+.center-panel {
+  grid-area: center-panel;
+}
+.right-panel {
+  grid-area: right-panel;
+}
+
+/* Additional styles to ensure panels stack correctly on mobile */
+@media (max-width: 640px) {
+  .left.panel, .center.panel, .right.panel {
+    flex: 1 1 auto;
+    width: 100%;
+    margin-bottom: var(--outer-gap, 8px); /* Add some spacing between panels */
+  }
+}
