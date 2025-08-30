@@ -885,96 +885,56 @@ try {
 // Overlay drawers (<1500) & desktop collapse (≥1500)
 // ===========================
 document.addEventListener('DOMContentLoaded', () => {
-  const app   = document.querySelector('.app');
-  if (!app) return;
+  const app = document.querySelector('.app');
+  const btnRun = document.getElementById('btnRun');
+  const btnReset = document.getElementById('btnReset');
+  const isOverlay = () => matchMedia('(max-width:1500px)').matches;
 
-  const $ = (sel) => document.querySelector(sel);
-  const btnLeft   = $('#btnLeftToggle');
-  const btnRight  = $('#btnRightToggle');
-  const btnRun    = $('#btnRun');
-  const btnReset  = $('#btnReset');
-
-  function setExpanded(btn, open, which){
-    if (!btn) return;
-    btn.setAttribute('aria-expanded', String(open));
-    btn.title = (open ? `Close ${which} panel` : `Open ${which} panel`);
-  }
-
-  function syncForMode(){
-    if (isOverlayMode()) {
-      app.classList.remove('show-left','show-right','collapsed-left','collapsed-right');
-      setExpanded(btnLeft,  false, 'reference');
-      setExpanded(btnRight, false, 'output');
-    } else {
-      app.classList.remove('show-left','show-right');
-      setExpanded(btnLeft,  !app.classList.contains('collapsed-left'),  'reference');
-      setExpanded(btnRight, !app.classList.contains('collapsed-right'), 'output');
-      initCols();
+  function toggle(which){
+    if (!app) return;
+    if (which === 'left'){
+      if (isOverlay()){
+        const open = !app.classList.contains('show-left');
+        app.classList.toggle('show-left', open);
+        app.classList.remove('show-right');
+      }else{
+        app.classList.toggle('collapsed-left');
+      }
+    }else{ // right
+      if (isOverlay()){
+        const open = !app.classList.contains('show-right');
+        app.classList.toggle('show-right', open);
+        app.classList.remove('show-left');
+      }else{
+        app.classList.toggle('collapsed-right');
+      }
     }
   }
 
-  // Left toggle
-  btnLeft?.addEventListener('click', () => {
-    if (isOverlayMode()) {
-      const open = !app.classList.contains('show-left');
-      app.classList.toggle('show-left', open);
-      app.classList.remove('show-right');
-      setExpanded(btnLeft, open, 'reference');
-      setExpanded(btnRight, false, 'output');
-    } else {
-      const collapsed = app.classList.toggle('collapsed-left');
-      setExpanded(btnLeft, !collapsed, 'reference');
-    }
+  // Single delegated handler for both chevrons
+  document.addEventListener('click', (e) => {
+    const left  = e.target.closest('.chevron-tab.left');
+    const right = e.target.closest('.chevron-tab.right');
+    if (left){  e.preventDefault(); toggle('left'); }
+    if (right){ e.preventDefault(); toggle('right'); }
   });
 
-  // Right toggle
-  btnRight?.addEventListener('click', () => {
-    if (isOverlayMode()) {
-      const open = !app.classList.contains('show-right');
-      app.classList.toggle('show-right', open);
-      app.classList.remove('show-left');
-      setExpanded(btnRight, open, 'output');
-      setExpanded(btnLeft,  false, 'reference');
-    } else {
-      const collapsed = app.classList.toggle('collapsed-right');
-      setExpanded(btnRight, !collapsed, 'output');
-    }
-  });
-
-  // Auto open/close output in overlay on Run/Reset
+  // Auto show output when Run is clicked
   btnRun?.addEventListener('click', () => {
-    if (isOverlayMode()) {
+    if (isOverlay()){
       app.classList.add('show-right');
       app.classList.remove('show-left');
-      setExpanded(btnRight, true, 'output');
-      setExpanded(btnLeft,  false, 'reference');
+    }else{
+      app.classList.remove('collapsed-right');
     }
-    else {
-    // If the right column is collapsed on desktop, open it
-    app.classList.remove('collapsed-right');
-  }
   });
+
+  // Optional: hide output drawer on Reset in overlay
   btnReset?.addEventListener('click', () => {
-    if (isOverlayMode()) {
-      app.classList.remove('show-right');
-      setExpanded(btnRight, false, 'output');
-    }
+    if (isOverlay()) app.classList.remove('show-right');
   });
-
-  // ESC closes any open drawer (overlay)
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isOverlayMode()) {
-      app.classList.remove('show-left','show-right');
-      setExpanded(btnLeft, false, 'reference');
-      setExpanded(btnRight,false, 'output');
-    }
-  });
-
-  // Keep in sync across breakpoint changes / resizes
-  const handleResize = () => syncForMode();
-  window.addEventListener('resize', handleResize, { passive:true });
-  syncForMode();
 });
+
 
 // ===========================
 // Small helpers
@@ -988,36 +948,5 @@ function fmtDuration(ms){
 
 
 
-const app = document.querySelector('.app');
-const isOverlay = () => matchMedia('(max-width:1500px)').matches;
-
-document.addEventListener('click', (e) => {
-  const left  = e.target.closest('.chevron-tab.left');
-  const right = e.target.closest('.chevron-tab.right');
-
-  if (left) {
-    if (isOverlay()) {
-      const open = !app.classList.contains('show-left');
-      app.classList.toggle('show-left', open);
-      app.classList.remove('show-right');
-      left.setAttribute('aria-expanded', String(open));
-    } else {
-      const collapsed = app.classList.toggle('collapsed-left');
-      left.setAttribute('aria-expanded', String(!collapsed));
-    }
-  }
-
-  if (right) {
-    if (isOverlay()) {
-      const open = !app.classList.contains('show-right');
-      app.classList.toggle('show-right', open);
-      app.classList.remove('show-left');
-      right.setAttribute('aria-expanded', String(open));
-    } else {
-      const collapsed = app.classList.toggle('collapsed-right');
-      right.setAttribute('aria-expanded', String(!collapsed));
-    }
-  }
-});
 
 
