@@ -410,9 +410,9 @@ function renderCircuitSVG(net, opts = {}) {
   const FAN_STUB          = Math.round(12 * s);   // short horizontal escape from a source
 const FAN_GAP           = Math.round(10 * s);   // vertical spacing between fanout lanes
 const ROW_CHAN_MARGIN   = Math.round(20 * s);   // how far we drop into a row channel
-const TRACK             = Math.round(12 * s);   // input-spacing at a gate face
-const CLEAR             = Math.round(12 * s);   // clearance to route above/below a gate
-const JOIN_NUDGE        = 0.5;                  // prevents “poke into body” at the pin
+const TRACK             = Math.round(14 * s);   // input-spacing at a gate face
+const CLEAR             = Math.round(16 * s);   // clearance to route above/below a gate
+const JOIN_NUDGE        = 0;                  // prevents “poke into body” at the pin
 
   // Absolute top-left positions + keep row index
  const abs = new Map(), rowIndex = new Map();
@@ -540,10 +540,16 @@ function wiresTo(tid){
         curX = o.gx1 + CLEAR;
       }
 
-      // finish near the gate face, staggered by input index, with a single drop to the pin
-      const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
-      path += ` H${bendX} V${y2} H${x2 - JOIN_NUDGE}`;
-      return path;
+     if (ins.length === 1) {
+  // one input → no staging bend: run straight, drop if needed, then into pin
+  if (curY !== y2) path += ` V${y2}`;
+  path += ` H${x2}`;        // end exactly at pin
+  return path;
+}
+
+const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
+path += ` H${bendX} V${y2} H${x2}`;
+return path;
     }
 
     // different rows → drop to the row channel, run, then come up
@@ -562,9 +568,10 @@ function wiresTo(tid){
       curX = o.gx1 + CLEAR;
     }
 
-    const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
-    path += ` H${bendX} V${y2} H${x2 - JOIN_NUDGE}`;
-    return path;
+   const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
+path += ` H${bendX} V${y2} H${x2}`;
+return path;
+
   }).join(" ");
 }
 
@@ -603,8 +610,9 @@ function wiresTo(tid){
 
   return `<svg viewBox="0 0 ${width} ${height}" width="100%" preserveAspectRatio="xMinYMin meet">
     ${style}
-    <g class="wires">${wiresSVG}</g>
-    <g class="gates">${gatesSVG}</g>
+     <g class="gates">${gatesSVG}</g>
+     <g class="wires">${wiresSVG}</g>
+   
     <g class="labels" fill="currentColor">
       ${captionSVG}
       <text x="${outPos.x + Math.round(90*s)}" y="${outPos.y + Math.round(24*s)}" class="mono">F</text>
