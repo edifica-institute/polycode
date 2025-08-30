@@ -1736,3 +1736,36 @@ if (typeof mql.addEventListener === 'function') {
  syncChevronIcons();
 bringChevronsToFront();
 });
+
+
+function normalizeForOverlay(app){
+  app.classList.remove('collapsed-left','collapsed-right'); // desktop-only flags
+  app.classList.remove('show-left','show-right');           // start hidden
+}
+if (typeof mql.addEventListener === 'function') {
+  mql.addEventListener('change', () => {
+    if (isOverlay()) normalizeForOverlay(app);
+    clearInlineGrid();               // you already have this
+    syncChevronIcons();
+    bringChevronsToFront();
+  });
+} else {
+  mql.addListener(() => {
+    if (isOverlay()) normalizeForOverlay(app);
+    clearInlineGrid();
+    syncChevronIcons();
+    bringChevronsToFront();
+  });
+}
+
+
+document.addEventListener('click', (e) => {
+  if (!isOverlay()) return;
+  const app = document.querySelector('.app');
+  if (!app) return;
+  const inDrawer = e.target.closest?.('#leftPanel, #rightPanel, #btnLeftToggle, #btnRightToggle');
+  if (!inDrawer && (app.classList.contains('show-left') || app.classList.contains('show-right'))){
+    app.classList.remove('show-left','show-right');
+    syncChevronIcons();
+  }
+});
