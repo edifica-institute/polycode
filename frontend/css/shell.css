@@ -3470,4 +3470,15 @@ body > header.site-header{
 /* Remove any older rule that mirrored the right arrow via scaleX(-1) */
 .chevron-tab.right{ transform: translateY(-50%); }
 
+/* Chevron hygiene: show only the SVG, never any fallback text */
+.chevron-tab{
+  display:grid; place-items:center;
+  font-size:0; line-height:0;      /* hides stray text nodes */
+  overflow:hidden;
+}
+.chevron-tab > *:not(svg){ display:none !important; } /* hide any spans/text */
+.chevron-tab svg{ width:18px; height:18px; transition:transform .18s ease; }
+
+/* Optional: rotate icon when expanded/collapsed */
+.chevron-tab[aria-expanded="true"] svg{ transform: rotate(180deg); }
 
