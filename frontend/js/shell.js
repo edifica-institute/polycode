@@ -1689,6 +1689,11 @@ if (typeof mql.addEventListener === 'function') {
       app.classList.add('show-right');
       app.classList.remove('show-left');
           }
+    else {
+    // large screens: if right panel is collapsed, uncollapse it
+    clearInlineGrid?.(); // keep your resizer math from pinning widths
+    app.classList.remove('collapsed-right');
+  }
     syncChevronIcons();
   });
 
