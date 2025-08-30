@@ -1550,6 +1550,21 @@ document.addEventListener('DOMContentLoaded', () => {
 const clearInlineGrid = () => { app.style.gridTemplateColumns = ''; };
 
 
+// enable a brief transition only while we toggle classes
+const ANIM_MS = 200;
+function withPanelAnim(fn){
+  app.classList.add('panel-anim');
+  void app.offsetWidth;            // force reflow so transition applies
+  try { fn(); } finally {
+    setTimeout(() => app.classList.remove('panel-anim'), ANIM_MS + 50);
+  }
+}
+
+
+
+
+
+  
 // --- ADD: chevron SVGs + sync helpers (reuse your exact SVG paths) ---
 const CHEV_LEFT  = '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'; // «
 const CHEV_RIGHT = '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>'; // »
@@ -1661,6 +1676,7 @@ if (typeof mql.addEventListener === 'function') {
 
   // Left toggle
   btnLeft?.addEventListener('click', () => {
+    withPanelAnim(() => {
     if (isOverlay()) {
       app.classList.toggle('show-left');
       app.classList.remove('show-right');
@@ -1668,11 +1684,13 @@ if (typeof mql.addEventListener === 'function') {
       clearInlineGrid();    
       app.classList.toggle('collapsed-left');   // desktop: collapse column
     }
+    });
     syncChevronIcons();
   });
 
   // Right toggle
   btnRight?.addEventListener('click', () => {
+     withPanelAnim(() => {
     if (isOverlay()) {
       app.classList.toggle('show-right');
       app.classList.remove('show-left');
@@ -1680,11 +1698,13 @@ if (typeof mql.addEventListener === 'function') {
       clearInlineGrid();    
       app.classList.toggle('collapsed-right');  // desktop: collapse column
     }
+     });
     syncChevronIcons(); 
   });
 
   // Auto-open Output on Run (overlay mode)
   btnRun?.addEventListener('click', () => {
+     withPanelAnim(() => {
     if (isOverlay()) {
       app.classList.add('show-right');
       app.classList.remove('show-left');
@@ -1694,13 +1714,14 @@ if (typeof mql.addEventListener === 'function') {
     clearInlineGrid?.(); // keep your resizer math from pinning widths
     app.classList.remove('collapsed-right');
   }
+     });
     syncChevronIcons();
   });
 
   // Auto-close Output on Reset (overlay mode)
   btnReset?.addEventListener('click', () => {
     if (isOverlay()) {
-      app.classList.remove('show-right');}
+      withPanelAnim(() => app.classList.remove('show-right'));}
       syncChevronIcons();
     
   });
