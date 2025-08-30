@@ -306,6 +306,7 @@
 
 // Manhattan, color-coded logic renderer with obstacle-aware HVH wiring
 // Manhattan, clean wiring, circular inputs, classic OR shape
+// Manhattan, clean wiring, circular inputs, classic OR shape (no WIRE splitting)
 function renderCircuitSVG(net, opts = {}) {
   const caption = opts.caption ?? "";
   let   scale   = opts.scale ?? "fit";      // 'fit' or number
@@ -327,7 +328,7 @@ function renderCircuitSVG(net, opts = {}) {
              stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
   };
 
-  // Classic OR with *outer* hull + *inner back arc*
+  // Classic OR with outer hull + inner back-arc
   const gateOR = (x, y, s) => {
     const GW=Math.round(GW0*s), GH=Math.round(GH0*s);
     const r  = GH/2, b=y+GH;
@@ -340,7 +341,7 @@ function renderCircuitSVG(net, opts = {}) {
                C ${xm},${y+r} ${xm-22},${b} ${xIn},${b}
                C ${x+6},${b-10} ${x+6},${y+10} ${xIn},${y}"
          stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
-    const back =  // inner concave spine
+    const back =
       `<path d="M${xIn-Math.round(10*s)},${y}
                C ${xm-32},${y} ${xm-10},${y+r} ${xIn-Math.round(10*s)},${b}"
          stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
@@ -348,7 +349,6 @@ function renderCircuitSVG(net, opts = {}) {
   };
 
   const gateXOR = (x, y, s) => {
-    // XOR = OR shape + an extra back line a bit farther left
     const or = gateOR(x, y, s);
     const GW=Math.round(GW0*s), GH=Math.round(GH0*s);
     const r  = GH/2, b=y+GH;
@@ -387,28 +387,12 @@ function renderCircuitSVG(net, opts = {}) {
       : Math.max(0,...(pred.get(id)||[]).map(lev))+1).get(id);
   nodes.forEach((_,id)=>lev(id));
 
-  // Split long edges into per-layer WIRE nodes
-  let wid=0; const widNew=()=>`_W${wid++}`;
-  pred.forEach((parents, child)=>{
-    const lc=level.get(child);
-    parents.slice().forEach(p=>{
-      const lp=level.get(p);
-      if (lc-lp<=1) return;
-      succ.set(p,(succ.get(p)||[]).filter(x=>x!==child));
-      pred.set(child,(pred.get(child)||[]).filter(x=>x!==p));
-      let prev=p;
-      for (let L=lp+1; L<lc; L++){
-        const w=widNew(); addNode({id:w,type:"WIRE",ins:[prev]}); level.set(w,L);
-        succ.get(prev).push(w); pred.get(w).push(prev); prev=w;
-      }
-      succ.get(prev).push(child); pred.get(child).push(prev);
-    });
-  });
+  // NOTE: **No** “split long edges into WIRE nodes” here.
 
   // Layers array
   let layers=[]; level.forEach((v,id)=> (layers[v]||(layers[v]=[])).push(id));
 
-  // --- Compute scale AFTER we know how many layers we'll draw ---
+  // --- Compute scale after we know layer count ---
   if (scale === "fit") {
     const baseW = (layers.length+1)*XSTEP0 + 2*PAD0;
     scale = Math.max(1.15, (fitW*zoom) / baseW);
@@ -416,20 +400,18 @@ function renderCircuitSVG(net, opts = {}) {
   const s = +scale;
   const GW=Math.round(GW0*s), GH=Math.round(GH0*s), PIN=Math.round(PIN0*s);
   const XSTEP=Math.round(XSTEP0*s), YSTEP=Math.round(YSTEP0*s), PAD=Math.round(PAD0*s);
-  const FAN_STUB = Math.round(14*s);      // short H escape from a source
-  const FAN_GAP  = Math.round(10*s);      // vertical spacing between fanout lanes
 
-  // Dimensions by type (so wires terminate at the *edge* of the gate)
-  const typeWidth  = t => (t === "IN" ? Math.round(24*s) : GW);
-  const typeHeight = t => (t === "IN" ? Math.round(20*s) : GH);
+  const FAN_STUB = Math.round(14*s);   // short H escape
+  const FAN_GAP  = Math.round(10*s);   // fanout lane spacing
+  const TRACK    = Math.round(22*s);   // input pin separation near gate face
 
-  // Absolute top-left for each node
+  // Dimensions by type
+  const typeWidth  = t => (t === "IN" ? Math.round(18*s) : GW);
+  const typeHeight = t => (t === "IN" ? Math.round(18*s) : GH);
+
+  // Absolute top-left positions
   const abs = new Map();
-  layers.forEach((ids,lx)=>{
-    ids.forEach((id,ly)=>{
-      abs.set(id,{x:PAD+lx*XSTEP, y:PAD+ly*YSTEP});
-    });
-  });
+  layers.forEach((ids,lx)=>ids.forEach((id,ly)=>abs.set(id,{x:PAD+lx*XSTEP,y:PAD+ly*YSTEP})));
 
   const width  = (layers.length+1)*XSTEP + 2*PAD;
   const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?Math.round(28*s):0);
@@ -440,19 +422,20 @@ function renderCircuitSVG(net, opts = {}) {
   function drawGate(n){
     if (n.type==="WIRE") return "";
     const p=abs.get(n.id);
+
     if (n.type==="IN"){
-      // circular input + white, larger label to the left
+      // circular input with white label; small jack to the right
       const r = Math.round(9*s);
       const cx = p.x + r, cy = p.y + r;
       const jack = `<line x1="${cx+r}" y1="${cy}" x2="${cx+r+PIN}" y2="${cy}"/>`;
-      return `<g class="gate IN" color="currentColor">
+      return `<g class="gate IN">
         <circle cx="${cx}" cy="${cy}" r="${r}" />
         ${jack}
         <text x="${p.x - Math.round(8*s)}" y="${cy + Math.round(5*s)}"
               text-anchor="end" class="mono inlabel">${n.label||n.id}</text>
       </g>`;
     }
-    if (n.type==="OUT") return ""; // drawn as label only
+    if (n.type==="OUT") return ""; // only labeled at the end
 
     const nIns=(n.ins||[]).length||1;
     const pins = Array.from({length:nIns},(_,k)=>{
@@ -472,13 +455,18 @@ function renderCircuitSVG(net, opts = {}) {
                           <text x="${p.x+GW/2}" y="${p.y+GH/2+5}" text-anchor="middle" class="mono">${n.type}</text>`);
   }
 
-  // --- Wire routing: orthogonal H–V–H with lane separation ---
-  const outX = id => {
+  // Outgoing X for a node (rightmost connection point)
+  function outX(id){
     const t = nodes.get(id)?.type || "WIRE";
     const p = abs.get(id);
+    if (t === "IN"){
+      const r = Math.round(9*s);
+      return (p.x + r + r + PIN); // circle right + jack length
+    }
     return p.x + typeWidth(t);
-  };
+  }
 
+  // --- Single-path wires (H–V–H), no intermediate WIRE segments drawn ---
   function wiresTo(tid){
     const t   = nodes.get(tid);
     const dst = abs.get(tid);
@@ -486,24 +474,23 @@ function renderCircuitSVG(net, opts = {}) {
     const ins = (t.ins || []);
 
     return ins.map((sid, k) => {
-      const sp = abs.get(sid);
-      const x1 = outX(sid);                                   // right edge of source
-      const y1 = sp.y + (nodes.get(sid)?.type==="IN" ? Math.round(9*s) : GH/2);  // center or input circle center
+      const sp  = abs.get(sid);
+      const x1  = outX(sid);
+      const y1  = (nodes.get(sid)?.type==="IN")
+                  ? (sp.y + Math.round(9*s))
+                  : (sp.y + GH/2);
 
-      // fanout lane for this source edge
+      // fanout lane per source
       const outList    = succ.get(sid) || [];
       const outIdx     = Math.max(0, outList.indexOf(tid));
       const outCount   = Math.max(1, outList.length);
       const laneOffset = (outIdx - (outCount - 1) / 2) * FAN_GAP;
 
-      const x2 = xL;                                   // stop at *edge* of gate
+      const x2 = xL;                                    // stop at gate face
       const y2 = pinY(yT, ins.length || 1, k);
+      const bendX = x2 - Math.round(GW/4) - (k+1)*TRACK; // keep inputs separated
 
-      // keep inputs separated near destination
-      const track  = Math.round(22 * s);
-      const bendX  = x2 - Math.round(GW / 4) - (k + 1) * track;
-
-      // Route: short escape → lane → across → down → into pin (stop 1px before face)
+      // H (escape) → V (lane) → H (channel) → V (to pin) → H (into pin, 1px shy)
       return `M${x1},${y1} h${FAN_STUB} v${laneOffset} H${bendX} V${y2} H${x2-1}`;
     }).join(" ");
   }
@@ -516,7 +503,7 @@ function renderCircuitSVG(net, opts = {}) {
   const gatesSVG = Array.from(nodes.values()).map(drawGate).join("");
   const outPos = abs.get(net.output) || { x: width-80, y: height/2 };
 
-  // --- Embedded styles (inputs white/bigger; clean wires; classic OR color) ---
+  // --- Styles (white input labels, clean wires, classic OR) ---
   const style = `
   <style>
     .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: ${Math.max(12, Math.round(12*s))}px; }
@@ -548,6 +535,7 @@ function renderCircuitSVG(net, opts = {}) {
     </g>
   </svg>`;
 }
+
 
 
 
