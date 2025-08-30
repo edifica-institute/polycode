@@ -3742,6 +3742,128 @@ body.light{
 
 
 
+/* ==== POLYCODE — MOBILE FULLSCREEN EDITOR + DRAWERS (MERGED) ==== */
+/* Place at END of shell.css */
+
+/* Safety for flex sizing & overflow on tiny screens */
+*, *::before, *::after { min-width: 0; }
+
+/* Keep header always on top on mobile */
+.site-header{
+  position: sticky;
+  top: env(safe-area-inset-top, 0);
+  z-index: 90;
+}
+
+/* App scaffold */
+html, body { height: 100%; }
+body { overflow: hidden; } /* page itself doesn’t scroll; panels do */
+
+/* Panels are flex columns so children can grow/shrink correctly */
+.panel,
+.left.panel, .center.panel, .right.panel {
+  display: flex; flex-direction: column; min-height: 0;
+}
+
+/* Monaco must fill its panel */
+#editor { flex: 1 1 0; min-height: 0; height: auto; }
+#output { flex: 1 1 0; min-height: 0; overflow: auto; }
+
+/* ------------------- MOBILE BEHAVIOR ------------------- */
+@media (max-width: 1024px){
+
+  /* Base: editor owns the screen; resizers hidden */
+  .app{
+    position: relative;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    padding: 8px 10px;
+    height: 100%;
+    min-height: 0;
+  }
+  .v-resize { display: none !important; }
+
+  /* Center (editor) gets nearly full-height */
+  .center.panel{
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  /* Use svh so it’s stable with mobile browser chrome */
+  #editor{
+    min-height: 86svh !important;  /* adjust if your header is taller/shorter */
+    height: auto !important;
+    block-size: auto !important;
+  }
+
+  /* Collapse left/right from flow, convert them to slide-in drawers */
+  .left.panel,
+  .right.panel{
+    position: fixed;
+    top: 0; bottom: 0;
+    width: min(88vw, 420px);
+    max-width: 92vw;
+    background: var(--panel, #1e2024);
+    border: 1px solid var(--border, #2b2f34);
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    z-index: 80;
+    display: flex !important;
+    flex-direction: column;
+    /* Hidden by default: slide out of view */
+    transform: translateX(-120%);
+    transition: transform .25s ease;
+  }
+  .right.panel{
+    right: 0; left: auto;
+    transform: translateX(120%);
+  }
+  /* Make their headers compact on phones */
+  .left.panel .pane-head,
+  .right.panel .pane-head { padding: 10px 12px; }
+
+  /* Backdrop when any drawer is open */
+  .app::after{
+    content: ""; position: fixed; inset: 0;
+    background: rgba(0,0,0,.45);
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease;
+    z-index: 70;
+  }
+
+  /* Toggle states (added by JS) */
+  .app.left-open  .left.panel  { transform: translateX(0); }
+  .app.right-open .right.panel { transform: translateX(0); }
+  .app.left-open::after,
+  .app.right-open::after { opacity: 1; pointer-events: auto; }
+
+  /* Prevent background overscroll when drawers are open */
+  .app.left-open, .app.right-open { overscroll-behavior: contain; }
+
+  /* Toolbar usability on small widths */
+  .pane-head{
+    display:flex; align-items:center; gap:8px; padding:8px 10px;
+  }
+  .pane-head .right-controls{
+    margin-left:auto; display:flex; flex-wrap:wrap; gap:6px; row-gap:6px;
+  }
+
+  /* Neutralize any earlier mobile rules that stacked all panels */
+  .left.panel:not(.force-show),
+  .right.panel:not(.force-show){ /* in-flow collapse for older rules */
+    /* keep them fixed drawers; no extra vertical stacking */
+  }
+}
+
+/* Smaller phones: give editor a touch more height */
+@media (max-width: 640px){
+  #editor{ min-height: 88svh !important; }
+}
+
+/* Don’t let overlays block scroll/taps on outputs */
+.screen-dim{ opacity:.55; pointer-events:auto !important; }
+
+/* Ensure sticky works even if a parent applied transform elsewhere */
+.app, .panel, .site-header{ transform: none !important; }
 
 
 
