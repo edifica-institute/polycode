@@ -3720,3 +3720,64 @@ body.light{
 /* Sticky headers can fail if a parent has transform — ensure none here */
 .app, .panel, .site-header{ transform: none !important; }
 
+
+
+
+/* ===== POLYCODE — MOBILE POLISH PACK (append at end) ===== */
+
+/* 1) Chevron tabs — fixed mid-screen, never overlap toolbars */
+@media (max-width: 1024px){
+  .chevron-tab{
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 48px; height: 48px;
+    border-radius: 14px;
+    background: rgba(0,0,0,.35);
+    border: 1px solid rgba(255,255,255,.12);
+    box-shadow: 0 14px 30px rgba(0,0,0,.45), inset 0 0 0 0 rgba(0,0,0,0);
+    display: grid; place-items: center;
+    z-index: 180;                 /* above drawers; below header (200) */
+    backdrop-filter: blur(6px);
+  }
+  .chevron-tab svg{ width: 22px; height: 22px; }
+  .chevron-tab.left  { left: 10px; }
+  .chevron-tab.right { right: 10px; }
+
+  /* Hide the matching chevron while that drawer is open (prevents confusion) */
+  .app.show-left  .chevron-tab.left{  opacity:.0; pointer-events:none; }
+  .app.show-right .chevron-tab.right{ opacity:.0; pointer-events:none; }
+
+  /* 2) Header/links — slightly smaller & wrap safely */
+  .site-header{ position: sticky; top: env(safe-area-inset-top,0); z-index: 200; }
+  .site-header .brand-title2{ font-size: 16px; }
+  .site-header nav{ gap: 12px; flex-wrap: wrap; }
+  .site-header nav a{ font-size: 14px; line-height: 1.2; }
+
+  /* 3) Editor height — remove stray gaps caused by browser chrome changes */
+  .center.panel{ flex: 1 1 auto !important; min-height: 0 !important; }
+  .center.panel .pane-body{ flex: 1 1 auto !important; min-height: 0 !important; }
+  #editor{
+    flex: 1 1 auto !important;
+    min-height: 88svh !important;   /* was 86; gives a touch more room */
+    height: auto !important;
+    block-size: auto !important;
+  }
+
+  /* 4) Drawers under header, over editor */
+  .left.panel, .right.panel{ z-index: 170; }
+  /* Backdrop sits below header, above editor */
+  .app::after{ z-index: 165; }
+
+  /* 5) Kill scroll bounce when drawers open/close */
+  .app.show-left, .app.show-right{ overscroll-behavior: contain; }
+
+  /* 6) Avoid double scrollbars inside editor container */
+  .pane-body{ overflow: hidden; }
+  #output{ overflow: auto; }
+
+  /* 7) Optional: tuck the footer a bit on small screens */
+  .site-footer{ font-size: 13px; }
+}
+
+
