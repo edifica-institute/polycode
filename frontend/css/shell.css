@@ -3717,3 +3717,81 @@ body.light {
   .chevron-tab { width: 44px; } /* was wider; now a touch slimmer */
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* GLASS button base */
+.chevron-tab{
+  --pad-x: 12px; --pad-y: 8px;
+  display:inline-flex; align-items:center; gap:.5rem;
+  padding: var(--pad-y) var(--pad-x);
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--chev-fg) 22%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,0)) /* glaze */,
+    rgba(255,255,255,.04); /* subtle fill for contrast */
+  backdrop-filter: blur(8px) saturate(1.15);
+  -webkit-backdrop-filter: blur(8px) saturate(1.15);
+  color: var(--chev-fg);
+  box-shadow:
+    inset 0 0 0 2px var(--chev-glow),
+    0 6px 18px rgba(0,0,0,.24);
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+body.light .chevron-tab{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.35)),
+    rgba(255,255,255,.35);
+  box-shadow:
+    inset 0 0 0 2px var(--chev-glow),
+    0 6px 18px rgba(0,0,0,.10);
+}
+.chevron-tab:hover{ opacity:.96; }
+.chevron-tab:active{ transform: translateY(1px); }
+.chevron-tab:focus-visible{
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px var(--chev-glow),
+    0 0 0 3px var(--chev-glow);
+}
+
+/* Arrow icon (uses currentColor) */
+.chevron-tab::before{
+  content:"";
+  width:1.1em; height:1.1em; flex:0 0 1.1em;
+  background: currentColor;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='currentColor' d='M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z'/></svg>") no-repeat center / contain;
+}
+
+/* Text label rendered by CSS (no extra span required) */
+.chevron-tab::after{
+  content: attr(data-label-closed);
+  font-weight: 600; letter-spacing:.01em;
+}
+
+/* Direction + text switch by aria-expanded */
+.chevron-tab.left[aria-expanded="true"]::before  { transform:none; }         /* ← */
+.chevron-tab.left[aria-expanded="false"]::before { transform: scaleX(-1); }  /* → */
+.chevron-tab.right[aria-expanded="true"]::before { transform: scaleX(-1); }  /* → */
+.chevron-tab.right[aria-expanded="false"]::before{ transform:none; }         /* ← */
+
+.chevron-tab[aria-expanded="true"]::after  { content: attr(data-label-open); }
+
+/* Slightly narrower on small screens (same look) */
+@media (max-width:1500px){
+  .chevron-tab{ --pad-x:10px; }
+}
+
+
