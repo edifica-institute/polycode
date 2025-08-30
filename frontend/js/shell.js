@@ -1604,7 +1604,7 @@ function bringChevronsToFront(){
     return `(max-width: ${cssVal || '1500px'})`;
   };
   let mql = window.matchMedia(getOverlayQuery());
-  const isOverlay = () => mql.matches;
+  function isOverlay(){ return mql.matches; }
 
 
 
