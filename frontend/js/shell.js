@@ -901,8 +901,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btn.dataset.labelOpen   == null) btn.dataset.labelOpen   = openLabel;
     if (btn.dataset.labelClosed == null) btn.dataset.labelClosed = closedLabel;
   }
-  ensureLabels(leftBtn,  'Hide Docs',   'Show Docs');
-  ensureLabels(rightBtn, 'Hide Output', 'Show Output');
+  ensureLabels(leftBtn,  'Hide Reference Panel',   'Show Reference Panel');
+  ensureLabels(rightBtn, 'Hide Output Console', 'Show Output Console');
 
   function getOpen(which){
     if (isOverlay()){
