@@ -3784,101 +3784,104 @@ body.light{
 
 
 
-/* ===== POLYCODE — MOBILE TUNING PACK v2 (append at end) ===== */
-@media (max-width: 1024px){
-  /* Tune these if your header/footer heights differ */
-  :root{ --hdr: 56px; --ftr: 52px; }
 
-  /* Keep header + footer always visible; editor fills the middle only */
+
+
+
+/* ================= POLYCODE — MOBILE MASTER PATCH (append at end) ================= */
+@media (max-width: 1024px){
+
+  /* --- PAGE LAYOUT: always show header & footer; app fills the middle --- */
   html, body { height: 100svh; }
   body{
-    display:flex; flex-direction:column;
-    overflow:hidden; /* page itself no-scroll; panels can scroll */
+    margin:0;
+    display: grid;
+    grid-template-rows: auto 1fr auto;  /* header | app | footer */
+    grid-template-columns: 100%;
+    overflow: hidden;                    /* page no-scroll; panels can scroll */
+    background: inherit;
   }
-  .site-header{ flex:0 0 auto; position:sticky; top:env(safe-area-inset-top,0); z-index:200; }
-  .site-footer{ flex:0 0 auto; display:block; }
+  header.site-header{ grid-row: 1; position: sticky; top: env(safe-area-inset-top,0); z-index: 200; }
+  .app{ grid-row: 2; display: flex !important; flex-direction: column !important; min-height: 0 !important; height: auto !important; gap: 8px !important; }
+  footer.site-footer{ grid-row: 3; display: block; z-index: 200; }
 
-  /* Header links: smaller + never clipped */
-  .site-header .brand-title2{ font-size:16px; }
-  .site-header nav{ margin-left:auto; display:flex; gap:12px; flex-wrap:wrap; }
-  .site-header nav a{ font-size:14px; line-height:1.2; }
+  /* --- HEADER: keep links visible (shrink + allow horizontal scroll if needed) --- */
+  .site-header .brand-tagline2{ display: none; } /* frees space */
+  .site-header .brand-title2{ font-size: 16px; }
+  .site-header nav{ margin-left:auto; display:flex; gap:12px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .site-header nav a{ font-size: 14px; line-height: 1.2; white-space: nowrap; }
 
-  /* App occupies the space between header & footer */
-  .app{
-    flex:1 1 auto !important;
-    display:flex !important; flex-direction:column !important;
-    min-height:0 !important; height:auto !important;
-    gap:8px !important; padding: var(--outer-gap,8px);
-  }
+  /* --- HIDE RESIZERS ON MOBILE --- */
+  .v-resize, .h-resize{ display: none !important; }
 
-  /* Don’t show resizers on mobile */
-  .v-resize, .h-resize{ display:none !important; }
-
-  /* Editor owns the middle height (minus header+footer+paddings) */
-  .center.panel{ flex:1 1 auto !important; min-height:0 !important; }
-  .center.panel .pane-body{ flex:1 1 auto !important; min-height:0 !important; }
+  /* --- EDITOR fills the middle area between header & footer --- */
+  .center.panel{ flex: 1 1 auto !important; min-height: 0 !important; }
+  .center.panel .pane-body{ flex: 1 1 auto !important; min-height: 0 !important; overflow: hidden; }
   #editor{
-    flex:1 1 auto !important;
-    height:auto !important; block-size:auto !important;
-    min-height: calc(100svh - var(--hdr) - var(--ftr) - 2*var(--outer-gap,8px)) !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: auto !important;           /* flex chain handles the height */
+    block-size: auto !important;
   }
 
-  /* Left & Output collapsed by default; open as drawers when toggled */
-  .left.panel, .right.panel, #output{ display:none !important; }
+  /* --- LEFT/RIGHT collapsed by default; become DRAWERS when toggled --- */
+  .left.panel, .right.panel, #output{ display: none !important; }
+
   .left.panel, .right.panel{
-    position:fixed !important;
-    top: var(--hdr); bottom: var(--ftr);
-    width:min(88vw,420px); max-width:92vw;
-    background: var(--panel,#1e2024);
-    border:1px solid var(--border,#2b2f34);
-    box-shadow:0 20px 60px rgba(0,0,0,.45);
-    z-index:190; display:flex; flex-direction:column;
-    transform:translateX(-120%); transition:transform .25s ease;
+    position: fixed !important;
+    top: 0; bottom: 0;                  /* under header because of z-index */
+    width: min(88vw, 420px); max-width: 92vw;
+    background: var(--panel, #1e2024);
+    border: 1px solid var(--border, #2b2f34);
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    z-index: 170;                        /* header/footer are 200 → stay visible */
+    transform: translateX(-120%);
+    transition: transform .25s ease;
+    display: flex; flex-direction: column;
   }
-  .right.panel{ left:auto; right:0; transform:translateX(120%); }
+  .right.panel{ right: 0; left: auto; transform: translateX(120%); }
 
-  /* Backdrop between header/footer only */
+  /* Backdrop covers content but NOT header/footer */
   .app::after{
-    content:""; position:fixed; left:0; right:0;
-    top: var(--hdr); bottom: var(--ftr);
+    content:""; position: fixed; inset: 0;
     background: rgba(0,0,0,.45);
-    opacity:0; pointer-events:none; transition:opacity .2s ease; z-index:185;
+    opacity: 0; pointer-events: none; transition: opacity .2s ease;
+    z-index: 165;                       /* below header/footer; above editor */
   }
-  .app.show-left  .left.panel{  transform:translateX(0); display:flex !important; }
-  .app.show-right .right.panel{ transform:translateX(0); display:flex !important; }
-  .app.show-left::after, .app.show-right::after{ opacity:1; pointer-events:auto; }
+  .app.show-left  .left.panel{  transform: translateX(0); display:flex !important; }
+  .app.show-right .right.panel{ transform: translateX(0); display:flex !important; }
+  .app.show-left::after, .app.show-right::after{ opacity: 1; pointer-events: auto; }
+  .app.show-left, .app.show-right{ overscroll-behavior: contain; }
 
-  /* Editor toolbar buttons: keep horizontal; allow sideways scroll if crowded */
-  .pane-head{ padding:8px 10px; gap:8px; }
+  /* --- EDITOR TOOLBAR: keep horizontal; allow sideways scroll instead of stacking --- */
+  .pane-head{ padding: 8px 10px; gap: 8px; }
   .pane-head .right-controls{
-    margin-left:auto; display:flex; flex-wrap:nowrap !important; gap:8px;
-    overflow-x:auto; -webkit-overflow-scrolling:touch;
+    margin-left: auto;
+    display: flex; flex-wrap: nowrap !important;
+    gap: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
-  .pane-head .btn{ flex:0 0 auto; } /* don’t shrink; no vertical stacking */
+  .pane-head .btn{ flex: 0 0 auto; }   /* prevent vertical stacking */
 
-  /* Glassy chevrons on both sides + visible by default */
+  /* --- CHEVRONS: glassy, both sides visible; hide only when that side is open --- */
   .chevron-tab{
-    position:fixed; top:50svh; transform:translateY(-50%);
-    width:48px; height:48px; border-radius:14px;
-    display:grid !important; place-items:center;
-    z-index:220; /* above drawers; below header */
-    background:rgba(255,255,255,.08);
-    border:1px solid rgba(255,255,255,.14);
-    box-shadow:0 12px 28px rgba(0,0,0,.4);
-    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    position: fixed;
+    top: 50svh; transform: translateY(-50%);
+    width: 48px; height: 48px; border-radius: 14px;
+    display: grid !important; place-items: center;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.14);
+    box-shadow: 0 12px 28px rgba(0,0,0,.4);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    z-index: 220;                        /* above drawers; below header/footer */
   }
-  .chevron-tab.left{  left:10px; }
-  .chevron-tab.right{ right:10px; }
-  .chevron-tab svg{ width:22px; height:22px; filter:drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
-
-  /* Hide only the chevron of the drawer that is open */
-  .app.show-left  .chevron-tab.left{  opacity:0; pointer-events:none; }
-  .app.show-right .chevron-tab.right{ opacity:0; pointer-events:none; }
-
-  /* Smoother feel when drawers open/close */
-  .app.show-left, .app.show-right{ overscroll-behavior:contain; }
-
-  /* Avoid double scrollbars in editor container */
-  .pane-body{ overflow:hidden; }
-  #output{ overflow:auto; }
+  .chevron-tab.left{  left: 10px; }
+  .chevron-tab.right{ right: 10px; }
+  .chevron-tab svg{ width: 22px; height: 22px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+  .app.show-left  .chevron-tab.left{  opacity: 0; pointer-events: none; }
+  .app.show-right .chevron-tab.right{ opacity: 0; pointer-events: none; }
 }
+
+
+
+
+
