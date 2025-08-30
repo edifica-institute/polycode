@@ -1676,11 +1676,7 @@ document.addEventListener('DOMContentLoaded', () => {
       app.classList.remove('show-left');
       renderToggleIcons();
     }
-    else
-    {
-       app.classList.add('show-right');
-      renderToggleIcons();
-    }
+    
   });
 
   // Auto-close Output on Reset (overlay mode)
