@@ -3742,28 +3742,6 @@ body.light{
 
 
 
-/* FINAL: let JS drive the columns and let the row fill the available height */
-.app{
-  height: 100% !important;
-  min-height: 0 !important;
-  grid-template-rows: 1fr !important;
-  grid-template-columns: unset !important; /* JS or media queries decide */
-}
-
-
-:root{ --bp-overlay: 1024px; }  /* or 1200px, your call */
-
-
-/* grid children must allow shrinking */
-#leftPanel, #centerPanel, #rightPanel, .panel, .pane-body, #editor, #output{
-  min-width: 0; 
-  min-height: 0;
-}
-
-/* center panel = vertical flex; editor fills remaining space */
-#centerPanel{ display:flex; flex-direction:column; }
-#editor{ flex:1 1 auto; }
-
 
 
 
