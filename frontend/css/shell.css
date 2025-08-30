@@ -3625,3 +3625,98 @@ body.light{
 .app.collapsed-left.collapsed-right {
   grid-template-columns: 0px 8px 1fr 8px 0px !important;
 }
+
+
+
+
+
+/* ===== POLYCODE — FINAL MOBILE FIX (≤1024px): fullscreen editor + drawers ===== */
+
+/* Keep header/footer; allow smaller type on tight screens */
+@media (max-width: 1024px){
+  .site-header{ position: sticky; top: env(safe-area-inset-top,0); z-index: 150; }
+  .site-header .brand-title2{ font-size: 16px; }
+  .site-header nav a{ font-size: 14px; }
+  .site-footer{ font-size: 13px; }
+}
+
+/* Core mobile layout */
+@media (max-width: 1024px){
+  /* App MUST fill viewport; keep it simple (don’t destroy desktop grid) */
+  .app{
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100svh !important;     /* override any height:auto from earlier blocks */
+    min-height: 0 !important;
+    gap: 8px !important;
+  }
+
+  /* No resizers on phones/tablets */
+  .v-resize, .h-resize{ display: none !important; }
+
+  /* By default: only show the editor panel; left+right are drawers */
+  .left.panel, .right.panel, #output{ display: none !important; }
+
+  .center.panel{ flex: 1 1 auto !important; min-height: 0 !important; order: 2; }
+  .center.panel .pane-body{ flex: 1 1 auto !important; min-height: 0 !important; }
+
+  /* Monaco needs a guaranteed block of height on mobile */
+  #editor{
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-height: 86svh !important;    /* tweak to 84–90svh if your header/footer differ */
+    height: auto !important;
+    block-size: auto !important;
+  }
+
+  /* Drawers (triggered by .app.show-left / .app.show-right from shell.js) */
+  .left.panel, .right.panel{
+    position: fixed !important;
+    top: 0; bottom: 0;
+    width: min(88vw, 420px);
+    max-width: 92vw;
+    background: var(--panel, #1e2024);
+    border: 1px solid var(--border, #2b2f34);
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    z-index: 140;                           /* above editor; below header */
+    transform: translateX(-120%);
+    transition: transform .25s ease;
+  }
+  .right.panel{ right: 0; left: auto; transform: translateX(120%); }
+
+  /* Backdrop when a drawer is open */
+  .app::after{
+    content:""; position:fixed; inset:0;
+    background: rgba(0,0,0,.45);
+    opacity: 0; pointer-events: none;
+    transition: opacity .2s ease;
+    z-index: 130;
+  }
+
+  /* Toggle states (already handled in frontend/js/shell.js) */
+  .app.show-left  .left.panel  { display:flex !important; transform: translateX(0); }
+  .app.show-right .right.panel { display:flex !important; transform: translateX(0); }
+  .app.show-left::after, .app.show-right::after{ opacity:1; pointer-events:auto; }
+
+  /* Toolbar/buttons remain usable on narrow widths */
+  .pane-head{ padding: 8px 10px; gap: 8px; }
+  .pane-head .right-controls{ margin-left:auto; display:flex; flex-wrap:wrap; gap:6px; row-gap:6px; }
+
+  /* Neutralize any earlier “stacked order” rules that might leak through */
+  header.site-header, .left.panel, .center.panel, .right.panel, footer.site-footer{
+    order: initial !important;
+  }
+}
+
+/* Small phones: let editor have a tad more height */
+@media (max-width: 640px){
+  #editor{ min-height: 88svh !important; }
+}
+
+/* Make sure any dim overlay never blocks scrolling in panels */
+.screen-dim{ opacity:.55; pointer-events:auto !important; }
+
+/* Sticky headers can fail if a parent has transform — ensure none here */
+.app, .panel, .site-header{ transform: none !important; }
+
