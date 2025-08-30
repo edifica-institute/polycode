@@ -491,44 +491,6 @@ function initCols() {
 })();
 
 
-/* ===========================
-   collapse/expand left panel
-=========================== */
-(function () {
-  const app = document.querySelector('.app');
-  const tab = document.getElementById('chevronTab');
-  if (!app || !tab) return;
-
-  let collapsed = window.innerWidth <= 1024;
-
-  function icon() {
-    tab.innerHTML = collapsed
-      ? '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'
-      : '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>';
-  }
-  icon();
- if (collapsed) app.classList.add('collapsed-left');
-
-   
-  tab.addEventListener('click', () => {
-    collapsed = !collapsed;
-    app.classList.toggle('collapsed-left', collapsed);
-
-     if (window.innerWidth > 1024){
-    const [L, , C, , R] = parseCols(getComputedStyle(app).gridTemplateColumns);
-    if (collapsed) {
-      // push left width into center
-      setCols(app, 0, C + L, R);
-    } else {
-      const desiredL = 280;
-      const newL = Math.max(240, desiredL);
-      const spaceForCenter = Math.max(360, C - (newL - L));
-      setCols(app, newL, spaceForCenter, R);
-    }
-     }
-    icon();
-  });
-})();
 
 /* ===========================
    footer helpers
@@ -1586,6 +1548,55 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRun    = $('#btnRun');    // keep these ids consistent across pages
   const btnReset  = $('#btnReset');
 
+
+
+// --- ADD: chevron SVGs + sync helpers (reuse your exact SVG paths) ---
+const CHEV_LEFT  = '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'; // «
+const CHEV_RIGHT = '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>'; // »
+
+function syncChevronIcons(){
+  // “open” means panel is visible
+  const leftOpen  = isOverlay() ? app.classList.contains('show-left')
+                                : !app.classList.contains('collapsed-left');
+  const rightOpen = isOverlay() ? app.classList.contains('show-right')
+                                : !app.classList.contains('collapsed-right');
+
+  // Show the direction of the action:
+  //  - Left open  -> show « (collapse left)
+  //  - Left closed-> show » (expand left)
+  if (btnLeft)  btnLeft.innerHTML  = leftOpen  ? CHEV_LEFT : CHEV_RIGHT;
+
+  //  - Right open -> show » (collapse right)
+  //  - Right closed-> show « (expand right)
+  if (btnRight) btnRight.innerHTML = rightOpen ? CHEV_RIGHT : CHEV_LEFT;
+
+  btnLeft?.setAttribute('aria-expanded',  String(leftOpen));
+  btnRight?.setAttribute('aria-expanded', String(rightOpen));
+}
+
+// Keep chevrons clickable above any scrim/overlay in small screens
+function bringChevronsToFront(){
+  const top = isOverlay() ? '9999' : '';
+  [btnLeft, btnRight].forEach(b => {
+    if (!b) return;
+    b.style.zIndex = top;
+    b.style.pointerEvents = 'auto';
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
   // Match the CSS var (--bp-overlay) if present, else 1500px fallback
   const getOverlayQuery = () => {
     const cssVal = getComputedStyle(document.documentElement)
@@ -1635,16 +1646,17 @@ document.addEventListener('DOMContentLoaded', () => {
   
 
   // Recompute when the CSS var changes or window resizes (rare but safe)
- window.addEventListener('resize', () => {
-    mql = window.matchMedia(getOverlayQuery());
-    renderToggleIcons(); // keep icons in sync when auto-collapsing on resize
-  });
+window.addEventListener('resize', () => {
+  mql = window.matchMedia(getOverlayQuery());
+  syncChevronIcons();
+  bringChevronsToFront();
+});
 
-    if (typeof mql.addEventListener === 'function') {
-    mql.addEventListener('change', renderToggleIcons);
-  } else {
-    mql.addListener(renderToggleIcons); // older Safari
-  }
+ if (typeof mql.addEventListener === 'function') {
+  mql.addEventListener('change', () => { syncChevronIcons(); bringChevronsToFront(); });
+} else {
+  mql.addListener(() => { syncChevronIcons(); bringChevronsToFront(); }); // older browsers
+}
 
 
   // Left toggle
@@ -1655,7 +1667,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       app.classList.toggle('collapsed-left');   // desktop: collapse column
     }
-    renderToggleIcons();
+    syncChevronIcons();
   });
 
   // Right toggle
@@ -1666,7 +1678,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
       app.classList.toggle('collapsed-right');  // desktop: collapse column
     }
-    renderToggleIcons(); 
+    syncChevronIcons(); 
   });
 
   // Auto-open Output on Run (overlay mode)
@@ -1674,25 +1686,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (isOverlay()) {
       app.classList.add('show-right');
       app.classList.remove('show-left');
-      renderToggleIcons();
-    }
-    
+          }
+    syncChevronIcons();
   });
 
   // Auto-close Output on Reset (overlay mode)
   btnReset?.addEventListener('click', () => {
     if (isOverlay()) {
-      app.classList.remove('show-right');
-      renderToggleIcons();
-    }
+      app.classList.remove('show-right');}
+      syncChevronIcons();
+    
   });
 
   // ESC closes any open drawer (overlay mode)
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isOverlay()) {
       app.classList.remove('show-left', 'show-right');
-      renderToggleIcons();
+      syncChevronIcons();
     }
   });
-  renderToggleIcons();
+ syncChevronIcons();
+bringChevronsToFront();
 });
