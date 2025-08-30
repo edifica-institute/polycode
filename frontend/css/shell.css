@@ -3744,24 +3744,4 @@ body.light{
 
 
 
-/* example */
-.main {
-  display: grid;
-  grid-template-columns: 280px 1fr 360px; /* sidebar | editor | console */
-  min-height: 100svh;                     /* better on mobile */
-}
-
-.editor,
-.console { 
-  min-width: 0;   /* critical in flex/grid so CodeMirror/Monaco can shrink */
-  min-height: 0;
-}
-
-#editor { width: 100%; height: 100%; }    /* editor container fills its parent */
-
-/* Mobile collapse/stack */
-@media (max-width: 900px) {
-  .main { grid-template-columns: 1fr; }   /* stack to one column */
-  .sidebar, .console { display: none; }   /* or tuck behind toggles */
-}
 
