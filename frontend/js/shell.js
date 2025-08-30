@@ -1647,12 +1647,29 @@ function bringChevronsToFront(){
 
 
   // Recompute when the CSS var changes or window resizes (rare but safe)
-window.addEventListener('resize', () => {
+/*window.addEventListener('resize', () => {
   if (editor && editor.layout) editor.layout();   // relayout Monaco
   mql = window.matchMedia(getOverlayQuery());     // declare mql with let/var somewhere
   syncChevronIcons();
   bringChevronsToFront();
+});*/
+
+  window.addEventListener('resize', () => {
+  // relayout Monaco if present
+  if (window.editor?.layout) window.editor.layout();
+
+  // if your overlay breakpoint is a CSS var, rebind the media query on resize
+  const q = getOverlayQuery();            // from your file
+  if (mql.media !== q) {                  // mql was created from getOverlayQuery()
+    mql.removeEventListener?.('change', onMQChange);
+    mql = window.matchMedia(q);
+    mql.addEventListener?.('change', onMQChange);
+  }
+
+  syncChevronIcons();
+  bringChevronsToFront();
 });
+
 
 
 if (typeof mql.addEventListener === 'function') {
