@@ -946,6 +946,40 @@ function fmtDuration(ms){
 
 
 
+(function initChevronArrows() {
+  const app = document.querySelector('.app');
+  const left  = document.querySelector('.chevron-tab.left');
+  const right = document.querySelector('.chevron-tab.right');
+  if (!app || !left || !right) return;
+
+  const mql = window.matchMedia('(max-width:1500px)');
+
+  function syncChevronState() {
+    const overlay = mql.matches;
+
+    // "open" means the panel is visible
+    const leftOpen  = overlay
+      ? app.classList.contains('show-left')
+      : !app.classList.contains('collapsed-left');
+
+    const rightOpen = overlay
+      ? app.classList.contains('show-right')
+      : !app.classList.contains('collapsed-right');
+
+    left.setAttribute('aria-expanded',  String(leftOpen));
+    right.setAttribute('aria-expanded', String(rightOpen));
+  }
+
+  // run once on load + whenever we cross the 1500px breakpoint
+  if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', syncChevronState);
+  } else {
+    // older browsers
+    mql.addListener(syncChevronState);
+  }
+  window.addEventListener('DOMContentLoaded', syncChevronState);
+  syncChevronState();
+})();
 
 
 
