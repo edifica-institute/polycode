@@ -3606,6 +3606,27 @@ body.light{
 
 
 
+/* Base desktop grid */
+.app {
+  --L: 280px;
+  --C: 1fr;
+  --R: 360px;
+  grid-template-columns: var(--L) 8px var(--C) 8px var(--R);
+}
+
+/* Collapse flags just change vars */
+.app.collapsed-left  { --L: 0px; }
+.app.collapsed-right { --R: 0px; }
+
+/* If both are collapsed, center fills */
+.app.collapsed-left.collapsed-right { --L: 0px; --R: 0px; }
+
+/* When both flags are present, force both edges to 0 */
+.app.collapsed-left.collapsed-right {
+  grid-template-columns: 0px 8px 1fr 8px 0px !important;
+}
+
+
 
 
 
