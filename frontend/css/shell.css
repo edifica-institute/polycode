@@ -3570,7 +3570,7 @@ body.light{
           mask: url('data:image/svg+xml;utf8,\
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">\
   <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>') center / contain no-repeat;
-  filter: drop-shadow(0 0 2px var(--chev-glow));
+  filter: drop-shadow(0 0 2px currentcolor);
   opacity: 0.95;
   transition: transform .15s ease, filter .15s ease, opacity .15s ease;
 }
@@ -3595,7 +3595,7 @@ body.light{
 
 /* Keyboard focus ring without a box background */
 .chevron-tab:focus-visible{
-  box-shadow: 0 0 0 2px var(--chev-glow) inset;
+  box-shadow: 0 0 0 2px currentcolor inset;
   border-radius: 999px;
 }
 
