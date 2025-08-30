@@ -51,12 +51,8 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 // Block Ctrl/Cmd+C & "copy" everywhere EXCEPT editor/console/inputs
 (function () {
   const allow = (el) =>
-  el?.closest && (
-    el.closest('#editor') ||
-    el.closest('#jconsole') ||
-    el.closest('input,textarea,[contenteditable="true"]')
-  );
-
+    el.closest('#editor') || el.closest('#jconsole') ||
+    el.closest('input,textarea,[contenteditable="true"]');
 
   // Keyboard copy (Ctrl/Cmd+C, Ctrl+Insert)
   document.addEventListener('keydown', (e) => {
@@ -108,6 +104,7 @@ function disableOutput(){  // only if you really want to block it temporarily
 
 // Call these in your existing handlers:
 document.getElementById('btnRun')?.addEventListener('click', enableOutput);
+document.getElementById('btnReset')?.addEventListener('click', enableOutput);
 
 // Keep Monaco sized correctly after window drag/orientation change
 addEventListener('resize', () => {
@@ -1524,13 +1521,9 @@ document.addEventListener('keydown', (ev) => {
     PC.cancel = PC.cancelCurrentSession;
 
     // Replace global WebSocket with our wrapper
+    PCWebSocket.prototype = _WS.prototype;
     window.WebSocket = PCWebSocket;
     window.WebSocket.__pcWrapped = true;
-
-    ['CONNECTING','OPEN','CLOSING','CLOSED'].forEach(k => {
-  PCWebSocket[k] = _WS[k];
-});
-
   }
 })();
 
@@ -1557,78 +1550,6 @@ document.addEventListener('DOMContentLoaded', () => {
 const clearInlineGrid = () => { app.style.gridTemplateColumns = ''; };
 
 
-// enable a brief transition only while we toggle classes
-const ANIM_MS = 200;
-function withPanelAnim(fn){
-  app.classList.add('panel-anim');
-  void app.offsetWidth;            // force reflow so transition applies
-  try { fn(); } finally {
-    setTimeout(() => app.classList.remove('panel-anim'), ANIM_MS + 50);
-  }
-}
-
-
-// Match the CSS var (--bp-overlay) if present, else 1500px fallback
-  const getOverlayQuery = () => {
-    const cssVal = getComputedStyle(document.documentElement)
-      .getPropertyValue('--bp-overlay').trim();
-    return `(max-width: ${cssVal || '1500px'})`;
-  };
-  let mql = window.matchMedia(getOverlayQuery());
-  function isOverlay(){ return mql.matches; }
-
-
-
-  function normalizeForOverlay(){
-  // desktop flags off, drawers closed
-  app.classList.remove('collapsed-left','collapsed-right','show-left','show-right');
-}
-
-// refresh when the media query flips (and if the CSS var value changes)
-const onMqChange = () => {
-  const q = getOverlayQuery();
-  if (mql.media !== q) {
-    // rewire listener to the new MediaQueryList
-    if (mql.removeEventListener) mql.removeEventListener('change', onMqChange);
-    else mql.removeListener(onMqChange);
-
-    mql = window.matchMedia(q);
-
-    if (mql.addEventListener) mql.addEventListener('change', onMqChange);
-    else mql.addListener(onMqChange);
-  }
-
-  if (isOverlay()) normalizeForOverlay();
-  clearInlineGrid();
-  syncChevronIcons();
-  bringChevronsToFront();
-};
-
-(mql.addEventListener ? mql.addEventListener('change', onMqChange)
-                      : mql.addListener(onMqChange));
-window.addEventListener('resize', onMqChange, { passive:true });
-
-// initial pass
-
-  // initial pass
-onMqChange();
-if (!isOverlay()) initCols();
-
-  
-  
-// tap/click outside drawers closes them (scrim)
-document.addEventListener('click', (e) => {
-  if (!isOverlay()) return;
-  const inDrawer = e.target.closest('#leftPanel, #rightPanel, #btnLeftToggle, #btnRightToggle');
-  if (!inDrawer) {
-    withPanelAnim(() => app.classList.remove('show-left','show-right'));
-    syncChevronIcons();
-  }
-});
-
-
-
-  
 // --- ADD: chevron SVGs + sync helpers (reuse your exact SVG paths) ---
 const CHEV_LEFT  = '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'; // «
 const CHEV_RIGHT = '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>'; // »
@@ -1676,20 +1597,70 @@ function bringChevronsToFront(){
 
 
   
+  // Match the CSS var (--bp-overlay) if present, else 1500px fallback
+  const getOverlayQuery = () => {
+    const cssVal = getComputedStyle(document.documentElement)
+      .getPropertyValue('--bp-overlay').trim();
+    return `(max-width: ${cssVal || '1500px'})`;
+  };
+  let mql = window.matchMedia(getOverlayQuery());
+  function isOverlay(){ return mql.matches; }
+
+
+
+
+
+    // ADD: use your exact SVGs; just swap based on actual open/closed state
+  function renderToggleIcons() {
+    const overlay = isOverlay();
+
+    // open means panel is visible
+    const leftOpen  = overlay
+      ? app.classList.contains('show-left')
+      : !app.classList.contains('collapsed-left');
+
+    const rightOpen = overlay
+      ? app.classList.contains('show-right')
+      : !app.classList.contains('collapsed-right');
+
+    // Your original paths (unchanged)
+    const SVG_LEFT  = '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'; // ◀
+    const SVG_RIGHT = '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>'; // ▶
+
+    // LEFT button: when panel is open, show ◀ (collapse); when closed, show ▶ (expand)
+    if (btnLeft) {
+      btnLeft.setAttribute('aria-expanded', String(leftOpen));
+      btnLeft.innerHTML = leftOpen ? SVG_LEFT : SVG_RIGHT;
+    }
+
+    // RIGHT button: mirror the logic (open -> ▶ to collapse to the right, closed -> ◀ to expand from right)
+    if (btnRight) {
+      btnRight.setAttribute('aria-expanded', String(rightOpen));
+      btnRight.innerHTML = rightOpen ? SVG_RIGHT : SVG_LEFT;
+    }
+  }
+
+
+
+
   
 
+  // Recompute when the CSS var changes or window resizes (rare but safe)
+window.addEventListener('resize', () => {
+  mql = window.matchMedia(getOverlayQuery());
+  syncChevronIcons();
+  bringChevronsToFront();
+});
 
-
-
-
-
-
-  
+if (typeof mql.addEventListener === 'function') {
+  mql.addEventListener('change', () => { clearInlineGrid(); syncChevronIcons(); bringChevronsToFront(); });
+} else {
+  mql.addListener(() => { clearInlineGrid(); syncChevronIcons(); bringChevronsToFront(); });
+}
 
 
   // Left toggle
   btnLeft?.addEventListener('click', () => {
-    withPanelAnim(() => {
     if (isOverlay()) {
       app.classList.toggle('show-left');
       app.classList.remove('show-right');
@@ -1697,13 +1668,11 @@ function bringChevronsToFront(){
       clearInlineGrid();    
       app.classList.toggle('collapsed-left');   // desktop: collapse column
     }
-    });
     syncChevronIcons();
   });
 
   // Right toggle
   btnRight?.addEventListener('click', () => {
-     withPanelAnim(() => {
     if (isOverlay()) {
       app.classList.toggle('show-right');
       app.classList.remove('show-left');
@@ -1711,13 +1680,11 @@ function bringChevronsToFront(){
       clearInlineGrid();    
       app.classList.toggle('collapsed-right');  // desktop: collapse column
     }
-     });
     syncChevronIcons(); 
   });
 
   // Auto-open Output on Run (overlay mode)
   btnRun?.addEventListener('click', () => {
-     withPanelAnim(() => {
     if (isOverlay()) {
       app.classList.add('show-right');
       app.classList.remove('show-left');
@@ -1727,14 +1694,13 @@ function bringChevronsToFront(){
     clearInlineGrid?.(); // keep your resizer math from pinning widths
     app.classList.remove('collapsed-right');
   }
-     });
     syncChevronIcons();
   });
 
   // Auto-close Output on Reset (overlay mode)
   btnReset?.addEventListener('click', () => {
     if (isOverlay()) {
-      withPanelAnim(() => app.classList.remove('show-right'));}
+      app.classList.remove('show-right');}
       syncChevronIcons();
     
   });
