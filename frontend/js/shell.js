@@ -984,6 +984,96 @@ function fmtDuration(ms){
 
 
 
+// === Chevron controller v3 — mobile hang fix + label/icon sync ===
+(function () {
+  document.addEventListener('DOMContentLoaded', () => {
+    const app      = document.querySelector('.app');
+    const leftBtn  = document.querySelector('.chevron-tab.left');
+    const rightBtn = document.querySelector('.chevron-tab.right');
+    const runBtn   = document.getElementById('btnRun');
+    const resetBtn = document.getElementById('btnReset');
+    if (!app || !leftBtn || !rightBtn) return;
+
+    const mql = matchMedia(getOverlayQuery());
+    const isOverlay = () => mql.matches;
+
+    // Ensure we have labels for both states (used for aria + optional text node)
+    function ensureLabels(btn, openLabel, closedLabel) {
+      if (!btn) return;
+      if (btn.dataset.labelOpen   == null) btn.dataset.labelOpen   = openLabel;
+      if (btn.dataset.labelClosed == null) btn.dataset.labelClosed = closedLabel;
+    }
+    ensureLabels(leftBtn,  'Hide Docs',   'Show Docs');
+    ensureLabels(rightBtn, 'Hide Output', 'Show Output');
+
+    function getOpen(which) {
+      if (isOverlay()) {
+        return app.classList.contains(which === 'left' ? 'show-left' : 'show-right');
+      }
+      return !app.classList.contains(which === 'left' ? 'collapsed-left' : 'collapsed-right');
+    }
+
+    function reflectButton(btn, open) {
+      // Update attributes that your CSS/arrow relies on
+      btn.setAttribute('aria-expanded', String(open));
+      btn.dataset.open = open ? 'true' : 'false';
+      const label = open ? (btn.dataset.labelOpen || '') : (btn.dataset.labelClosed || '');
+      if (label) {
+        btn.setAttribute('aria-label', label);
+        btn.title = label;
+        const txtEl = btn.querySelector('.label, .text, [data-slot="label"]');
+        if (txtEl && txtEl.textContent !== label) txtEl.textContent = label;
+      }
+    }
+
+    function reflect() {
+      // Read current layout classes and only update button attributes (no writes to .app here)
+      reflectButton(leftBtn,  getOpen('left'));
+      reflectButton(rightBtn, getOpen('right'));
+    }
+
+    function setOpen(which, open) {
+      if (isOverlay()) {
+        const showCls  = which === 'left' ? 'show-left'  : 'show-right';
+        const otherCls = which === 'left' ? 'show-right' : 'show-left';
+        app.classList.toggle(showCls, open);
+        if (open) app.classList.remove(otherCls); // only one side visible on overlay
+      } else {
+        const collCls = which === 'left' ? 'collapsed-left' : 'collapsed-right';
+        app.classList.toggle(collCls, !open);
+      }
+      // After mutating, just reflect attributes/text
+      reflect();
+    }
+
+    // Initial reflect and keep synced on breakpoint changes
+    reflect();
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', reflect);
+    } else {
+      mql.addListener(reflect);
+    }
+
+    // Observe .app class changes from anywhere else (reads only → no loop)
+    const mo = new MutationObserver(() => reflect());
+    mo.observe(app, { attributes: true, attributeFilter: ['class'] });
+
+    // Single delegated handler (capture) — blocks older/bubbling handlers to avoid double toggles
+    document.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.chevron-tab.left, .chevron-tab.right');
+      if (!btn) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      ev.stopImmediatePropagation();
+      const which = btn.classList.contains('left') ? 'left' : 'right';
+      setOpen(which, !getOpen(which));
+    }, { capture: true });
+
+    // Auto-show/hide output in overlay on Run/Reset
+    runBtn?.addEventListener('click', () => setOpen('right', true));
+    resetBtn?.addEventListener('click', () => { if (isOverlay()) setOpen('right', false); });
+  });
+})();
 
 
 
