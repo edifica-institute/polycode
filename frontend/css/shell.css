@@ -3628,6 +3628,19 @@ body.light{
 
 
 
+/* Smooth width change of grid columns (desktop) */
+.app.panel-anim {
+  transition: grid-template-columns 200ms ease;
+}
+
+/* Smooth slide/fade of drawers (overlay). 
+   Assumes your overlay styles use transform to show/hide. */
+@media (max-width: 1500px) {
+  .app.panel-anim #leftPanel,
+  .app.panel-anim #rightPanel {
+    transition: transform 200ms ease, opacity 200ms ease;
+  }
+}
 
 
 
