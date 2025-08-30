@@ -3643,4 +3643,12 @@ body.light{
 }
 
 
+/* let grid children actually shrink — fixes the “stretch” distortion */
+#leftPanel, #centerPanel, #rightPanel { min-width: 0; }
+
+/* smooth width/grid changes on desktop; smooth transform in overlay */
+.app.panel-anim { transition: grid-template-columns 140ms ease; will-change: grid-template-columns; }
+#leftPanel.panel-anim,
+#centerPanel.panel-anim,
+#rightPanel.panel-anim { transition: width 140ms ease, transform 140ms ease; will-change: width, transform; }
 
