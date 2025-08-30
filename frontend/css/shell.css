@@ -3652,3 +3652,74 @@ body.light{
 #centerPanel.panel-anim,
 #rightPanel.panel-anim { transition: width 140ms ease, transform 140ms ease; will-change: width, transform; }
 
+
+
+
+:root{
+  --bp-overlay: 1200px;      /* match your JS */
+  --drawer-w: clamp(280px,92vw,360px);
+  --header-h: 64px;          /* adjust to your header height */
+  --footer-h: 40px;          /* adjust to your footer height */
+}
+
+/* prevent overflow push in all sizes */
+#leftPanel, #centerPanel, #rightPanel { min-width: 0; }
+
+@media (max-width: var(--bp-overlay)){
+  .app{
+    position: relative;              /* for scrim stacking */
+    display: grid;
+    grid-template-columns: 1fr;      /* center only */
+    grid-auto-rows: minmax(0,1fr);
+    overflow: hidden;                /* no horizontal scroll */
+  }
+
+  /* Center stays full width */
+  #centerPanel{
+    grid-area: 1 / 1;
+  }
+
+  /* Off-canvas drawers */
+  #leftPanel, #rightPanel{
+    position: fixed;
+    top: var(--header-h);
+    bottom: var(--footer-h);
+    width: var(--drawer-w);
+    max-width: 92vw;
+    background: var(--panel-bg, #121212);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    z-index: 1000;
+    transition: transform 180ms ease;
+    will-change: transform;
+  }
+  #leftPanel{  left: 0;  transform: translateX(-110%); }
+  #rightPanel{ right: 0; transform: translateX(110%);  }
+
+  /* Open states */
+  .app.show-left  #leftPanel{  transform: translateX(0); }
+  .app.show-right #rightPanel{ transform: translateX(0); }
+
+  /* Hide desktop resizers in overlay */
+  #dragLeft, #dragRight{ display:none; }
+
+  /* Optional scrim to block editor while a drawer is open */
+  .app::after{
+    content:"";
+    position: fixed;
+    top: var(--header-h); left:0; right:0; bottom: var(--footer-h);
+    background: rgba(0,0,0,.28);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+    z-index: 999;
+  }
+  .app.show-left::after,
+  .app.show-right::after{
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Make the side toggle buttons always clickable above the scrim */
+  #btnLeftToggle, #btnRightToggle{ z-index: 1001; }
+}
+
