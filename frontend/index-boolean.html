@@ -469,37 +469,45 @@ function renderCircuitSVG(net, opts = {}) {
   }
 
   // --- Single-path wires (H–V–H–V–H) via row channel (keeps clear of gates) ---
-  function wiresTo(tid){
-    const t   = nodes.get(tid);
-    const dst = abs.get(tid);
-    const xL  = dst.x, yT = dst.y;
-    const ins = (t.ins || []);
+// --- Single-path wires (Manhattan). Avoid the channel when src/dst share a row.
+function wiresTo(tid){
+  const t   = nodes.get(tid);
+  const dst = abs.get(tid);
+  const xL  = dst.x, yT = dst.y;
+  const ins = (t.ins || []);
 
-    return ins.map((sid, k) => {
-      const sp  = abs.get(sid);
-      const srcType = nodes.get(sid)?.type;
-      const x1  = outX(sid);
-      const y1  = (srcType==="IN") ? (sp.y + Math.round(9*s)) : (sp.y + GH/2);
+  return ins.map((sid, k) => {
+    const sp      = abs.get(sid);
+    const sType   = nodes.get(sid)?.type;
+    const x1      = outX(sid);
+    const y1      = (sType==="IN") ? (sp.y + Math.round(9*s)) : (sp.y + GH/2);
+    const x2      = xL;
+    const y2      = pinY(yT, ins.length || 1, k);
+    const sameRow = rowIndex.get(sid) === rowIndex.get(tid);
 
-      // fanout lane per source
-      const outList    = succ.get(sid) || [];
-      const outIdx     = Math.max(0, outList.indexOf(tid));
-      const outCount   = Math.max(1, outList.length);
-      const laneOffset = (outIdx - (outCount - 1) / 2) * FAN_GAP;
+    // Spread multiple inputs on the gate face
+    const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
 
-      // channel just BELOW the source row (clear of gate body)
-      const chanY = (srcType==="IN")
-        ? (sp.y + Math.round(9*s) + ROW_CHAN_MARGIN)
-        : (sp.y + GH + ROW_CHAN_MARGIN);
+    // Fanout lane separation near the source (keeps parallel edges apart)
+    const outList    = succ.get(sid) || [];
+    const outIdx     = Math.max(0, outList.indexOf(tid));
+    const outCount   = Math.max(1, outList.length);
+    const laneOffset = (outIdx - (outCount - 1) / 2) * FAN_GAP;
 
-      const x2 = xL;                                    // gate face
-      const y2 = pinY(yT, ins.length || 1, k);
-      const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK; // near target
+    if (sameRow) {
+      // Clean H–H–V–H when on the same row (no channel drop).
+      // stub → small vertical lane separation → run horizontally → up/down into pin → short into gate
+      return `M${x1},${y1} h${FAN_STUB} v${laneOffset} H${bendX} V${y2} H${x2-0.5}`;
+    }
 
-      // H (stub) → V (lane) → V to channel → H across channel → V up to pin → H into pin
-      return `M${x1},${y1} h${FAN_STUB} v${laneOffset} V${chanY} H${bendX} V${y2} H${x2-1}`;
-    }).join(" ");
-  }
+    // Different rows → use a channel below the source row, then go across.
+    const chanY = (sType==="IN")
+      ? (sp.y + Math.round(9*s) + ROW_CHAN_MARGIN)
+      : (sp.y + GH + ROW_CHAN_MARGIN);
+
+    return `M${x1},${y1} h${FAN_STUB} v${laneOffset} V${chanY} H${bendX} V${y2} H${x2-0.5}`;
+  }).join(" ");
+}
 
   const wiresSVG = Array.from(nodes.values())
     .filter(n=>(n.ins||[]).length)
