@@ -1645,12 +1645,15 @@ function bringChevronsToFront(){
 
   
 
+
   // Recompute when the CSS var changes or window resizes (rare but safe)
 window.addEventListener('resize', () => {
-  mql = window.matchMedia(getOverlayQuery());
+  if (editor && editor.layout) editor.layout();   // relayout Monaco
+  mql = window.matchMedia(getOverlayQuery());     // declare mql with let/var somewhere
   syncChevronIcons();
   bringChevronsToFront();
 });
+
 
 if (typeof mql.addEventListener === 'function') {
   mql.addEventListener('change', () => { clearInlineGrid(); syncChevronIcons(); bringChevronsToFront(); });
