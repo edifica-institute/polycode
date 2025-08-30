@@ -983,3 +983,40 @@ function fmtDuration(ms){
   const s = ms / 1000;
   return `${s.toFixed(2)} second(s)`; 
 }
+
+
+
+
+
+const app = document.querySelector('.app');
+const isOverlay = () => matchMedia('(max-width:1500px)').matches;
+
+document.addEventListener('click', (e) => {
+  const left  = e.target.closest('.chevron-tab.left');
+  const right = e.target.closest('.chevron-tab.right');
+
+  if (left) {
+    if (isOverlay()) {
+      const open = !app.classList.contains('show-left');
+      app.classList.toggle('show-left', open);
+      app.classList.remove('show-right');
+      left.setAttribute('aria-expanded', String(open));
+    } else {
+      const collapsed = app.classList.toggle('collapsed-left');
+      left.setAttribute('aria-expanded', String(!collapsed));
+    }
+  }
+
+  if (right) {
+    if (isOverlay()) {
+      const open = !app.classList.contains('show-right');
+      app.classList.toggle('show-right', open);
+      app.classList.remove('show-left');
+      right.setAttribute('aria-expanded', String(open));
+    } else {
+      const collapsed = app.classList.toggle('collapsed-right');
+      right.setAttribute('aria-expanded', String(!collapsed));
+    }
+  }
+});
+
