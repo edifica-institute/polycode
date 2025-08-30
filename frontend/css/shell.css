@@ -3603,3 +3603,71 @@ body.light{
 .app.collapsed-left  .chevron-tab.left::before  { transform: scaleX(-1); } /* points right */
 .app.collapsed-right .chevron-tab.right::before { transform: none; }       /* points left */
 
+
+
+
+
+
+
+
+/* theme-aware colors (arrow + glow) */
+:root {
+  --chev-fg: #fff;
+  --chev-glow: rgba(255,255,255,.35);
+}
+body.light {
+  --chev-fg: #111;
+  --chev-glow: rgba(0,0,0,.25);
+}
+
+/* overlay tweaks */
+@media (max-width: 1500px) {
+  .chevron-tab {
+    width: 52px;
+    height: 52px;
+    background: transparent;
+    color: var(--chev-fg);
+    border: none;
+    box-shadow: none;
+  }
+  .chevron-tab::before {
+    transform: scale(1.25); /* bigger arrow */
+  }
+  .chevron-tab:focus-visible {
+    box-shadow: 0 0 0 2px var(--chev-glow) inset; /* crisp inner glow */
+    border-radius: 999px;
+  }
+
+  /* small nudge in overlay so tabs aren't flush with edges */
+  .chevron-tab.left  { left:  6px; }
+  .chevron-tab.right { right: 6px; }
+}
+
+/* keep the arrow-only look everywhere */
+.chevron-tab {
+  background: transparent;
+  color: var(--chev-fg);
+  border: none;
+  box-shadow: none;
+}
+.chevron-tab:hover { opacity: .9; }
+.chevron-tab:active { transform: translateY(1px); }
+
+/* arrow svg using currentColor; flip based on state */
+.chevron-tab.left::before,
+.chevron-tab.right::before {
+  content: "";
+  display: block;
+  width: 1.25em;
+  height: 1.25em;
+  margin: auto;
+  background: currentColor;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'><path d='M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z'/></svg>") no-repeat center / contain;
+}
+.chevron-tab.right::before {
+  transform: scaleX(-1);
+}
+/* when expanded, flip the side-specific direction */
+.chevron-tab.left[aria-expanded="true"]::before  { transform: none; }
+.chevron-tab.right[aria-expanded="true"]::before { transform: scaleX(-1); }
+
