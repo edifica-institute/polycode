@@ -1555,24 +1555,24 @@ const CHEV_LEFT  = '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42
 const CHEV_RIGHT = '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>'; // »
 
 function syncChevronIcons(){
-  // “open” means panel is visible
-  const leftOpen  = isOverlay() ? app.classList.contains('show-left')
-                                : !app.classList.contains('collapsed-left');
-  const rightOpen = isOverlay() ? app.classList.contains('show-right')
-                                : !app.classList.contains('collapsed-right');
+  // collapsed = panel hidden
+  const leftCollapsed  = isOverlay()
+    ? !app.classList.contains('show-left')
+    :  app.classList.contains('collapsed-left');
 
-  // Show the direction of the action:
-  //  - Left open  -> show « (collapse left)
-  //  - Left closed-> show » (expand left)
-  if (btnLeft)  btnLeft.innerHTML  = leftOpen  ? CHEV_LEFT : CHEV_RIGHT;
+  const rightCollapsed = isOverlay()
+    ? !app.classList.contains('show-right')
+    :  app.classList.contains('collapsed-right');
 
-  //  - Right open -> show » (collapse right)
-  //  - Right closed-> show « (expand right)
-  if (btnRight) btnRight.innerHTML = rightOpen ? CHEV_RIGHT : CHEV_LEFT;
+  // Use your exact SVGs — collapsed → LEFT btn shows «, RIGHT btn shows »
+  if (btnLeft)  btnLeft.innerHTML  = leftCollapsed  ? CHEV_LEFT  : CHEV_RIGHT;
+  if (btnRight) btnRight.innerHTML = rightCollapsed ? CHEV_RIGHT : CHEV_LEFT;
 
-  btnLeft?.setAttribute('aria-expanded',  String(leftOpen));
-  btnRight?.setAttribute('aria-expanded', String(rightOpen));
+  // aria-expanded = visible?
+  btnLeft?.setAttribute('aria-expanded',  String(!leftCollapsed));
+  btnRight?.setAttribute('aria-expanded', String(!rightCollapsed));
 }
+
 
 // Keep chevrons clickable above any scrim/overlay in small screens
 function bringChevronsToFront(){
