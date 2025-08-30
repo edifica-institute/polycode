@@ -299,7 +299,12 @@
   }
 
 
-
+function outX(id){
+  const n = nodes.get(id), p = abs.get(id);
+  if (!n || !p) return 0;
+  if (n.type === "IN") return p.x + Math.round(58*s); // width used in your IN pill
+  return p.x + GW; // all logic gates output at the right edge
+}
 
 // Manhattan, color-coded logic renderer with barycenter ordering + wire splitting
 // Clean Manhattan router: no WIRE splitting, no wires through gates,
@@ -326,30 +331,28 @@ function renderCircuitSVG(net, opts = {}) {
   };
 
   // Classic OR: outer hull + proper inner back-arc (like the textbook symbol)
-  const gateOR = (x, y, s) => {
-    const GW=Math.round(GW0*s), GH=Math.round(GH0*s);
-    const r  = GH/2, b=y+GH;
-    const xIn  = x + Math.round(14*s);
-    const xOut = x + GW - Math.round(10*s);
-    const xm   = x + GW - Math.round(22*s);
+ const gateOR = (x, y, s) => {
+  const GW = Math.round(GW0*s), GH = Math.round(GH0*s);
+  const xIn  = x + Math.round(12*s);
+  const xOut = x + GW - Math.round(8*s);
+  const yMid = y + GH/2, yTop = y, yBot = y + GH;
 
-    // Outer “teardrop”
-    const outer =
-      `<path d="M${xIn},${y}
-               C ${xm-22},${y} ${xm},${y+r} ${xOut},${y+r}
-               C ${xm},${y+r} ${xm-22},${b} ${xIn},${b}
-               C ${x+6},${b-10} ${x+6},${y+10} ${xIn},${y}"
-         stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
+  // Outer shell
+  const shell = `
+    <path d="M${xIn},${yTop}
+             C ${x+GW*0.55},${yTop} ${x+GW*0.78},${yMid} ${xOut},${yMid}
+             C ${x+GW*0.78},${yMid} ${x+GW*0.55},${yBot} ${xIn},${yBot}
+             C ${x+6},${yBot-10} ${x+6},${yTop+10} ${xIn},${yTop}"
+      stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
 
-    // Inner back-arc, slightly behind inputs
-    const offset = Math.round(11*s);
-    const back =
-      `<path d="M${xIn-offset},${y}
-               C ${xm-32},${y} ${xm-12},${y+r} ${xIn-offset},${b}"
-         stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
+  // Inner back arc (shorter, sits just inside the shell on the left)
+  const inner = `
+    <path d="M${xIn - Math.round(8*s)},${yTop}
+             C ${x+GW*0.32},${yTop} ${x+GW*0.38},${yMid} ${xIn - Math.round(8*s)},${yBot}"
+      stroke="currentColor" fill="none" vector-effect="non-scaling-stroke"/>`;
 
-    return outer + back;
-  };
+  return shell + inner;
+};
 
   const gateXOR = (x, y, s) => {
     const or = gateOR(x, y, s);
@@ -404,16 +407,20 @@ function renderCircuitSVG(net, opts = {}) {
   const GW=Math.round(GW0*s), GH=Math.round(GH0*s), PIN=Math.round(PIN0*s);
   const XSTEP=Math.round(XSTEP0*s), YSTEP=Math.round(YSTEP0*s), PAD=Math.round(PAD0*s);
 
-  const FAN_STUB = Math.round(14*s);   // short H escape
-  const FAN_GAP  = Math.round(10*s);   // fanout lane spacing
-  const TRACK    = Math.round(22*s);   // input pin separation near gate face
-  const ROW_CHAN_MARGIN = Math.round(18*s); // channel below a row
+  const FAN_STUB          = Math.round(12 * s);   // short horizontal escape from a source
+const FAN_GAP           = Math.round(10 * s);   // vertical spacing between fanout lanes
+const ROW_CHAN_MARGIN   = Math.round(20 * s);   // how far we drop into a row channel
+const TRACK             = Math.round(12 * s);   // input-spacing at a gate face
+const CLEAR             = Math.round(12 * s);   // clearance to route above/below a gate
+const JOIN_NUDGE        = 0.5;                  // prevents “poke into body” at the pin
 
   // Absolute top-left positions + keep row index
-  const abs = new Map(), rowIndex = new Map();
-  layers.forEach((ids,lx)=>ids.forEach((id,ly)=>{
-    abs.set(id,{x:PAD+lx*XSTEP,y:PAD+ly*YSTEP}); rowIndex.set(id, ly);
-  }));
+ const abs = new Map(), rowIndex = new Map();
+layers.forEach((ids, lx) => ids.forEach((id, ly) => {
+  abs.set(id, { x: PAD + lx*XSTEP, y: PAD + ly*YSTEP });
+  rowIndex.set(id, ly);
+}));
+
 
   const width  = (layers.length+1)*XSTEP + 2*PAD;
   const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?Math.round(28*s):0);
@@ -476,38 +483,93 @@ function wiresTo(tid){
   const xL  = dst.x, yT = dst.y;
   const ins = (t.ins || []);
 
+  // collect gates on a specific row whose body overlaps a span
+  function rowObstacles(row, xA, xB, ignoreIds = new Set()){
+    const lo = Math.min(xA, xB), hi = Math.max(xA, xB);
+    const out = [];
+    layers.forEach((ids, _) => {
+      ids.forEach(id => {
+        if (ignoreIds.has(id)) return;
+        if (rowIndex.get(id) !== row) return;
+        const g = nodes.get(id);
+        if (!g || g.type === "WIRE") return;
+        const p = abs.get(id);
+        const gx0 = p.x, gx1 = p.x + GW;
+        // overlap?
+        if (Math.max(gx0, lo) < Math.min(gx1, hi)) out.push({ id, gx0, gx1 });
+      });
+    });
+    // sort by left edge so we detour in order
+    out.sort((a,b)=>a.gx0 - b.gx0);
+    return out;
+  }
+
   return ins.map((sid, k) => {
-    const sp      = abs.get(sid);
-    const sType   = nodes.get(sid)?.type;
-    const x1      = outX(sid);
-    const y1      = (sType==="IN") ? (sp.y + Math.round(9*s)) : (sp.y + GH/2);
-    const x2      = xL;
-    const y2      = pinY(yT, ins.length || 1, k);
-    const sameRow = rowIndex.get(sid) === rowIndex.get(tid);
+    const sp    = abs.get(sid);
+    const sType = nodes.get(sid)?.type;
 
-    // Spread multiple inputs on the gate face
-    const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
+    const x1 = outX(sid);
+    const y1 = (sType === "IN") ? (sp.y + Math.round(9*s)) : (sp.y + GH/2);
+    const x2 = xL;
+    const y2 = pinY(yT, ins.length || 1, k);
 
-    // Fanout lane separation near the source (keeps parallel edges apart)
+    // fanout lane separation near the source
     const outList    = succ.get(sid) || [];
     const outIdx     = Math.max(0, outList.indexOf(tid));
     const outCount   = Math.max(1, outList.length);
-    const laneOffset = (outIdx - (outCount - 1) / 2) * FAN_GAP;
+    const laneOffset = (outIdx - (outCount - 1)/2) * FAN_GAP;
+
+    const sameRow = rowIndex.get(sid) === rowIndex.get(tid);
+    const start   = `M${x1},${y1} h${FAN_STUB} v${laneOffset}`;
+    let path = start;
+    let curY = y1 + laneOffset;
 
     if (sameRow) {
-      // Clean H–H–V–H when on the same row (no channel drop).
-      // stub → small vertical lane separation → run horizontally → up/down into pin → short into gate
-      return `M${x1},${y1} h${FAN_STUB} v${laneOffset} H${bendX} V${y2} H${x2-0.5}`;
+      // straight bus run on this row, avoiding any gate bodies in between
+      let curX = x1 + FAN_STUB;
+      const ignore = new Set([sid, tid]);
+      const obs = rowObstacles(rowIndex.get(tid), curX, x2, ignore);
+
+      // detour above obstacles (or below if we're already at the top row)
+      const detourUp = rowIndex.get(tid) > 0;
+      const yDet = detourUp ? (curY - CLEAR) : (curY + CLEAR);
+
+      for (const o of obs) {
+        if (o.gx0 <= curX) continue;
+        path += ` H${o.gx0 - CLEAR} V${yDet} H${o.gx1 + CLEAR} V${curY}`;
+        curX = o.gx1 + CLEAR;
+      }
+
+      // finish near the gate face, staggered by input index, with a single drop to the pin
+      const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
+      path += ` H${bendX} V${y2} H${x2 - JOIN_NUDGE}`;
+      return path;
     }
 
-    // Different rows → use a channel below the source row, then go across.
-    const chanY = (sType==="IN")
+    // different rows → drop to the row channel, run, then come up
+    const chanY = (sType === "IN")
       ? (sp.y + Math.round(9*s) + ROW_CHAN_MARGIN)
       : (sp.y + GH + ROW_CHAN_MARGIN);
 
-    return `M${x1},${y1} h${FAN_STUB} v${laneOffset} V${chanY} H${bendX} V${y2} H${x2-0.5}`;
+    // run the channel portion; we still avoid bodies that live along the channel row
+    let curX = x1 + FAN_STUB;
+    path += ` V${chanY}`;
+    const ignore = new Set([sid, tid]);
+    const obs = rowObstacles(rowIndex.get(sid), curX, x2, ignore);
+    for (const o of obs) {
+      if (o.gx0 <= curX) continue;
+      path += ` H${o.gx0 - CLEAR} H${o.gx1 + CLEAR}`;
+      curX = o.gx1 + CLEAR;
+    }
+
+    const bendX = x2 - Math.round(GW/3) - (k+1)*TRACK;
+    path += ` H${bendX} V${y2} H${x2 - JOIN_NUDGE}`;
+    return path;
   }).join(" ");
 }
+
+
+  
 
   const wiresSVG = Array.from(nodes.values())
     .filter(n=>(n.ins||[]).length)
