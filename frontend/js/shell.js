@@ -1547,7 +1547,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRight  = $('#btnRightToggle');
   const btnRun    = $('#btnRun');    // keep these ids consistent across pages
   const btnReset  = $('#btnReset');
-
+const clearInlineGrid = () => { app.style.gridTemplateColumns = ''; };
 
 
 // --- ADD: chevron SVGs + sync helpers (reuse your exact SVG paths) ---
@@ -1652,10 +1652,10 @@ window.addEventListener('resize', () => {
   bringChevronsToFront();
 });
 
- if (typeof mql.addEventListener === 'function') {
-  mql.addEventListener('change', () => { syncChevronIcons(); bringChevronsToFront(); });
+if (typeof mql.addEventListener === 'function') {
+  mql.addEventListener('change', () => { clearInlineGrid(); syncChevronIcons(); bringChevronsToFront(); });
 } else {
-  mql.addListener(() => { syncChevronIcons(); bringChevronsToFront(); }); // older browsers
+  mql.addListener(() => { clearInlineGrid(); syncChevronIcons(); bringChevronsToFront(); });
 }
 
 
@@ -1665,6 +1665,7 @@ window.addEventListener('resize', () => {
       app.classList.toggle('show-left');
       app.classList.remove('show-right');
     } else {
+      clearInlineGrid();    
       app.classList.toggle('collapsed-left');   // desktop: collapse column
     }
     syncChevronIcons();
@@ -1676,6 +1677,7 @@ window.addEventListener('resize', () => {
       app.classList.toggle('show-right');
       app.classList.remove('show-left');
     } else {
+      clearInlineGrid();    
       app.classList.toggle('collapsed-right');  // desktop: collapse column
     }
     syncChevronIcons(); 
