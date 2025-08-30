@@ -888,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const app = document.querySelector('.app');
   const btnRun = document.getElementById('btnRun');
   const btnReset = document.getElementById('btnReset');
-  const isOverlay = () => matchMedia('(max-width:1500px)').matches;
+  const isOverlay = () => matchMedia(getOverlayQuery()).matches;
 
   function toggle(which){
     if (!app) return;
@@ -918,7 +918,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (left){  e.preventDefault(); toggle('left'); }
     if (right){ e.preventDefault(); toggle('right'); }
   });
-
+ if (!isOverlayMode()) initCols();
   // Auto show output when Run is clicked
   btnRun?.addEventListener('click', () => {
     if (isOverlay()){
