@@ -3450,3 +3450,46 @@ html, body { height: 100%; }
   }
 }
 
+
+
+
+
+
+/* ===== FINAL: mobile footer must never eat the screen ===== */
+@media (max-width: 640px){
+  /* 1) Hard cap footer height + allow inner scroll */
+  .site-footer{
+    padding: 6px 10px !important;
+    max-height: 18svh !important;     /* <= ~18% of the small viewport */
+    overflow: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  /* 2) Remove surplus gaps added by various mobile blocks */
+  .site-footer .footer-grid{ row-gap: 4px !important; }
+  .site-footer .footer-left{ gap: 2px !important; }
+  .site-footer .footer-center{ gap: 4px !important; }
+  .site-footer .footer-right{ gap: 6px !important; white-space: nowrap !important; }
+
+  /* 3) Keep social icons on one line under the label */
+  .site-footer .footer-center .label{ display:block !important; margin: 0 0 4px 0 !important; }
+  .site-footer .footer-center .social{
+    display:inline-flex !important; flex-wrap:nowrap !important; gap:8px !important;
+  }
+
+  /* 4) Micro fonts + no stray margins to avoid extra height */
+  .site-footer :where(p,h1,h2,h3,h4,h5,h6){ margin:0 !important; }
+  .site-footer .footer-left .txt{ line-height:1.1 !important; gap:0 !important; }
+  .site-footer .footer-left .txt .powered,
+  .site-footer .footer-left .txt .subline,
+  .site-footer .footer-left .txt .siteurl a{ font-size:11px !important; }
+}
+
+/* Optional: on ultra-small phones, be even stricter */
+@media (max-width: 380px){
+  .site-footer{ max-height: 16svh !important; }
+  /* if needed to save a line, hide the tagline OR the site URL:
+     .site-footer .footer-left .txt .subline{ display:none !important; }
+     or
+     .site-footer .footer-left .txt .siteurl{ display:none !important; } */
+}
