@@ -1374,40 +1374,34 @@ function thinHR(pdf, y){
   return y + 10;
 }
 
+
 function addHeader(pdf, y, { headerLogoBase64 } = {}){
   const margin = 40;
   const pageW = pdf.internal.pageSize.getWidth();
   const textY = y + 12;
   let x = margin;
 
-  // Left: Polycode + logo
   if (headerLogoBase64){
     const h = 16, w = 16;
     pdf.addImage(headerLogoBase64, 'PNG', x, y, w, h, undefined, 'FAST');
     x += w + 8;
   }
   pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-  pdf.text('Polycode', x, textY);
+  pdf.text('polycode', x, textY); // <-- lowercase
 
   // Right: learn.code.execute | www.polycode.in (link)
-  const rightText = 'learn.code.execute | ';
-  pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
-  // draw right-aligned baseline first, then overlay link
   const rightX = pageW - margin;
-  // measure link width approximately (jsPDF doesn’t measure; we place via two draws)
+  const rightText = 'learn.code.execute | ';
   const link = 'www.polycode.in';
-  const full = rightText + link;
-  pdf.text(full, rightX, textY, { align:'right' });
-
-  // Make the URL clickable (approximate placement by drawing again aligned-right)
-  pdf.setTextColor(30, 100, 200);
-  pdf.textWithLink(link, rightX, textY, { align:'right', url: 'https://www.polycode.in' });
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
+  pdf.text(rightText + link, rightX, textY, { align:'right' });
+  pdf.setTextColor(30,100,200);
+  pdf.textWithLink(link, rightX, textY, { align:'right', url:'https://www.polycode.in' });
   pdf.setTextColor(0,0,0);
 
-  // Bold HR under header
   let ny = y + 22;
-  ny = boldHR(pdf, ny);   // (1 & 2 on each page)
-  ny += 6;                // some gap
+  ny = boldHR(pdf, ny);  // bold HR after header (every page)
+  ny += 6;               // gap
   return ny;
 }
 
@@ -1416,11 +1410,9 @@ function addFooter(pdf, { footerLogoBase64 } = {}){
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 40;
 
-  // Bold HR above footer (11 & 12 on all pages)
   const hrY = pageH - 40;
-  boldHR(pdf, hrY);
+  boldHR(pdf, hrY); // bold HR above footer (every page)
 
-  // Left: Edifica logo & "powered by Edifica"
   let x = margin, y = pageH - 22;
   if (footerLogoBase64){
     const h = 14, w = 14;
@@ -1428,21 +1420,28 @@ function addFooter(pdf, { footerLogoBase64 } = {}){
     x += w + 6;
   }
   pdf.setFont('helvetica','normal'); pdf.setFontSize(9);
-  pdf.text('powered by Edifica', x, y);
+  pdf.text('powered by edifica', x, y); // <-- lowercase
 
-  // Right: education.consultation.assistance | www.edifica.in (link)
   const right = 'education.consultation.assistance | ';
   const link = 'www.edifica.in';
   pdf.text(right + link, pageW - margin, y, { align:'right' });
-  pdf.setTextColor(30, 100, 200);
+  pdf.setTextColor(30,100,200);
   pdf.textWithLink(link, pageW - margin, y, { align:'right', url:'https://www.edifica.in' });
   pdf.setTextColor(0,0,0);
 
-  // (Optional) centered page number above footer
   const page = pdf.internal.getNumberOfPages?.() || 1;
   pdf.setFontSize(9);
   pdf.text(String(page), pageW / 2, y, { align:'center' });
 }
+
+function newPage(pdf, env){
+  // close current page with footer, then start a fresh page with watermark + header
+  addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
+  pdf.addPage();
+  addWatermark(pdf, env.watermarkLogoBase64);
+  return addHeader(pdf, 40, { headerLogoBase64: env.headerLogoBase64 });
+}
+
 
 function ensureSpace(pdf, y, need, env){
   const pageH = pdf.internal.pageSize.getHeight();
@@ -1473,66 +1472,64 @@ async function buildPdfBlob(userTitle, logos = {}){
   const pdf = new jsPDF({ unit:'pt', format:'a4' });
   const margin = 40;
 
-  // first page decorations
-  addWatermark(pdf, logos.watermarkLogoBase64);
-  let y = addHeader(pdf, margin, { headerLogoBase64: logos.headerLogoBase64 });
+  // Resolve logos: if not passed, use globals loaded at startup
+  const env = {
+    watermarkLogoBase64: logos.watermarkLogoBase64 ?? window.POLYCODE_WATERMARK,
+    headerLogoBase64:    logos.headerLogoBase64    ?? window.POLYCODE_HEADER_LOGO,
+    footerLogoBase64:    logos.footerLogoBase64    ?? window.EDIFICA_FOOTER_LOGO
+  };
 
-  // meta
+  // First page
+  addWatermark(pdf, env.watermarkLogoBase64);
+  let y = addHeader(pdf, margin, { headerLogoBase64: env.headerLogoBase64 });
+
+  // Meta
   const { langLabel } = getLangInfo();
   const code = window.editor?.getValue?.() || '';
   const titleFromCode = extractTitle(code);
   const when = new Date().toLocaleString();
   const langCaps = (langLabel || '').toUpperCase();
 
-  // Date portion (4) then thin HR (5)
-  y = ensureSpace(pdf, y, 60, { ...logos, footerLogoBase64: EDIFICA_FOOTER_LOGO });
+  y = ensureSpace(pdf, y, 60, env);
   pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
   pdf.text(`Date: ${when}`, margin, y); y += 16;
   pdf.text(`Language Used: ${langCaps}`, margin, y); y += 16;
   pdf.text(`Program Code Title/Question: ${titleFromCode || 'Sample Program'}`, margin, y); y += 12;
 
-  y += 6;                 // some gap
-  y = thinHR(pdf, y);     // (5)
-  y += 8;                 // gap before Code (6)
+  y += 6;
+  y = thinHR(pdf, y);
+  y += 8;
 
-  // Code section heading
+  // Code
   pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-  y = ensureSpace(pdf, y, 18, { ...logos, footerLogoBase64: EDIFICA_FOOTER_LOGO });
+  y = ensureSpace(pdf, y, 18, env);
   pdf.text('Code', margin, y); y += 14;
 
-  // Code body
   y = writeWrapped(pdf, y, code || '(empty)', {
-    font:'courier', style:'normal', size:10, lh:12,
-    env: { ...logos, footerLogoBase64: EDIFICA_FOOTER_LOGO }
+    font:'courier', style:'normal', size:10, lh:12, env
   });
 
-  y += 8;                 // (7) some gap
-  y = thinHR(pdf, y);     // (7) HR
-  y += 8;                 // (8) some gap after HR
+  y += 8;
+  y = thinHR(pdf, y);
+  y += 8;
 
-  // Output heading
+  // 🔥 FORCE a brand-new page for Output
+  y = newPage(pdf, env);
+
+  // Output
   pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-  y = ensureSpace(pdf, y, 18, { ...logos, footerLogoBase64: EDIFICA_FOOTER_LOGO });
+  y = ensureSpace(pdf, y, 18, env);
   pdf.text('Output', margin, y); y += 14;
 
-  // Output as TEXT (full content)
   const outText = (document.getElementById('output')?.innerText || '').trim() || '(no output)';
   y = writeWrapped(pdf, y, outText, {
-    font:'helvetica', style:'normal', size:10, lh:12,
-    env: { ...logos, footerLogoBase64: EDIFICA_FOOTER_LOGO }
+    font:'helvetica', style:'normal', size:10, lh:12, env
   });
 
-  // "—End—" on the LAST page, centered, just above footer
-  {
-    const pageW = pdf.internal.pageSize.getWidth();
-    y += 12;
-    y = ensureSpace(pdf, y, 24, { ...logos, footerLogoBase64: EDIFICA_FOOTER_LOGO });
-    pdf.setFont('helvetica','italic'); pdf.setFontSize(11);
-    pdf.text('—End—', pageW / 2, y, { align:'center' });
-  }
+  // ❌ No “—End—” anymore
 
-  // last page footer
-  addFooter(pdf, { footerLogoBase64: EDIFICA_FOOTER_LOGO });
+  // Close last page
+  addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
 
   return pdf.output('blob');
 }
@@ -1564,17 +1561,20 @@ async function urlToDataURL(url){
   });
 }
 
-// At startup (before building the PDF)
+// Load once at startup
 (async () => {
   try {
-    window.POLYCODE_HEADER_LOGO  = await urlToDataURL('/assets/PC-Logo.png');
-    window.POLYCODE_WATERMARK    = await urltoDataURL('/assets/PC-Logo-Gray.png');
-    window.EDIFICA_FOOTER_LOGO = await urltoDataURL('/assets/logo.png');
+    window.POLYCODE_HEADER_LOGO = await urlToDataURL('/assets/PC-Logo.png');
+    window.POLYCODE_WATERMARK   = await urlToDataURL('/assets/PC-Logo-Gray.png');
+    window.EDIFICA_FOOTER_LOGO  = await urlToDataURL('/assets/logo.png');
   } catch (e) {
     console.warn('Logo load failed:', e);
-    window.POLYCODE_HEADER_LOGO = window.POLYCODE_WATERMARK = window.EDIFICA_FOOTER_LOGO = null;
+    window.POLYCODE_HEADER_LOGO = null;
+    window.POLYCODE_WATERMARK   = null;
+    window.EDIFICA_FOOTER_LOGO  = null;
   }
 })();
+
 
 
 
@@ -1585,17 +1585,15 @@ async function savePdfToDisk(e){
   e?.preventDefault?.(); e?.stopPropagation?.();
 
   const { langLabel } = getLangInfo();
-  const name = prompt('Enter a title for the PDF:', 'Untitled');
-  if (name === null) return;  // user cancelled title
   const safeName = (name || 'Untitled').replace(/[^\w-]+/g,'_');
   const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${safeName}.pdf`;
 
-  const blob = await buildPdfBlob(name, {
-    watermarkLogoBase64: POLYCODE_WATERMARK,
-    headerLogoBase64: POLYCODE_HEADER_LOGO
-  });
+  const blob = await buildPdfBlob(name); // logos pulled from globals in builder
 
-  // Try real Save As (Chromium). If user cancels, do nothing.
+  // Pre-open a blank viewer window to avoid popup blockers (mobile/desktop)
+  let viewer = null;
+  try { viewer = window.open('', '_blank', 'noopener'); } catch {}
+
   if ('showSaveFilePicker' in window) {
     try {
       const handle = await showSaveFilePicker({
@@ -1605,23 +1603,38 @@ async function savePdfToDisk(e){
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
+
+      // After successful save, show in the viewer tab
+      const url = URL.createObjectURL(blob);
+      if (viewer && !viewer.closed) { viewer.location = url; }
+      else { window.open(url, '_blank', 'noopener'); }
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
       return;
     } catch (err) {
-      // User cancelled picker? -> do NOT auto download.
-      if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
-      // Other errors fall through to explicit-confirm fallback below.
+      // Cancel -> do nothing
+      if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) {
+        if (viewer && !viewer.closed) viewer.close();
+        return;
+      }
+      // Other errors -> fall through to fallback prompt below
+      if (viewer && !viewer.closed) viewer.close();
     }
   }
 
-  // Fallback (Safari/Firefox/Mobile w/o picker): ask explicitly
-  const ok = confirm('Your browser cannot show a Save dialog. Download to your default Downloads folder?');
-  if (!ok) return;
+  // Fallback (Safari/Firefox): ask user, then download AND preview in a tab
+  const ok = confirm('Your browser cannot show a Save dialog. Download to your default Downloads folder and open a preview tab?');
+  if (!ok) { if (viewer && !viewer.closed) viewer.close(); return; }
 
   const url = URL.createObjectURL(blob);
+  // trigger download
   const a = document.createElement('a');
   a.href = url; a.download = fileName; a.type = 'application/pdf';
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+
+  // show preview
+  if (viewer && !viewer.closed) { viewer.location = url; }
+  else { window.open(url, '_blank', 'noopener'); }
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
 // Bind once
