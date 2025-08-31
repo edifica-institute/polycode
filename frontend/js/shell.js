@@ -1183,19 +1183,50 @@ try {
 
 // --- Lazy loaders (safe if libs already present) ---
 let _h2cReady = null;
+
 async function ensureHtml2Canvas() {
+  // already present?
   if (typeof window.html2canvas === 'function') return window.html2canvas;
   if (_h2cReady) return _h2cReady;
-  _h2cReady = new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-    s.async = true;
-    s.onload = () => res(window.html2canvas);
-    s.onerror = () => rej(new Error('Failed to load html2canvas'));
-    document.head.appendChild(s);
-  });
+
+  _h2cReady = (async () => {
+    // 1) Try ESM first — avoids AMD/RequireJS conflicts
+    try {
+      const mod = await import('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.esm.js');
+      const fn = mod?.default || mod?.html2canvas || mod;
+      if (typeof fn === 'function') return fn;
+    } catch (_) { /* fall through */ }
+
+    // 2) UMD fallback, but temporarily mask AMD 'define' so it attaches to window
+    if (typeof window.html2canvas === 'function') return window.html2canvas;
+
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+      s.async = true;
+
+      const prevDefine = window.define;
+      const hadAMD = !!(prevDefine && prevDefine.amd);
+      if (hadAMD) window.define = undefined;
+
+      s.onload = () => {
+        if (hadAMD) window.define = prevDefine;
+        res();
+      };
+      s.onerror = () => {
+        if (hadAMD) window.define = prevDefine;
+        rej(new Error('Failed to load html2canvas'));
+      };
+      document.head.appendChild(s);
+    });
+
+    if (typeof window.html2canvas === 'function') return window.html2canvas;
+    throw new Error('html2canvas not available after loading');
+  })();
+
   return _h2cReady;
 }
+
 
 
 // Put these near the top of your PDF helpers file (outside the function) so we never double-load:
@@ -1245,19 +1276,18 @@ async function ensureJsPDF() {
 
 // --- Your functions (patched) ---
 async function captureOutputImageDataURL() {
-  const html2canvas = await ensureHtml2Canvas();
+  const html2canvas = await ensureHtml2Canvas();  // returns the function
 
   const preview = document.getElementById('preview');
   if (preview && window.editor) {
     const code = window.editor.getValue();
     const tmp = document.createElement('iframe');
     tmp.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:800px;visibility:hidden';
-    tmp.setAttribute('sandbox', 'allow-scripts allow-same-origin'); // keep same-origin for canvas
+    tmp.setAttribute('sandbox', 'allow-scripts allow-same-origin');
     tmp.srcdoc = code;
     document.body.appendChild(tmp);
     await new Promise(r => tmp.onload = () => setTimeout(r, 80));
-    // NOTE: if your srcdoc pulls external images/fonts from another origin without CORS,
-    // html2canvas will taint the canvas. Keep assets inline or same-origin.
+
     const canvas = await html2canvas(tmp.contentDocument.body, { backgroundColor:'#ffffff', scale:2 });
     const url = canvas.toDataURL('image/png');
     document.body.removeChild(tmp);
@@ -1268,6 +1298,7 @@ async function captureOutputImageDataURL() {
   const canvas = await html2canvas(out, { backgroundColor:'#ffffff', scale:2 });
   return canvas.toDataURL('image/png');
 }
+
 
 async function buildPdfBlob(userTitle) {
   const jsPDF = await ensureJsPDF();
