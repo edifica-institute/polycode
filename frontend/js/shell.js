@@ -1399,18 +1399,27 @@ async function savePdfToDisk() {
   try {
     const { langLabel } = getLangInfo();
     const name = prompt('Enter a title for the PDF:', 'Untitled') || 'Untitled';
-    const blob = await buildPdfBlob(name);
+    const blob = await buildPdfBlob(name);               // <- now returns a Blob
     const fileName = `Polycode-${langLabel}-${name.replace(/[^\w-]+/g,'_')}.pdf`;
+
+    const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = url;
     a.download = fileName;
+
+    // Append to DOM for Firefox/Safari reliability
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    a.remove();
+
+    // Revoke on a microtask to avoid revoking too early
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   } catch (err) {
     console.error(err);
     alert('Failed to generate PDF. Please check console for details.');
   }
 }
+
 
 async function sharePdf() {
   try {
