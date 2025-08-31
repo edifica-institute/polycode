@@ -1702,8 +1702,8 @@ async function savePdfToDisk(e){
 
       // Preview the just-saved PDF. New tab may be blocked; fall back to same tab.
       const url = URL.createObjectURL(blob);
-      const w = window.open(url, '_blank', 'noopener'); // may return null if blocked
-      if (!w) window.location.assign(url);               // open in current tab if blocked
+      //const w = window.open(url, '_blank', 'noopener'); // may return null if blocked
+      window.location.assign(url);               // open in current tab if blocked
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
       return;
     } catch (err) {
