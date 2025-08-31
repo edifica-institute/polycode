@@ -2421,3 +2421,146 @@ ensureChevronSVG(btnRight);
  syncChevronIcons();
 bringChevronsToFront();
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+(function(){
+  const app      = document.querySelector('.app');
+  const btnLeft  = document.getElementById('btnToggleLeft');
+  const btnRight = document.getElementById('btnToggleRight');
+  if (!app || !btnLeft || !btnRight) return;
+
+  const mqStacked = window.matchMedia('(max-width:1024px)');
+
+  // 👇 Read initial state from classes instead of hardcoding true
+  let leftOn  = !(app.classList.contains('collapsed-left') || app.classList.contains('hide-left'));
+  let rightOn = !(app.classList.contains('collapsed-right') || app.classList.contains('hide-right'));
+
+  function setPressed(btn, on){
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.classList.toggle('is-on', on);
+  }
+
+  function apply(){
+    if (mqStacked.matches){
+      app.classList.remove('collapsed-left','collapsed-right');
+      app.classList.toggle('hide-left',  !leftOn);
+      app.classList.toggle('hide-right', !rightOn);
+    } else {
+      app.classList.remove('hide-left','hide-right');
+      app.classList.toggle('collapsed-left',  !leftOn);
+      app.classList.toggle('collapsed-right', !rightOn);
+    }
+    setPressed(btnLeft,  leftOn);
+    setPressed(btnRight, rightOn);
+  }
+
+  btnLeft.addEventListener('click',  () => { leftOn  = !leftOn;  apply(); });
+  btnRight.addEventListener('click', () => { rightOn = !rightOn; apply(); });
+  mqStacked.addEventListener('change', apply);
+
+  apply(); // respect initial classes
+})();
+
+
+
+
+(function relayoutAfterTransitions(){
+  const app = document.querySelector('.app');
+  if (!app) return;
+
+  const needs = new Set(['grid-template-columns','max-height','flex-basis','width','transform','opacity']);
+  const kick = () => {
+    if (!window.editor?.layout) return;
+    const el = document.getElementById('editor');
+    requestAnimationFrame(() =>
+      window.editor.layout({ width: el.clientWidth, height: el.clientHeight })
+    );
+  };
+
+  // listen on the app and the side panels (covers both grid + stacked)
+  ['.app','.left.panel','.right.panel','.center.panel'].forEach(sel=>{
+    document.querySelector(sel)?.addEventListener('transitionend', (e) => {
+      if (needs.has(e.propertyName)) kick();
+    });
+  });
+})();
+
+
+
+(function smoothDesktopToggles(){
+  const app = document.querySelector('.app');
+  if (!app) return;
+
+  function beginAnim(){
+    app.classList.add('animating');
+    if (window.editor) window.editor.updateOptions({ automaticLayout:false });
+  }
+  function endAnim(){
+    app.classList.remove('animating');
+    if (window.editor?.layout){
+      const el = document.getElementById('editor');
+      window.editor.layout({ width: el.clientWidth, height: el.clientHeight });
+      window.editor.updateOptions({ automaticLayout:true });
+    }
+  }
+
+  // Call this around any class flip that changes columns
+  window.animateLayout = (flipFn)=>{
+    beginAnim();
+    flipFn();
+    // end on the first track-size transition or after a tiny fallback timeout
+    const onEnd = (e)=>{
+      if (!e || e.propertyName === '--L' || e.propertyName === '--C' || e.propertyName === '--R' || e.propertyName === 'grid-template-columns'){
+        app.removeEventListener('transitionend', onEnd);
+        endAnim();
+      }
+    };
+    app.addEventListener('transitionend', onEnd);
+    setTimeout(()=>onEnd({propertyName:'--L'}), 360); // fallback
+  };
+})();
+
+
+
+
+function toggleExpand(which, btn){
+  const app = document.querySelector('.app');
+  const classes = ['expand-left','expand-center','expand-right'];
+  const cls = `expand-${which}`;
+  const turnOn = !app.classList.contains(cls);
+
+  classes.forEach(c => app.classList.toggle(c, c === cls && turnOn));
+  document.querySelectorAll('.btn.expander[aria-pressed]')
+    .forEach(b => b.setAttribute('aria-pressed', b === btn && turnOn ? 'true' : 'false'));
+
+  // Monaco needs a relayout when center size changes
+  if (window.editor?.layout){
+    const el = document.getElementById('editor');
+    requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
+  }
+}
+
+
+
+
+
+
+
+
+
+
