@@ -1546,7 +1546,7 @@ async function savePdfToDisk(e){
   const fileName = `Polycode-${langLabel}-${name.replace(/[^\w-]+/g,'_')}.pdf`;
 
   const blob = await buildPdfBlob(name, {
-    watermarkLogoBase64: POLYCODE_WATERMARK, // base64 PNG or null
+    watermarkLogoBase64: 'https://github.com/edifica-institute/polycode/blob/065bb70c372bbefd9d51361cc6472a463cc7c22b/frontend/assets/PC-Logo.png', // base64 PNG or null
     headerLogoBase64: POLYCODE_HEADER_LOGO  // base64 PNG or null
   });
 
