@@ -3421,3 +3421,62 @@ body.light .chevron-tab:hover{ background: rgba(255,255,255,0.45); opacity: .95;
     --chev-icon: 22px;
   }
 }
+
+
+
+
+
+/* === FINAL — Chevrons must win === */
+:root{
+  --chev-w: 28px; --chev-h: 120px; --chev-top: 68vh; --chev-icon: 26px;
+}
+
+/* Base: fixed, edge strips, no rounding */
+.chevron-tab{
+  position: fixed !important;
+  top: var(--chev-top) !important;
+  transform: translateY(-50%) !important;
+  width: var(--chev-w) !important;
+  height: var(--chev-h) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: rgba(255,255,255,0.01) !important;
+  backdrop-filter: blur(8px) saturate(140%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(140%) !important;
+  display: grid !important; place-items: center !important;
+  cursor: pointer !important;
+  opacity: .08 !important;
+  transition: opacity .25s ease, background .25s ease !important;
+  z-index: 9999 !important;         /* above scrim, panels, etc */
+}
+.chevron-tab.left  { left: 0 !important; }
+.chevron-tab.right { right: 0 !important; }
+
+/* Make sure any older “hide children” rules don’t nuke the SVG */
+.chevron-tab * { display: initial !important; }
+
+/* Arrow sizing/orientation (we rotate, not swap) */
+.chevron-tab svg{
+  width: var(--chev-icon) !important;
+  height: var(--chev-icon) !important;
+  fill: currentColor !important;
+  color: var(--text, #e9edf3) !important;
+  transition: transform .25s ease, color .25s ease !important;
+}
+.chevron-tab.left  svg{ transform: rotate(180deg) !important; }
+.chevron-tab.right svg{ transform: rotate(0deg)    !important; }
+.chevron-tab.left[aria-expanded="true"]  svg{ transform: rotate(0deg)    !important; }
+.chevron-tab.right[aria-expanded="true"] svg{ transform: rotate(180deg)  !important; }
+
+/* Hover reveal */
+.chevron-tab:hover,
+.chevron-tab:focus-visible{
+  background: rgba(255,255,255,0.10) !important;
+  opacity: .95 !important;
+  outline: none !important;
+}
+
+/* Mobile sizing */
+@media (max-width: 640px){
+  :root{ --chev-w: 22px; --chev-h: 100px; --chev-top: 72vh; --chev-icon: 22px; }
+}
