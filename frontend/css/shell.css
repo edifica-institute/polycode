@@ -1142,3 +1142,35 @@ body[data-boot] .right.panel{
   visibility: hidden;               /* optional: avoid intermediate states */
 }
 
+
+
+
+/* Give the left panel its own size on smaller screens */
+#leftPanel{ font-size:14px; } /* default */
+
+@media (max-width: 900px){
+  #leftPanel{ font-size:13px; }
+  #leftPanel .pane-head select{ font-size:12px; }
+}
+@media (max-width: 600px){
+  #leftPanel{ font-size:12.5px; }
+}
+
+
+
+@media (max-width:1024px){
+  .app{
+    display:flex !important;        /* out-rank any later desktop grid rules */
+    flex-direction:column;
+    gap:8px;
+    height:auto;
+  }
+
+  /* Guard rails against horizontal creeping */
+  .stage, .app, .panel, .pane-head, .pane-body, .pane-scroll{
+    max-width:100%;
+  }
+}
+
+
+
