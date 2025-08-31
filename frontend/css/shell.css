@@ -3349,6 +3349,48 @@ html, body { height: 100%; }
 
 
 
+/* ===== Footer: ultra-compact on small screens ===== */
+@media (max-width: 600px){
+  .site-footer{
+    padding: 6px 10px !important;            /* tighter padding */
+  }
+  .site-footer .footer-grid{
+    row-gap: 6px !important;                  /* less vertical gap */
+  }
+
+  /* Normalize child margins so nothing adds extra height */
+  .site-footer :where(p,h1,h2,h3,h4,h5,h6,span,small){
+    margin-block: 0 !important;
+  }
+
+  /* Left block (logo + lines) — shrink + clamp */
+  .site-footer .footer-left{ gap: 4px !important; }
+  .site-footer .footer-logo{ height: 22px !important; }
+  .site-footer .footer-left .txt{ gap: 0 !important; line-height: 1.15 !important; }
+  .site-footer .footer-left .txt .powered{ font-size: 12px !important; }
+  .site-footer .footer-left .txt .subline{ font-size: 11px !important; }
+  .site-footer .footer-left .txt .siteurl a{ font-size: 11px !important; }
+
+  /* Follow row — label above, icons in ONE row, all small */
+  .site-footer .footer-center{ gap: 4px !important; }
+  .site-footer .footer-center .label{
+    display:block !important; margin-bottom: 4px !important; font-size: 12px !important;
+  }
+  .site-footer .footer-center .social{
+    display:inline-flex !important; gap: 6px !important;  /* one row */
+    width:auto !important; height:auto !important;
+  }
+  .site-footer .footer-center .social svg{
+    width: 16px !important; height: 16px !important;
+  }
+
+  /* Legal links — single line (wrap only if absolutely necessary) */
+  .site-footer .footer-right{
+    gap: 8px !important;
+    white-space: nowrap !important;          /* prefer one line */
+    font-size: 12px !important;
+  }
+}
 
 
 
