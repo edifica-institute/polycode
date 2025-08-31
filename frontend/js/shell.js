@@ -1351,7 +1351,7 @@ function addWatermark(pdf, watermarkBase64){
   const pageH = pdf.internal.pageSize.getHeight();
   const w = pageW * 0.6, h = pageH * 0.4;
   const x = (pageW - w) / 2, y = (pageH - h) / 2;
-  if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 0.08 }));
+  if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 0.05 }));
   pdf.addImage(watermarkBase64, 'PNG', x, y, w, h, undefined, 'FAST');
   if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 1 }));
 }
