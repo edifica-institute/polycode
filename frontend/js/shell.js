@@ -1182,38 +1182,66 @@ try {
 
 
 // --- Lazy loaders (safe if libs already present) ---
+let _h2cReady = null;
 async function ensureHtml2Canvas() {
   if (typeof window.html2canvas === 'function') return window.html2canvas;
-  await new Promise((res, rej) => {
+  if (_h2cReady) return _h2cReady;
+  _h2cReady = new Promise((res, rej) => {
     const s = document.createElement('script');
     s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-    s.async = true; s.onload = res; s.onerror = () => rej(new Error('Failed to load html2canvas'));
+    s.async = true;
+    s.onload = () => res(window.html2canvas);
+    s.onerror = () => rej(new Error('Failed to load html2canvas'));
     document.head.appendChild(s);
   });
-  return window.html2canvas;
+  return _h2cReady;
 }
+
+
+// Put these near the top of your PDF helpers file (outside the function) so we never double-load:
+let _jspdfReady = null;
 
 async function ensureJsPDF() {
-  // If already loaded via UMD:
-  if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-  // Try dynamic import (will also set window.jspdf):
-  try {
-    const mod = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
-    // In some environments, jsPDF is default-exported under window.jspdf too:
-    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-    if (mod && mod.jsPDF) return mod.jsPDF;
-  } catch (_) { /* fall through to script tag method */ }
+  if (_jspdfReady) return _jspdfReady;
 
-  // Fallback: inject script tag
-  await new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
-    s.async = true; s.onload = res; s.onerror = () => rej(new Error('Failed to load jsPDF'));
-    document.head.appendChild(s);
-  });
-  if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
-  throw new Error('jsPDF not available after loading');
+  _jspdfReady = (async () => {
+    // 1) Native ESM path (bypasses AMD/RequireJS entirely)
+    try {
+      const mod = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.es.min.js');
+      if (mod?.jsPDF) return mod.jsPDF;
+    } catch (_) { /* fall through */ }
+
+    // 2) UMD fallback BUT guard against AMD + double-loads
+    if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
+
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+      s.async = true;
+
+      // temporarily disable AMD 'define' so UMD attaches to window.jspdf
+      const prevDefine = window.define;
+      const hadAMD = !!(prevDefine && prevDefine.amd);
+      if (hadAMD) window.define = undefined;
+
+      s.onload = () => {
+        if (hadAMD) window.define = prevDefine;
+        res();
+      };
+      s.onerror = () => {
+        if (hadAMD) window.define = prevDefine;
+        rej(new Error('Failed to load jsPDF UMD'));
+      };
+      document.head.appendChild(s);
+    });
+
+    if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
+    throw new Error('jsPDF not available after loading');
+  })();
+
+  return _jspdfReady;
 }
+
 
 // --- Your functions (patched) ---
 async function captureOutputImageDataURL() {
