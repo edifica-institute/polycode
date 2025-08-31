@@ -1568,8 +1568,8 @@ async function urlToDataURL(url){
 (async () => {
   try {
     window.POLYCODE_HEADER_LOGO  = await urlToDataURL('/assets/PC-Logo.png');
-    window.POLYCODE_WATERMARK    = await(urltoDataURL('/assets/PC-Logo-Gray.png');
-    window.EDIFICA_FOOTER_LOGO = await(urltoDataURL('/assets/logo.png');
+    window.POLYCODE_WATERMARK    = await urltoDataURL('/assets/PC-Logo-Gray.png');
+    window.EDIFICA_FOOTER_LOGO = await urltoDataURL('/assets/logo.png');
   } catch (e) {
     console.warn('Logo load failed:', e);
     window.POLYCODE_HEADER_LOGO = window.POLYCODE_WATERMARK = window.EDIFICA_FOOTER_LOGO = null;
