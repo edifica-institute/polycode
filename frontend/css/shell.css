@@ -3396,4 +3396,57 @@ html, body { height: 100%; }
 
 
 
+/* === FINAL FOOTER COMPACT OVERRIDE (MOBILE) === */
+@media (max-width: 640px){
+  .site-footer{
+    padding: 6px 10px !important;      /* minimal padding */
+  }
+  .site-footer .footer-grid{
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "left"
+      "right"
+      "legal" !important;
+    row-gap: 4px !important;           /* tighter gap */
+    text-align: center !important;
+  }
+
+  /* Left block (logo + lines) in one tight column */
+  .site-footer .footer-left{
+    justify-self: center !important;
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+  .site-footer .footer-logo{ height: 20px !important; }
+  .site-footer .footer-left .txt{ line-height: 1.1 !important; gap: 0 !important; }
+  .site-footer .footer-left .txt .powered,
+  .site-footer .footer-left .txt .subline,
+  .site-footer .footer-left .txt .siteurl{ font-size: 11px !important; margin: 0 !important; }
+
+  /* Follow row: label above icons, but icons forced to stay in ONE row */
+  .site-footer .footer-center{
+    justify-self: center !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+  }
+  .site-footer .footer-center .label{
+    margin-bottom: 2px !important;
+    font-size: 11px !important;
+  }
+  .site-footer .footer-center .social{
+    display: inline-flex !important;
+    flex-wrap: nowrap !important;      /* single row */
+    gap: 6px !important;
+  }
+  .site-footer .footer-center .social svg{ width: 16px !important; height: 16px !important; }
+
+  /* Legal links: inline row (wrap only if very narrow) */
+  .site-footer .footer-right{
+    justify-self: center !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    white-space: nowrap !important;
+    font-size: 11px !important;
+  }
+}
 
