@@ -1349,7 +1349,7 @@ function addWatermark(pdf, watermarkBase64){
   if (!watermarkBase64) return;
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const w = pageW * 0.3, h = pageH * 0.3;
+  const w = pageW * 0.6, h = pageH * 0.4;
   const x = (pageW - w) / 2, y = (pageH - h) / 2;
   if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 0.08 }));
   pdf.addImage(watermarkBase64, 'PNG', x, y, w, h, undefined, 'FAST');
@@ -1631,8 +1631,7 @@ async function savePdfToDisk(e){
 
       // Preview the just-saved PDF. New tab may be blocked; fall back to same tab.
       const url = URL.createObjectURL(blob);
-      const w = window.open(url, '_blank', 'noopener'); // may return null if blocked
-      if (!w) window.location.assign(url);               // open in current tab if blocked
+      window.location.assign(url);               // open in current tab if blocked
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
       return;
     } catch (err) {
