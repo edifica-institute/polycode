@@ -3283,4 +3283,66 @@ html, body { height: 100%; }
 
 
 
+/* ==== FOOTER — LOCKED ORDER + COMPACT MOBILE (final override) ==== */
+
+/* Desktop/tablet: 2 rows on the right side
+   Row 1 = Follow us (right)   • Row 2 = Legal (right, single line) */
+.site-footer { padding-block: 12px !important; }
+.site-footer .footer-grid{
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;         /* left | right */
+  grid-template-rows: auto auto !important;
+  grid-template-areas:
+    "left right"
+    "left legal" !important;                          /* Follow above Legal */
+  align-items: center !important;
+  column-gap: 12px !important;
+}
+
+/* Map areas explicitly */
+.site-footer .footer-left  { grid-area: left  !important; justify-self: start !important; display:flex !important; align-items:center !important; gap:8px !important; }
+.site-footer .footer-center{ grid-area: right !important; justify-self: end   !important; display:flex !important; align-items:center !important; gap:10px !important; }
+.site-footer .footer-right { grid-area: legal !important; justify-self: end   !important; display:flex !important; gap:12px !important; white-space: nowrap !important; }
+
+/* Social icons: always a single row */
+.site-footer .footer-center .label{ margin-right: 6px !important; }
+.site-footer .footer-center .social{
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px; height: 28px; margin: 0 4px;
+  flex: 0 0 auto !important;             /* prevent wrapping */
+}
+.site-footer .footer-center .social svg{ width:18px; height:18px; }
+
+/* Mobile: stack in the exact order you want:
+   1) Left (logo block), 2) Follow us, 3) Legal */
+@media (max-width: 640px){
+  .site-footer { padding: 10px 12px !important; }
+  .site-footer .footer-grid{
+    grid-template-columns: 1fr !important;
+    grid-template-areas:
+      "left"
+      "right"   /* Follow us row */
+      "legal"   /* Legal links row */
+      !important;
+    row-gap: 8px !important;
+    text-align: center !important;
+  }
+
+  /* Center each block */
+  .site-footer .footer-left   { justify-self: center !important; flex-direction: column !important; gap:6px !important; }
+  .site-footer .footer-center { justify-self: center !important; flex-direction: column !important; gap: 6px !important; }
+  .site-footer .footer-right  { justify-self: center !important; flex-wrap: wrap !important; gap:10px !important; white-space: normal !important; }
+
+  /* Keep icons on one row under the label */
+  .site-footer .footer-center .label{ display:block !important; margin: 0 0 6px 0 !important; }
+  .site-footer .footer-center .social{ margin: 0 6px !important; }
+
+  /* Tighten text to avoid tall footer */
+  .site-footer .footer-left .txt{ line-height: 1.15 !important; gap: 2px !important; }
+  .site-footer .footer-left .txt .powered{ font-size: 14px !important; margin: 0 !important; }
+  .site-footer .footer-left .txt .subline,
+  .site-footer .footer-left .txt .siteurl{ font-size: 11.5px !important; margin: 0 !important; }
+}
 
