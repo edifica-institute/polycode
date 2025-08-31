@@ -1326,98 +1326,252 @@ async function captureOutputImageDataURL() {
 }
 
 
-async function buildPdfBlob(userTitle) {
+
+
+// ====== PDF helpers: watermark, header, footer, paging ======
+function extractTitle(code){
+  if (!code) return 'Sample Program';
+  const first = String(code).split('\n')[0].trim();
+  if (/^title\s*:/i.test(first)) {
+    const t = first.replace(/^title\s*:/i, '').trim();
+    return t || 'Sample Program';
+  }
+  return 'Sample Program';
+}
+
+function addWatermark(pdf, watermarkLogoBase64){
+  if (!watermarkLogoBase64) return;
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const w = pageW * 0.6, h = pageH * 0.6;
+  const x = (pageW - w) / 2, y = (pageH - h) / 2;
+  // fade watermark
+  if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 0.08 }));
+  pdf.addImage(watermarkLogoBase64, 'PNG', x, y, w, h, undefined, 'FAST');
+  if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 1 }));
+}
+
+function addHeader(pdf, y, opts){
+  const margin = 40;
+  const pageW = pdf.internal.pageSize.getWidth();
+
+  // Left: Polycode (with logo if provided)
+  const textY = y + 12;
+  let cursorX = margin;
+
+  if (opts?.headerLogoBase64) {
+    const h = 16, w = 16; // tiny logo
+    pdf.addImage(opts.headerLogoBase64, 'PNG', cursorX, y, w, h, undefined, 'FAST');
+    cursorX += w + 8;
+  }
+
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+  pdf.text('Polycode', cursorX, textY);
+
+  // Right: powered by Edifica
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
+  pdf.text('powered by Edifica', pageW - margin, textY, { align:'right' });
+
+  // Horizontal rule
+  const hrY = y + 22;
+  pdf.setDrawColor(180);
+  pdf.line(margin, hrY, pageW - margin, hrY);
+  return hrY + 10; // next y
+}
+
+function addFooter(pdf){
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(9);
+
+  pdf.text('learn.code.execute', 40, pageH - 18, { align:'left' });
+  pdf.text('www.polycode.in', pageW - 40, pageH - 18, { align:'right' });
+
+  // (Optional) page number centered
+  const page = pdf.internal.getNumberOfPages?.() || 1;
+  pdf.text(String(page), pageW / 2, pageH - 18, { align: 'center' });
+}
+
+// draw HR and advance Y
+function drawHR(pdf, y){
+  const margin = 40;
+  const pageW = pdf.internal.pageSize.getWidth();
+  pdf.setDrawColor(200);
+  pdf.line(margin, y, pageW - margin, y);
+  return y + 12;
+}
+
+function ensureSpace(pdf, y, need, opts){
+  // If not enough space, close footer + add page + watermark + header
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 40;
+  if (y + need <= pageH - margin) return y;
+
+  addFooter(pdf);
+  pdf.addPage();
+  addWatermark(pdf, opts?.watermarkLogoBase64);
+  return addHeader(pdf, margin, { headerLogoBase64: opts?.headerLogoBase64 });
+}
+
+function writeLabel(pdf, y, text){
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+  pdf.text(text, 40, y);
+  return y + 14;
+}
+
+function writeWrappedText(pdf, y, text, opts){
+  const margin = 40;
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const maxW = pageW - margin*2;
+  const lh = opts?.lineHeight || 12;
+
+  const lines = pdf.splitTextToSize(text || '', maxW);
+  pdf.setFont(opts?.font || 'helvetica', opts?.style || 'normal');
+  pdf.setFontSize(opts?.fontSize || 10);
+
+  for (const line of lines){
+    if (y > pageH - margin - lh) {
+      // new page
+      addFooter(pdf);
+      pdf.addPage();
+      addWatermark(pdf, opts?.watermarkLogoBase64);
+      y = addHeader(pdf, margin, { headerLogoBase64: opts?.headerLogoBase64 });
+      pdf.setFont(opts?.font || 'helvetica', opts?.style || 'normal');
+      pdf.setFontSize(opts?.fontSize || 10);
+    }
+    pdf.text(line, margin, y);
+    y += lh;
+  }
+  return y;
+}
+
+// ====== DROP-IN: buildPdfBlob with your exact layout ======
+async function buildPdfBlob(userTitle, logos = {}){
   const jsPDF = await ensureJsPDF();
 
   const pdf = new jsPDF({ unit:'pt', format:'a4' });
-  const margin = 40, pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
-  const maxW = pageW - margin*2;
-  let y = margin;
+  const margin = 40;
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
 
+  // Watermark on first page
+  addWatermark(pdf, logos.watermarkLogoBase64);
+
+  // Header
+  let y = addHeader(pdf, margin, { headerLogoBase64: logos.headerLogoBase64 });
+
+  // Gather meta
   const { langLabel } = getLangInfo();
+  const code = window.editor?.getValue?.() || '';
+  const titleFromCode = extractTitle(code);
   const title = (userTitle && userTitle.trim()) || 'Polycode Session';
   const when = new Date().toLocaleString();
 
-  // Header
-  pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-  pdf.text(`${langLabel} — ${title}`, margin, y); y += 18;
+  // Sub-heading / meta block
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
+  y = ensureSpace(pdf, y, 60, { watermarkLogoBase64: logos.watermarkLogoBase64, headerLogoBase64: logos.headerLogoBase64 });
+  pdf.text(`Date: ${when}`, margin, y); y += 14;
+  pdf.text(`Language Used: ${langLabel}`, margin, y); y += 14;
+  pdf.text(`Program Code/Question: ${titleFromCode || 'Sample Program'}`, margin, y); y += 16;
+  y = drawHR(pdf, y);
+
+  // Section 4: The code
+  y = ensureSpace(pdf, y, 26, { watermarkLogoBase64: logos.watermarkLogoBase64, headerLogoBase64: logos.headerLogoBase64 });
+  y = writeLabel(pdf, y, 'Code');
+
+  // Code as text (Courier)
+  pdf.setFont('courier','normal'); pdf.setFontSize(10);
+  y = writeWrappedText(pdf, y, code || '(empty)', {
+    lineHeight: 12,
+    font: 'courier',
+    fontSize: 10,
+    watermarkLogoBase64: logos.watermarkLogoBase64,
+    headerLogoBase64: logos.headerLogoBase64
+  });
+
+  y += 8;
+  y = drawHR(pdf, y);
+
+  // Section 5: Output label
+  y = ensureSpace(pdf, y, 26, { watermarkLogoBase64: logos.watermarkLogoBase64, headerLogoBase64: logos.headerLogoBase64 });
+  y = writeLabel(pdf, y, 'Output');
+
+  // Section 6: Output as TEXT (full content)
+  const outText = document.getElementById('output')?.innerText || '(no output)';
   pdf.setFont('helvetica','normal'); pdf.setFontSize(10);
-  pdf.text(when, margin, y); y += 16;
-  pdf.setDrawColor(180); pdf.line(margin, y, pageW - margin, y); y += 12;
+  y = writeWrappedText(pdf, y, outText, {
+    lineHeight: 12,
+    font: 'helvetica',
+    fontSize: 10,
+    watermarkLogoBase64: logos.watermarkLogoBase64,
+    headerLogoBase64: logos.headerLogoBase64
+  });
 
-  // 3a) CODE IMAGE
-  try {
-    const codeImg = await buildCodeImageDataURL();
-    const codeImgProps = pdf.getImageProperties(codeImg);
-    const codeRatio = codeImgProps.height / codeImgProps.width;
-    let codeW = maxW;
-    let codeH = codeW * codeRatio;
+  y += 8;
+  y = drawHR(pdf, y);
 
-    // New page if needed
-    if (y + 22 + codeH > pageH - margin) { pdf.addPage(); y = margin; }
-    pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-    pdf.text('Code', margin, y); y += 10;
+  // Footer on the last page
+  addFooter(pdf);
 
-    // If too tall for remaining page, scale down to fit
-    if (y + codeH > pageH - margin) {
-      codeH = (pageH - margin - y);
-      codeW = codeH / codeRatio;
-    }
-    pdf.addImage(codeImg, 'PNG', margin, y, codeW, codeH, undefined, 'FAST');
-    y += codeH + 14;
-  } catch (e) {
-    console.warn('Code capture failed:', e);
-  }
-
-  // 3b) OUTPUT IMAGE (full height)
-  try {
-    const outImg = await captureOutputImageDataURL();
-    const outProps = pdf.getImageProperties(outImg);
-    const outRatio = outProps.height / outProps.width;
-    let outW = maxW;
-    let outH = outW * outRatio;
-
-    if (y + 22 + outH > pageH - margin) { pdf.addPage(); y = margin; }
-    pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-    pdf.text('Output', margin, y); y += 10;
-
-    if (y + outH > pageH - margin) {
-      outH = (pageH - margin - y);
-      outW = outH / outRatio;
-    }
-    pdf.addImage(outImg, 'PNG', margin, y, outW, outH, undefined, 'FAST');
-    y += outH;
-  } catch (e) {
-    console.warn('Screen capture failed:', e);
-  }
-
- return pdf.output('blob');
+  // Done
+  return pdf.output('blob');
 }
 
 
-async function savePdfToDisk() {
-  try {
-    const { langLabel } = getLangInfo();
-    const name = prompt('Enter a title for the PDF:', 'Untitled') || 'Untitled';
-    const blob = await buildPdfBlob(name);               // <- now returns a Blob
-    const fileName = `Polycode-${langLabel}-${name.replace(/[^\w-]+/g,'_')}.pdf`;
 
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
 
-    // Append to DOM for Firefox/Safari reliability
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
 
-    // Revoke on a microtask to avoid revoking too early
-    setTimeout(() => URL.revokeObjectURL(url), 0);
-  } catch (err) {
-    console.error(err);
-    alert('Failed to generate PDF. Please check console for details.');
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+async function savePdfToDisk(e){
+  e?.preventDefault?.(); e?.stopPropagation?.();
+
+  const { langLabel } = getLangInfo();
+  const name = prompt('Enter a title for the PDF:', 'Untitled') || 'Untitled';
+  const fileName = `Polycode-${langLabel}-${name.replace(/[^\w-]+/g,'_')}.pdf`;
+
+  const blob = await buildPdfBlob(name, {
+    watermarkLogoBase64: POLYCODE_WATERMARK, // base64 PNG or null
+    headerLogoBase64: POLYCODE_HEADER_LOGO  // base64 PNG or null
+  });
+
+  // Try native Save dialog (Chromium File System Access API)
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (err) {
+      // user cancelled -> fall back to normal download
+    }
   }
+
+  // Fallback: <a download> to default folder
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = fileName; a.type = 'application/pdf';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 
