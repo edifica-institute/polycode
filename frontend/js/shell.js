@@ -1585,88 +1585,145 @@ async function urlToDataURL(url){
 function extractTitle(code){
   if (!code) return 'Sample Program';
   const first = String(code).split('\n')[0].trim();
-  if (/^title\s*:/i.test(first)) {
-    const t = first.replace(/^title\s*:/i, '').trim();
-    return t || 'Sample Program';
-  }
+  if (/^title\s*:/i.test(first)) return first.replace(/^title\s*:/i, '').trim() || 'Sample Program';
   return 'Sample Program';
 }
 function sanitizeFilename(s){
   return (s || 'Untitled').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
 }
 function ts(){
-  const d = new Date();
-  const pad = n => String(n).padStart(2,'0');
-  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 }
 
+// 🚀 Call this from your button click
 async function savePdfToDisk(e){
   e?.preventDefault?.(); e?.stopPropagation?.();
 
-  // derive filename automatically (no prompt)
-  const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel:'TXT' });
+  const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
   const code = window.editor?.getValue?.() || '';
   const title = extractTitle(code);
   const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${sanitizeFilename(title)}-${ts()}.pdf`;
 
-  // pre-open a tab to avoid popup blocking; we’ll navigate it later
-  let viewer = null;
-  try {
-    viewer = window.open('', '_blank'); // keep reference so we can .location= later
-    if (viewer && viewer.document) {
-      viewer.document.title = 'Saving PDF…';
-      viewer.document.body.innerHTML = '<div style="font:14px system-ui;margin:24px">Saving PDF…</div>';
-    }
-  } catch {}
-
-  try {
-    const blob = await buildPdfBlob(title); // your builder already uses logos + layout
-
-    // Chromium Save As picker (no download on cancel)
-    if ('showSaveFilePicker' in window) {
-      try {
-        const handle = await showSaveFilePicker({
-          suggestedName: fileName,
-          types: [{ description:'PDF', accept:{ 'application/pdf':['.pdf'] }}]
-        });
-        const writable = await handle.createWritable();
-        await writable.write(blob);
-        await writable.close();
-      } catch (err) {
-        if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) {
-          if (viewer && !viewer.closed) viewer.close();
-          return; // user cancelled → nothing else happens
-        }
-        throw err; // real error → go to catch
-      }
-    } else {
-      // Fallback (Safari/Firefox/mobile w/o picker): just open the PDF in the viewer.
-      // No auto-download — user chooses Save from the built-in viewer UI.
-      const url = URL.createObjectURL(blob);
-      if (viewer && !viewer.closed) viewer.location.replace(url);
-      else window.open(url, '_blank', 'noopener');
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  // ----- Chromium path: ask WHERE to save *first* (keeps user gesture) -----
+  if ('showSaveFilePicker' in window) {
+    let handle;
+    try {
+      handle = await showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
+      });
+    } catch (err) {
+      // User cancelled → do nothing at all
+      if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+      // Unexpected error: surface and stop
+      console.error('Save picker error:', err);
+      alert('Could not open the Save dialog.');
       return;
     }
 
-    // Open the saved PDF in the viewer tab (using the same blob)
-    const url = URL.createObjectURL(blob);
-    if (viewer && !viewer.closed) viewer.location.replace(url);
-    else window.open(url, '_blank', 'noopener');
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    // Build the PDF AFTER we have the file handle
+    try {
+      const blob = await buildPdfBlob(title);
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
 
-  } catch (err) {
-    console.error('PDF save error:', err);
-    if (viewer && !viewer.closed) {
-      try {
-        viewer.document.body.innerHTML =
-          `<div style="font:14px system-ui;margin:24px;color:#b00020">
-             <strong>Failed to save/open the PDF.</strong><br>${String(err?.message||err)}
-           </div>`;
-      } catch {}
-    } else {
-      alert('Failed to save/open the PDF. See console for details.');
+      // Preview the just-saved PDF. New tab may be blocked; fall back to same tab.
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, '_blank', 'noopener'); // may return null if blocked
+      if (!w) window.location.assign(url);               // open in current tab if blocked
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return;
+    } catch (err) {
+      console.error('Writing/preview error:', err);
+      alert('Failed to save or open the PDF.');
+      return;
     }
+  }
+
+  // ----- Fallback (Safari/Firefox/iOS): open viewer only; user saves from viewer -----
+  try {
+    const blob = await buildPdfBlob(title);
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank', 'noopener');
+    if (!w) window.location.assign(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    console.error('PDF build error:', err);
+    alert('Failed to prepare the PDF.');
+  }
+}
+function extractTitle(code){
+  if (!code) return 'Sample Program';
+  const first = String(code).split('\n')[0].trim();
+  if (/^title\s*:/i.test(first)) return first.replace(/^title\s*:/i, '').trim() || 'Sample Program';
+  return 'Sample Program';
+}
+function sanitizeFilename(s){
+  return (s || 'Untitled').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
+}
+function ts(){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+// 🚀 Call this from your button click
+async function savePdfToDisk(e){
+  e?.preventDefault?.(); e?.stopPropagation?.();
+
+  const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
+  const code = window.editor?.getValue?.() || '';
+  const title = extractTitle(code);
+  const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${sanitizeFilename(title)}-${ts()}.pdf`;
+
+  // ----- Chromium path: ask WHERE to save *first* (keeps user gesture) -----
+  if ('showSaveFilePicker' in window) {
+    let handle;
+    try {
+      handle = await showSaveFilePicker({
+        suggestedName: fileName,
+        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
+      });
+    } catch (err) {
+      // User cancelled → do nothing at all
+      if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
+      // Unexpected error: surface and stop
+      console.error('Save picker error:', err);
+      alert('Could not open the Save dialog.');
+      return;
+    }
+
+    // Build the PDF AFTER we have the file handle
+    try {
+      const blob = await buildPdfBlob(title);
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+
+      // Preview the just-saved PDF. New tab may be blocked; fall back to same tab.
+      const url = URL.createObjectURL(blob);
+      const w = window.open(url, '_blank', 'noopener'); // may return null if blocked
+      if (!w) window.location.assign(url);               // open in current tab if blocked
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      return;
+    } catch (err) {
+      console.error('Writing/preview error:', err);
+      alert('Failed to save or open the PDF.');
+      return;
+    }
+  }
+
+  // ----- Fallback (Safari/Firefox/iOS): open viewer only; user saves from viewer -----
+  try {
+    const blob = await buildPdfBlob(title);
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank', 'noopener');
+    if (!w) window.location.assign(url);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch (err) {
+    console.error('PDF build error:', err);
+    alert('Failed to prepare the PDF.');
   }
 }
 
