@@ -3346,3 +3346,78 @@ html, body { height: 100%; }
   .site-footer .footer-left .txt .siteurl{ font-size: 11.5px !important; margin: 0 !important; }
 }
 
+
+
+
+/* ===== Ghost Glass Chevrons (edge strips) ===== */
+:root{
+  --chev-w: 28px;               /* width of the thin edge */
+  --chev-h: 120px;              /* height of the touch target */
+  --chev-top: 68vh;             /* vertical position on desktop */
+  --chev-icon: 26px;            /* arrow size */
+}
+
+/* Base: nearly invisible, no rounded corners */
+.chevron-tab{
+  position: fixed;
+  top: var(--chev-top);
+  transform: translateY(-50%);
+  width: var(--chev-w);
+  height: var(--chev-h);
+  border: 0;
+  border-radius: 0;                     /* no rounded corner */
+  background: rgba(255,255,255,0.01);   /* virtually invisible */
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  display: grid; place-items: center;
+  cursor: pointer;
+  opacity: .08;                         /* almost not there */
+  transition: opacity .25s ease, background .25s ease;
+  z-index: 9999;
+}
+
+/* Edge placement */
+.chevron-tab.left  { left: 0; }
+.chevron-tab.right { right: 0; }
+
+/* Hover/focus reveal (but still subtle) */
+.chevron-tab:hover,
+.chevron-tab:focus-visible{
+  background: rgba(255,255,255,0.10);
+  opacity: .95;
+  outline: none;
+}
+
+/* SVG arrow: single icon, rotated by CSS based on state */
+.chevron-tab svg{
+  width: var(--chev-icon);
+  height: var(--chev-icon);
+  fill: currentColor;
+  color: var(--text, #e9edf3);
+  transition: transform .25s ease, color .25s ease;
+}
+
+/* Orientation rules (we rotate, we don't swap SVGs) */
+.chevron-tab.left  svg{ transform: rotate(180deg); } /* points left by default */
+.chevron-tab.right svg{ transform: rotate(0deg); }   /* points right by default */
+
+/* When panel is OPEN (aria-expanded="true"), flip the arrow to indicate "collapse" */
+.chevron-tab.left[aria-expanded="true"]  svg{ transform: rotate(0deg); }   /* ◀ becomes ▶ */
+.chevron-tab.right[aria-expanded="true"] svg{ transform: rotate(180deg); } /* ▶ becomes ◀ */
+
+/* Light theme tweak (still very subtle) */
+body.light .chevron-tab{
+  background: rgba(255,255,255,0.25);
+  opacity: .12;
+}
+body.light .chevron-tab:hover{ background: rgba(255,255,255,0.45); opacity: .95; }
+
+/* ===== Mobile sizing ===== */
+@media (max-width: 640px){
+  :root{
+    --chev-w: 22px;
+    --chev-h: 100px;     /* keep good height, slimmer edge */
+    --chev-top: 72vh;    /* a bit lower on phones */
+    --chev-icon: 22px;
+  }
+}
