@@ -1276,27 +1276,53 @@ async function ensureJsPDF() {
 
 // --- Your functions (patched) ---
 async function captureOutputImageDataURL() {
-  const html2canvas = await ensureHtml2Canvas();  // returns the function
-
-  const preview = document.getElementById('preview');
-  if (preview && window.editor) {
-    const code = window.editor.getValue();
-    const tmp = document.createElement('iframe');
-    tmp.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:800px;visibility:hidden';
-    tmp.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-    tmp.srcdoc = code;
-    document.body.appendChild(tmp);
-    await new Promise(r => tmp.onload = () => setTimeout(r, 80));
-
-    const canvas = await html2canvas(tmp.contentDocument.body, { backgroundColor:'#ffffff', scale:2 });
-    const url = canvas.toDataURL('image/png');
-    document.body.removeChild(tmp);
-    return url;
-  }
-
+  const html2canvas = await ensureHtml2Canvas();
   const out = document.getElementById('output');
-  const canvas = await html2canvas(out, { backgroundColor:'#ffffff', scale:2 });
-  return canvas.toDataURL('image/png');
+  if (!out) throw new Error('#output not found');
+
+  // Temporarily force output to render at full scroll height
+  const prev = {
+    height: out.style.height,
+    overflowY: out.style.overflowY
+  };
+  out.style.height = out.scrollHeight + 'px';
+  out.style.overflowY = 'visible';
+
+  const HIDE_IN_CLONE_CSS = `
+    /* Hide Monaco completely in the clone */
+    .monaco-editor, .monaco-editor * { visibility: hidden !important; }
+    /* Hide all canvas to prevent taint warnings (charts will be handled separately if needed) */
+    canvas { visibility: hidden !important; }
+  `;
+
+  try {
+    const canvas = await html2canvas(out, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      onclone: (doc) => {
+        const style = doc.createElement('style');
+        style.textContent = HIDE_IN_CLONE_CSS;
+        doc.head.appendChild(style);
+        // Also ensure the cloned #output expands fully
+        const clonedOut = doc.getElementById('output');
+        if (clonedOut) {
+          clonedOut.style.height = clonedOut.scrollHeight + 'px';
+          clonedOut.style.overflowY = 'visible';
+        }
+      },
+      ignoreElements: (el) =>
+        el.tagName === 'CANVAS' ||
+        el.classList?.contains('monaco-editor') ||
+        el.closest?.('.monaco-editor')
+    });
+    return canvas.toDataURL('image/png');
+  } finally {
+    // restore styles
+    out.style.height = prev.height;
+    out.style.overflowY = prev.overflowY;
+  }
 }
 
 
@@ -1305,45 +1331,69 @@ async function buildPdfBlob(userTitle) {
 
   const pdf = new jsPDF({ unit:'pt', format:'a4' });
   const margin = 40, pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+  const maxW = pageW - margin*2;
   let y = margin;
 
   const { langLabel } = getLangInfo();
   const title = (userTitle && userTitle.trim()) || 'Polycode Session';
   const when = new Date().toLocaleString();
 
+  // Header
   pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
   pdf.text(`${langLabel} — ${title}`, margin, y); y += 18;
   pdf.setFont('helvetica','normal'); pdf.setFontSize(10);
   pdf.text(when, margin, y); y += 16;
   pdf.setDrawColor(180); pdf.line(margin, y, pageW - margin, y); y += 12;
 
-  // Code block
-  pdf.setFont('courier','normal'); pdf.setFontSize(10);
-  const code = window.editor ? window.editor.getValue() : '';
-  const lines = pdf.splitTextToSize(code || '(empty)', pageW - margin*2);
-  const lh = 12;
-  for (const line of lines) {
-    if (y + lh > pageH - margin) { pdf.addPage(); y = margin; }
-    pdf.text(line, margin, y); y += lh;
+  // 3a) CODE IMAGE
+  try {
+    const codeImg = await buildCodeImageDataURL();
+    const codeImgProps = pdf.getImageProperties(codeImg);
+    const codeRatio = codeImgProps.height / codeImgProps.width;
+    let codeW = maxW;
+    let codeH = codeW * codeRatio;
+
+    // New page if needed
+    if (y + 22 + codeH > pageH - margin) { pdf.addPage(); y = margin; }
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+    pdf.text('Code', margin, y); y += 10;
+
+    // If too tall for remaining page, scale down to fit
+    if (y + codeH > pageH - margin) {
+      codeH = (pageH - margin - y);
+      codeW = codeH / codeRatio;
+    }
+    pdf.addImage(codeImg, 'PNG', margin, y, codeW, codeH, undefined, 'FAST');
+    y += codeH + 14;
+  } catch (e) {
+    console.warn('Code capture failed:', e);
   }
 
-  // Screenshot of the output panel / preview
-  y += 12;
+  // 3b) OUTPUT IMAGE (full height)
   try {
-    const img = await captureOutputImageDataURL();
-    if (img) {
-      if (y > pageH - margin - 120) { pdf.addPage(); y = margin; }
-      pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-      pdf.text('Screen', margin, y); y += 10;
-      const w = pageW - margin*2, h = Math.min(520, pageH - margin - y);
-      pdf.addImage(img, 'PNG', margin, y, w, h, undefined, 'FAST');
+    const outImg = await captureOutputImageDataURL();
+    const outProps = pdf.getImageProperties(outImg);
+    const outRatio = outProps.height / outProps.width;
+    let outW = maxW;
+    let outH = outW * outRatio;
+
+    if (y + 22 + outH > pageH - margin) { pdf.addPage(); y = margin; }
+    pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+    pdf.text('Output', margin, y); y += 10;
+
+    if (y + outH > pageH - margin) {
+      outH = (pageH - margin - y);
+      outW = outH / outRatio;
     }
+    pdf.addImage(outImg, 'PNG', margin, y, outW, outH, undefined, 'FAST');
+    y += outH;
   } catch (e) {
     console.warn('Screen capture failed:', e);
   }
 
   return new Promise(res => pdf.output('blob', b => res(b)));
 }
+
 
 async function savePdfToDisk() {
   try {
@@ -1396,12 +1446,149 @@ async function sharePdf() {
 
 
 
+async function buildCodeImageDataURL() {
+  const html2canvas = await ensureHtml2Canvas();
+  const code = (window.editor && typeof window.editor.getValue === 'function')
+    ? window.editor.getValue()
+    : (document.getElementById('code')?.textContent || ''); // fallback if no Monaco
+
+  // Offscreen iframe with styled <pre> (no Monaco, so no canvas taint)
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:10px;visibility:hidden';
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  iframe.srcdoc = `
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  :root{ color-scheme: light; }
+  html,body{ margin:0; background:#ffffff; }
+  .wrap{
+    padding:24px; box-sizing:border-box; width:1200px; 
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    color:#222;
+  }
+  .title{ font: 600 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, sans-serif; margin-bottom: 10px; }
+  pre{
+    margin:0; white-space:pre; overflow:visible; 
+    tab-size:2; -moz-tab-size:2; -o-tab-size:2;
+  }
+  /* Optional: simple line numbers (not required) */
+  .code{ counter-reset: ln; }
+  .code > div{ counter-increment: ln; }
+  .code > div::before{
+    content: counter(ln);
+    display:inline-block; width:3ch; margin-right:12px; text-align:right; color:#888;
+  }
+</style>
+</head><body>
+  <div class="wrap">
+    <div class="title">Code</div>
+    <pre class="code">${
+      // Escape HTML safely and split into <div> lines for line numbers
+      (code || '(empty)')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .split('\n').map(l => `<div>${l || '&nbsp;'}</div>`).join('\n')
+    }</pre>
+  </div>
+</body></html>`;
+  document.body.appendChild(iframe);
+
+  await new Promise(r => iframe.onload = r);
+
+  // Expand iframe height to content for full capture
+  const b = iframe.contentDocument.body;
+  const contentHeight = Math.max(b.scrollHeight, b.offsetHeight);
+  iframe.style.height = contentHeight + 'px';
+
+  const canvas = await html2canvas(iframe.contentDocument.documentElement, {
+    backgroundColor:'#ffffff',
+    scale: 2,
+    useCORS: true,
+    allowTaint: false
+  });
+
+  const url = canvas.toDataURL('image/png');
+  document.body.removeChild(iframe);
+  return url;
+}
 
 
   
 
 
+async function buildCodeImageDataURL() {
+  const html2canvas = await ensureHtml2Canvas();
+  const code = (window.editor && typeof window.editor.getValue === 'function')
+    ? window.editor.getValue()
+    : (document.getElementById('code')?.textContent || ''); // fallback if no Monaco
 
+  // Offscreen iframe with styled <pre> (no Monaco, so no canvas taint)
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:10px;visibility:hidden';
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  iframe.srcdoc = `
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  :root{ color-scheme: light; }
+  html,body{ margin:0; background:#ffffff; }
+  .wrap{
+    padding:24px; box-sizing:border-box; width:1200px; 
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    color:#222;
+  }
+  .title{ font: 600 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, sans-serif; margin-bottom: 10px; }
+  pre{
+    margin:0; white-space:pre; overflow:visible; 
+    tab-size:2; -moz-tab-size:2; -o-tab-size:2;
+  }
+  /* Optional: simple line numbers (not required) */
+  .code{ counter-reset: ln; }
+  .code > div{ counter-increment: ln; }
+  .code > div::before{
+    content: counter(ln);
+    display:inline-block; width:3ch; margin-right:12px; text-align:right; color:#888;
+  }
+</style>
+</head><body>
+  <div class="wrap">
+    <div class="title">Code</div>
+    <pre class="code">${
+      // Escape HTML safely and split into <div> lines for line numbers
+      (code || '(empty)')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .split('\n').map(l => `<div>${l || '&nbsp;'}</div>`).join('\n')
+    }</pre>
+  </div>
+</body></html>`;
+  document.body.appendChild(iframe);
+
+  await new Promise(r => iframe.onload = r);
+
+  // Expand iframe height to content for full capture
+  const b = iframe.contentDocument.body;
+  const contentHeight = Math.max(b.scrollHeight, b.offsetHeight);
+  iframe.style.height = contentHeight + 'px';
+
+  const canvas = await html2canvas(iframe.contentDocument.documentElement, {
+    backgroundColor:'#ffffff',
+    scale: 2,
+    useCORS: true,
+    allowTaint: false
+  });
+
+  const url = canvas.toDataURL('image/png');
+  document.body.removeChild(iframe);
+  return url;
+}
+
+
+
+
+
+
+
+
+
+  
 
 
 
