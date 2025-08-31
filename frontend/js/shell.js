@@ -1391,7 +1391,7 @@ async function buildPdfBlob(userTitle) {
     console.warn('Screen capture failed:', e);
   }
 
-  return new Promise(res => pdf.output('blob', b => res(b)));
+ return pdf.output('blob');
 }
 
 
