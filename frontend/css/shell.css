@@ -3885,3 +3885,611 @@ body.light{
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* DSEdited */
+
+
+
+:root{
+  color-scheme: dark;
+  --bg:#16181b;         /* dark gray (not pitch black) */
+  --panel:#1e2024;      /* panel surface */
+  --panel-2:#1a1c1f;    /* header/footer bands */
+  --border:#2b2f34;
+  --muted:#aeb5bd;
+  --brand:#2e5bea;
+  --ok:#7dffa0; --err:#ff8b8b; --link:#9ecbff;
+  --glass: rgba(255,255,255,.05); --glass-brd: rgba(255,255,255,.12);
+  --text:#e9edf3;
+  --shadow-3d: 0 24px 60px rgba(0,0,0,.35), 0 10px 24px rgba(0,0,0,.22);
+   --outer-gap: 8px; 
+}
+
+
+body.light{
+  color-scheme: light;
+  --bg:#eef2f7;
+  --panel:#ffffff;
+  --panel-2:#f1f4f9;
+  --border:#d7dbe2;
+  --muted:#6b7280;
+  --brand:#2457ff;
+  --ok:#22985a; --err:#cc2f2f; --link:#204ecf;
+  --glass: rgba(0,0,0,.05); --glass-brd: rgba(0,0,0,.12);
+  --text:#0b0b0b;
+  --shadow-3d: 0 24px 60px rgba(0,0,0,.12), 0 10px 24px rgba(0,0,0,.08);
+}
+
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{ margin:0; background:var(--bg); color:var(--text);
+      font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+
+
+
+
+/* ===== Header / Footer (taller, contrasting) ===== */
+.site-header{
+  display:flex; align-items:flex-start; gap:14px;
+  padding:26px 24px; background:var(--panel-2);
+  border-bottom:1px solid var(--border); box-shadow:var(--shadow-3d);
+}
+.site-header .logo{ display:flex; align-items:center; gap:12px; }
+.site-header .logo img{
+  width:52px; height:52px; border-radius:0%;
+  object-fit:contain; background:transparent;
+}      /* (15) bigger logo */
+.site-header .brand{ line-height:1.05; }
+.brand{ display:flex; flex-direction:column; }
+.brand .powered{ margin-top:6px; display:block; }
+.site-header nav{ margin-left:auto; display:flex; gap:20px; padding-top:6px; }
+.site-header nav a{ color:var(--text); text-decoration:underline; text-underline-offset:3px; }
+.site-header nav a:hover{ color:var(--brand); }
+
+
+
+/* stage gives the outer gap and keeps footer visible */
+.stage{
+  padding-block: var(--outer-gap); /* equal gap above and below panels */
+  padding-inline: 12px;            /* keep your side gap the same */
+}
+
+
+
+/* ===== App layout (grid with narrow gaps; square look) ===== */
+.app{
+  display:grid;
+  grid-template-columns: 280px 8px minmax(360px,1fr) 8px minmax(360px, 42%);
+  grid-template-rows: calc(100vh - 220px);
+  gap:5px;                                /* (10) tighter gaps */
+}
+
+
+.app.collapsed-left{ grid-template-columns: 0 0 minmax(560px,1fr) 8px minmax(340px,42%); }
+
+/* ===== Panel (square + elevated + glassy head) ===== */
+.panel{
+  background: linear-gradient(180deg, var(--panel) 0%, color-mix(in oklab, var(--panel), #000 4%) 100%);
+  border:1px solid var(--border);
+  border-radius:0px;                        /* square (10) */
+  overflow:hidden;
+  box-shadow: var(--shadow-3d);             /* (11) more elevated */
+}
+.pane-head{
+  display:flex; align-items:center; gap:10px;
+  padding:12px 12px;
+  background:var(--glass); border-bottom:1px solid var(--glass-brd);
+  backdrop-filter: blur(10px);
+  font-weight:500;                          /* (1) no heavy bold */
+}
+.pane-head .title{ font-weight:500; }
+
+
+
+
+
+
+
+.chevron-tab {
+  position: fixed;
+  top: 70%;
+  transform: translateY(-50%);
+  width: 30px;                 /* slim, tall rectangle */
+  height: 140px;
+  border-radius: 4px;
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(255, 255, 255, 0.08);  /* glassy */
+  border: none;
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  
+  box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  cursor: pointer;
+  z-index: 9999;
+  opacity: .9;
+
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    background 0.25s ease,
+    opacity 0.25s ease;
+}
+
+/* Place at screen edges */
+.chevron-tab.left  { left: 10px; }
+.chevron-tab.right { right: 10px; }
+
+/* Big SVG arrow */
+.chevron-tab svg {
+  width: 44px;
+  height: 44px;
+  fill: currentColor;
+  color: var(--text, #e9edf3);
+  transition: transform 0.25s ease, fill 0.25s ease;
+}
+
+/* Default orientation */
+.chevron-tab.left  svg { transform: rotate(180deg); }     /* ➡️ */
+.chevron-tab.right svg { transform: rotate(0deg); }   /* ⬅️ */
+
+/* Flip when expanded */
+.chevron-tab[aria-expanded="true"].left  svg { transform: rotate(180deg); }
+.chevron-tab[aria-expanded="true"].right svg { transform: rotate(0deg); }
+
+/* Hover + active effects */
+.chevron-tab:hover {
+  opacity: 1;
+  background: rgba(255,255,255,0.14);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.55);
+  transform: translateY(-50%) scale(1.05);
+}
+.chevron-tab:hover svg { fill: var(--brand, #2e5bea); }
+
+.chevron-tab:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+/* Focus accessibility */
+.chevron-tab:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(46,91,234,0.6), 0 12px 36px rgba(0,0,0,0.55);
+}
+
+/* Light theme tweak */
+body.light .chevron-tab {
+  background: rgba(255,255,255,0.65);
+  border-color: rgba(0,0,0,0.1);
+  color: #111;
+}
+
+.center-panel {
+  position: relative; /* make it the anchor for chevrons */
+}
+
+
+
+
+
+
+
+
+/* Icons in buttons */
+.btn svg{ width:18px; height:18px; fill:var(--text); }
+
+/* Theme icon (3) smaller) */
+.theme-btn{ width:36px; height:36px; }
+
+/* Select in heads / left pane */
+.select{
+  background:var(--panel); color:var(--text);
+  border:1px solid var(--border);
+  border-radius:0px; padding:8px 10px; width:100%;
+}
+.select option{ background:var(--panel); color:var(--text); }   /* (5) visible in dark */
+
+
+/* Center panel (editor) */
+.center.panel{ grid-column:3 / span 1; display:flex; flex-direction:column; }
+.center .pane-head .title{ }
+.center .pane-head .right-controls{ margin-left:auto; display:flex; gap:8px; align-items:center; }
+#editor{ flex:1; }
+
+
+/* Left panel */
+.left.panel{ grid-column:1 / span 1; display:flex; flex-direction:column; }
+.left .pane-head .title{ display:none; }                        /* (12) remove "SQL" text */
+.left .pane-head .select{ max-width:100%; }                     /* (1) full width dropdown in head */
+.left .pane-body{ padding:10px 12px; height:100%; overflow:auto; }
+
+
+/* Right panel (screen) */
+.right.panel{ grid-column:5 / span 1; display:flex; flex-direction:column; }
+#output{ flex:1; overflow:auto; padding:12px; }
+
+
+
+/* ===== Mobile: show only center panel ===== */
+@media (max-width: 1200px) {
+  /* Collapse grid to a single column/row */
+  .app{
+    grid-template-columns: 1fr !important;
+    grid-template-rows: calc(100dvh - 220px) !important; /* fills screen; tweak 220px if your header/footer differ */
+    gap: 6px;
+  }
+
+  /* Hide side panels */
+  .left.panel,
+  .right.panel{
+    display: none !important;
+  }
+
+.chevron-tab.left  svg { transform: rotate(0deg); }     /* ➡️ */
+.chevron-tab.right svg { transform: rotate(180deg); }   /* ⬅️ */
+
+
+  /* Make editor panel span full width */
+  .center.panel{
+    grid-column: 1 / -1 !important;
+    grid-row: 1 / -1 !important;
+  }
+
+  /* Ensure the editor stretches */
+  #editor{ min-height: 50dvh; flex: 1; }
+  
+  
+}
+
+
+
+
+
+/* ========== THEME TOKENS ========== */
+:root{
+  /* base */
+  --bg: #0b0b0c;
+  --text: #eaeaea;
+  --muted: #b8b8b8;
+
+  /* panels (transparent + fade) */
+  --panel-bg: rgba(22,24,28,0.55);
+  --panel-border: rgba(255,255,255,0.08);
+
+  /* pane foot (bottom bars inside panels) */
+  --pane-foot-bg: #000;
+  --pane-foot-text: #fff;
+
+  /* links */
+  --link: #ffffff;
+  --link-hover: #f59e0b;
+
+  /* buttons */
+  --btn-bg: #000000;   /* dark theme buttons = black */
+  --btn-fg: #ffffff;   /* text/icon white */
+}
+
+
+/* === Sizes (tweak as you like) === */
+:root{
+  --left-w: 280px;
+  --right-w: 360px;
+  --gap-w: 8px;
+  --head-foot-h: 220px; /* header+footer total height used for app height */
+  
+   --left-w: 280px;
+  --right-w: 360px;
+  --gap-w: 8px;
+  --head-foot-h: 220px;
+
+  /* ⬇ NEW: hard limits + center minimum */
+  --left-min: 220px;
+  --left-max: 420px;
+
+  --right-min: 280px;
+  --right-max: 520px;
+
+  --center-min: 360px;  
+}
+
+/* App grid: fixed L/R, flexible center */
+.app{
+  display: grid;
+  grid-template-columns: var(--left-w) var(--gap-w) minmax(0,1fr) var(--gap-w) var(--right-w);
+  grid-template-rows: 1fr;
+  gap: 5px;
+  height: calc(100dvh - var(--head-foot-h)); /* fills remaining screen height */
+}
+
+/* Map panels to columns */
+.left.panel   { grid-column: 1 / span 1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+.center.panel { grid-column: 3 / span 1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+.right.panel  { grid-column: 5 / span 1; display:flex; flex-direction:column; min-width:0; min-height:0; }
+
+/* Make only the panel bodies scroll; keep heads fixed */
+.pane-head{ flex: 0 0 auto; }
+.pane-body{
+  flex: 1 1 auto;
+  min-height: 0;               /* critical for grid/flex overflow */
+  overflow: auto;               /* show scrollbars if needed */
+  overscroll-behavior: contain; /* stop scroll chaining on mobile */
+}
+
+/* Optional: tidy scrollbars (no color changes) */
+.pane-body { scrollbar-gutter: stable both-edges; }
+
+
+
+
+
+
+/* ===== Thin Glassy Side Tabs ===== */
+
+
+
+
+
+
+
+
+
+/* Links / footer */
+a{ color:var(--link); text-decoration:underline; text-underline-offset:3px; }
+ 
+
+
+
+
+/* --- Small screens: keep fixed widths but slimmer so center stays usable --- */
+@media (max-width: 768px){
+  :root{
+    --left-w: 200px;
+    --right-w: 240px;
+    --gap-w: 6px;
+    --head-foot-h: 200px;
+  }
+  .app{
+    grid-template-columns: var(--left-w) var(--gap-w) minmax(0,1fr) var(--gap-w) var(--right-w);
+  }
+ 
+}
+
+
+ @media (max-width: 480px) {
+  /* Make the container a positioning context */
+
+  /* Title centered below */
+  .pane-head .title { display: none !important;
+    
+  }
+
+  /* Only style theme buttons inside the buttons row */
+ 
+
+  /* Keep nav/icons aligned without affecting centering */
+  .site-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .site-header nav {
+    order: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 8px;
+    width: 100%;
+  }
+  .site-header nav a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+
+
+
+
+
+/* ===== Compact Footer ===== */
+/* ===== Compact Footer (keeps your original HTML) ===== */
+.site-footer{
+  margin-top:8px;
+  padding:14px 18px;                 /* tighter */
+  background:var(--panel-2);
+  border-top:1px solid var(--border);
+  position:relative; z-index:2;
+  font-size:12px;                    /* smaller base */
+}
+
+/* 2-row grid: right column has Follow (row1) + Legal (row2) */
+.site-footer .footer-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;    /* left and right halves */
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    "left right"
+    "left legal";
+  align-items:center;                 /* compact vertical align */
+  column-gap:12px;
+}
+
+/* Left: logo + text fills the left side height */
+.site-footer .footer-left{
+  grid-area:left;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.site-footer .footer-logo{ height:28px; width:auto; }
+.site-footer .footer-left .txt{ display:flex; flex-direction:column; gap:1px; line-height:1.3; }
+.site-footer .powered{ text-transform:uppercase; letter-spacing:.06em; font-size:11px; opacity:.75; }
+.site-footer .subline{ font-size:11px; opacity:.85; }
+.site-footer .siteurl a{ font-size:11px; text-decoration:underline; text-underline-offset:2px; }
+
+/* Right, row 1: FOLLOW (right-aligned) */
+.site-footer .footer-center{
+  grid-area:right;
+  justify-self:end;                   /* << stays at right */
+  display:flex; align-items:center; gap:6px;
+}
+.site-footer .footer-center .label{ font-size:11px; opacity:.85; }
+.site-footer .social{ display:inline-flex; align-items:center; text-decoration:none; }
+.site-footer .social svg{ width:15px; height:15px; fill: color-mix(in oklab,var(--text),#fff 20%); }
+.site-footer .social:hover svg{ fill: var(--text); }
+
+/* Right, row 2: LEGAL (right-aligned, single line) */
+.site-footer .footer-right{
+  grid-area:legal;
+  justify-self:end;                   /* << stays at right */
+  display:flex; gap:10px;             /* compact spacing */
+  white-space:nowrap;                  /* keep one line */
+  margin-top:4px;                      /* tiny gap under Follow */
+}
+.site-footer .footer-right a{
+  font-size:11px;
+  text-decoration:underline;
+  text-underline-offset:2px;
+}
+
+
+/* ===== Mobile: stack and center ===== */
+/* ===== Mobile: stack and center ===== */
+/* ===== Mobile: stack and center ===== */
+/* ===== Mobile: stack and center ===== */
+@media (max-width: 600px){
+  .site-footer .footer-grid{
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "left"
+      "right"
+      "legal";
+    row-gap: 12px;
+    text-align: center;
+  }
+
+  /* Logo block */
+  .site-footer .footer-left{
+    justify-self: center;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Follow row — label above, icons in a row */
+  .site-footer .footer-center{
+    justify-self: center;
+    flex-direction: row;   /* stack label + icons */
+    align-items: center;
+    gap: 6px;
+  }
+
+  .site-footer .footer-center .label{
+    display: block;          /* sits on its own line */
+    margin-bottom: 4px;
+  }
+
+  .site-footer .footer-center .social{
+    display: inline-flex;     /* keep icons in a row */
+    align-items:center; text-decoration:none;
+  }
+
+  /* Legal links stacked one by one */
+  .site-footer .footer-right{
+    justify-self: center;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    white-space: normal;
+  }
+  
+
+}
+
+
+
+@media (max-width: 380px){
+  .site-footer .footer-grid{
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "left"
+      "right"
+      "legal";
+    row-gap: 12px;
+    text-align: center;
+  }
+
+  /* Logo block */
+  .site-footer .footer-left{
+    justify-self: center;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  /* Follow row — label above, icons in a row */
+  .site-footer .footer-center{
+    justify-self: center;
+    flex-direction: column;   /* stack label + icons */
+    align-items: center;
+    gap: 6px;
+  }
+
+  .site-footer .footer-center .label{
+    display: block;          /* sits on its own line */
+    margin-bottom: 4px;
+  }
+
+  .site-footer .footer-center .social{
+    display: inline-flex;     /* keep icons in a row */
+    align-items:center; text-decoration:none;
+  }
+
+  /* Legal links stacked one by one */
+  .site-footer .footer-right{
+    justify-self: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    white-space: normal;
+  }
+  
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
