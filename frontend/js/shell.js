@@ -1554,6 +1554,30 @@ const clearInlineGrid = () => { app.style.gridTemplateColumns = ''; };
 const CHEV_LEFT  = '<svg viewBox="0 0 24 24"><path d="M14.71 17.29a1 1 0 01-1.42 0L9 13l4.29-4.29a1 1 0 011.42 1.42L10.83 13l3.88 3.88a1 1 0 010 1.41z"/></svg>'; // «
 const CHEV_RIGHT = '<svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>'; // »
 
+
+  function syncChevronState(){
+  const overlay = isOverlay();
+  const leftOpen  = overlay ? app.classList.contains('show-left')
+                            : !app.classList.contains('collapsed-left');
+  const rightOpen = overlay ? app.classList.contains('show-right')
+                            : !app.classList.contains('collapsed-right');
+
+  // Just reflect state; CSS will rotate the arrows
+  btnLeft?.setAttribute('aria-expanded', String(leftOpen));
+  btnRight?.setAttribute('aria-expanded', String(rightOpen));
+}
+
+// 1) Normalize icons once (single right-facing SVG in both buttons)
+function ensureChevronSVG(btn){
+  if (!btn) return;
+  const already = btn.querySelector('svg');
+  if (already) return;
+  btn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>';
+}
+
+
+
+  
 function syncChevronIcons(){
   // collapsed = panel hidden
   const leftCollapsed  = isOverlay()
@@ -1567,7 +1591,7 @@ function syncChevronIcons(){
   // Use your exact SVGs — collapsed → LEFT btn shows «, RIGHT btn shows »
   if (btnLeft)  btnLeft.innerHTML  = leftCollapsed  ? CHEV_LEFT  : CHEV_RIGHT;
   if (btnRight) btnRight.innerHTML = rightCollapsed ? CHEV_RIGHT : CHEV_LEFT;
-
+syncChevronState();
   // aria-expanded = visible?
   btnLeft?.setAttribute('aria-expanded',  String(!leftCollapsed));
   btnRight?.setAttribute('aria-expanded', String(!rightCollapsed));
@@ -1678,7 +1702,8 @@ if (typeof mql.addEventListener === 'function') {
   mql.addListener(() => { clearInlineGrid(); syncChevronIcons(); bringChevronsToFront(); });
 }
 
-
+ensureChevronSVG(btnLeft);
+ensureChevronSVG(btnRight);
   // Left toggle
   btnLeft?.addEventListener('click', () => {
     if (isOverlay()) {
