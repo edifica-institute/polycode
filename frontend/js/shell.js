@@ -1547,7 +1547,7 @@ async function savePdfToDisk(e){
 
   const blob = await buildPdfBlob(name, {
     watermarkLogoBase64: 'https://github.com/edifica-institute/polycode/blob/065bb70c372bbefd9d51361cc6472a463cc7c22b/frontend/assets/PC-Logo.png', // base64 PNG or null
-    headerLogoBase64: POLYCODE_HEADER_LOGO  // base64 PNG or null
+    headerLogoBase64: 'https://github.com/edifica-institute/polycode/blob/065bb70c372bbefd9d51361cc6472a463cc7c22b/frontend/assets/PC-Logo.png'  // base64 PNG or null
   });
 
   // Try native Save dialog (Chromium File System Access API)
