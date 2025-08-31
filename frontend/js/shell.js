@@ -1172,64 +1172,122 @@ try {
     URL.revokeObjectURL(a.href);
   }
 
-  async function captureOutputImageDataURL(){
-    const preview = document.getElementById('preview');
-    if (preview && window.editor) {
-      const code = window.editor.getValue();
-      const tmp = document.createElement('iframe');
-      tmp.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:800px;visibility:hidden';
-      tmp.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-      tmp.srcdoc = code;
-      document.body.appendChild(tmp);
-      await new Promise(r => tmp.onload = () => setTimeout(r, 80));
-      const canvas = await html2canvas(tmp.contentDocument.body, { backgroundColor:'#ffffff', scale:2 });
-      const url = canvas.toDataURL('image/png');
-      document.body.removeChild(tmp);
-      return url;
-    }
-    const out = document.getElementById('output');
-    const canvas = await html2canvas(out, { backgroundColor:'#ffffff', scale:2 });
-    return canvas.toDataURL('image/png');
+
+
+
+
+
+
+
+
+
+// --- Lazy loaders (safe if libs already present) ---
+async function ensureHtml2Canvas() {
+  if (typeof window.html2canvas === 'function') return window.html2canvas;
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+    s.async = true; s.onload = res; s.onerror = () => rej(new Error('Failed to load html2canvas'));
+    document.head.appendChild(s);
+  });
+  return window.html2canvas;
+}
+
+async function ensureJsPDF() {
+  // If already loaded via UMD:
+  if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+  // Try dynamic import (will also set window.jspdf):
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+    // In some environments, jsPDF is default-exported under window.jspdf too:
+    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+    if (mod && mod.jsPDF) return mod.jsPDF;
+  } catch (_) { /* fall through to script tag method */ }
+
+  // Fallback: inject script tag
+  await new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
+    s.async = true; s.onload = res; s.onerror = () => rej(new Error('Failed to load jsPDF'));
+    document.head.appendChild(s);
+  });
+  if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+  throw new Error('jsPDF not available after loading');
+}
+
+// --- Your functions (patched) ---
+async function captureOutputImageDataURL() {
+  const html2canvas = await ensureHtml2Canvas();
+
+  const preview = document.getElementById('preview');
+  if (preview && window.editor) {
+    const code = window.editor.getValue();
+    const tmp = document.createElement('iframe');
+    tmp.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:800px;visibility:hidden';
+    tmp.setAttribute('sandbox', 'allow-scripts allow-same-origin'); // keep same-origin for canvas
+    tmp.srcdoc = code;
+    document.body.appendChild(tmp);
+    await new Promise(r => tmp.onload = () => setTimeout(r, 80));
+    // NOTE: if your srcdoc pulls external images/fonts from another origin without CORS,
+    // html2canvas will taint the canvas. Keep assets inline or same-origin.
+    const canvas = await html2canvas(tmp.contentDocument.body, { backgroundColor:'#ffffff', scale:2 });
+    const url = canvas.toDataURL('image/png');
+    document.body.removeChild(tmp);
+    return url;
   }
 
-  async function buildPdfBlob(userTitle){
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ unit:'pt', format:'a4' });
-    const margin = 40, pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
-    let y = margin;
+  const out = document.getElementById('output');
+  const canvas = await html2canvas(out, { backgroundColor:'#ffffff', scale:2 });
+  return canvas.toDataURL('image/png');
+}
 
-    const { langLabel } = getLangInfo();
-    const title = (userTitle && userTitle.trim()) || 'Polycode Session';
-    const when = new Date().toLocaleString();
+async function buildPdfBlob(userTitle) {
+  const jsPDF = await ensureJsPDF();
 
-    pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-    pdf.text(`${langLabel} — ${title}`, margin, y); y += 18;
-    pdf.setFont('helvetica','normal'); pdf.setFontSize(10);
-    pdf.text(when, margin, y); y += 16;
-    pdf.setDrawColor(180); pdf.line(margin, y, pageW - margin, y); y += 12;
+  const pdf = new jsPDF({ unit:'pt', format:'a4' });
+  const margin = 40, pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+  let y = margin;
 
-    pdf.setFont('courier','normal'); pdf.setFontSize(10);
-    const code = window.editor ? window.editor.getValue() : '';
-    const lines = pdf.splitTextToSize(code || '(empty)', pageW - margin*2);
-    const lh = 12;
-    for (const line of lines){
-      if (y + lh > pageH - margin){ pdf.addPage(); y = margin; }
-      pdf.text(line, margin, y); y += lh;
-    }
+  const { langLabel } = getLangInfo();
+  const title = (userTitle && userTitle.trim()) || 'Polycode Session';
+  const when = new Date().toLocaleString();
 
-    y += 12;
-    const img = await captureOutputImageDataURL().catch(()=>null);
-    if (img){
-      if (y > pageH - margin - 120){ pdf.addPage(); y = margin; }
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
+  pdf.text(`${langLabel} — ${title}`, margin, y); y += 18;
+  pdf.setFont('helvetica','normal'); pdf.setFontSize(10);
+  pdf.text(when, margin, y); y += 16;
+  pdf.setDrawColor(180); pdf.line(margin, y, pageW - margin, y); y += 12;
+
+  // Code block
+  pdf.setFont('courier','normal'); pdf.setFontSize(10);
+  const code = window.editor ? window.editor.getValue() : '';
+  const lines = pdf.splitTextToSize(code || '(empty)', pageW - margin*2);
+  const lh = 12;
+  for (const line of lines) {
+    if (y + lh > pageH - margin) { pdf.addPage(); y = margin; }
+    pdf.text(line, margin, y); y += lh;
+  }
+
+  // Screenshot of the output panel / preview
+  y += 12;
+  try {
+    const img = await captureOutputImageDataURL();
+    if (img) {
+      if (y > pageH - margin - 120) { pdf.addPage(); y = margin; }
       pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
       pdf.text('Screen', margin, y); y += 10;
       const w = pageW - margin*2, h = Math.min(520, pageH - margin - y);
       pdf.addImage(img, 'PNG', margin, y, w, h, undefined, 'FAST');
     }
-    return new Promise(res => pdf.output('blob', b => res(b)));
+  } catch (e) {
+    console.warn('Screen capture failed:', e);
   }
 
-  async function savePdfToDisk(){
+  return new Promise(res => pdf.output('blob', b => res(b)));
+}
+
+async function savePdfToDisk() {
+  try {
     const { langLabel } = getLangInfo();
     const name = prompt('Enter a title for the PDF:', 'Untitled') || 'Untitled';
     const blob = await buildPdfBlob(name);
@@ -1239,9 +1297,14 @@ try {
     a.download = fileName;
     a.click();
     URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error(err);
+    alert('Failed to generate PDF. Please check console for details.');
   }
+}
 
-  async function sharePdf(){
+async function sharePdf() {
+  try {
     const { langLabel } = getLangInfo();
     const title = `${langLabel} Session`;
     const blob = await buildPdfBlob(title);
@@ -1259,8 +1322,40 @@ try {
 
     const wa = `https://wa.me/91${WHATSAPP_NUM}?text=${encodeURIComponent(text + ' — PDF downloaded; please attach in WhatsApp.')}`;
     window.open(wa, '_blank', 'noopener');
+  } catch (err) {
+    console.error(err);
+    alert('Failed to share PDF. Please check console for details.');
   }
+}
 
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
   // Hook up buttons when the page is ready
   window.addEventListener('load', () => {
     document.getElementById('btnSaveFile')?.addEventListener('click', saveFile);
