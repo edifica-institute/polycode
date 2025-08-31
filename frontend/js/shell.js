@@ -1532,6 +1532,28 @@ async function buildPdfBlob(userTitle, logos = {}){
 
 
 
+async function urlToDataURL(url){
+  const res = await fetch(url, { mode:'cors' });
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+  const blob = await res.blob();
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(blob);
+  });
+}
+
+// At startup (before building the PDF)
+(async () => {
+  try {
+    window.POLYCODE_HEADER_LOGO  = await urlToDataURL('/assets/PC-Logo.png');
+    window.POLYCODE_WATERMARK    = window.POLYCODE_HEADER_LOGO; // reuse if same
+  } catch (e) {
+    console.warn('Logo load failed:', e);
+    window.POLYCODE_HEADER_LOGO = window.POLYCODE_WATERMARK = null;
+  }
+})();
 
 
 
@@ -1546,8 +1568,8 @@ async function savePdfToDisk(e){
   const fileName = `Polycode-${langLabel}-${name.replace(/[^\w-]+/g,'_')}.pdf`;
 
   const blob = await buildPdfBlob(name, {
-    watermarkLogoBase64: 'https://github.com/edifica-institute/polycode/blob/065bb70c372bbefd9d51361cc6472a463cc7c22b/frontend/assets/PC-Logo.png', // base64 PNG or null
-    headerLogoBase64: 'https://github.com/edifica-institute/polycode/blob/065bb70c372bbefd9d51361cc6472a463cc7c22b/frontend/assets/PC-Logo.png'  // base64 PNG or null
+    watermarkLogoBase64:  window.POLYCODE_WATERMARK , // base64 PNG or null
+    headerLogoBase64: window.POLYCODE_HEADER_LOGO  // base64 PNG or null
   });
 
   // Try native Save dialog (Chromium File System Access API)
