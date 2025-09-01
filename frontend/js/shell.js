@@ -1309,15 +1309,20 @@ function loadImage(url){
   });
 }
 
-function fitWatermark(ctx, img, canvasW, canvasH){
-  const targetW = canvasW * 0.6;
-  const ratio   = targetW / img.width;
-  const w = targetW;
-  const h = img.height * ratio;
-  const x = (canvasW - w) / 2;
-  const y = (canvasH - h) / 4;
+// --- helpers ---------------------------------------------------------------
+
+function fitWatermark(ctx, img, W, H){
+  // fit into at most 55% width *and* 45% height, centered
+  const maxW = W * 0.55;
+  const maxH = H * 0.45;
+  let w = img.width, h = img.height;
+  const s = Math.min(maxW / w, maxH / h);
+  w = Math.round(w * s);
+  h = Math.round(h * s);
+  const x = Math.round((W - w) / 2);
+  const y = Math.round((H - h) / 2);
   ctx.save();
-  ctx.globalAlpha = 0.06;
+  ctx.globalAlpha = 0.035;            // softer than 0.06
   ctx.drawImage(img, x, y, w, h);
   ctx.restore();
 }
@@ -1333,151 +1338,145 @@ function drawHR(ctx, x1, y, x2, thick=false){
   ctx.restore();
 }
 
-// Builds ONE PNG with header/watermark/sections/footer
-async function buildReportImageBlob() {
-  // 1) Gather section images
+const ctxFont = (px, bold=false) =>
+  `${bold ? '700' : '400'} ${px}px system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif`;
+
+// --- main ------------------------------------------------------------------
+
+async function buildReportImageBlob(){
+  // 1) capture both sections
   const [codeURL, outURL] = await Promise.all([
-    buildCodeImageDataURL(),         // existing helper (code)
-    captureOutputImageDataURL(),     // existing helper (output screenshot)
+    buildCodeImageDataURL(),
+    captureOutputImageDataURL(),
   ]);
   const [codeImg, outImg] = await Promise.all([loadImage(codeURL), loadImage(outURL)]);
 
-  // 2) Layout constants
-  const margin  = 40;
-  const gapY    = 16;
-  const titleY  = 22;
-  const hdrH    = 70;
-  const ftrH    = 54;
+  // 2) layout constants
+  const margin = 40;
+  const gapY   = 12;
+  const hdrH   = 60;  // visual target; we’ll draw within this band
+  const ftrH   = 42;
 
-  // Width = widest content + left+right margins (keep ≥ 1200 for crispness)
-  const contentW = Math.max(1200, codeImg.width, outImg.width);
+  // keep page width reasonable and crisp
+  const contentW = Math.min(Math.max(1200, codeImg.width, outImg.width), 1600);
   const W = contentW + margin * 2;
 
-  // Estimated heights for titles + spacing
-  const codeBlockH = titleY + gapY + codeImg.height;
-  const outBlockH  = titleY + gapY + outImg.height;
+  // helpers to draw images centered with max width = contentW (no upscaling)
+  const drawImgCentered = (img, y) => {
+    const s = Math.min(1, contentW / img.width);
+    const w = Math.round(img.width  * s);
+    const h = Math.round(img.height * s);
+    const x = margin + Math.round((contentW - w) / 2);
+    ctx.drawImage(img, x, y, w, h);
+    return y + h;
+  };
 
-  const H = hdrH + gapY + codeBlockH + gapY + outBlockH + gapY + ftrH;
+  // rough height estimate to allocate canvas; we’ll use it fully
+  const codeH = Math.round(codeImg.height * Math.min(1, contentW / codeImg.width));
+  const outH  = Math.round(outImg.height  * Math.min(1, contentW / outImg.width));
+  const H = hdrH + gapY + (18 + gapY + codeH) + gapY + (18 + gapY + outH) + gapY + ftrH;
 
-  // 3) Canvas + theme base
-  const dark = !document.body.classList.contains('light');
-  const bg   = '#ffffff'; // keep white paper; the output image itself carries dark theme
-  const ctxFont = (w, b=false) => `${b ? '700' : '400'} ${w}px system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif`;
-
+  // 3) canvas / bg
   const canvas = document.createElement('canvas');
-  canvas.width = W;
+  canvas.width  = W;
   canvas.height = H;
-  const ctx = canvas.getContext('2d');
 
-  // Background
-  ctx.fillStyle = bg;
+  const ctx = canvas.getContext('2d');
+  ctx.textBaseline = 'top';
+  ctx.imageSmoothingEnabled = true;
+
+  // page background is always white; screenshots carry their own theme
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
 
-  // Optional watermark
-  if (window.POLYCODE_WATERMARK) {
+  // optional watermark (before content so it sits behind)
+  if (window.POLYCODE_WATERMARK){
     const wm = await loadImage(window.POLYCODE_WATERMARK);
     fitWatermark(ctx, wm, W, H);
   }
 
-  // 4) Header
-  let y = margin; // we’ll treat top margin as header band start
+  // 4) header
+  let y = margin;
   const leftX  = margin;
   const rightX = W - margin;
 
-  // header logo + "polycode"
-  if (window.POLYCODE_HEADER_LOGO) {
+  // logo + brand
+  let brandOffsetX = leftX;
+  if (window.POLYCODE_HEADER_LOGO){
     const logo = await loadImage(window.POLYCODE_HEADER_LOGO);
-    const h = 40, w = (logo.width * h) / logo.height;
+    const h = 24, w = Math.round((logo.width * h) / logo.height);
     ctx.drawImage(logo, leftX, y, w, h);
-    ctx.font = ctxFont(30, true);
-    ctx.fillStyle = '#000000';
-    ctx.fillText('polycode', leftX + w + 8, y + 16);
-  } else {
-    ctx.font = ctxFont(30, true);
-    ctx.fillStyle = '#000000';
-    ctx.fillText('polycode', leftX, y + 16);
+    brandOffsetX += w + 8;
   }
+  ctx.font = ctxFont(16, true);
+  ctx.fillStyle = '#000';
+  ctx.fillText('polycode', brandOffsetX, y + 2);
 
-  // right-side header: date + site tagline
+  // right side date + site
   const date = new Date().toLocaleString();
   ctx.textAlign = 'right';
-  ctx.font = ctxFont(30, false);
-  ctx.fillStyle = '#000000';
-  ctx.fillText(date, rightX, y + 14);
-  ctx.font = ctxFont(30, false);
-  ctx.fillText('learn.code.execute | www.polycode.in', rightX, y + 32);
-
-  // bold HR under header
-  y += 40;
-  drawHR(ctx, margin, y, W - margin, true);
-  y += gapY + 6;
-
-
-
-  
-  // 5) CODE section
-
-  ctx.textAlign = 'center';
-  ctx.font = ctxFont(25, true);
-  ctx.fillStyle = '#000000';
-  ctx.fillText('Screenshot | Capture', leftX, y + 14);
-
-  y += gapY + 6;
-  
+  ctx.font = ctxFont(11);
+  ctx.fillText(date, rightX, y);
+  ctx.fillText('learn.code.execute | www.polycode.in', rightX, y + 16);
   ctx.textAlign = 'left';
-  ctx.font = ctxFont(22, true);
-  ctx.fillStyle = '#000000';
-  ctx.fillText('Code', leftX, y + 14);
-  y += titleY;
 
-  // center code image
-  let cx = Math.floor((W - codeImg.width) / 2);
-  ctx.drawImage(codeImg, cx, y);
-  y += codeImg.height + gapY;
+  y += 28;
+  drawHR(ctx, margin, y, W - margin, true);
+  y += gapY;
+
+  // centered super-title
+  ctx.textAlign = 'center';
+  ctx.font = ctxFont(14, true);
+  ctx.fillText('Screenshot | Capture', W / 2, y);
+  ctx.textAlign = 'left';
+  y += gapY + 6;
+
+  // 5) CODE section
+  ctx.font = ctxFont(12, true);
+  ctx.fillStyle = '#000';
+  ctx.fillText('Code', leftX, y);
+  y += 18;
+
+  y = drawImgCentered(codeImg, y);
+  y += gapY;
 
   drawHR(ctx, margin, y, W - margin, false);
   y += gapY;
 
-  // 6) OUTPUT section (screenshot)
-  ctx.font = ctxFont(22, true);
-  ctx.fillStyle = '#000000';
-  ctx.fillText('Output', leftX, y + 14);
-  y += titleY;
+  // 6) OUTPUT section
+  ctx.font = ctxFont(12, true);
+  ctx.fillText('Output', leftX, y);
+  y += 18;
 
-  cx = Math.floor((W - outImg.width) / 2);
-  ctx.drawImage(outImg, cx, y);
-  y += outImg.height + gapY;
+  y = drawImgCentered(outImg, y);
+  y += gapY;
 
-  // 7) Footer
+  // 7) footer
   drawHR(ctx, margin, y, W - margin, true);
-  y += 12;
+  y += 8;
 
-  if (window.EDIFICA_FOOTER_LOGO) {
+  let fx = leftX;
+  if (window.EDIFICA_FOOTER_LOGO){
     const fl = await loadImage(window.EDIFICA_FOOTER_LOGO);
-    const h = 32, w = (fl.width * h) / fl.height;
-    ctx.drawImage(fl, leftX, y - 12, w, h);
-    ctx.font = ctxFont(30, false);
-    ctx.fillStyle = '#000000';
-    ctx.fillText('powered by edifica', leftX + w + 6, y);
-  } else {
-    ctx.font = ctxFont(30, false);
-    ctx.fillStyle = '#000000';
-    ctx.fillText('powered by edifica', leftX, y);
+    const h = 18, w = Math.round((fl.width * h) / fl.height);
+    ctx.drawImage(fl, fx, y - 2, w, h);
+    fx += w + 6;
   }
+  ctx.font = ctxFont(11);
+  ctx.fillText('powered by edifica', fx, y);
 
   ctx.textAlign = 'center';
-  ctx.font = ctxFont(30, false);
-  ctx.fillStyle = '#000000';
   ctx.fillText('1', W / 2, y);
 
   ctx.textAlign = 'right';
-  ctx.font = ctxFont(30, false);
   ctx.fillText('education.consultation.assistance | www.edifica.in', rightX, y);
 
+  // 8) export
   const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.95));
   const dataURL = canvas.toDataURL('image/png');
   return { blob, dataURL };
 }
+
 
 
 
