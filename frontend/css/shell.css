@@ -1272,6 +1272,13 @@ body[data-boot] .right.panel{
 
 
 
+/* pressed/selected look for any button */
+.btn[aria-pressed="true"],
+.btn.is-on{
+  background: var(--brand);
+  color:#fff;
+  border-color: transparent;
+}
 
 
 
