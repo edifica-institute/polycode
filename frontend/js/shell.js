@@ -1470,30 +1470,30 @@ function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, l
 
 async function capturePreviewImageDataURL(){
   const ifr = document.getElementById('preview');
-  if (!ifr || !ifr.contentDocument) return null;
+  if (!ifr) return null;
+
+  const doc = ifr.contentDocument || ifr.contentWindow?.document;
+  if (!doc) return null; // cross-origin or not ready
+
+  const html2canvas = await ensureHtml2Canvas();
+
+  // Expand to full content height so we capture everything
+  const root = doc.documentElement;
+  const prevOverflow = root.style.overflow;
+  root.style.overflow = 'visible';
 
   try{
-    const html2canvas = await ensureHtml2Canvas();
-
-    // Make sure the iframe page has a white background
-    const d = ifr.contentDocument;
-    const style = d.createElement('style');
-    style.textContent = 'html,body{ background:#ffffff !important; }';
-    d.head.appendChild(style);
-
-    // Capture the ENTIRE iframe page
-    const canvas = await html2canvas(d.documentElement, {
+    const canvas = await html2canvas(root, {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
-      allowTaint: false
+      allowTaint: false,
+      windowWidth:  root.scrollWidth,
+      windowHeight: root.scrollHeight
     });
-
-    style.remove();
     return canvas.toDataURL('image/png');
-  }catch(e){
-    console.warn('Preview capture failed:', e);
-    return null; // cross-origin iframes will land here
+  }finally{
+    root.style.overflow = prevOverflow;
   }
 }
 
@@ -1598,17 +1598,37 @@ async function buildPdfBlob(userTitle, logos = {}){
 
 
 
-  // Output
  // Output
 pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
 y = ensureSpace(pdf, y, 18, env);
 pdf.text('Output', margin, y); y += 14;
 
-// Prefer textual console output first
-const outText =
-  (document.getElementById('jconsole')?.innerText ||  // console languages
-   document.getElementById('output')?.innerText ||    // anything else in the pane
-   '').trim();
+// 1) Prefer text from the console (non-WEB languages)
+const consoleText = (document.getElementById('jconsole')?.innerText || '').trim();
+if (consoleText) {
+  y = writeWrapped(pdf, y, consoleText, { font:'courier', style:'normal', size:10, lh:12, env });
+} else {
+  // 2) Try to snapshot the WEB preview iframe
+  const img = await capturePreviewImageDataURL();
+  if (img) {
+    const pageW = pdf.internal.pageSize.getWidth();
+    const maxW  = pageW - margin*2;
+    let iw = maxW, ih = maxW * 0.6;
+    try {
+      const p = pdf.getImageProperties(img);
+      iw = Math.min(maxW, p.width);
+      ih = (p.height * iw) / p.width;
+    } catch {}
+    y = ensureSpace(pdf, y, ih, env);
+    pdf.addImage(img, 'PNG', margin, y, iw, ih, undefined, 'FAST');
+    y += ih + 6;
+  } else {
+    // 3) Last resort: whatever text the outer #output might have
+    const outText = (document.getElementById('output')?.innerText || '').trim() || '(no output)';
+    y = writeWrapped(pdf, y, outText, { font:'courier', style:'normal', size:10, lh:12, env });
+  }
+}
+
 
 if (outText) {
   y = writeWrapped(pdf, y, outText, {
