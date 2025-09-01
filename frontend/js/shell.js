@@ -1600,74 +1600,110 @@ function ts(){
 // 🚀 Call this from your button click
 // Drop-in: call this directly from the button's click handler (no setTimeout, no promise chain before it)
 // Call directly from the button's click handler
-async function savePdfToDisk(e, { openPreview = true } = {}) {
-  try {
-    e?.preventDefault?.();
-    e?.stopPropagation?.();
 
-    const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
-    const code   = window.editor?.getValue?.() || '';
-    const title  = (typeof extractTitle === 'function' ? extractTitle(code) : 'Document');
-    const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${(typeof sanitizeFilename==='function'?sanitizeFilename(title):title)}-${(typeof ts==='function'?ts():Date.now())}.pdf`;
 
-    // If we want a preview, pre-open a blank tab *synchronously* to keep user activation.
-    let previewWin = null;
-    if (openPreview) {
-      try { previewWin = window.open('', '_blank', 'noopener'); } catch {}
+
+// Call this DIRECTLY from the button's click handler.
+async function savePdfToDisk(e){
+  e?.preventDefault?.();
+  e?.stopPropagation?.();
+
+  // --- Build a safe, sync suggested name (no awaits before picker) ---
+  const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
+  const code  = window.editor?.getValue?.() || '';
+  const title = (typeof extractTitle === 'function' ? extractTitle(code) : 'Document');
+  const safeTitle = (typeof sanitizeFilename === 'function' ? sanitizeFilename(title) : String(title||'Document'));
+  const stamp = (typeof ts === 'function' ? ts() : Date.now());
+  const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${safeTitle}-${stamp}.pdf`;
+
+  // --- Optionally pre-open a preview tab synchronously, so it won't be blocked ---
+  // (If you don't want auto-preview, set this to null or guard with a flag.)
+  //let previewWin = null;
+  //try { previewWin = window.open('', '_blank', 'noopener'); } catch { /* popup blocked */ }
+
+  // --- Helper to preview a blob in the pre-opened tab (or same tab if blocked) ---
+  function previewBlob(pdfBlob) {
+    const url = URL.createObjectURL(pdfBlob);
+    if (previewWin && !previewWin.closed) {
+      previewWin.location = url;
+      // Revoke when that tab navigates/closed (best effort)
+      previewWin.addEventListener('beforeunload', () => URL.revokeObjectURL(url), { once:true });
+    } else {
+      // fallback: same tab
+      window.location.assign(url);
+      // Let it live a bit longer so the viewer can load
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     }
+  }
 
-    if (window.isSecureContext && 'showSaveFilePicker' in window) {
-      // 1) Grab a handle first (user activation sensitive)
-      const handle = await window.showSaveFilePicker({
+  // --- Chromium path: File System Access API (secure + top-level recommended) ---
+  const canUsePicker = !!(window.isSecureContext && 'showSaveFilePicker' in window && window.top === window);
+
+  if (canUsePicker) {
+    let handle;
+    try {
+      // IMPORTANT: picker called before any async work that isn't required.
+      handle = await window.showSaveFilePicker({
         suggestedName: fileName,
         types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
       });
-
-      // 2) Build the PDF blob (your implementation)
-      const pdfBlob = await buildPdfBlob(); // <-- returns Blob
-
-      // 3) Write to disk
-      const stream = await handle.createWritable();
-      await stream.write(pdfBlob);
-      await stream.close();
-
-      // 4) Preview (navigate the already-opened blank tab)
-      if (previewWin && !previewWin.closed) {
-        const u = URL.createObjectURL(pdfBlob);
-        previewWin.location = u;
-        // Cleanup the URL when that tab unloads (best effort)
-        previewWin.addEventListener('beforeunload', () => URL.revokeObjectURL(u), { once: true });
+    } catch (err) {
+      // User cancelled → just abort silently but still allow preview if you want
+      if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) {
+        // If you still want preview on cancel, build + preview instead of returning:
+        // const blob = await buildPdfBlob(title); previewBlob(blob);
+        return;
       }
-
-      window.toast?.('PDF saved');
+      console.error('Save picker error:', err);
+      alert('Could not open the Save dialog.');
       return;
     }
 
-    // --- Fallback: normal download + preview ---
-    const pdfBlob = await buildPdfBlob(); // <-- returns Blob
-    const url = URL.createObjectURL(pdfBlob);
+    try {
+      // Build the PDF AFTER we have the handle
+      const blob = await buildPdfBlob(title); // <-- your generator must return a Blob of type application/pdf
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
 
-    // programmatic download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-
-    // preview
-    if (previewWin && !previewWin.closed) {
-      previewWin.location = url; // same blob URL
-      previewWin.addEventListener('beforeunload', () => URL.revokeObjectURL(url), { once: true });
-    } else {
-      // if popup blocked or preview disabled, at least revoke later
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      // Preview the just-generated PDF
+      previewBlob(blob);
+      window.toast?.('PDF saved');
+      return;
+    } catch (err) {
+      console.error('Writing/preview error:', err);
+      alert('Failed to save or open the PDF.');
+      return;
     }
-    a.remove();
+  }
+
+  // --- Fallback (Safari/Firefox/iOS/iframe/insecure): direct preview + optional download ---
+  try {
+    const blob = await buildPdfBlob(title);
+    const url = URL.createObjectURL(blob);
+
+    // If you want to also trigger a download in fallback:
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {/* non-fatal */}
+
+    // And preview (prefer the pre-opened tab)
+    if (previewWin && !previewWin.closed) {
+      previewWin.location = url;
+      previewWin.addEventListener('beforeunload', () => URL.revokeObjectURL(url), { once:true });
+    } else {
+      window.location.assign(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
     window.toast?.('PDF download started');
   } catch (err) {
-    if (err?.name === 'AbortError') return; // user canceled the picker
-    console.error('Save/preview error:', err);
-    window.toast?.('Failed to save/open the PDF');
+    console.error('PDF build error:', err);
+    alert('Failed to prepare the PDF.');
   }
 }
 
