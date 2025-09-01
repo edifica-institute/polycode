@@ -2557,7 +2557,36 @@ function toggleExpand(which, btn){
 
 
 
+function toggleLeftPanel() {
+  const app = document.querySelector(".app");
+  const btn = document.getElementById("btnToggleLeft");
+  if (!app || !btn) return;
 
+  const isCollapsed = app.classList.toggle("collapsed-left");
+  app.classList.toggle("hide-left", isCollapsed);
+
+  // sync button state
+  btn.setAttribute("aria-pressed", isCollapsed ? "false" : "true");
+  btn.classList.toggle("is-on", !isCollapsed);
+
+  // relayout Monaco editor if present
+  window.editor?.layout?.();
+}
+
+// hook up the button
+document.getElementById("btnToggleLeft")
+  ?.addEventListener("click", toggleLeftPanel);
+
+// on load: collapse left panel + sync button state
+document.addEventListener("DOMContentLoaded", () => {
+  const app = document.querySelector(".app");
+  const btn = document.getElementById("btnToggleLeft");
+  if (app && btn) {
+    app.classList.add("collapsed-left", "hide-left");
+    btn.setAttribute("aria-pressed", "false");
+    btn.classList.remove("is-on");
+  }
+});
 
 
 
