@@ -1291,7 +1291,7 @@ async function captureOutputImageDataURL() {
     /* Hide Monaco completely in the clone */
     .monaco-editor, .monaco-editor * { visibility: hidden !important; }
     /* Hide all canvas to prevent taint warnings (charts will be handled separately if needed) */
-    canvas { visibility: hidden !important; }
+    //canvas { visibility: hidden !important; }
   `;
 
   try {
