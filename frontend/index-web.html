@@ -33,7 +33,7 @@
   </header>
 
   <!-- App -->
-  <div class="stage">
+  <main class="stage" role="main">
     <div class="app">
       <!-- LEFT panel -->
       <section class="panel left" id="leftPanel">
@@ -51,29 +51,56 @@
             
             
           </select>
+          <div class="right-controls">
+      <!-- existing left controls… -->
+      <button class="btn expander" onclick="toggleExpand('left', this)" aria-pressed="false" title="Expand Left panel">⤢</button>
+    </div>
+
         </div>
+        <div class="pane-scroll">
+
         <div class="pane-body">
           <!-- Editable content pulled from /content/web.html -->
           <div id="leftContent" style="margin-top:12px;"></div>
         </div>
         <div class="pane-foot"><span class="msg" id="leftFoot">About Web</span></div>
+        </div>
       </section>
 
-      <!-- RESIZER between left and center -->
-      <div class="v-resize"><div id="dragLeft"></div></div>
+     
 
       <!-- CENTER panel (Editor) -->
       <section class="panel center" id="centerPanel">
         <div class="pane-head">
           <!-- theme -->
+
+           <button id="btnToggleLeft"  class="btn btn-toggle" aria-pressed="false"  title="Show/Hide Left Panel">
+  <!-- sidebar-left icon -->
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <rect x="3" y="4" width="6" height="16" rx="1" />
+    <rect x="10" y="4" width="11" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+  </svg>
+</button>
+
+
+          
           <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
             <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
           </button>
 
-          <span class="title" id="centerTitle" style="margin-left:8px;">Web – Editor | Polycode</span>
+         
 
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
             <!-- Run -->
+
+            <button id="btnToggleRight" class="btn btn-toggle" aria-pressed="true"  title="Show/Hide Output Panel" hidden>
+  <!-- terminal/output icon -->
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+    <path d="M7 9l3 3-3 3M12 15h5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</button>
+
 
             <button id="btnSaveFile" class="btn" title="Save (Ctrl/Cmd + S)" aria-label="Save">
   <svg viewBox="0 0 24 24"><path d="M17 3H5a2 2 0 0 0-2 
@@ -83,12 +110,9 @@
 
 
 <!-- Share (builds a PDF then shares) -->
-<button id="btnSharePdf" class="btn" title="Share PDF" aria-label="Share PDF">
-  <svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 
-  2h12a2 2 0 0 0 2-2v-8h-2v8H6v-8H4zm8-10-5.5 
-  5.5L8.91 9 11 6.91V16h2V6.91L15.09 9l2.41-1.5L12 
-  2z" fill="currentColor"/></svg>
-</button>
+ <button id="btnSharePdf" class="btn" title="Download PDF" aria-label="Download PDF">
+              <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM7 9h4V3h2v6h4l-5 5-5-5z" fill="currentColor"/></svg>
+            </button>
 
 
             
@@ -97,25 +121,29 @@
             </button>
           </div>
         </div>
+<div class="pane-scroll">
 
         <div id="editor"></div>
         <div class="pane-foot"><span class="msg" id="centerFoot">Ready for Execution</span></div>
+</div>
       </section>
 
-      <!-- RESIZER between center and right -->
-      <div class="v-resize right"><div id="dragRight"></div></div>
-
+    
       <!-- RIGHT panel (Preview) -->
       <section class="panel right" id="rightPanel">
         <div class="pane-head">
-          <span class="title">Web – Preview | Polycode</span>
+        
           <div class="right-controls" style="margin-left:auto; display:flex; gap:8px;">
+            <button class="btn expander" onclick="toggleExpand('right', this)" aria-pressed="false" title="Expand Output">⤢</button>
+
             <!-- Reset -->
             <button id="btnReset" class="btn" title="Reset (Click or Press F10)" aria-label="Reset">
               <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
             </button>
           </div>
         </div>
+
+        <div class="pane-scroll">
 
         <div id="output" class="screen-dim" style="padding:0;">
           <!-- sandboxed preview -->
@@ -128,14 +156,11 @@
         </div>
 
         <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
+        </div>
       </section>
     </div>
-  </div>
+  </main>
 
-  <!-- Floating chevron for collapse/expand -->
-  <div class="chevron-tab" id="chevronTab" title="Toggle left panel">
-    <svg viewBox="0 0 24 24"><path d="M9.29 6.71a1 1 0 011.42 0L15 11l-4.29 4.29a1 1 0 11-1.42-1.42L12.17 11 9.29 8.12a1 1 0 010-1.41z"/></svg>
-  </div>
 
   <!-- Footer -->
   <footer class="site-footer">
