@@ -1460,6 +1460,7 @@ function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, l
   const lines = pdf.splitTextToSize(text || '', maxW);
   for (const line of lines){
     y = ensureSpace(pdf, y, lh, env);
+    pdf.setFont(font, style); pdf.setFontSize(size);
     pdf.text(line, margin, y);
     y += lh;
   }
