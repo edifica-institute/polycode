@@ -1172,6 +1172,135 @@ try {
   }
 
 
+// Helper: load dataURL into <img>
+function loadImage(url){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+// Make one tall PNG: [Code image] + [Output screenshot]
+async function captureCodeAndOutputImage() {
+  // Reuse your robust builders:
+  const codeURL = await buildCodeImageDataURL();         // code → clean image
+  const outURL  = await captureOutputImageDataURL();     // output panel screenshot
+
+  const codeImg = await loadImage(codeURL);
+  const outImg  = await loadImage(outURL);
+
+  const pad = 16; // spacing between sections
+  const width  = Math.max(codeImg.width, outImg.width);
+  const height = codeImg.height + pad + outImg.height;
+
+  const dark = !document.body.classList.contains('light');
+  const bg   = dark ? '#0b0b0b' : '#ffffff';
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+
+  // center each image horizontally
+  const cx1 = Math.floor((width - codeImg.width) / 2);
+  const cx2 = Math.floor((width - outImg.width) / 2);
+  ctx.drawImage(codeImg, cx1, 0);
+  ctx.drawImage(outImg,  cx2, codeImg.height + pad);
+
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.95));
+  return { blob, dataURL: canvas.toDataURL('image/png') };
+}
+
+// Timestamp helper you already have
+function ts(){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+// Click handler: share (if possible) and save
+async function onClickCaptureShare(e){
+  e?.preventDefault?.(); e?.stopPropagation?.();
+
+  let fileName = `Polycode-${ts()}.png`;
+  try{
+    const { blob } = await captureCodeAndOutputImage();
+    const file = new File([blob], fileName, { type:'image/png' });
+
+    // 1) Try native share (Android Chrome etc.): you pick WhatsApp in the sheet
+    if (navigator.canShare && navigator.canShare({ files:[file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: 'Polycode Screenshot',
+          text: 'Code + Output from Polycode'
+        });
+      } catch(_) { /* user cancelled; continue to save */ }
+    } else {
+      // Fallback: open WhatsApp chat to the number with a note
+      const note = 'Polycode screenshot generated. If not attached automatically, please attach the image from your Downloads.';
+      window.open(`https://wa.me/919836313636?text=${encodeURIComponent(note)}`, '_blank', 'noopener');
+    }
+
+    // 2) Save to Downloads (suggest "polycode" sub-name where supported)
+    try {
+      if ('showSaveFilePicker' in window) {
+        const handle = await showSaveFilePicker({
+          suggestedName: `polycode/${fileName}`,  // some browsers ignore folders
+          types: [{ description: 'PNG Image', accept: { 'image/png': ['.png'] } }]
+        });
+        const w = await handle.createWritable();
+        await w.write(blob);
+        await w.close();
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+      }
+    } catch {
+      // user cancelled or API unsupported → plain download
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
+    }
+  } catch (err){
+    console.error('Capture failed:', err);
+    alert('Could not capture the screenshot. Check console for details.');
+  }
+}
+
+// Hook the button (replace the old saveFile binding)
+document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
+
+// Optional: keep Ctrl/Cmd+S for original saveFile and use Ctrl/Cmd+Shift+S for screenshot
+document.addEventListener('keydown', (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  if (mod && e.shiftKey && e.key.toLowerCase() === 's') {
+    e.preventDefault();
+    onClickCaptureShare();
+  }
+}, { passive:false });
+
+
+
+
+
+
+
+
+
+
+
+  
+
 
 
 
@@ -2245,7 +2374,6 @@ async function buildCodeImageDataURL() {
   
   // Hook up buttons when the page is ready
   window.addEventListener('load', () => {
-    document.getElementById('btnSaveFile')?.addEventListener('click', saveFile);
     document.getElementById('btnSharePdf')?.addEventListener('click', savePdfToDisk); // or sharePdf
   });
 
