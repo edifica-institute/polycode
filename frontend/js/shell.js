@@ -1178,6 +1178,17 @@ try {
 
 //Entire PDF Section below
 
+  document.addEventListener('DOMContentLoaded', () => {
+  const ifr = document.getElementById('preview');
+  if (ifr) {
+    const need = new Set(['allow-scripts','allow-same-origin']);
+    const cur = new Set((ifr.getAttribute('sandbox')||'').split(/\s+/).filter(Boolean));
+    need.forEach(t => cur.add(t));
+    ifr.setAttribute('sandbox', Array.from(cur).join(' '));
+  }
+});
+
+
 
 
 // --- Lazy loaders (safe if libs already present) ---
@@ -1274,57 +1285,93 @@ async function ensureJsPDF() {
 
 
 // --- Your functions (patched) ---
-async function captureOutputImageDataURL() {
+async function captureOutputImageDataURL(){
   const html2canvas = await ensureHtml2Canvas();
+
+  // Prefer the WEB preview iframe itself (best quality)
+  const ifr = document.getElementById('preview');
+  if (ifr) {
+    // 2a. Try direct same-origin capture
+    try {
+      if (ifr.contentDocument) {
+        const doc = ifr.contentDocument;
+        const canvas = await html2canvas(doc.documentElement, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          allowTaint: true
+        });
+        return canvas.toDataURL('image/png');
+      }
+    } catch (_) {
+      /* fall through to message-based approach */
+    }
+
+    // 2b. Ask the iframe to self-capture via postMessage
+    try {
+      const url = await askPreviewForScreenshot(ifr, 3000);
+      if (url) return url;
+    } catch (_) {
+      /* fall back */
+    }
+  }
+
+  // 3) Fallback: capture the host #output container (will not include iframe internals)
   const out = document.getElementById('output');
-  if (!out) throw new Error('#output not found');
+  if (!out) return null;
 
-  // Temporarily remove idle dimming so the image isn't washed out
-  const hadDim = out.classList.contains('screen-dim');
-  if (hadDim) out.classList.remove('screen-dim');
-
-  // Expand to full content height while we snapshot
-  const prev = { height: out.style.height, overflowY: out.style.overflowY, opacity: out.style.opacity };
+  const prev = { height: out.style.height, overflowY: out.style.overflowY };
   out.style.height = out.scrollHeight + 'px';
   out.style.overflowY = 'visible';
-  out.style.opacity = '1';
-
-  const HIDE_IN_CLONE_CSS = `
-    .monaco-editor, .monaco-editor * { visibility: hidden !important; }
-    canvas { visibility: hidden !important; }
-  `;
 
   try {
     const canvas = await html2canvas(out, {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
-      allowTaint: false,
+      allowTaint: true,
       onclone: (doc) => {
         const style = doc.createElement('style');
-        style.textContent = HIDE_IN_CLONE_CSS;
+        style.textContent = `
+          .monaco-editor, .monaco-editor * { visibility: hidden !important; }
+          canvas { visibility: hidden !important; }
+        `;
         doc.head.appendChild(style);
-        const clonedOut = doc.getElementById('output');
-        if (clonedOut) {
-          clonedOut.style.height = clonedOut.scrollHeight + 'px';
-          clonedOut.style.overflowY = 'visible';
-          clonedOut.style.opacity = '1';
-        }
-      },
-      ignoreElements: (el) =>
-        el.tagName === 'CANVAS' ||
-        el.classList?.contains('monaco-editor') ||
-        el.closest?.('.monaco-editor')
+      }
     });
     return canvas.toDataURL('image/png');
   } finally {
-    // restore styles/classes
     out.style.height = prev.height;
     out.style.overflowY = prev.overflowY;
-    out.style.opacity = prev.opacity;
-    if (hadDim) out.classList.add('screen-dim');
   }
 }
+
+function askPreviewForScreenshot(ifr, timeout=2500){
+  return new Promise((resolve, reject) => {
+    const onMsg = (e) => {
+      const d = e.data;
+      if (!d || d.__polycode !== 'snap') return;
+      clearTimeout(tid);
+      window.removeEventListener('message', onMsg);
+      if (d.ok && d.url) resolve(d.url);
+      else reject(new Error(d.error || 'preview snap failed'));
+    };
+    const tid = setTimeout(() => {
+      window.removeEventListener('message', onMsg);
+      reject(new Error('preview snap timeout'));
+    }, timeout);
+
+    window.addEventListener('message', onMsg);
+    try {
+      ifr.contentWindow.postMessage('__polycode_snap__', '*');
+    } catch (err) {
+      clearTimeout(tid);
+      window.removeEventListener('message', onMsg);
+      reject(err);
+    }
+  });
+}
+
 
 
 
@@ -1558,6 +1605,104 @@ async function addImageFitted(pdf, y, dataURL, env) {
 
 
 
+// --- Install a "snapper" inside the preview iframe so it can screenshot itself ---
+async function installPreviewSnapper(){
+  const ifr = document.getElementById('preview');
+  if (!ifr) return false;
+
+  // wait for the iframe to be ready if possible
+  const doc = (() => {
+    try { return ifr.contentDocument; } catch { return null; }
+  })();
+  if (!doc) return false;  // blocked by sandbox? (needs allow-same-origin)
+
+  if (doc.getElementById('polycode-snapper')) return true; // already installed
+
+  const sc = doc.createElement('script');
+  sc.id = 'polycode-snapper';
+  sc.type = 'text/javascript';
+  sc.text = `
+    (function(){
+      function loadHtml2Canvas(){
+        return new Promise((resolve, reject) => {
+          if (window.html2canvas) return resolve(window.html2canvas);
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+          s.onload = () => resolve(window.html2canvas);
+          s.onerror = () => reject(new Error('html2canvas load failed inside preview'));
+          document.head.appendChild(s);
+        });
+      }
+
+      window.addEventListener('message', async (e) => {
+        if (!e || e.data !== '__polycode_snap__') return;
+        try{
+          const h2c = await loadHtml2Canvas();
+          const canvas = await h2c(document.documentElement, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            useCORS: true,
+            allowTaint: true
+          });
+          const url = canvas.toDataURL('image/png');
+          parent.postMessage({ __polycode:'snap', ok:true, url, w:canvas.width, h:canvas.height }, '*');
+        }catch(err){
+          parent.postMessage({ __polycode:'snap', ok:false, error: String(err) }, '*');
+        }
+      });
+    })();
+  `;
+  doc.head.appendChild(sc);
+  return true;
+}
+
+// Ask the iframe to screenshot itself and return {url,w,h}
+function askPreviewForScreenshot(timeoutMs = 3000){
+  return new Promise(async (resolve, reject) => {
+    const ifr = document.getElementById('preview');
+    if (!ifr || !ifr.contentWindow) return reject(new Error('preview iframe not found'));
+
+    const ok = await installPreviewSnapper();
+    if (!ok) return reject(new Error('failed to inject snapper (check sandbox: allow-scripts allow-same-origin)'));
+
+    const onMsg = (ev) => {
+      const d = ev.data;
+      if (!d || d.__polycode !== 'snap') return;
+      window.removeEventListener('message', onMsg);
+      if (d.ok && d.url) resolve({ url:d.url, w:d.w, h:d.h });
+      else reject(new Error(d?.error || 'snapshot failed'));
+    };
+
+    window.addEventListener('message', onMsg);
+    try { ifr.contentWindow.postMessage('__polycode_snap__', '*'); } catch(e){ /* ignore */ }
+    setTimeout(() => {
+      window.removeEventListener('message', onMsg);
+      reject(new Error('snapshot timeout'));
+    }, timeoutMs);
+  });
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
 
 
 
@@ -1609,33 +1754,50 @@ async function buildPdfBlob(userTitle, logos = {}){
 
   // ======== OUTPUT SECTION (robust) ========
     // Output
+  // Output
+  // Output
   pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
   y = ensureSpace(pdf, y, 18, env);
   pdf.text('Output', margin, y); y += 14;
 
-  const outEl = document.getElementById('output');
-  const rawText = (outEl?.innerText || '').trim();
-  const hasMeaningfulText = rawText.replace(/\s+/g, '').length > 0;
+  // 1) Try text from the right panel (your old behavior)
+  const outText = (document.getElementById('output')?.innerText || '').trim();
 
-  if (hasMeaningfulText) {
-    // Text path
-    y = writeWrapped(pdf, y, rawText, {
+  if (outText) {
+    // write text as before
+    y = writeWrapped(pdf, y, outText, {
       font:'courier', style:'normal', size:10, lh:12, env
     });
   } else {
-    // Image path: try preview iframe first (best), else the whole #output
-    let png = await capturePreviewImageDataURL();
-    if (!png) png = await captureOutputImageDataURL();
+    // 2) If no text, ask the iframe to screenshot itself
+    try{
+      const snap = await askPreviewForScreenshot(3000); // {url,w,h}
+      if (snap?.url) {
+        const pageW = pdf.internal.pageSize.getWidth();
+        const maxW = pageW - margin*2;
 
-    if (png) {
-      y = await addImageFitted(pdf, y, png, env);
-    } else {
-      // Absolutely nothing we can snapshot – make it explicit
+        // scale to fit width
+        const scale = maxW / (snap.w || maxW);
+        const drawW = maxW;
+        const drawH = Math.round((snap.h || maxW) * scale);
+
+        y = ensureSpace(pdf, y, drawH, env);
+        pdf.addImage(snap.url, 'PNG', margin, y, drawW, drawH, undefined, 'FAST');
+        y += drawH + 6;
+      } else {
+        // 3) Ultimate fallback: show a placeholder line
+        y = writeWrapped(pdf, y, '(no output)', {
+          font:'courier', style:'normal', size:10, lh:12, env
+        });
+      }
+    } catch {
+      // If iframe snapshot fails, write a placeholder
       y = writeWrapped(pdf, y, '(no output)', {
         font:'courier', style:'normal', size:10, lh:12, env
       });
     }
   }
+
 
   // =========================================
 
