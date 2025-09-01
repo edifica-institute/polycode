@@ -1382,7 +1382,7 @@ function addHeader(pdf, y, { headerLogoBase64 } = {}){
   let x = margin;
 
   if (headerLogoBase64){
-    const h = 24, w = 24;
+    const h = 16, w = 16;
     pdf.addImage(headerLogoBase64, 'PNG', x, y, w, h, undefined, 'FAST');
     x += w + 8;
   }
