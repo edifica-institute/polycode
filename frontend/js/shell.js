@@ -1279,19 +1279,19 @@ async function captureOutputImageDataURL() {
   const out = document.getElementById('output');
   if (!out) throw new Error('#output not found');
 
-  // Temporarily force output to render at full scroll height
-  const prev = {
-    height: out.style.height,
-    overflowY: out.style.overflowY
-  };
+  // Temporarily remove idle dimming so the image isn't washed out
+  const hadDim = out.classList.contains('screen-dim');
+  if (hadDim) out.classList.remove('screen-dim');
+
+  // Expand to full content height while we snapshot
+  const prev = { height: out.style.height, overflowY: out.style.overflowY, opacity: out.style.opacity };
   out.style.height = out.scrollHeight + 'px';
   out.style.overflowY = 'visible';
+  out.style.opacity = '1';
 
   const HIDE_IN_CLONE_CSS = `
-    /* Hide Monaco completely in the clone */
     .monaco-editor, .monaco-editor * { visibility: hidden !important; }
-    /* Hide all canvas to prevent taint warnings (charts will be handled separately if needed) */
-    //canvas { visibility: hidden !important; }
+    canvas { visibility: hidden !important; }
   `;
 
   try {
@@ -1304,11 +1304,11 @@ async function captureOutputImageDataURL() {
         const style = doc.createElement('style');
         style.textContent = HIDE_IN_CLONE_CSS;
         doc.head.appendChild(style);
-        // Also ensure the cloned #output expands fully
         const clonedOut = doc.getElementById('output');
         if (clonedOut) {
           clonedOut.style.height = clonedOut.scrollHeight + 'px';
           clonedOut.style.overflowY = 'visible';
+          clonedOut.style.opacity = '1';
         }
       },
       ignoreElements: (el) =>
@@ -1318,11 +1318,14 @@ async function captureOutputImageDataURL() {
     });
     return canvas.toDataURL('image/png');
   } finally {
-    // restore styles
+    // restore styles/classes
     out.style.height = prev.height;
     out.style.overflowY = prev.overflowY;
+    out.style.opacity = prev.opacity;
+    if (hadDim) out.classList.add('screen-dim');
   }
 }
+
 
 
 
@@ -1468,59 +1471,55 @@ function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, l
 
 
 
-async function capturePreviewImageDataURL(){
-  const html2canvas = await ensureHtml2Canvas();
+async function capturePreviewImageDataURL() {
   const ifr = document.getElementById('preview');
   if (!ifr) return null;
 
-  // Try direct same-origin capture (will throw if sandboxed w/o allow-same-origin)
   try {
+    // You must have same-origin access: sandbox should include allow-same-origin.
     const doc = ifr.contentDocument || ifr.contentWindow?.document;
-    if (doc) {
-      const root = doc.documentElement;
-      const canvas = await html2canvas(root, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: true,
-        allowTaint: false,
-        windowWidth:  root.scrollWidth,
-        windowHeight: root.scrollHeight
-      });
-      return canvas.toDataURL('image/png');
-    }
-  } catch { /* fall through to mirror */ }
+    if (!doc) return null;
 
-  // Mirror the preview HTML into a same-origin, offscreen iframe and snapshot that
-  const html = window.__lastPreviewHTML || ifr.srcdoc || null;
-  if (!html) return null;
+    const html2canvas = await ensureHtml2Canvas();
 
-  const mirror = document.createElement('iframe');
-  // ⚠️ If you want JS inside the preview to run in the mirror, include allow-scripts.
-  // The console will warn about allow-scripts + allow-same-origin; it’s harmless here.
-  mirror.setAttribute('sandbox', 'allow-same-origin allow-scripts');
-  mirror.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:10px;visibility:hidden';
-  document.body.appendChild(mirror);
-  mirror.srcdoc = html;
+    // Snapshot the entire preview document
+    const canvas = await html2canvas(doc.documentElement, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      allowTaint: false
+    });
+    return canvas.toDataURL('image/png');
+  } catch (_) {
+    // cross-origin or sandbox prevented access
+    return null;
+  }
+}
 
-  await new Promise(res => mirror.onload = res);
+async function addImageFitted(pdf, y, dataURL, env) {
+  const margin = 40;
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
 
-  const doc2 = mirror.contentDocument;
-  if (!doc2) { document.body.removeChild(mirror); return null; }
+  // If there's almost no space left, start a new page first
+  const minNeeded = 80;
+  if (pageH - margin - 26 - y < minNeeded) {
+    y = newPage(pdf, env);
+  }
 
-  const root = doc2.documentElement;
-  const fullH = Math.max(root.scrollHeight, doc2.body?.scrollHeight || 0);
-  mirror.style.height = fullH + 'px';
+  // Measure image
+  const img = new Image();
+  img.src = dataURL;
+  try { await img.decode(); } catch {}
+  const maxW = pageW - margin * 2;
+  const availH = pageH - margin - 26 - y;
 
-  const canvas = await html2canvas(root, {
-    backgroundColor: '#ffffff',
-    scale: 2,
-    useCORS: true,
-    allowTaint: false
-  });
+  const scale = Math.min(maxW / img.width, availH / img.height, 1);
+  const w = img.width * scale;
+  const h = img.height * scale;
 
-  const url = canvas.toDataURL('image/png');
-  document.body.removeChild(mirror);
-  return url;
+  pdf.addImage(dataURL, 'PNG', margin, y, w, h, undefined, 'FAST');
+  return y + h + 6; // small gap after image
 }
 
 
@@ -1609,52 +1608,35 @@ async function buildPdfBlob(userTitle, logos = {}){
   y = newPage(pdf, env);
 
   // ======== OUTPUT SECTION (robust) ========
+    // Output
   pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
   y = ensureSpace(pdf, y, 18, env);
   pdf.text('Output', margin, y); y += 14;
 
-  // 1) Prefer text from console/output if present
-  let outputText = (document.getElementById('jconsole')?.innerText || '').trim();
-  if (!outputText) {
-    outputText = (document.getElementById('output')?.innerText || '').trim();
-  }
+  const outEl = document.getElementById('output');
+  const rawText = (outEl?.innerText || '').trim();
+  const hasMeaningfulText = rawText.replace(/\s+/g, '').length > 0;
 
-  if (outputText) {
-    y = writeWrapped(pdf, y, outputText, {
+  if (hasMeaningfulText) {
+    // Text path
+    y = writeWrapped(pdf, y, rawText, {
       font:'courier', style:'normal', size:10, lh:12, env
     });
   } else {
-    // 2) Otherwise try a preview screenshot
-    let imgURL = await capturePreviewImageDataURL();
-    if (!imgURL) {
-      // 3) Last fallback: screenshot the #output panel
-      try { imgURL = await captureOutputImageDataURL(); } catch {}
-    }
+    // Image path: try preview iframe first (best), else the whole #output
+    let png = await capturePreviewImageDataURL();
+    if (!png) png = await captureOutputImageDataURL();
 
-    if (imgURL) {
-      // Fit image within page width & available height
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const maxW = pageW - margin*2;
-      const maxH = pageH - margin - 26 - y;
-
-      const im = new Image();
-      im.src = imgURL;
-      await new Promise(r => { im.onload = r; im.onerror = r; });
-
-      let drawW = maxW, drawH = maxW * (im.naturalHeight || 1) / (im.naturalWidth || 1);
-      if (drawH > maxH) { const k = maxH / drawH; drawW *= k; drawH *= k; }
-
-      y = ensureSpace(pdf, y, drawH, env);
-      pdf.addImage(imgURL, 'PNG', margin, y, drawW, drawH, undefined, 'FAST');
-      y += drawH;
+    if (png) {
+      y = await addImageFitted(pdf, y, png, env);
     } else {
-      // Nothing available
+      // Absolutely nothing we can snapshot – make it explicit
       y = writeWrapped(pdf, y, '(no output)', {
         font:'courier', style:'normal', size:10, lh:12, env
       });
     }
   }
+
   // =========================================
 
   addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
