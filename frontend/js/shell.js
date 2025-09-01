@@ -1744,6 +1744,57 @@ async function screenshotOutputForPdf(){
 
 
 
+// === Screenshot the output panel, including the iframe preview ===
+async function captureOutputPanelAsPNG() {
+  const html2canvas = await ensureHtml2Canvas();
+  const out = document.getElementById('output');
+  if (!out) throw new Error('#output not found');
+
+  const scale = Math.min(2, window.devicePixelRatio || 1.5);
+
+  // 1) Host panel without the iframe
+  const hostCanvas = await html2canvas(out, {
+    backgroundColor: '#ffffff',
+    scale,
+    useCORS: true,
+    allowTaint: false,
+    ignoreElements: (el) => el.tagName === 'IFRAME'
+  });
+
+  // 2) If the iframe is same-origin, screenshot it too
+  const ifr = out.querySelector('#preview, iframe');
+  const canSeeIframe = !!(ifr && ifr.contentDocument);
+  if (!canSeeIframe) {
+    return hostCanvas.toDataURL('image/png'); // nothing else we can add
+  }
+
+  const frameCanvas = await html2canvas(ifr.contentDocument.documentElement, {
+    backgroundColor: '#ffffff',
+    scale,
+    useCORS: true,
+    allowTaint: false
+  });
+
+  // 3) Composite: draw host first, then the iframe at its exact position
+  const outRect = out.getBoundingClientRect();
+  const iRect   = ifr.getBoundingClientRect();
+  const ox = (iRect.left - outRect.left) * scale;
+  const oy = (iRect.top  - outRect.top)  * scale;
+
+  const comp = document.createElement('canvas');
+  comp.width  = hostCanvas.width;
+  comp.height = hostCanvas.height;
+  const ctx = comp.getContext('2d');
+  ctx.drawImage(hostCanvas, 0, 0);
+  ctx.drawImage(
+    frameCanvas,
+    Math.round(ox),
+    Math.round(oy),
+    Math.round(ifr.clientWidth  * scale),
+    Math.round(ifr.clientHeight * scale)
+  );
+  return comp.toDataURL('image/png');
+}
 
 
 
@@ -1812,58 +1863,42 @@ async function buildPdfBlob(userTitle, logos = {}){
  // 🔥 New page for Output (keep your header/footer flow)
 
 // ---- Output header
+// Output
 pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
 y = ensureSpace(pdf, y, 18, env);
-pdf.text('Output', margin, y); 
-y += 14;
+pdf.text('Output', margin, y); y += 14;
 
-// Grab plain text (if any)
-const outEl = document.getElementById('output');
+// Prefer plain text if present (console/judges etc.), otherwise true screenshot
+const outEl   = document.getElementById('output');
 const outText = (outEl?.innerText || '').trim();
 
-// Case A: we have textual output -> keep your existing wrapped text
 if (outText) {
   y = writeWrapped(pdf, y, outText, {
     font:'courier', style:'normal', size:10, lh:12, env
   });
 } else {
-  // Case B: NO text -> take a screenshot of the output area
-  const dataURL = await screenshotOutputForPdf();
+  // <-- your "PrintScreen of the output panel" path
+  const imgData = await captureOutputPanelAsPNG();
 
-  if (dataURL) {
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const footerSafety = 28;                  // room above footer band
-    const maxW = pageW - margin*2;
-    const availH = pageH - margin - footerSafety - y;
+  // measure image to keep aspect ratio
+  const img = new Image();
+  img.src = imgData;
+  await new Promise(r => img.onload = r);
 
-    // If there isn't enough room for a decent image, move to a fresh page
-    if (availH < 120) {
-      y = newPage(pdf, env);
-    }
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const maxW  = pageW - margin * 2;
+  const maxH  = pageH - margin * 2;
 
-    // Get intrinsic size to keep aspect
-    const props = pdf.getImageProperties ? pdf.getImageProperties(dataURL)
-                                         : { width: 1200, height: 800 };
-    const ratio = props.width / props.height;
+  let w = maxW;
+  let h = (img.height / img.width) * w;
+  if (h > maxH) { h = maxH; w = (img.width / img.height) * h; }
 
-    // Recompute available height on (potentially) new page
-    const availH2 = pageH - margin - footerSafety - y;
+  // ensure there’s room; if not, start a fresh page
+  y = ensureSpace(pdf, y, h, env);
 
-    // Fit image in (maxW x availH2)
-    let drawW = maxW;
-    let drawH = drawW / ratio;
-    if (drawH > availH2) { drawH = availH2; drawW = drawH * ratio; }
-
-    const x = (pageW - drawW) / 2;            // center horizontally
-    pdf.addImage(dataURL, 'PNG', x, y, drawW, drawH, undefined, 'FAST');
-    y += drawH + 8;
-  } else {
-    // Last-ditch: say we couldn't capture (cross-origin iframe etc.)
-    y = writeWrapped(pdf, y, '(output preview could not be captured)', {
-      font:'courier', style:'normal', size:10, lh:12, env
-    });
-  }
+  pdf.addImage(imgData, 'PNG', margin, y, w, h, undefined, 'FAST');
+  y += h + 8;
 }
 
 
