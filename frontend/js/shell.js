@@ -1684,6 +1684,59 @@ function askPreviewForScreenshot(timeoutMs = 3000){
 
 
 
+// Quick same-origin check for iframe
+function isSameOriginIframe(ifr){
+  try {
+    // access will throw if cross-origin
+    return !!(ifr && ifr.contentDocument && ifr.contentDocument.documentElement);
+  } catch { return false; }
+}
+
+// Screenshot the preview area (iframe if same-origin; else fall back to #output)
+async function screenshotOutputForPdf(){
+  const html2canvas = await ensureHtml2Canvas();
+
+  // Prefer: inside the preview iframe (so content isn't blank)
+  const ifr = document.getElementById('preview');
+  if (isSameOriginIframe(ifr)) {
+    const doc = ifr.contentDocument;
+    // Ensure full height for capture
+    const root = doc.documentElement;
+    const prevStyle = root.getAttribute('style') || '';
+    root.setAttribute('style', prevStyle + ';background:#ffffff !important;');
+    try {
+      const canvas = await html2canvas(root, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        allowTaint: false
+      });
+      return canvas.toDataURL('image/png');
+    } catch(_) { /* fall through to #output */ }
+    finally { root.setAttribute('style', prevStyle); }
+  }
+
+  // Fallback: snapshot the whole #output panel (you already have a helper too)
+  const out = document.getElementById('output');
+  if (!out) return null;
+
+  // Temporarily expand so html2canvas sees full scroll height
+  const prev = { height: out.style.height, overflowY: out.style.overflowY };
+  out.style.height = out.scrollHeight + 'px';
+  out.style.overflowY = 'visible';
+  try{
+    const canvas = await html2canvas(out, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      allowTaint: false
+    });
+    return canvas.toDataURL('image/png');
+  } finally {
+    out.style.height = prev.height;
+    out.style.overflowY = prev.overflowY;
+  }
+}
 
 
 
@@ -1756,47 +1809,63 @@ async function buildPdfBlob(userTitle, logos = {}){
     // Output
   // Output
   // Output
-  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-  y = ensureSpace(pdf, y, 18, env);
-  pdf.text('Output', margin, y); y += 14;
+ // 🔥 New page for Output (keep your header/footer flow)
+y = newPage(pdf, env);
 
-  // 1) Try text from the right panel (your old behavior)
-  const outText = (document.getElementById('output')?.innerText || '').trim();
+// ---- Output header
+pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+y = ensureSpace(pdf, y, 18, env);
+pdf.text('Output', margin, y); 
+y += 14;
 
-  if (outText) {
-    // write text as before
-    y = writeWrapped(pdf, y, outText, {
+// Grab plain text (if any)
+const outEl = document.getElementById('output');
+const outText = (outEl?.innerText || '').trim();
+
+// Case A: we have textual output -> keep your existing wrapped text
+if (outText) {
+  y = writeWrapped(pdf, y, outText, {
+    font:'courier', style:'normal', size:10, lh:12, env
+  });
+} else {
+  // Case B: NO text -> take a screenshot of the output area
+  const dataURL = await screenshotOutputForPdf();
+
+  if (dataURL) {
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const footerSafety = 28;                  // room above footer band
+    const maxW = pageW - margin*2;
+    const availH = pageH - margin - footerSafety - y;
+
+    // If there isn't enough room for a decent image, move to a fresh page
+    if (availH < 120) {
+      y = newPage(pdf, env);
+    }
+
+    // Get intrinsic size to keep aspect
+    const props = pdf.getImageProperties ? pdf.getImageProperties(dataURL)
+                                         : { width: 1200, height: 800 };
+    const ratio = props.width / props.height;
+
+    // Recompute available height on (potentially) new page
+    const availH2 = pageH - margin - footerSafety - y;
+
+    // Fit image in (maxW x availH2)
+    let drawW = maxW;
+    let drawH = drawW / ratio;
+    if (drawH > availH2) { drawH = availH2; drawW = drawH * ratio; }
+
+    const x = (pageW - drawW) / 2;            // center horizontally
+    pdf.addImage(dataURL, 'PNG', x, y, drawW, drawH, undefined, 'FAST');
+    y += drawH + 8;
+  } else {
+    // Last-ditch: say we couldn't capture (cross-origin iframe etc.)
+    y = writeWrapped(pdf, y, '(output preview could not be captured)', {
       font:'courier', style:'normal', size:10, lh:12, env
     });
-  } else {
-    // 2) If no text, ask the iframe to screenshot itself
-    try{
-      const snap = await askPreviewForScreenshot(3000); // {url,w,h}
-      if (snap?.url) {
-        const pageW = pdf.internal.pageSize.getWidth();
-        const maxW = pageW - margin*2;
-
-        // scale to fit width
-        const scale = maxW / (snap.w || maxW);
-        const drawW = maxW;
-        const drawH = Math.round((snap.h || maxW) * scale);
-
-        y = ensureSpace(pdf, y, drawH, env);
-        pdf.addImage(snap.url, 'PNG', margin, y, drawW, drawH, undefined, 'FAST');
-        y += drawH + 6;
-      } else {
-        // 3) Ultimate fallback: show a placeholder line
-        y = writeWrapped(pdf, y, '(no output)', {
-          font:'courier', style:'normal', size:10, lh:12, env
-        });
-      }
-    } catch {
-      // If iframe snapshot fails, write a placeholder
-      y = writeWrapped(pdf, y, '(no output)', {
-        font:'courier', style:'normal', size:10, lh:12, env
-      });
-    }
   }
+}
 
 
   // =========================================
