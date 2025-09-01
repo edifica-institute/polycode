@@ -1315,7 +1315,7 @@ function fitWatermark(ctx, img, canvasW, canvasH){
   const w = targetW;
   const h = img.height * ratio;
   const x = (canvasW - w) / 2;
-  const y = (canvasH - h) / 2;
+  const y = (canvasH - h) / 4;
   ctx.save();
   ctx.globalAlpha = 0.06;
   ctx.drawImage(img, x, y, w, h);
@@ -1387,13 +1387,13 @@ async function buildReportImageBlob() {
   // header logo + "polycode"
   if (window.POLYCODE_HEADER_LOGO) {
     const logo = await loadImage(window.POLYCODE_HEADER_LOGO);
-    const h = 20, w = (logo.width * h) / logo.height;
+    const h = 40, w = (logo.width * h) / logo.height;
     ctx.drawImage(logo, leftX, y, w, h);
-    ctx.font = ctxFont(18, true);
+    ctx.font = ctxFont(30, true);
     ctx.fillStyle = '#000000';
     ctx.fillText('polycode', leftX + w + 8, y + 16);
   } else {
-    ctx.font = ctxFont(18, true);
+    ctx.font = ctxFont(30, true);
     ctx.fillStyle = '#000000';
     ctx.fillText('polycode', leftX, y + 16);
   }
@@ -1401,10 +1401,10 @@ async function buildReportImageBlob() {
   // right-side header: date + site tagline
   const date = new Date().toLocaleString();
   ctx.textAlign = 'right';
-  ctx.font = ctxFont(12, false);
+  ctx.font = ctxFont(30, false);
   ctx.fillStyle = '#000000';
   ctx.fillText(date, rightX, y + 14);
-  ctx.font = ctxFont(11, false);
+  ctx.font = ctxFont(30, false);
   ctx.fillText('learn.code.execute | www.polycode.in', rightX, y + 32);
 
   // bold HR under header
@@ -1412,9 +1412,20 @@ async function buildReportImageBlob() {
   drawHR(ctx, margin, y, W - margin, true);
   y += gapY + 6;
 
+
+
+  
   // 5) CODE section
+
+  ctx.textAlign = 'center';
+  ctx.font = ctxFont(25, true);
+  ctx.fillStyle = '#000000';
+  ctx.fillText('Screenshot | Capture', leftX, y + 14);
+
+  y += gapY + 6;
+  
   ctx.textAlign = 'left';
-  ctx.font = ctxFont(14, true);
+  ctx.font = ctxFont(22, true);
   ctx.fillStyle = '#000000';
   ctx.fillText('Code', leftX, y + 14);
   y += titleY;
@@ -1428,9 +1439,9 @@ async function buildReportImageBlob() {
   y += gapY;
 
   // 6) OUTPUT section (screenshot)
-  ctx.font = ctxFont(14, true);
+  ctx.font = ctxFont(22, true);
   ctx.fillStyle = '#000000';
-  ctx.fillText('Output (screenshot)', leftX, y + 14);
+  ctx.fillText('Output', leftX, y + 14);
   y += titleY;
 
   cx = Math.floor((W - outImg.width) / 2);
@@ -1443,24 +1454,24 @@ async function buildReportImageBlob() {
 
   if (window.EDIFICA_FOOTER_LOGO) {
     const fl = await loadImage(window.EDIFICA_FOOTER_LOGO);
-    const h = 16, w = (fl.width * h) / fl.height;
+    const h = 32, w = (fl.width * h) / fl.height;
     ctx.drawImage(fl, leftX, y - 12, w, h);
-    ctx.font = ctxFont(10, false);
+    ctx.font = ctxFont(30, false);
     ctx.fillStyle = '#000000';
     ctx.fillText('powered by edifica', leftX + w + 6, y);
   } else {
-    ctx.font = ctxFont(10, false);
+    ctx.font = ctxFont(30, false);
     ctx.fillStyle = '#000000';
     ctx.fillText('powered by edifica', leftX, y);
   }
 
   ctx.textAlign = 'center';
-  ctx.font = ctxFont(10, false);
+  ctx.font = ctxFont(30, false);
   ctx.fillStyle = '#000000';
   ctx.fillText('1', W / 2, y);
 
   ctx.textAlign = 'right';
-  ctx.font = ctxFont(10, false);
+  ctx.font = ctxFont(30, false);
   ctx.fillText('education.consultation.assistance | www.edifica.in', rightX, y);
 
   const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.95));
