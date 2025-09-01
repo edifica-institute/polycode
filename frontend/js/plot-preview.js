@@ -75,7 +75,7 @@
   }
 
   // ---------- Button ----------
-  function ensureButton() {
+ /* function ensureButton() {
     let btn = $("#btnPlotPreview");
     if (btn) return btn;
 
@@ -100,7 +100,55 @@
     if (right) right.appendChild(btn);
     else document.body.appendChild(btn); // fallback
     return btn;
+  }*/
+
+
+  function ensureButton() {
+  // 1) Reuse if already created
+  let btn = document.getElementById('btnPlotPreview');
+  if (btn) return btn;
+
+  // 2) Prefer the CENTER panel toolbar; fall back only if missing
+  const toolbar =
+    document.querySelector('#centerPanel .pane-head .right-controls') ||
+    document.querySelector('.center.panel .pane-head .right-controls') ||
+    document.querySelector('#centerPanel .right-controls') ||
+    document.querySelector('.right-controls'); // last-resort
+
+  // 3) Build button
+  btn = create('button', {
+    id: 'btnPlotPreview',
+    className: 'btn',                // keep your base .btn styling
+    title: 'Preview pyplot figures',
+    'aria-label': 'Plot Preview',
+    disabled: true
+  }, [
+    create('svg', { viewBox: '0 0 24 24', width: 18, height: 18, 'aria-hidden': 'true' }, [
+      create('path', { d: 'M3 3v18h18', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }),
+      create('rect', { x: 6,  y: 11, width: 3, height: 7,  fill: 'currentColor' }),
+      create('rect', { x: 11, y: 7,  width: 3, height: 11, fill: 'currentColor' }),
+      create('rect', { x: 16, y: 4,  width: 3, height: 14, fill: 'currentColor' })
+    ])
+  ]);
+
+  // 4) Place it right after the Run button if present, else append at end
+  if (toolbar) {
+    const runBtn = toolbar.querySelector('#btnRun');
+    if (runBtn && runBtn.parentNode === toolbar) {
+      runBtn.after(btn);
+    } else {
+      toolbar.appendChild(btn);
+    }
+  } else {
+    // ultimate fallback so it still exists
+    document.body.appendChild(btn);
   }
+
+  return btn;
+}
+
+
+  
 
   // ---------- Editor detection & toggle ----------
   function codeLooksLikeMatplotlib(s) {
