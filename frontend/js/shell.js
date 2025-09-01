@@ -130,8 +130,6 @@ addEventListener('resize', () => {
 
 
 
-document.getElementById('langSelect').disabled = true;   // or false
-
 
 
 async function loadLeftContent(lang){
