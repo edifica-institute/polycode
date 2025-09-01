@@ -3141,3 +3141,16 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
 
   });
 })();
+
+
+
+
+//Progessive WebApp
+// Register PolyCode service worker (for PWA install)
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("/sw.js")
+    .then(() => console.log("✅ PolyCode Service Worker Registered"))
+    .catch((err) => console.error("❌ SW registration failed:", err));
+}
+
