@@ -1225,32 +1225,32 @@ function ts(){
 // Click handler: share (if possible) and save
 async function onClickCaptureShare(e){
   e?.preventDefault?.(); e?.stopPropagation?.();
+  const fileName = `Polycode-${ts()}.png`;
 
-  let fileName = `Polycode-${ts()}.png`;
   try{
-    const { blob } = await captureCodeAndOutputImage();
+    const { blob } = await buildReportImageBlob();
     const file = new File([blob], fileName, { type:'image/png' });
 
-    // 1) Try native share (Android Chrome etc.): you pick WhatsApp in the sheet
+    // Share first (Android Chrome etc. → pick WhatsApp)
     if (navigator.canShare && navigator.canShare({ files:[file] })) {
       try {
         await navigator.share({
           files: [file],
-          title: 'Polycode Screenshot',
-          text: 'Code + Output from Polycode'
+          title: 'Polycode Report',
+          text: 'Code + Output (screenshot)'
         });
-      } catch(_) { /* user cancelled; continue to save */ }
+      } catch { /* user cancelled; continue to save */ }
     } else {
-      // Fallback: open WhatsApp chat to the number with a note
-      const note = 'Polycode screenshot generated. If not attached automatically, please attach the image from your Downloads.';
-      window.open(`https://wa.me/919836313636?text=${encodeURIComponent(note)}`, '_blank', 'noopener');
+      // Open WhatsApp chat as a hint; the image will be saved next
+      const msg = 'Polycode report image generated. If not attached automatically, please attach the saved image.';
+      window.open(`https://wa.me/919836313636?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
     }
 
-    // 2) Save to Downloads (suggest "polycode" sub-name where supported)
+    // Save to Downloads (suggest "polycode/" path when picker exists)
     try {
       if ('showSaveFilePicker' in window) {
         const handle = await showSaveFilePicker({
-          suggestedName: `polycode/${fileName}`,  // some browsers ignore folders
+          suggestedName: `polycode/${fileName}`,
           types: [{ description: 'PNG Image', accept: { 'image/png': ['.png'] } }]
         });
         const w = await handle.createWritable();
@@ -1264,7 +1264,6 @@ async function onClickCaptureShare(e){
         setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
       }
     } catch {
-      // user cancelled or API unsupported → plain download
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = fileName;
@@ -1272,10 +1271,14 @@ async function onClickCaptureShare(e){
       setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
     }
   } catch (err){
-    console.error('Capture failed:', err);
-    alert('Could not capture the screenshot. Check console for details.');
+    console.error('Report capture failed:', err);
+    alert('Could not build the report image. See console for details.');
   }
 }
+
+// Wire it up (replace previous click binding for this button)
+document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
+
 
 // Hook the button (replace the old saveFile binding)
 document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
@@ -1291,6 +1294,179 @@ document.addEventListener('keydown', (e) => {
 
 
 
+// --- utilities already available in your codebase ---
+// - buildCodeImageDataURL()  -> PNG of the code area (clean, no Monaco)
+// - captureOutputImageDataURL() -> PNG screenshot of #output
+// - window.POLYCODE_HEADER_LOGO / POLYCODE_WATERMARK / EDIFICA_FOOTER_LOGO (base64 PNGs)
+// - ts() timestamp helper
+
+function loadImage(url){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+
+function fitWatermark(ctx, img, canvasW, canvasH){
+  const targetW = canvasW * 0.6;
+  const ratio   = targetW / img.width;
+  const w = targetW;
+  const h = img.height * ratio;
+  const x = (canvasW - w) / 2;
+  const y = (canvasH - h) / 2;
+  ctx.save();
+  ctx.globalAlpha = 0.06;
+  ctx.drawImage(img, x, y, w, h);
+  ctx.restore();
+}
+
+function drawHR(ctx, x1, y, x2, thick=false){
+  ctx.save();
+  ctx.strokeStyle = thick ? '#3c3c3c' : '#b0b0b0';
+  ctx.lineWidth = thick ? 2 : 1;
+  ctx.beginPath();
+  ctx.moveTo(x1, y);
+  ctx.lineTo(x2, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Builds ONE PNG with header/watermark/sections/footer
+async function buildReportImageBlob() {
+  // 1) Gather section images
+  const [codeURL, outURL] = await Promise.all([
+    buildCodeImageDataURL(),         // existing helper (code)
+    captureOutputImageDataURL(),     // existing helper (output screenshot)
+  ]);
+  const [codeImg, outImg] = await Promise.all([loadImage(codeURL), loadImage(outURL)]);
+
+  // 2) Layout constants
+  const margin  = 40;
+  const gapY    = 16;
+  const titleY  = 22;
+  const hdrH    = 70;
+  const ftrH    = 54;
+
+  // Width = widest content + left+right margins (keep ≥ 1200 for crispness)
+  const contentW = Math.max(1200, codeImg.width, outImg.width);
+  const W = contentW + margin * 2;
+
+  // Estimated heights for titles + spacing
+  const codeBlockH = titleY + gapY + codeImg.height;
+  const outBlockH  = titleY + gapY + outImg.height;
+
+  const H = hdrH + gapY + codeBlockH + gapY + outBlockH + gapY + ftrH;
+
+  // 3) Canvas + theme base
+  const dark = !document.body.classList.contains('light');
+  const bg   = '#ffffff'; // keep white paper; the output image itself carries dark theme
+  const ctxFont = (w, b=false) => `${b ? '700' : '400'} ${w}px system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif`;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // Optional watermark
+  if (window.POLYCODE_WATERMARK) {
+    const wm = await loadImage(window.POLYCODE_WATERMARK);
+    fitWatermark(ctx, wm, W, H);
+  }
+
+  // 4) Header
+  let y = margin; // we’ll treat top margin as header band start
+  const leftX  = margin;
+  const rightX = W - margin;
+
+  // header logo + "polycode"
+  if (window.POLYCODE_HEADER_LOGO) {
+    const logo = await loadImage(window.POLYCODE_HEADER_LOGO);
+    const h = 20, w = (logo.width * h) / logo.height;
+    ctx.drawImage(logo, leftX, y, w, h);
+    ctx.font = ctxFont(18, true);
+    ctx.fillStyle = '#000000';
+    ctx.fillText('polycode', leftX + w + 8, y + 16);
+  } else {
+    ctx.font = ctxFont(18, true);
+    ctx.fillStyle = '#000000';
+    ctx.fillText('polycode', leftX, y + 16);
+  }
+
+  // right-side header: date + site tagline
+  const date = new Date().toLocaleString();
+  ctx.textAlign = 'right';
+  ctx.font = ctxFont(12, false);
+  ctx.fillStyle = '#000000';
+  ctx.fillText(date, rightX, y + 14);
+  ctx.font = ctxFont(11, false);
+  ctx.fillText('learn.code.execute | www.polycode.in', rightX, y + 32);
+
+  // bold HR under header
+  y += 40;
+  drawHR(ctx, margin, y, W - margin, true);
+  y += gapY + 6;
+
+  // 5) CODE section
+  ctx.textAlign = 'left';
+  ctx.font = ctxFont(14, true);
+  ctx.fillStyle = '#000000';
+  ctx.fillText('Code', leftX, y + 14);
+  y += titleY;
+
+  // center code image
+  let cx = Math.floor((W - codeImg.width) / 2);
+  ctx.drawImage(codeImg, cx, y);
+  y += codeImg.height + gapY;
+
+  drawHR(ctx, margin, y, W - margin, false);
+  y += gapY;
+
+  // 6) OUTPUT section (screenshot)
+  ctx.font = ctxFont(14, true);
+  ctx.fillStyle = '#000000';
+  ctx.fillText('Output (screenshot)', leftX, y + 14);
+  y += titleY;
+
+  cx = Math.floor((W - outImg.width) / 2);
+  ctx.drawImage(outImg, cx, y);
+  y += outImg.height + gapY;
+
+  // 7) Footer
+  drawHR(ctx, margin, y, W - margin, true);
+  y += 12;
+
+  if (window.EDIFICA_FOOTER_LOGO) {
+    const fl = await loadImage(window.EDIFICA_FOOTER_LOGO);
+    const h = 16, w = (fl.width * h) / fl.height;
+    ctx.drawImage(fl, leftX, y - 12, w, h);
+    ctx.font = ctxFont(10, false);
+    ctx.fillStyle = '#000000';
+    ctx.fillText('powered by edifica', leftX + w + 6, y);
+  } else {
+    ctx.font = ctxFont(10, false);
+    ctx.fillStyle = '#000000';
+    ctx.fillText('powered by edifica', leftX, y);
+  }
+
+  ctx.textAlign = 'center';
+  ctx.font = ctxFont(10, false);
+  ctx.fillStyle = '#000000';
+  ctx.fillText('1', W / 2, y);
+
+  ctx.textAlign = 'right';
+  ctx.font = ctxFont(10, false);
+  ctx.fillText('education.consultation.assistance | www.edifica.in', rightX, y);
+
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.95));
+  const dataURL = canvas.toDataURL('image/png');
+  return { blob, dataURL };
+}
 
 
 
