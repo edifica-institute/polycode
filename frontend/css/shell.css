@@ -1252,3 +1252,87 @@ body[data-boot] .right.panel{
 
 
 
+
+
+
+
+
+
+
+
+
+/* ==== MOBILE FOOTER: ultra-compact layout & sizes ==== */
+@media (max-width:640px){
+  /* grid: left | right, then centered legal row */
+  .site-footer .footer-grid{
+    grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    grid-template-areas:
+      "left right"
+      "legal legal";
+    column-gap: 4px;
+    row-gap: 6px;
+    align-items: start;
+  }
+
+  /* left stays left */
+  .site-footer .footer-left{
+    grid-area: left;
+    justify-self: start !important;
+    align-items: flex-start !important;
+    text-align: left;
+  }
+
+  /* socials tight to the right */
+  .site-footer .footer-center{
+    grid-area: right;
+    justify-self: end !important;
+    align-items: center;
+    gap: 2px;                 /* ← tighter gap overall */
+    text-align: right;
+  }
+  .site-footer .footer-center .label{
+    font-size: 4.5px;         /* smallest readable; tweak if needed */
+    line-height: 1;
+    margin-right: 1px;        /* ← almost flush with first icon */
+    opacity: .85;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+  .site-footer .footer-center .social{
+    width: 9px; height: 9px;  /* ↓ smaller buttons */
+    margin: 0 2px;
+    padding: 0;
+  }
+  .site-footer .footer-center .social svg{
+    width: 9px; height: 9px;  /* match container so no visual nudge */
+  }
+
+  /* legal: own centered row */
+  .site-footer .footer-right{
+    grid-area: legal !important;
+    justify-self: center !important;
+    text-align: center;
+    white-space: nowrap;      /* keep on one line; switch to normal to wrap */
+    gap: 5px;
+    margin-top: 2px;
+    min-width: 0; overflow: hidden;
+    font-size: 5px;
+  }
+  .site-footer .footer-right a{
+    text-underline-offset: 1px;
+    text-decoration-thickness: .06em;
+  }
+
+  /* logo a touch larger */
+  .footer-logo{ width: 17px; height: 17px; }
+}
+
+/* Optional: ultra-narrow phones get even tighter spacing */
+@media (max-width:380px){
+  .site-footer .footer-center{ gap: 1px; }
+  .site-footer .footer-center .label{ font-size: 4.25px; margin-right: 1px; }
+  .site-footer .footer-center .social,
+  .site-footer .footer-center .social svg{ width: 8px; height: 8px; }
+}
+
