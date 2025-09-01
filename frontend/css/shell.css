@@ -1174,3 +1174,47 @@ body[data-boot] .right.panel{
 
 
 
+
+
+
+
+
+/* === DESKTOP: no page scrollbar; panes scroll === */
+@media (min-width:1025px){
+  html, body { height: 100%; }
+
+  body{
+    display: grid !important;
+    height: 100dvh !important;
+    grid-template-rows: auto minmax(0,1fr) auto !important;  /* header | middle | footer */
+    overflow: hidden !important;                              /* ← hide page scroll */
+  }
+
+  .stage{ min-height: 0 !important; overflow: hidden !important; }
+  .app{ height: 100% !important; min-height: 0 !important; overflow: hidden !important; }
+
+  .panel{ display:flex !important; flex-direction:column !important; min-height:0 !important; overflow:hidden !important; }
+  .pane-scroll, .pane-body{
+    flex:1 1 auto !important;
+    min-height:0 !important;
+    overflow:auto !important;             /* internal scrolling lives here */
+    -webkit-overflow-scrolling:touch;
+  }
+
+  /* make sure Monaco doesn't force extra height */
+  #editor{ flex:1 1 auto !important; min-height:0 !important; height:auto !important; }
+}
+
+/* === MOBILE/TABLET: page scroll is OK (header fixed) === */
+@media (max-width:1024px){
+  html, body { height:auto; min-height:100dvh; }
+  body{
+    overflow-y:auto !important;  /* page scroll on small screens */
+    grid-template-rows: minmax(calc(100dvh - var(--mhead-h)), auto) auto !important;
+  }
+  .stage{ overflow:visible !important; }
+}
+
+
+
+
