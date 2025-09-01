@@ -2401,3 +2401,103 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
+
+
+
+
+
+
+
+
+// Ensure we have a toggleExpand if not already defined (safe, idempotent)
+window.toggleExpand = window.toggleExpand || function(which, btn){
+  const app = document.querySelector('.app');
+  if (!app) return;
+
+  const classes = ['expand-left','expand-center','expand-right'];
+  const cls = `expand-${which}`;
+  const on = !app.classList.contains(cls);
+
+  classes.forEach(c => app.classList.toggle(c, c === cls && on));
+
+  // sync all expander buttons' pressed state
+  document.querySelectorAll('.btn.expander').forEach(b => {
+    const isThis = (b === btn) && on;
+    b.setAttribute('aria-pressed', isThis ? 'true' : 'false');
+    b.classList.toggle('is-on', isThis);
+  });
+
+  // Relayout editor when center size changes
+  if (window.editor?.layout) {
+    const el = document.getElementById('editor');
+    requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
+  }
+};
+
+// PATCH the existing left toggle to also reflect expand state on mobile
+(function(){
+  const app = document.querySelector('.app');
+  const btnToggleLeft = document.getElementById('btnToggleLeft');
+  if (!app || !btnToggleLeft) return;
+
+  const mqSmall = window.matchMedia('(max-width:1024px)');
+
+  function setBtnOn(el, on){
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+    el.classList.toggle('is-on', on);
+  }
+
+  // Wrap the existing handler if present; else attach a new one
+  const original = btnToggleLeft._handler || btnToggleLeft.onclick;
+  const handler = async (e) => {
+    if (typeof original === 'function') { try { original.call(btnToggleLeft, e); } catch {} }
+
+    // Determine current visibility state after the toggle
+    const leftHidden = app.classList.contains('collapsed-left') || app.classList.contains('hide-left');
+    const leftNowVisible = !leftHidden;
+
+    // On small screens, treat "left visible" as expanded-left for consistency
+    if (mqSmall.matches) {
+      app.classList.toggle('expand-left', leftNowVisible);
+      app.classList.remove('expand-center','expand-right');
+
+      // sync the LEFT expander button (the ⤢ inside #leftPanel)
+      const leftExpander = document.querySelector('#leftPanel .btn.expander');
+      if (leftExpander) setBtnOn(leftExpander, leftNowVisible);
+    }
+
+    // Keep the toggle button itself in sync
+    setBtnOn(btnToggleLeft, leftNowVisible);
+
+    // Relayout editor
+    if (window.editor?.layout) {
+      const el = document.getElementById('editor');
+      requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
+    }
+  };
+
+  // store and bind
+  btnToggleLeft._handler = handler;
+  btnToggleLeft.addEventListener('click', handler);
+
+  // Also re-sync when crossing the breakpoint
+  mqSmall.addEventListener?.('change', () => {
+    if (!mqSmall.matches) {
+      // leaving small: drop expand classes + pressed state on expanders
+      app.classList.remove('expand-left','expand-center','expand-right');
+      document.querySelectorAll('.btn.expander').forEach(b => {
+        b.setAttribute('aria-pressed', 'false');
+        b.classList.remove('is-on');
+      });
+    } else {
+      // entering small: if left is visible, reflect as expanded
+      const leftNowVisible = !(app.classList.contains('collapsed-left') || app.classList.contains('hide-left'));
+      app.classList.toggle('expand-left', leftNowVisible);
+      const leftExpander = document.querySelector('#leftPanel .btn.expander');
+      if (leftExpander) {
+        leftExpander.setAttribute('aria-pressed', leftNowVisible ? 'true' : 'false');
+        leftExpander.classList.toggle('is-on', leftNowVisible);
+      }
+    }
+  });
+})();
