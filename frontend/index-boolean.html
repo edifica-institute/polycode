@@ -126,142 +126,149 @@
 
   /* ---------- Teaching-safe simple circuit renderer ---------- */
   // Layout: strict columns, fixed spacing, straight wires into gate faces.
-  function renderSimpleCircuitSVG(net, caption = "") {
-    const GW=64, GH=40, PIN=10, XSTEP=140, YSTEP=70, PAD=24;
-    const textSize = 14;
+/* ---------- Teaching-safe simple circuit renderer (no crossings, 90° only) ---------- */
+function renderSimpleCircuitSVG(net, caption = "") {
+  const GW=64, GH=40, PIN=10, XSTEP=140, YSTEP=70, PAD=24;
+  const textSize = 14;
 
-    const nodes = new Map(), succ = new Map(), pred = new Map();
-    const addNode = n => { nodes.set(n.id, n); succ.has(n.id)||succ.set(n.id,[]); pred.has(n.id)||pred.set(n.id,[]); };
-    net.gates.forEach(g => addNode({...g}));
-    net.inputs.forEach(i => addNode({ id:i.id, type:"IN", ins:[], label:i.label }));
-    addNode({ id: net.output, type:"OUT", ins: nodes.get(net.output)?.ins || [] });
-    nodes.forEach(n => (n.ins||[]).forEach(p => { if(!nodes.has(p)) addNode({id:p,type:"WIRE",ins:[]}); succ.get(p).push(n.id); pred.get(n.id).push(p); }));
+  // Build nodes/graph
+  const nodes = new Map(), succ = new Map(), pred = new Map();
+  const addNode = n => { nodes.set(n.id, n); succ.has(n.id)||succ.set(n.id,[]); pred.has(n.id)||pred.set(n.id,[]); };
+  net.gates.forEach(g => addNode({...g}));
+  net.inputs.forEach(i => addNode({ id:i.id, type:"IN", ins:[], label:i.label }));
+  // OUT node present for topology but we'll not draw its incoming wire
+  addNode({ id: net.output, type:"OUT", ins: nodes.get(net.output)?.ins || [] });
+  nodes.forEach(n => (n.ins||[]).forEach(p => { if(!nodes.has(p)) addNode({id:p,type:"WIRE",ins:[]}); succ.get(p).push(n.id); pred.get(n.id).push(p); }));
 
-    // Longest-path levels
-    const level = new Map();
-    const lev = id => level.has(id) ? level.get(id)
-      : level.set(id, (["IN","VCC","GND"].includes(nodes.get(id)?.type)) ? 0
-        : Math.max(0,...(pred.get(id)||[]).map(lev))+1).get(id);
-    nodes.forEach((_,id)=>lev(id));
+  // Longest-path levels
+  const level = new Map();
+  const lev = id => level.has(id) ? level.get(id)
+    : level.set(id, (["IN","VCC","GND"].includes(nodes.get(id)?.type)) ? 0
+      : Math.max(0,...(pred.get(id)||[]).map(lev))+1).get(id);
+  nodes.forEach((_,id)=>lev(id));
 
-    // Pack per level top-to-bottom (no crossing minimization—intentionally simple)
-    const layers=[]; level.forEach((v,id)=> (layers[v]||(layers[v]=[])).push(id));
+  // Pack per level
+  const layers=[]; level.forEach((v,id)=> (layers[v]||(layers[v]=[])).push(id));
+  const abs = new Map();
+  layers.forEach((ids, lx) => ids.forEach((id, ly) => {
+    abs.set(id, { x: PAD + lx*XSTEP, y: PAD + ly*YSTEP });
+  }));
 
-    const abs = new Map();
-    layers.forEach((ids, lx) => ids.forEach((id, ly) => {
-      abs.set(id, { x: PAD + lx*XSTEP, y: PAD + ly*YSTEP });
-    }));
+  const width  = (layers.length+1)*XSTEP + 2*PAD;
+  const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?28:0);
+  const pinY = (y,n,k)=> y + GH*((k+1)/(Math.max(1,n)+1));
 
-    const width  = (layers.length+1)*XSTEP + 2*PAD;
-    const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?28:0);
+  // Gate glyphs (classic)
+  const bubble = (x,y,r=6)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="currentColor"/>`;
+  const gAND = (x,y)=>`<path d="M${x},${y} H${x+GW/2} A${GH/2},${GH/2} 0 0 1 ${x+GW/2},${y+GH} H${x} Z" fill="none" stroke="currentColor"/>`;
+  const gOR  = (x,y)=>`
+    <path d="M${x+10},${y}
+             C ${x+GW*0.55},${y} ${x+GW*0.78},${y+GH/2} ${x+GW-10},${y+GH/2}
+             C ${x+GW*0.78},${y+GH/2} ${x+GW*0.55},${y+GH} ${x+10},${y+GH}
+             C ${x+4},${y+GH-10} ${x+4},${y+10} ${x+10},${y}"
+          fill="none" stroke="currentColor"/>`;
+  const gXOR = (x,y)=> gOR(x,y) + `<path d="M${x+4},${y} C ${x+GW*0.32},${y} ${x+GW*0.38},${y+GH/2} ${x+4},${y+GH}"
+                                   fill="none" stroke="currentColor"/>`;
+  const gNOT = (x,y)=>`<path d="M${x},${y} L${x},${y+GH} L${x+GW-14},${y+GH/2} Z" fill="none" stroke="currentColor"/>` + bubble(x+GW-6, y+GH/2, 6);
+  const gNAND= (x,y)=> gAND(x,y) + bubble(x+GW, y+GH/2, 6);
+  const gNOR = (x,y)=> gOR(x,y)  + bubble(x+GW, y+GH/2, 6);
+  const gXNOR= (x,y)=> gXOR(x,y) + bubble(x+GW, y+GH/2, 6);
 
-    const pinY = (y,n,k)=> y + GH*((k+1)/(Math.max(1,n)+1));
+  function drawGate(n){
+    if (n.type==="WIRE" || n.type==="OUT") return "";
+    const p = abs.get(n.id);
+    const nIns=(n.ins||[]).length||1;
+    const pins = Array.from({length:nIns},(_,k)=>{
+      const py = pinY(p.y, nIns, k);
+      return `<line x1="${p.x-10}" y1="${py}" x2="${p.x}" y2="${py}" stroke="currentColor"/>`;
+    }).join("");
 
-    // Gate glyphs — classic shapes
-    const bubble = (x,y,r=6)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="currentColor"/>`;
-    const gAND = (x,y)=>`<path d="M${x},${y} H${x+GW/2} A${GH/2},${GH/2} 0 0 1 ${x+GW/2},${y+GH} H${x} Z" fill="none" stroke="currentColor"/>`;
-    const gOR  = (x,y)=>`
-      <path d="M${x+10},${y}
-               C ${x+GW*0.55},${y} ${x+GW*0.78},${y+GH/2} ${x+GW-10},${y+GH/2}
-               C ${x+GW*0.78},${y+GH/2} ${x+GW*0.55},${y+GH} ${x+10},${y+GH}
-               C ${x+4},${y+GH-10} ${x+4},${y+10} ${x+10},${y}"
-            fill="none" stroke="currentColor"/>`;
-    const gXOR = (x,y)=> gOR(x,y) +
-      `<path d="M${x+4},${y} C ${x+GW*0.32},${y} ${x+GW*0.38},${y+GH/2} ${x+4},${y+GH}"
-            fill="none" stroke="currentColor"/>`;
-    const gNOT = (x,y)=>`<path d="M${x},${y} L${x},${y+GH} L${x+GW-14},${y+GH/2} Z" fill="none" stroke="currentColor"/>` + bubble(x+GW-6, y+GH/2, 6);
-    const gNAND= (x,y)=> gAND(x,y) + bubble(x+GW, y+GH/2, 6);
-    const gNOR = (x,y)=> gOR(x,y)  + bubble(x+GW, y+GH/2, 6);
-    const gXNOR= (x,y)=> gXOR(x,y) + bubble(x+GW, y+GH/2, 6);
-
-    function drawGate(n){
-      if (n.type==="WIRE" || n.type==="OUT") return "";
-      const p = abs.get(n.id);
-      const nIns=(n.ins||[]).length||1;
-      const pins = Array.from({length:nIns},(_,k)=>{
-        const py = pinY(p.y, nIns, k);
-        return `<line x1="${p.x-10}" y1="${py}" x2="${p.x}" y2="${py}" stroke="currentColor"/>`;
-      }).join("");
-
-      const body = {
-        "IN":  "",
-        "AND": gAND(p.x,p.y),
-        "OR":  gOR(p.x,p.y),
-        "XOR": gXOR(p.x,p.y),
-        "NOT": gNOT(p.x,p.y),
-        "NAND":gNAND(p.x,p.y),
-        "NOR": gNOR(p.x,p.y),
-        "XNOR":gXNOR(p.x,p.y)
-      }[n.type] || `<rect x="${p.x}" y="${p.y}" width="${GW}" height="${GH}" rx="10" fill="none" stroke="currentColor"/>`;
-
-      if (n.type === "IN") {
-        const r=9, cx=p.x+r, cy=p.y+r;
-        return `<g class="gate IN">
-          <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="currentColor"/>
-          <line x1="${cx+r}" y1="${cy}" x2="${cx+r+PIN}" y2="${cy}" stroke="currentColor"/>
-          <text x="${p.x-8}" y="${cy+5}" text-anchor="end" class="mono" font-size="${textSize}" fill="currentColor">${n.label||n.id}</text>
-        </g>`;
-      }
-
-      return `<g class="gate ${n.type}">
-        ${pins}
-        ${body}
+    if (n.type === "IN") {
+      const r=9, cx=p.x+r, cy=p.y+r;
+      return `<g class="gate IN">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="currentColor"/>
+        <line x1="${cx+r}" y1="${cy}" x2="${cx+r+PIN}" y2="${cy}" stroke="currentColor"/>
+        <text x="${p.x-8}" y="${cy+5}" text-anchor="end" class="mono" font-size="${textSize}" fill="currentColor">${n.label||n.id}</text>
       </g>`;
     }
 
-    function outX(id){
-      const t = nodes.get(id)?.type || "WIRE";
-      const p = abs.get(id);
-      if (t === "IN"){ const r = 9; return p.x + r + r + PIN; }
-      return p.x + GW;
-    }
+    const body = {
+      "AND": gAND(p.x,p.y), "OR": gOR(p.x,p.y), "XOR": gXOR(p.x,p.y), "NOT": gNOT(p.x,p.y),
+      "NAND": gNAND(p.x,p.y), "NOR": gNOR(p.x,p.y), "XNOR": gXNOR(p.x,p.y)
+    }[n.type] || `<rect x="${p.x}" y="${p.y}" width="${GW}" height="${GH}" rx="10" fill="none" stroke="currentColor"/>`;
 
-    // Straight wires: horizontal into gate, one vertical bend from source level
-    function wiresTo(tid){
-      const t   = nodes.get(tid);
-      const dst = abs.get(tid);
-      const x2  = dst.x;
-      const ins = (t.ins || []);
-      return ins.map((sid, k) => {
-        const sp = abs.get(sid);
-        const y1 = (nodes.get(sid)?.type === "IN") ? sp.y + 9 : sp.y + GH/2;
-        const y2 = dst.y + GH*((k+1)/(Math.max(1,ins.length)+1));
-        const x1 = outX(sid);
-        // H — V — H, no detours
-        const midX = x2 - GW/2 - 20;
-        return `M${x1},${y1} H${midX} V${y2} H${x2}`;
-      }).join(" ");
-    }
-
-    const gatesSVG = Array.from(nodes.values()).map(drawGate).join("");
-    const wiresSVG = Array.from(nodes.values())
-      .filter(n=>(n.ins||[]).length)
-      .map(n=>`<path d="${wiresTo(n.id)}" stroke="currentColor" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)
-      .join("");
-
-    const outPos = abs.get(net.output) || { x: width-80, y: height/2 };
-    const lamp = `
-      <g transform="translate(${outPos.x + GW + 30}, ${outPos.y + GH/2 - 18})" stroke="currentColor" fill="none">
-        <path d="M0,18 C0,8 8,0 18,0 C28,0 36,8 36,18 C36,26 31,31 27,34 L24,42 H12 L9,34 C5,31 0,26 0,18 Z" />
-        <circle cx="18" cy="18" r="12" />
-      </g>`;
-
-    const style = `
-      <style>
-        .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
-        text { font-size: ${textSize}px; }
-      </style>`;
-
-    const captionSVG = caption ? `<text x="${PAD}" y="${height-8}" class="mono" fill="currentColor">F = ${caption}</text>` : "";
-
-    return `<svg viewBox="0 0 ${width+120} ${height}" width="100%" preserveAspectRatio="xMinYMin meet">
-      ${style}
-      <g>${gatesSVG}</g>
-      <g>${wiresSVG}</g>
-      ${lamp}
-      ${captionSVG}
-    </svg>`;
+    return `<g class="gate ${n.type}">${pins}${body}</g>`;
   }
+
+  const outX = id => {
+    const t = nodes.get(id)?.type || "WIRE";
+    const p = abs.get(id);
+    if (t === "IN"){ const r = 9; return p.x + r + r + PIN; }
+    return p.x + GW;
+  };
+
+  // H-only (same row) OR H–V–H via a spine left of the destination gate column.
+  function wiresTo(tid){
+    const t   = nodes.get(tid);
+    const dst = abs.get(tid);
+    const xGateLeft = dst.x;          // gate’s left face
+    const SPINE = xGateLeft - 28;     // routing spine (guaranteed left of body)
+    const ins = (t.ins || []);
+
+    return ins.map((sid, k) => {
+      const sp = abs.get(sid);
+      const y1 = (nodes.get(sid)?.type === "IN") ? sp.y + 9 : sp.y + GH/2;
+      const y2 = pinY(dst.y, ins.length || 1, k);
+      const x1 = outX(sid);
+
+      if (Math.abs(y1 - y2) < 1e-6) {
+        // same row: straight into pin (no unnecessary bends)
+        return `M${x1},${y1} H${xGateLeft}`;
+      }
+      // Route outside symbols: H to spine, V to target row, H into pin
+      return `M${x1},${y1} H${SPINE} V${y2} H${xGateLeft}`;
+    }).join(" ");
+  }
+
+  const gatesSVG = Array.from(nodes.values()).map(drawGate).join("");
+  // Draw all wires EXCEPT into the OUT node (we’ll make one final output line)
+  const wiresSVG = Array.from(nodes.values())
+    .filter(n => (n.ins||[]).length && n.id !== net.output)
+    .map(n=>`<path d="${wiresTo(n.id)}" stroke="currentColor" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)
+    .join("");
+
+  // Single clean output line to the lamp
+  const lastSrc = (pred.get(net.output) || [])[0];
+  const lastSrcPos = abs.get(lastSrc) || { x: width-80, y: height/2 };
+  const yOut = (nodes.get(lastSrc)?.type === "IN") ? lastSrcPos.y + 9 : lastSrcPos.y + GH/2;
+  const xOutStart = outX(lastSrc);
+  const lampX = (abs.get(net.output)?.x || (PAD + (layers.length)*XSTEP)) + GW + 50;
+  const lampY = (abs.get(net.output)?.y || (height/2)) + GH/2;
+
+  const outputLine = `<path d="M${xOutStart},${yOut} H${lampX-36}" stroke="currentColor" fill="none" stroke-width="2.6" stroke-linecap="round" />`;
+  const lamp = `
+    <g transform="translate(${lampX-36}, ${lampY-18})" stroke="currentColor" fill="none">
+      <path d="M0,18 C0,8 8,0 18,0 C28,0 36,8 36,18 C36,26 31,31 27,34 L24,42 H12 L9,34 C5,31 0,26 0,18 Z" />
+      <circle cx="18" cy="18" r="12" />
+    </g>`;
+
+  const style = `
+    <style>
+      .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+      text { font-size: ${textSize}px; }
+    </style>`;
+
+  const captionSVG = caption ? `<text x="${PAD}" y="${height-8}" class="mono" fill="currentColor">F = ${caption}</text>` : "";
+
+  return `<svg viewBox="0 0 ${width+160} ${height}" width="100%" preserveAspectRatio="xMinYMin meet">
+    ${style}
+    <g>${gatesSVG}</g>
+    <g>${wiresSVG}${outputLine}</g>
+    ${lamp}
+    ${captionSVG}
+  </svg>`;
+}
+
 
   /* ---------- Existing: Simplify / K-map / TT ---------- */
   $("#btnSimplify").addEventListener("click", async () => {
