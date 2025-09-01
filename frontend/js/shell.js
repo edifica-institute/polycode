@@ -1327,9 +1327,22 @@ function fitWatermark(ctx, img, W, H){
   ctx.restore();
 }
 
-function drawHR(ctx, x1, y, x2, thick=false){
+
+function themeColors() {
+  // Adjust this detector if your app uses a different flag
+  const isLight = document.body.classList.contains('light') ||
+                  document.documentElement.dataset.theme === 'light';
+  return isLight
+    ? { bg:'#ffffff', text:'#000000', hr:'#b9bcc4', hrBold:'#51555f', link:'#2a66c9', wmAlpha:0.035 }
+    : { bg:'#0f1117', text:'#ffffff', hr:'#2d3140', hrBold:'#555b6c', link:'#79a7ff', wmAlpha:0.055 };
+}
+
+const ctxFont = (px, bold=false) =>
+  `${bold ? '700':'400'} ${px}px system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif`;
+
+function drawHR(ctx, x1, y, x2, thick, color) {
   ctx.save();
-  ctx.strokeStyle = thick ? '#3c3c3c' : '#b0b0b0';
+  ctx.strokeStyle = color;
   ctx.lineWidth = thick ? 2 : 1;
   ctx.beginPath();
   ctx.moveTo(x1, y);
@@ -1338,45 +1351,65 @@ function drawHR(ctx, x1, y, x2, thick=false){
   ctx.restore();
 }
 
-const ctxFont = (px, bold=false) =>
-  `${bold ? '700' : '400'} ${px}px system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial,sans-serif`;
+// Fit a watermark INSIDE a rectangle, centered, bounded by rect W/H
+function fitWatermarkInRect(ctx, img, rect, alpha=0.04) {
+  const maxW = rect.w * 0.80;       // keep margins inside the code block
+  const maxH = rect.h * 0.70;
+  let w = img.width, h = img.height;
+  const s = Math.min(maxW / w, maxH / h);
+  w = Math.round(w * s);
+  h = Math.round(h * s);
+  const x = Math.round(rect.x + (rect.w - w) / 2);
+  const y = Math.round(rect.y + (rect.h - h) / 2);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(img, x, y, w, h);
+  ctx.restore();
+}
+
 
 // --- main ------------------------------------------------------------------
 
-async function buildReportImageBlob(){
-  // 1) capture both sections
+async function buildReportImageBlob() {
+  // capture both sections as before
   const [codeURL, outURL] = await Promise.all([
     buildCodeImageDataURL(),
     captureOutputImageDataURL(),
   ]);
   const [codeImg, outImg] = await Promise.all([loadImage(codeURL), loadImage(outURL)]);
 
-  // 2) layout constants
+  // layout
+  const C = themeColors();
   const margin = 40;
-  const gapY   = 12;
-  const hdrH   = 60;  // visual target; we’ll draw within this band
-  const ftrH   = 42;
+  const gapY   = 14;           // base gap
+  const HR = {                 // extra gaps around HRs (requested)
+    thin:  { before: 14, after: 18 },
+    thick: { before: 18, after: 20 }
+  };
+  const hdrBand = 60;
+  const ftrBand = 44;
 
-  // keep page width reasonable and crisp
   const contentW = Math.min(Math.max(1200, codeImg.width, outImg.width), 1600);
   const W = contentW + margin * 2;
 
-  // helpers to draw images centered with max width = contentW (no upscaling)
-  const drawImgCentered = (img, y) => {
+  // scale helpers (no upscaling)
+  const scaleToContent = (img) => {
     const s = Math.min(1, contentW / img.width);
-    const w = Math.round(img.width  * s);
-    const h = Math.round(img.height * s);
-    const x = margin + Math.round((contentW - w) / 2);
-    ctx.drawImage(img, x, y, w, h);
-    return y + h;
+    return { w: Math.round(img.width * s), h: Math.round(img.height * s) };
   };
+  const codeSz = scaleToContent(codeImg);
+  const outSz  = scaleToContent(outImg);
 
-  // rough height estimate to allocate canvas; we’ll use it fully
-  const codeH = Math.round(codeImg.height * Math.min(1, contentW / codeImg.width));
-  const outH  = Math.round(outImg.height  * Math.min(1, contentW / outImg.width));
-  const H = hdrH + gapY + (18 + gapY + codeH) + gapY + (18 + gapY + outH) + gapY + ftrH;
+  // total height
+  const H = hdrBand
+          + HR.thick.before + 2 + HR.thick.after     // header HR
+          + gapY + 20 + codeSz.h                     // “Code” title + code image
+          + HR.thin.before + 1 + HR.thin.after       // thin HR between sections
+          + 20 + outSz.h + gapY                      // “Output” + out image
+          + HR.thick.before + 2 + HR.thick.after     // footer HR
+          + ftrBand;
 
-  // 3) canvas / bg
+  // canvas
   const canvas = document.createElement('canvas');
   canvas.width  = W;
   canvas.height = H;
@@ -1385,76 +1418,95 @@ async function buildReportImageBlob(){
   ctx.textBaseline = 'top';
   ctx.imageSmoothingEnabled = true;
 
-  // page background is always white; screenshots carry their own theme
-  ctx.fillStyle = '#ffffff';
+  // background matches theme
+  ctx.fillStyle = C.bg;
   ctx.fillRect(0, 0, W, H);
 
-  // optional watermark (before content so it sits behind)
-  if (window.POLYCODE_WATERMARK){
-    const wm = await loadImage(window.POLYCODE_WATERMARK);
-    fitWatermark(ctx, wm, W, H);
-  }
-
-  // 4) header
+  // --- header ---
   let y = margin;
   const leftX  = margin;
   const rightX = W - margin;
 
-  // logo + brand
-  let brandOffsetX = leftX;
+  // brand + logo
+  let bx = leftX;
   if (window.POLYCODE_HEADER_LOGO){
     const logo = await loadImage(window.POLYCODE_HEADER_LOGO);
     const h = 24, w = Math.round((logo.width * h) / logo.height);
-    ctx.drawImage(logo, leftX, y, w, h);
-    brandOffsetX += w + 8;
+    ctx.drawImage(logo, bx, y, w, h);
+    bx += w + 8;
   }
   ctx.font = ctxFont(16, true);
-  ctx.fillStyle = '#000';
-  ctx.fillText('polycode', brandOffsetX, y + 2);
+  ctx.fillStyle = C.text;
+  ctx.fillText('polycode', bx, y + 2);
 
-  // right side date + site
-  const date = new Date().toLocaleString();
+  // right side
   ctx.textAlign = 'right';
   ctx.font = ctxFont(11);
-  ctx.fillText(date, rightX, y);
+  ctx.fillStyle = C.text;
+  ctx.fillText(new Date().toLocaleString(), rightX, y);
   ctx.fillText('learn.code.execute | www.polycode.in', rightX, y + 16);
   ctx.textAlign = 'left';
 
-  y += 28;
-  drawHR(ctx, margin, y, W - margin, true);
-  y += gapY;
+  // thick HR under header with extra gaps
+  y += 28 + HR.thick.before;
+  drawHR(ctx, margin, y, W - margin, true, C.hrBold);
+  y += HR.thick.after;
 
   // centered super-title
   ctx.textAlign = 'center';
   ctx.font = ctxFont(14, true);
+  ctx.fillStyle = C.text;
   ctx.fillText('Screenshot | Capture', W / 2, y);
   ctx.textAlign = 'left';
-  y += gapY + 6;
+  y += gapY;
 
-  // 5) CODE section
+  // --- CODE section ---
   ctx.font = ctxFont(12, true);
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = C.text;
   ctx.fillText('Code', leftX, y);
   y += 18;
 
-  y = drawImgCentered(codeImg, y);
-  y += gapY;
+  // compute code rect & draw image centered
+  const codeX = margin + Math.round((contentW - codeSz.w) / 2);
+  const codeRect = { x: codeX, y, w: codeSz.w, h: codeSz.h };
 
-  drawHR(ctx, margin, y, W - margin, false);
-  y += gapY;
+  // draw code image first
+  ctx.drawImage(codeImg, codeRect.x, codeRect.y, codeRect.w, codeRect.h);
 
-  // 6) OUTPUT section
+  // watermark ONLY inside code section (clipped to that rect)
+  if (window.POLYCODE_WATERMARK){
+    const wm = await loadImage(window.POLYCODE_WATERMARK);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(codeRect.x, codeRect.y, codeRect.w, codeRect.h);
+    ctx.clip();
+    fitWatermarkInRect(ctx, wm, codeRect, C.wmAlpha);
+    ctx.restore();
+  }
+
+  y = codeRect.y + codeRect.h;
+
+  // thin HR between sections with extra gaps
+  y += HR.thin.before;
+  drawHR(ctx, margin, y, W - margin, false, C.hr);
+  y += HR.thin.after;
+
+  // --- OUTPUT section ---
   ctx.font = ctxFont(12, true);
+  ctx.fillStyle = C.text;
   ctx.fillText('Output', leftX, y);
   y += 18;
 
-  y = drawImgCentered(outImg, y);
-  y += gapY;
+  const outX = margin + Math.round((contentW - outSz.w) / 2);
+  ctx.drawImage(outImg, outX, y, outSz.w, outSz.h);
+  y += outSz.h + gapY;
 
-  // 7) footer
-  drawHR(ctx, margin, y, W - margin, true);
-  y += 8;
+  // thick HR above footer with extra gaps
+  y += HR.thick.before;
+  drawHR(ctx, margin, y, W - margin, true, C.hrBold);
+  y += HR.thick.after;
 
+  // footer
   let fx = leftX;
   if (window.EDIFICA_FOOTER_LOGO){
     const fl = await loadImage(window.EDIFICA_FOOTER_LOGO);
@@ -1463,6 +1515,7 @@ async function buildReportImageBlob(){
     fx += w + 6;
   }
   ctx.font = ctxFont(11);
+  ctx.fillStyle = C.text;
   ctx.fillText('powered by edifica', fx, y);
 
   ctx.textAlign = 'center';
@@ -1471,7 +1524,7 @@ async function buildReportImageBlob(){
   ctx.textAlign = 'right';
   ctx.fillText('education.consultation.assistance | www.edifica.in', rightX, y);
 
-  // 8) export
+  // export
   const blob = await new Promise(res => canvas.toBlob(res, 'image/png', 0.95));
   const dataURL = canvas.toDataURL('image/png');
   return { blob, dataURL };
