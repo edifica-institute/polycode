@@ -2767,8 +2767,10 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
     app.classList.remove('expand-left','expand-center','expand-right');
     // Also un-blue ALL expander buttons
     document.querySelectorAll('.btn.expander').forEach(b => {
-      b.setAttribute('aria-pressed','false');
-      b.classList.remove('is-on');
-    });
+  const isThis = (b === btn) && on;
+  b.setAttribute('aria-pressed', isThis ? 'true' : 'false'); // ← correct
+  b.classList.toggle('is-on', isThis);
+});
+
   });
 })();
