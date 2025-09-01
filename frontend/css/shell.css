@@ -1330,6 +1330,60 @@ body[data-boot] .right.panel{
 
 
 
+/* === Mobile & small screens (fix horizontal clipping + smooth scroll) === */
+@media (max-width:1024px){
+  /* Re-enable page scrolling in stacked mode; forbid sideways spill. */
+  html, body { overflow-x:hidden; overflow-y:auto; height:auto; }
+
+  /* Make inner containers shrink-to-fit so their own scrollers can work */
+  .stage, .app, .panel, .pane-head, .pane-body, .pane-scroll { min-width:0; max-width:100%; }
+
+  /* Make the usual scrollers be momentumy + self-contained */
+  .pane-scroll,
+  #leftContent,
+  #output,
+  #centerPanel .pane-body,
+  #rightPanel .pane-body{
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    touch-action:pan-y;
+  }
+
+  /* Header/nav shouldn’t force the page wider on tiny screens */
+  .site-header, .site-nav { min-width:0; overflow:hidden; }
+  .site-nav { flex-wrap:wrap; }
+}
+
+/* === Desktop stays no-page-scroll; panels scroll internally === */
+@media (min-width:1025px){
+  html, body { height:100%; overflow:hidden; } /* body grid already does header | 1fr | footer */
+  .stage { min-height:0; }
+}
+
+/* === Console & output content: show horizontal scroller INSIDE #output === */
+#output { overflow:auto; } /* global: applies to Web/SQL too */
+#output > pre,
+#output .console,
+#sqlout pre{
+  display:block;
+  min-width:max-content;   /* long lines create an inner horizontal scrollbar */
+  white-space:pre;
+}
+#preview{ display:block; max-width:100%; } /* Web preview iframe safety */
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* 1) Allow the middle row's children to shrink so their inner areas can scroll */
