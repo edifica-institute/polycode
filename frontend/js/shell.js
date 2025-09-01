@@ -1405,26 +1405,25 @@ function addWatermark(pdf, watermarkBase64){
   if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 1 }));
 }
 
-function boldHR(pdf, y){
-  // Bold horizontal rule
+function boldHR(pdf, y, { theme='light' } = {}) {
   const margin = 40, pageW = pdf.internal.pageSize.getWidth();
   const prev = pdf.getLineWidth?.() || 0.2;
   pdf.setLineWidth?.(1.2);
-  pdf.setDrawColor(60);
+  pdf.setDrawColor(theme === 'dark' ? 200 : 60);
   pdf.line(margin, y, pageW - margin, y);
   pdf.setLineWidth?.(prev);
   return y + 10;
 }
 
-function thinHR(pdf, y){
+function thinHR(pdf, y, { theme='light' } = {}) {
   const margin = 40, pageW = pdf.internal.pageSize.getWidth();
-  pdf.setDrawColor(180);
+  pdf.setDrawColor(theme === 'dark' ? 150 : 180);
   pdf.line(margin, y, pageW - margin, y);
   return y + 10;
 }
 
-
-function addHeader(pdf, y, { headerLogoBase64 } = {}){
+function addHeader(pdf, y, { headerLogoBase64, theme='light' } = {}){
+  const isDark = theme === 'dark';
   const margin = 40;
   const pageW = pdf.internal.pageSize.getWidth();
   const textY = y + 12;
@@ -1435,32 +1434,33 @@ function addHeader(pdf, y, { headerLogoBase64 } = {}){
     pdf.addImage(headerLogoBase64, 'PNG', x, y, w, h, undefined, 'FAST');
     x += w + 8;
   }
+  pdf.setTextColor(isDark ? 255 : 0);
   pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
-  pdf.text('polycode', x, textY); // <-- lowercase
- pdf.setFontSize(12);
-  // Right: learn.code.execute | www.polycode.in (link)
+  pdf.text('polycode', x, textY);
+  pdf.setFontSize(11);
   const rightX = pageW - margin;
   const rightText = 'learn.code.execute | ';
   const link = 'www.polycode.in';
-  pdf.setFont('helvetica','normal'); pdf.setFontSize(11);
+  pdf.setFont('helvetica','normal');
   pdf.text(rightText + link, rightX, textY, { align:'right' });
   pdf.setTextColor(30,100,200);
   pdf.textWithLink(link, rightX, textY, { align:'right', url:'https://www.polycode.in' });
-  pdf.setTextColor(0,0,0);
+  pdf.setTextColor(isDark ? 255 : 0);
 
   let ny = y + 22;
-  ny = boldHR(pdf, ny);  // bold HR after header (every page)
-  ny += 6;               // gap
+  ny = boldHR(pdf, ny, { theme });   // ← pass theme
+  ny += 6;
   return ny;
 }
 
-function addFooter(pdf, { footerLogoBase64 } = {}){
+function addFooter(pdf, { footerLogoBase64, theme='light' } = {}){
+  const isDark = theme === 'dark';
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 40;
 
   const hrY = pageH - 40;
-  boldHR(pdf, hrY); // bold HR above footer (every page)
+  boldHR(pdf, hrY, { theme });
 
   let x = margin, y = pageH - 22;
   if (footerLogoBase64){
@@ -1468,27 +1468,42 @@ function addFooter(pdf, { footerLogoBase64 } = {}){
     pdf.addImage(footerLogoBase64, 'PNG', x, y - h + 2, w, h, undefined, 'FAST');
     x += w + 6;
   }
+  pdf.setTextColor(isDark ? 255 : 0);
   pdf.setFont('helvetica','normal'); pdf.setFontSize(9);
-  pdf.text('powered by edifica', x, y); // <-- lowercase
+  pdf.text('powered by edifica', x, y);
 
   const right = 'education.consultation.assistance | ';
   const link = 'www.edifica.in';
   pdf.text(right + link, pageW - margin, y, { align:'right' });
   pdf.setTextColor(30,100,200);
   pdf.textWithLink(link, pageW - margin, y, { align:'right', url:'https://www.edifica.in' });
-  pdf.setTextColor(0,0,0);
+  pdf.setTextColor(isDark ? 255 : 0);
 
   const page = pdf.internal.getNumberOfPages?.() || 1;
   pdf.setFontSize(9);
   pdf.text(String(page), pageW / 2, y, { align:'center' });
 }
 
-function newPage(pdf, env){
-  // close current page with footer, then start a fresh page with watermark + header
-  addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
+// fill background (only when asked)
+function fillPageBackground(pdf, color=[24,28,34]) {
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  pdf.setFillColor(...color);
+  pdf.rect(0, 0, pageW, pageH, 'F');
+}
+
+function newPage(pdf, env, { theme='light', fillPage=false } = {}){
+  addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme });
   pdf.addPage();
-  addWatermark(pdf, env.watermarkLogoBase64);
-  return addHeader(pdf, 40, { headerLogoBase64: env.headerLogoBase64 });
+  if (fillPage) fillPageBackground(pdf);        // dark background under everything
+  addWatermark(pdf, env.watermarkLogoBase64);   // optional watermark goes above bg
+  return addHeader(pdf, 40, { headerLogoBase64: env.headerLogoBase64, theme });
+}
+
+function isDarkMode(){
+  return document.documentElement.classList.contains('dark')
+      || document.documentElement.dataset.theme === 'dark'
+      || window.matchMedia?.('(prefers-color-scheme: dark)').matches;
 }
 
 
@@ -1693,49 +1708,40 @@ function isSameOriginIframe(ifr){
 }
 
 // Screenshot the preview area (iframe if same-origin; else fall back to #output)
-async function screenshotOutputForPdf(){
+async function screenshotOutputForPdf() {
   const html2canvas = await ensureHtml2Canvas();
 
-  // Prefer: inside the preview iframe (so content isn't blank)
-  const ifr = document.getElementById('preview');
-  if (isSameOriginIframe(ifr)) {
-    const doc = ifr.contentDocument;
-    // Ensure full height for capture
-    const root = doc.documentElement;
-    const prevStyle = root.getAttribute('style') || '';
-    root.setAttribute('style', prevStyle + ';background:#ffffff !important;');
-    try {
-      const canvas = await html2canvas(root, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: true,
-        allowTaint: false
-      });
-      return canvas.toDataURL('image/png');
-    } catch(_) { /* fall through to #output */ }
-    finally { root.setAttribute('style', prevStyle); }
-  }
+  // Prefer the preview iframe (now same-origin)
+  const iframe = document.getElementById('preview');
+  const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+  if (doc && doc.documentElement) {
+    // prevent focus outlines etc.
+    doc.activeElement?.blur?.();
 
-  // Fallback: snapshot the whole #output panel (you already have a helper too)
-  const out = document.getElementById('output');
-  if (!out) return null;
-
-  // Temporarily expand so html2canvas sees full scroll height
-  const prev = { height: out.style.height, overflowY: out.style.overflowY };
-  out.style.height = out.scrollHeight + 'px';
-  out.style.overflowY = 'visible';
-  try{
-    const canvas = await html2canvas(out, {
-      backgroundColor: '#ffffff',
+    const el = doc.documentElement;
+    const canvas = await html2canvas(el, {
+      backgroundColor: null,  // use actual page colors (dark/light)
       scale: 2,
       useCORS: true,
-      allowTaint: false
+      allowTaint: false,
+      windowWidth:  el.scrollWidth,
+      windowHeight: el.scrollHeight,
+      logging: false
     });
     return canvas.toDataURL('image/png');
-  } finally {
-    out.style.height = prev.height;
-    out.style.overflowY = prev.overflowY;
   }
+
+  // Fallback: capture host #output (should rarely run now)
+  const out = document.getElementById('output');
+  if (!out) return null;
+  const canvas = await html2canvas(out, {
+    backgroundColor: null,
+    scale: 2,
+    useCORS: true,
+    allowTaint: false,
+    logging: false
+  });
+  return canvas.toDataURL('image/png');
 }
 
 
@@ -1853,44 +1859,52 @@ async function buildPdfBlob(userTitle, logos = {}){
 
   y += 8; y = thinHR(pdf, y); y += 8;
 
-  // New page for Output
-  y = newPage(pdf, env);
+  
+// --- Output page (1 page, no blanks) ---
+const isDark = isDarkMode(); // helper below
 
-  // ======== OUTPUT SECTION (robust) ========
-    // Output
-  // Output
-  // Output
- // 🔥 New page for Output (keep your header/footer flow)
+// start a *single* fresh page for Output
+y = newPage(pdf, env, { theme: isDark ? 'dark' : 'light', fillPage: isDark }); // draws dark bg only for this page
 
-// ---- Output header
-// Output
-// Output
-pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-y = ensureSpace(pdf, y, 18, env);
-pdf.text('Output', margin, y); y += 14;
+// title
+pdf.setFont('helvetica','bold'); 
+pdf.setFontSize(12);
+pdf.setTextColor(isDark ? 255 : 0);
+const titleH = 14;
+pdf.text('Output', margin, y); 
+y += titleH;
 
-const outText = (document.getElementById('output')?.innerText || '').trim();
+const iframePng = await screenshotOutputForPdf(); // no-Flash grab (see #3)
+if (iframePng) {
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const maxW  = pageW - margin * 2;
+  const footerReserve = 26;        // leave room for footer band
+  const gap = 8;                   // space after image
 
-if (outText) {
-  // text output available → write it
-  y = writeWrapped(pdf, y, outText, { font:'courier', size:10, lh:12, env });
-} else {
-  // no text → screenshot the preview/whole output panel
-  const png = await screenshotOutputForPdf();  // uses the iframe when same-origin
-  if (png) {
-    const pageW = pdf.internal.pageSize.getWidth();
-    const maxW  = pageW - margin * 2;
-    const props = pdf.getImageProperties(png);
-    const w = maxW;
-    const h = props ? (props.height * w / props.width) : 0;
+  // compute available height *on this page* (no ensureSpace)
+  const maxH = pageH - margin - footerReserve - y - gap;
 
-    y = ensureSpace(pdf, y, h, env);
-    pdf.addImage(png, 'PNG', margin, y, w, h, undefined, 'FAST');
-    y += h + 8;
-  } else {
-    y = writeWrapped(pdf, y, '(no output)', { font:'courier', size:10, lh:12, env });
+  const props = pdf.getImageProperties(iframePng);
+  let w = maxW;
+  let h = props ? (props.height * w / props.width) : 0;
+
+  // fit image inside the leftover page area
+  if (h > maxH) {
+    const s = maxH / h;
+    w *= s; h *= s;
   }
+
+  pdf.addImage(iframePng, 'PNG', margin, y, w, h, undefined, 'FAST');
+  y += h + gap;
+} else {
+  // fallback text if somehow no image
+  y = writeWrapped(pdf, y, '(no output)', { font:'courier', size:10, lh:12, env });
 }
+
+// close page
+addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme: isDark ? 'dark' : 'light' });
+
 
 
   // =========================================
