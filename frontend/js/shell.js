@@ -1517,14 +1517,80 @@ async function buildPdfBlob(userTitle, logos = {}){
   y = newPage(pdf, env);
 
   // Output
-  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+ /* pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
   y = ensureSpace(pdf, y, 18, env);
   pdf.text('Output', margin, y); y += 14;
 
   const outText = (document.getElementById('output')?.innerText || '').trim() || '(no output)';
   y = writeWrapped(pdf, y, outText, {
     font:'courier', style:'normal', size:10, lh:12, env
-  });
+  });*/
+
+
+
+  // Output
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+  y = ensureSpace(pdf, y, 18, env);
+  pdf.text('Output', margin, y); y += 14;
+
+  const rawText = (document.getElementById('output')?.innerText || '').trim();
+
+  if (rawText) {
+    // normal text output
+    y = writeWrapped(pdf, y, rawText, {
+      font:'courier', style:'normal', size:10, lh:12, env
+    });
+  } else {
+    // ⛳ Fallback: capture the output panel as an image
+    try {
+      const img = await captureOutputImageDataURL();      // uses your html2canvas helper
+      if (img) {
+        const props = pdf.getImageProperties(img);
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
+
+        const maxW = pageW - margin*2;
+        let   w = maxW;
+        let   h = w * (props.height / props.width);
+
+        // If not enough room on this page, go to a fresh page
+        let remaining = pageH - margin - 26 - y;          // leave footer band
+        if (h > remaining) {
+          y = newPage(pdf, env);                          // adds header + watermark
+          remaining = pageH - margin - 26 - y;
+          if (h > remaining) {                            // still too tall → scale to fit
+            const k = remaining / h;
+            w *= k; h *= k;
+          }
+        }
+
+        pdf.addImage(img, 'PNG', margin, y, w, h, undefined, 'FAST');
+        y += h;
+      } else {
+        y = writeWrapped(pdf, y, '(no output)', { env, size:10, lh:12 });
+      }
+    } catch (err) {
+      console.warn('Output capture failed:', err);
+      y = writeWrapped(pdf, y, '(no output)', { env, size:10, lh:12 });
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 
   // ❌ No “—End—” anymore
 
