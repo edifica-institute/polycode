@@ -1469,33 +1469,61 @@ function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, l
 
 
 async function capturePreviewImageDataURL(){
+  const html2canvas = await ensureHtml2Canvas();
   const ifr = document.getElementById('preview');
   if (!ifr) return null;
 
-  const doc = ifr.contentDocument || ifr.contentWindow?.document;
-  if (!doc) return null; // cross-origin or not ready
-
-  const html2canvas = await ensureHtml2Canvas();
-
-  // Expand to full content height so we capture everything
-  const root = doc.documentElement;
-  const prevOverflow = root.style.overflow;
-  root.style.overflow = 'visible';
-
-  try{
-    const canvas = await html2canvas(root, {
-      backgroundColor: '#ffffff',
-      scale: 2,
-      useCORS: true,
-      allowTaint: false,
-      windowWidth:  root.scrollWidth,
-      windowHeight: root.scrollHeight
-    });
-    return canvas.toDataURL('image/png');
-  }finally{
-    root.style.overflow = prevOverflow;
+  // 1) Try direct same-origin capture (will throw SecurityError if cross-origin)
+  try {
+    const doc = ifr.contentDocument || ifr.contentWindow?.document; // may throw
+    if (doc) {
+      const root = doc.documentElement;
+      const canvas = await html2canvas(root, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        windowWidth:  root.scrollWidth,
+        windowHeight: root.scrollHeight
+      });
+      return canvas.toDataURL('image/png');
+    }
+  } catch (_) {
+    // fall through to mirror path
   }
+
+  // 2) Mirror the preview HTML into an offscreen, same-origin iframe and snapshot it
+  const html = window.__lastPreviewHTML || ifr.srcdoc || null;
+  if (!html) return null; // nothing we can snapshot
+
+  const mirror = document.createElement('iframe');
+  // keep same-origin for capture; no network navigation, just srcdoc
+  mirror.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  mirror.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:10px;visibility:hidden';
+  document.body.appendChild(mirror);
+  mirror.srcdoc = html;
+
+  await new Promise(res => mirror.onload = res);
+  const doc2 = mirror.contentDocument;
+  if (!doc2) { document.body.removeChild(mirror); return null; }
+
+  // expand to full content for a complete snapshot
+  const root = doc2.documentElement;
+  const fullH = Math.max(root.scrollHeight, doc2.body?.scrollHeight || 0);
+  mirror.style.height = fullH + 'px';
+
+  const canvas = await html2canvas(root, {
+    backgroundColor: '#ffffff',
+    scale: 2,
+    useCORS: true,
+    allowTaint: false
+  });
+
+  const url = canvas.toDataURL('image/png');
+  document.body.removeChild(mirror);
+  return url;
 }
+
 
 
   async function drawImageToPdf(pdf, dataURL, margin, y, env){
