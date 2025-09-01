@@ -1466,6 +1466,76 @@ function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, l
   return y;
 }
 
+
+
+async function capturePreviewImageDataURL(){
+  const ifr = document.getElementById('preview');
+  if (!ifr || !ifr.contentDocument) return null;
+
+  try{
+    const html2canvas = await ensureHtml2Canvas();
+
+    // Make sure the iframe page has a white background
+    const d = ifr.contentDocument;
+    const style = d.createElement('style');
+    style.textContent = 'html,body{ background:#ffffff !important; }';
+    d.head.appendChild(style);
+
+    // Capture the ENTIRE iframe page
+    const canvas = await html2canvas(d.documentElement, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      allowTaint: false
+    });
+
+    style.remove();
+    return canvas.toDataURL('image/png');
+  }catch(e){
+    console.warn('Preview capture failed:', e);
+    return null; // cross-origin iframes will land here
+  }
+}
+
+
+  async function drawImageToPdf(pdf, dataURL, margin, y, env){
+  // load the image to know its size
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = dataURL;
+  });
+
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const maxW  = pageW - margin * 2;
+  const maxH  = pageH - margin - 26;  // leave room for footer band
+
+  // scale to width
+  const scale = Math.min(maxW / img.width, maxH / img.height);
+  const w = Math.max(1, img.width  * scale);
+  const h = Math.max(1, img.height * scale);
+
+  // new page if not enough space
+  if (y + h > pageH - margin - 26) {
+    addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
+    pdf.addPage();
+    addWatermark(pdf, env.watermarkLogoBase64);
+    y = addHeader(pdf, margin, { headerLogoBase64: env.headerLogoBase64 });
+  }
+
+  pdf.addImage(dataURL, 'PNG', margin, y, w, h, undefined, 'FAST');
+  return y + h;
+}
+
+
+
+
+
+
+
+  
 // ---- DROP-IN main builder
 async function buildPdfBlob(userTitle, logos = {}){
   const jsPDF = await ensureJsPDF();
@@ -1529,51 +1599,38 @@ async function buildPdfBlob(userTitle, logos = {}){
 
 
   // Output
-  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-  y = ensureSpace(pdf, y, 18, env);
-  pdf.text('Output', margin, y); y += 14;
+ // Output
+pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+y = ensureSpace(pdf, y, 18, env);
+pdf.text('Output', margin, y); y += 14;
 
-  const rawText = (document.getElementById('output')?.innerText || '').trim();
+// Prefer textual console output first
+const outText =
+  (document.getElementById('jconsole')?.innerText ||  // console languages
+   document.getElementById('output')?.innerText ||    // anything else in the pane
+   '').trim();
 
-  if (rawText) {
-    // normal text output
-    y = writeWrapped(pdf, y, rawText, {
-      font:'courier', style:'normal', size:10, lh:12, env
-    });
+if (outText) {
+  y = writeWrapped(pdf, y, outText, {
+    font:'courier', style:'normal', size:10, lh:12, env
+  });
+} else {
+  // No text → try screenshot of the HTML preview iframe (same-origin),
+  // then fall back to the whole output panel.
+  const imgURL =
+    await capturePreviewImageDataURL() ||
+    await captureOutputImageDataURL();
+
+  if (imgURL) {
+    y = await drawImageToPdf(pdf, imgURL, margin, y, env);
   } else {
-    // ⛳ Fallback: capture the output panel as an image
-    try {
-      const img = await captureOutputImageDataURL();      // uses your html2canvas helper
-      if (img) {
-        const props = pdf.getImageProperties(img);
-        const pageW = pdf.internal.pageSize.getWidth();
-        const pageH = pdf.internal.pageSize.getHeight();
-
-        const maxW = pageW - margin*2;
-        let   w = maxW;
-        let   h = w * (props.height / props.width);
-
-        // If not enough room on this page, go to a fresh page
-        let remaining = pageH - margin - 26 - y;          // leave footer band
-        if (h > remaining) {
-          y = newPage(pdf, env);                          // adds header + watermark
-          remaining = pageH - margin - 26 - y;
-          if (h > remaining) {                            // still too tall → scale to fit
-            const k = remaining / h;
-            w *= k; h *= k;
-          }
-        }
-
-        pdf.addImage(img, 'PNG', margin, y, w, h, undefined, 'FAST');
-        y += h;
-      } else {
-        y = writeWrapped(pdf, y, '(no output)', { env, size:10, lh:12 });
-      }
-    } catch (err) {
-      console.warn('Output capture failed:', err);
-      y = writeWrapped(pdf, y, '(no output)', { env, size:10, lh:12 });
-    }
+    // last resort
+    pdf.setFont('helvetica','italic'); pdf.setFontSize(10);
+    y = ensureSpace(pdf, y, 12, env);
+    pdf.text('(no output)', margin, y); y += 12;
   }
+}
+
 
 
 
