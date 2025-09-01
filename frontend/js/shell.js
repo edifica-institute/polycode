@@ -2690,7 +2690,19 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
   }
 };
 
+
+
+
+
+
+
+
+
+
+
+
 // PATCH the existing left toggle to also reflect expand state on mobile
+// PATCH the existing left toggle so "open" != "expanded"
 (function(){
   const app = document.querySelector('.app');
   const btnToggleLeft = document.getElementById('btnToggleLeft');
@@ -2703,57 +2715,46 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
     el.classList.toggle('is-on', on);
   }
 
-  // Wrap the existing handler if present; else attach a new one
+  // Keep a reference to any original click handler
   const original = btnToggleLeft._handler || btnToggleLeft.onclick;
-  const handler = async (e) => {
+
+  const handler = (e) => {
+    // Run original behavior first (show/hide left)
     if (typeof original === 'function') { try { original.call(btnToggleLeft, e); } catch {} }
 
-    // Determine current visibility state after the toggle
+    // Recompute after toggle
     const leftHidden = app.classList.contains('collapsed-left') || app.classList.contains('hide-left');
     const leftNowVisible = !leftHidden;
 
-    // On small screens, treat "left visible" as expanded-left for consistency
+    // On small screens: DO NOT auto-expand when using the toggle.
+    // Ensure left is "visible but unexpanded" and the expander button is OFF.
     if (mqSmall.matches) {
-      app.classList.toggle('expand-left', leftNowVisible);
-      app.classList.remove('expand-center','expand-right');
-
-      // sync the LEFT expander button (the ⤢ inside #leftPanel)
+      app.classList.remove('expand-left','expand-center','expand-right');
       const leftExpander = document.querySelector('#leftPanel .btn.expander');
-      if (leftExpander) setBtnOn(leftExpander, leftNowVisible);
+      if (leftExpander) setBtnOn(leftExpander, false);
     }
 
-    // Keep the toggle button itself in sync
+    // The toggle button itself reflects visibility (on = visible)
     setBtnOn(btnToggleLeft, leftNowVisible);
 
-    // Relayout editor
+    // Relayout editor when center size changes
     if (window.editor?.layout) {
       const el = document.getElementById('editor');
       requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
     }
   };
 
-  // store and bind
   btnToggleLeft._handler = handler;
   btnToggleLeft.addEventListener('click', handler);
 
-  // Also re-sync when crossing the breakpoint
+  // Keep classes sane when crossing the breakpoint
   mqSmall.addEventListener?.('change', () => {
-    if (!mqSmall.matches) {
-      // leaving small: drop expand classes + pressed state on expanders
-      app.classList.remove('expand-left','expand-center','expand-right');
-      document.querySelectorAll('.btn.expander').forEach(b => {
-        b.setAttribute('aria-pressed', 'false');
-        b.classList.remove('is-on');
-      });
-    } else {
-      // entering small: if left is visible, reflect as expanded
-      const leftNowVisible = !(app.classList.contains('collapsed-left') || app.classList.contains('hide-left'));
-      app.classList.toggle('expand-left', leftNowVisible);
-      const leftExpander = document.querySelector('#leftPanel .btn.expander');
-      if (leftExpander) {
-        leftExpander.setAttribute('aria-pressed', leftNowVisible ? 'true' : 'false');
-        leftExpander.classList.toggle('is-on', leftNowVisible);
-      }
-    }
+    // Always clear any expand-* classes when switching modes
+    app.classList.remove('expand-left','expand-center','expand-right');
+    // Also un-blue ALL expander buttons
+    document.querySelectorAll('.btn.expander').forEach(b => {
+      b.setAttribute('aria-pressed','false');
+      b.classList.remove('is-on');
+    });
   });
 })();
