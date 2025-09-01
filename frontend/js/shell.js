@@ -1618,7 +1618,7 @@ async function savePdfToDisk(e){
 
   // --- Optionally pre-open a preview tab synchronously, so it won't be blocked ---
   // (If you don't want auto-preview, set this to null or guard with a flag.)
-  //let previewWin = null;
+  let previewWin = null;
   //try { previewWin = window.open('', '_blank', 'noopener'); } catch { /* popup blocked */ }
 
   // --- Helper to preview a blob in the pre-opened tab (or same tab if blocked) ---
