@@ -2653,7 +2653,7 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
   // sync all expander buttons' pressed state
   document.querySelectorAll('.btn.expander').forEach(b => {
     const isThis = (b === btn) && on;
-    b.setAttribute('aria-pressed', isThis ? 'true' : 'false');
+    b.setAttribute('aria-pressed', isThis ? 'false' : 'true');
     b.classList.toggle('is-on', isThis);
   });
 
