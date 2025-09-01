@@ -1473,9 +1473,9 @@ async function capturePreviewImageDataURL(){
   const ifr = document.getElementById('preview');
   if (!ifr) return null;
 
-  // 1) Try direct same-origin capture (will throw SecurityError if cross-origin)
+  // Try direct same-origin capture (will throw if sandboxed w/o allow-same-origin)
   try {
-    const doc = ifr.contentDocument || ifr.contentWindow?.document; // may throw
+    const doc = ifr.contentDocument || ifr.contentWindow?.document;
     if (doc) {
       const root = doc.documentElement;
       const canvas = await html2canvas(root, {
@@ -1488,26 +1488,25 @@ async function capturePreviewImageDataURL(){
       });
       return canvas.toDataURL('image/png');
     }
-  } catch (_) {
-    // fall through to mirror path
-  }
+  } catch { /* fall through to mirror */ }
 
-  // 2) Mirror the preview HTML into an offscreen, same-origin iframe and snapshot it
+  // Mirror the preview HTML into a same-origin, offscreen iframe and snapshot that
   const html = window.__lastPreviewHTML || ifr.srcdoc || null;
-  if (!html) return null; // nothing we can snapshot
+  if (!html) return null;
 
   const mirror = document.createElement('iframe');
-  // keep same-origin for capture; no network navigation, just srcdoc
-  mirror.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  // ⚠️ If you want JS inside the preview to run in the mirror, include allow-scripts.
+  // The console will warn about allow-scripts + allow-same-origin; it’s harmless here.
+  mirror.setAttribute('sandbox', 'allow-same-origin allow-scripts');
   mirror.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:10px;visibility:hidden';
   document.body.appendChild(mirror);
   mirror.srcdoc = html;
 
   await new Promise(res => mirror.onload = res);
+
   const doc2 = mirror.contentDocument;
   if (!doc2) { document.body.removeChild(mirror); return null; }
 
-  // expand to full content for a complete snapshot
   const root = doc2.documentElement;
   const fullH = Math.max(root.scrollHeight, doc2.body?.scrollHeight || 0);
   mirror.style.height = fullH + 'px';
@@ -1523,6 +1522,7 @@ async function capturePreviewImageDataURL(){
   document.body.removeChild(mirror);
   return url;
 }
+
 
 
 
@@ -1570,14 +1570,12 @@ async function buildPdfBlob(userTitle, logos = {}){
   const pdf = new jsPDF({ unit:'pt', format:'a4' });
   const margin = 40;
 
-  // Resolve logos: if not passed, use globals loaded at startup
   const env = {
     watermarkLogoBase64: logos.watermarkLogoBase64 ?? window.POLYCODE_WATERMARK,
     headerLogoBase64:    logos.headerLogoBase64    ?? window.POLYCODE_HEADER_LOGO,
     footerLogoBase64:    logos.footerLogoBase64    ?? window.EDIFICA_FOOTER_LOGO
   };
 
-  // First page
   addWatermark(pdf, env.watermarkLogoBase64);
   let y = addHeader(pdf, margin, { headerLogoBase64: env.headerLogoBase64 });
 
@@ -1594,9 +1592,7 @@ async function buildPdfBlob(userTitle, logos = {}){
   pdf.text(`Language Used: ${langCaps}`, margin, y); y += 16;
   pdf.text(`Program Code Title/Question: ${titleFromCode || 'Sample Program'}`, margin, y); y += 12;
 
-  y += 6;
-  y = thinHR(pdf, y);
-  y += 8;
+  y += 6; y = thinHR(pdf, y); y += 8;
 
   // Code
   pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
@@ -1607,101 +1603,61 @@ async function buildPdfBlob(userTitle, logos = {}){
     font:'courier', style:'normal', size:10, lh:12, env
   });
 
-  y += 8;
-  y = thinHR(pdf, y);
-  y += 8;
+  y += 8; y = thinHR(pdf, y); y += 8;
 
-  // 🔥 FORCE a brand-new page for Output
+  // New page for Output
   y = newPage(pdf, env);
 
-  // Output
- /* pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+  // ======== OUTPUT SECTION (robust) ========
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
   y = ensureSpace(pdf, y, 18, env);
   pdf.text('Output', margin, y); y += 14;
 
-  const outText = (document.getElementById('output')?.innerText || '').trim() || '(no output)';
-  y = writeWrapped(pdf, y, outText, {
-    font:'courier', style:'normal', size:10, lh:12, env
-  });*/
-
-
-
- // Output
-pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
-y = ensureSpace(pdf, y, 18, env);
-pdf.text('Output', margin, y); y += 14;
-
-// 1) Prefer text from the console (non-WEB languages)
-const consoleText = (document.getElementById('jconsole')?.innerText || '').trim();
-if (consoleText) {
-  y = writeWrapped(pdf, y, consoleText, { font:'courier', style:'normal', size:10, lh:12, env });
-} else {
-  // 2) Try to snapshot the WEB preview iframe
-  const img = await capturePreviewImageDataURL();
-  if (img) {
-    const pageW = pdf.internal.pageSize.getWidth();
-    const maxW  = pageW - margin*2;
-    let iw = maxW, ih = maxW * 0.6;
-    try {
-      const p = pdf.getImageProperties(img);
-      iw = Math.min(maxW, p.width);
-      ih = (p.height * iw) / p.width;
-    } catch {}
-    y = ensureSpace(pdf, y, ih, env);
-    pdf.addImage(img, 'PNG', margin, y, iw, ih, undefined, 'FAST');
-    y += ih + 6;
-  } else {
-    // 3) Last resort: whatever text the outer #output might have
-    const outText = (document.getElementById('output')?.innerText || '').trim() || '(no output)';
-    y = writeWrapped(pdf, y, outText, { font:'courier', style:'normal', size:10, lh:12, env });
+  // 1) Prefer text from console/output if present
+  let outputText = (document.getElementById('jconsole')?.innerText || '').trim();
+  if (!outputText) {
+    outputText = (document.getElementById('output')?.innerText || '').trim();
   }
-}
 
-
-if (outText) {
-  y = writeWrapped(pdf, y, outText, {
-    font:'courier', style:'normal', size:10, lh:12, env
-  });
-} else {
-  // No text → try screenshot of the HTML preview iframe (same-origin),
-  // then fall back to the whole output panel.
-  const imgURL =
-    await capturePreviewImageDataURL() ||
-    await captureOutputImageDataURL();
-
-  if (imgURL) {
-    y = await drawImageToPdf(pdf, imgURL, margin, y, env);
+  if (outputText) {
+    y = writeWrapped(pdf, y, outputText, {
+      font:'courier', style:'normal', size:10, lh:12, env
+    });
   } else {
-    // last resort
-    pdf.setFont('helvetica','italic'); pdf.setFontSize(10);
-    y = ensureSpace(pdf, y, 12, env);
-    pdf.text('(no output)', margin, y); y += 12;
+    // 2) Otherwise try a preview screenshot
+    let imgURL = await capturePreviewImageDataURL();
+    if (!imgURL) {
+      // 3) Last fallback: screenshot the #output panel
+      try { imgURL = await captureOutputImageDataURL(); } catch {}
+    }
+
+    if (imgURL) {
+      // Fit image within page width & available height
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const maxW = pageW - margin*2;
+      const maxH = pageH - margin - 26 - y;
+
+      const im = new Image();
+      im.src = imgURL;
+      await new Promise(r => { im.onload = r; im.onerror = r; });
+
+      let drawW = maxW, drawH = maxW * (im.naturalHeight || 1) / (im.naturalWidth || 1);
+      if (drawH > maxH) { const k = maxH / drawH; drawW *= k; drawH *= k; }
+
+      y = ensureSpace(pdf, y, drawH, env);
+      pdf.addImage(imgURL, 'PNG', margin, y, drawW, drawH, undefined, 'FAST');
+      y += drawH;
+    } else {
+      // Nothing available
+      y = writeWrapped(pdf, y, '(no output)', {
+        font:'courier', style:'normal', size:10, lh:12, env
+      });
+    }
   }
-}
+  // =========================================
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  
-
-  // ❌ No “—End—” anymore
-
-  // Close last page
   addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
-
   return pdf.output('blob');
 }
 
