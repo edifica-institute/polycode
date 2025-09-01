@@ -1597,88 +1597,56 @@ function ts(){
 }
 
 // 🚀 Call this from your button click
-async function savePdfToDisk(e){
-  e?.preventDefault?.(); e?.stopPropagation?.();
-
-  const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
-  const code  = window.editor?.getValue?.() || '';
-  const title = extractTitle(code);
-  const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${sanitizeFilename(title)}-${ts()}.pdf`;
-
-  // Ask the user: open preview in a NEW TAB after saving?
-  let wantPreview = false;
-  let previewWin  = null;
+// Drop-in: call this directly from the button's click handler (no setTimeout, no promise chain before it)
+async function savePdfToDisk(e) {
   try {
-    wantPreview = window.confirm('Open the PDF preview in a new tab after saving?');
-    // Pre-open while still in user gesture (only if the user said Yes)
-    if (wantPreview) {
-      previewWin = window.open('about:blank', '_blank', 'noopener');
-      if (previewWin) {
-        previewWin.document.title = 'Polycode — preparing PDF…';
-        previewWin.document.body.style.margin = '0';
-        previewWin.document.body.innerHTML =
-          '<div style="padding:16px;font:14px system-ui;color:#98a2b3">Preparing PDF preview…</div>';
-      }
-    }
-  } catch {}
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
 
-  // Helper for safe objectURL cleanup
-  const previewBlob = async (blob) => {
-    if (!wantPreview) return;
-    const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-    const revoke = () => URL.revokeObjectURL(url);
-    window.addEventListener('pagehide', revoke, { once: true });
-    setTimeout(revoke, 60_000);
-    if (previewWin) {
-      try { previewWin.location.href = url; return; }
-      catch {}
-    }
-    // If popup was blocked, attempt now (may still be blocked)
-    window.open(url, '_blank', 'noopener') || alert('PDF saved. Allow pop-ups to auto-open preview.');
-  };
+    const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
+    const code   = window.editor?.getValue?.() || '';
+    const title  = (typeof extractTitle === 'function' ? extractTitle(code) : 'Document');
+    const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${(typeof sanitizeFilename==='function'?sanitizeFilename(title):title)}-${(typeof ts==='function'?ts():Date.now())}.pdf`;
 
-  // ----- Chromium path: showSaveFilePicker -----
-  if ('showSaveFilePicker' in window) {
-    let handle;
-    try {
-      handle = await showSaveFilePicker({
+    // 1) If File System Access API is available (Chrome/Edge desktop, secure, top-level), open picker *immediately*
+    if (window.isSecureContext && 'showSaveFilePicker' in window) {
+      // Make the picker call before any awaits that could break the user gesture.
+      const handle = await window.showSaveFilePicker({
         suggestedName: fileName,
         types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
       });
-    } catch (err) {
-      // User cancelled or picker blocked → close placeholder tab if it exists
-      if (previewWin) { try { previewWin.close(); } catch {} }
-      if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
-      console.error('Save picker error:', err);
-      alert('Could not open the Save dialog.');
+
+      // 2) Now it's safe to do the heavier async work (PDF building) *after* we got the handle.
+      // Replace this with your actual PDF generator that returns a Blob
+      const pdfBlob = await buildPdfBlob(); // <-- your existing function
+
+      const stream = await handle.createWritable();
+      await stream.write(pdfBlob);
+      await stream.close();
+
+      // optional UI feedback
+      window.toast?.('PDF saved to disk');
       return;
     }
 
-    try {
-      const blob = await buildPdfBlob(title); // must return Blob with type 'application/pdf'
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      await previewBlob(blob); // open preview only if user said Yes
-      return;
-    } catch (err) {
-      if (previewWin) { try { previewWin.close(); } catch {} }
-      console.error('Writing/preview error:', err);
-      alert('Failed to save or open the PDF.');
-      return;
-    }
-  }
-
-  // ----- Fallback (Safari/Firefox/iOS): just build and preview (no picker) -----
-  try {
-    const blob = await buildPdfBlob(title);
-    await previewBlob(blob);
+    // 3) Fallback for Safari/Firefox/iframes/HTTP: force a standard download via anchor
+    const pdfBlob = await buildPdfBlob(); // <-- your existing function
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    // ensure it's clickable by program
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    window.toast?.('PDF download started');
   } catch (err) {
-    if (previewWin) { try { previewWin.close(); } catch {} }
-    console.error('PDF build error:', err);
-    alert('Failed to prepare the PDF.');
+    if (err?.name === 'AbortError') return; // user cancelled the picker
+    console.error('Save picker error:', err);
+    window.toast?.('Failed to save/open the PDF');
   }
 }
+
 
 
   
