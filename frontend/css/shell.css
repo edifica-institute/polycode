@@ -1177,6 +1177,7 @@ body[data-boot] .right.panel{
 
 
 
+[hidden] { display: none !important; }
 
 
 /* === DESKTOP: no page scrollbar; panes scroll === */
