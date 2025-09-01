@@ -130,6 +130,7 @@ addEventListener('resize', () => {
 
 
 
+document.getElementById('langSelect').disabled = true;   // or false
 
 
 
