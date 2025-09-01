@@ -960,7 +960,7 @@ body{
   }
 
   /* give the editor and output a floor so they can't collapse */
-  #editor{ min-height: clamp(260px, 52svh, 64svh) !important; height:auto; flex:1 1 auto; }
+  #editor{ min-height: clamp(260px, 72svh, 80svh) !important; height:auto; flex:1 1 auto; }
   #output{ min-height: clamp(180px, 34svh, 48svh) !important; }
 }
 
@@ -1216,6 +1216,39 @@ body[data-boot] .right.panel{
   .stage{ overflow:visible !important; }
 }
 
+
+
+
+/* 1) Allow the middle row's children to shrink so their inner areas can scroll */
+.stage, .app, .panel, .pane-body, .pane-scroll { min-height: 0; }
+
+/* 2) On phones/tablets, use momentum scroll + stop scroll chaining into body */
+@media (max-width:1024px){
+  /* These are the usual scrollers; add others if you have them */
+  .pane-scroll,
+  #leftContent,
+  #output,
+  #centerPanel .pane-body,
+  #rightPanel .pane-body{
+    -webkit-overflow-scrolling: touch;  /* iOS momentum */
+    overscroll-behavior: contain;       /* stop chain-scrolling */
+    touch-action: pan-y;                /* vertical scroll allowed */
+  }
+
+  /* Ensure the page itself can scroll in stacked mode */
+  html, body { overflow-x: hidden; overflow-y: auto; height:auto; }
+}
+
+/* 3) Desktop: keep no-page-scroll layout (header|1fr|footer) */
+@media (min-width:1025px){
+  html, body { height:100%; overflow:hidden; }   /* page never scrolls */
+  .stage { min-height:0; }
+}
+
+/* 4) Resizer handles should not interfere with vertical page scroll when not dragging */
+.drag-handle, .resizer, .gutter, [data-resizer]{
+  touch-action: none;   /* allow horizontal dragging without triggering scroll */
+}
 
 
 
