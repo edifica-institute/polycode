@@ -632,7 +632,7 @@ function unfreezeUI() {
   const all = panels();
   document.getElementById('btnRun')?.removeAttribute('disabled');
   document.getElementById('btnReset')?.setAttribute('disabled','');
-  document.getElementById('langSelect')?.removeAttribute('disabled');
+  //document.getElementById('langSelect')?.removeAttribute('disabled');
   window.editor?.updateOptions({ readOnly:false });
 
   const out = document.getElementById('output');
@@ -901,7 +901,7 @@ function fmtDuration(ms){
           setFrozen(all, false);
           document.getElementById('btnRun')?.removeAttribute('disabled');
           document.getElementById('btnReset')?.setAttribute('disabled','');
-          document.getElementById('langSelect')?.removeAttribute('disabled');
+          //document.getElementById('langSelect')?.removeAttribute('disabled');
           window.editor?.updateOptions?.({ readOnly:false });
         }
       });
