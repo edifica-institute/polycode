@@ -1601,11 +1601,43 @@ async function savePdfToDisk(e){
   e?.preventDefault?.(); e?.stopPropagation?.();
 
   const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
-  const code = window.editor?.getValue?.() || '';
+  const code  = window.editor?.getValue?.() || '';
   const title = extractTitle(code);
   const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${sanitizeFilename(title)}-${ts()}.pdf`;
 
-  // ----- Chromium path: ask WHERE to save *first* (keeps user gesture) -----
+  // Ask the user: open preview in a NEW TAB after saving?
+  let wantPreview = false;
+  let previewWin  = null;
+  try {
+    wantPreview = window.confirm('Open the PDF preview in a new tab after saving?');
+    // Pre-open while still in user gesture (only if the user said Yes)
+    if (wantPreview) {
+      previewWin = window.open('about:blank', '_blank', 'noopener');
+      if (previewWin) {
+        previewWin.document.title = 'Polycode — preparing PDF…';
+        previewWin.document.body.style.margin = '0';
+        previewWin.document.body.innerHTML =
+          '<div style="padding:16px;font:14px system-ui;color:#98a2b3">Preparing PDF preview…</div>';
+      }
+    }
+  } catch {}
+
+  // Helper for safe objectURL cleanup
+  const previewBlob = async (blob) => {
+    if (!wantPreview) return;
+    const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+    const revoke = () => URL.revokeObjectURL(url);
+    window.addEventListener('pagehide', revoke, { once: true });
+    setTimeout(revoke, 60_000);
+    if (previewWin) {
+      try { previewWin.location.href = url; return; }
+      catch {}
+    }
+    // If popup was blocked, attempt now (may still be blocked)
+    window.open(url, '_blank', 'noopener') || alert('PDF saved. Allow pop-ups to auto-open preview.');
+  };
+
+  // ----- Chromium path: showSaveFilePicker -----
   if ('showSaveFilePicker' in window) {
     let handle;
     try {
@@ -1614,45 +1646,42 @@ async function savePdfToDisk(e){
         types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
       });
     } catch (err) {
-      // User cancelled → do nothing at all
+      // User cancelled or picker blocked → close placeholder tab if it exists
+      if (previewWin) { try { previewWin.close(); } catch {} }
       if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
-      // Unexpected error: surface and stop
       console.error('Save picker error:', err);
       alert('Could not open the Save dialog.');
       return;
     }
 
-    // Build the PDF AFTER we have the file handle
     try {
-      const blob = await buildPdfBlob(title);
+      const blob = await buildPdfBlob(title); // must return Blob with type 'application/pdf'
       const writable = await handle.createWritable();
       await writable.write(blob);
       await writable.close();
-
-      // Preview the just-saved PDF. New tab may be blocked; fall back to same tab.
-      const url = URL.createObjectURL(blob);
-      window.location.assign(url);               // open in current tab if blocked
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      await previewBlob(blob); // open preview only if user said Yes
       return;
     } catch (err) {
+      if (previewWin) { try { previewWin.close(); } catch {} }
       console.error('Writing/preview error:', err);
       alert('Failed to save or open the PDF.');
       return;
     }
   }
 
-  // ----- Fallback (Safari/Firefox/iOS): open viewer only; user saves from viewer -----
+  // ----- Fallback (Safari/Firefox/iOS): just build and preview (no picker) -----
   try {
     const blob = await buildPdfBlob(title);
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank', 'noopener');
-    if (!w) window.location.assign(url);
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    await previewBlob(blob);
   } catch (err) {
+    if (previewWin) { try { previewWin.close(); } catch {} }
     console.error('PDF build error:', err);
     alert('Failed to prepare the PDF.');
   }
 }
+
+
+  
 function extractTitle(code){
   if (!code) return 'Sample Program';
   const first = String(code).split('\n')[0].trim();
@@ -1666,66 +1695,6 @@ function ts(){
   const d = new Date(), p = n => String(n).padStart(2,'0');
   return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 }
-
-// 🚀 Call this from your button click
-async function savePdfToDisk(e){
-  e?.preventDefault?.(); e?.stopPropagation?.();
-
-  const { langLabel } = (typeof getLangInfo === 'function' ? getLangInfo() : { langLabel: 'TXT' });
-  const code = window.editor?.getValue?.() || '';
-  const title = extractTitle(code);
-  const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${sanitizeFilename(title)}-${ts()}.pdf`;
-
-  // ----- Chromium path: ask WHERE to save *first* (keeps user gesture) -----
-  if ('showSaveFilePicker' in window) {
-    let handle;
-    try {
-      handle = await showSaveFilePicker({
-        suggestedName: fileName,
-        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
-      });
-    } catch (err) {
-      // User cancelled → do nothing at all
-      if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return;
-      // Unexpected error: surface and stop
-      console.error('Save picker error:', err);
-      alert('Could not open the Save dialog.');
-      return;
-    }
-
-    // Build the PDF AFTER we have the file handle
-    try {
-      const blob = await buildPdfBlob(title);
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-
-      // Preview the just-saved PDF. New tab may be blocked; fall back to same tab.
-      const url = URL.createObjectURL(blob);
-      //const w = window.open(url, '_blank', 'noopener'); // may return null if blocked
-      window.location.assign(url);               // open in current tab if blocked
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      return;
-    } catch (err) {
-      console.error('Writing/preview error:', err);
-      alert('Failed to save or open the PDF.');
-      return;
-    }
-  }
-
-  // ----- Fallback (Safari/Firefox/iOS): open viewer only; user saves from viewer -----
-  try {
-    const blob = await buildPdfBlob(title);
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank', 'noopener');
-    if (!w) window.location.assign(url);
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch (err) {
-    console.error('PDF build error:', err);
-    alert('Failed to prepare the PDF.');
-  }
-}
-
 
 
   
