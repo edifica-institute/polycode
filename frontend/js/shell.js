@@ -1453,7 +1453,7 @@ function ensureSpace(pdf, y, need, env){
   return addHeader(pdf, margin, { headerLogoBase64: env.headerLogoBase64 });
 }
 
-function writeWrapped(pdf, y, text, { font='helvetica', style='normal', size=10, lh=12, env } = {}){
+function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, lh=12, env } = {}){
   const margin = 40, pageW = pdf.internal.pageSize.getWidth();
   const maxW = pageW - margin*2;
   pdf.setFont(font, style); pdf.setFontSize(size);
@@ -1523,7 +1523,7 @@ async function buildPdfBlob(userTitle, logos = {}){
 
   const outText = (document.getElementById('output')?.innerText || '').trim() || '(no output)';
   y = writeWrapped(pdf, y, outText, {
-    font:'helvetica', style:'normal', size:10, lh:12, env
+    font:'courier', style:'normal', size:10, lh:12, env
   });
 
   // ❌ No “—End—” anymore
