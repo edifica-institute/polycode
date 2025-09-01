@@ -1810,7 +1810,6 @@ async function buildPdfBlob(userTitle, logos = {}){
   // Output
   // Output
  // 🔥 New page for Output (keep your header/footer flow)
-y = newPage(pdf, env);
 
 // ---- Output header
 pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
