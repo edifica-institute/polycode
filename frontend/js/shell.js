@@ -1386,9 +1386,9 @@ function addHeader(pdf, y, { headerLogoBase64 } = {}){
     pdf.addImage(headerLogoBase64, 'PNG', x, y, w, h, undefined, 'FAST');
     x += w + 8;
   }
-  pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
+  pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
   pdf.text('polycode', x, textY); // <-- lowercase
-
+ pdf.setFontSize(12);
   // Right: learn.code.execute | www.polycode.in (link)
   const rightX = pageW - margin;
   const rightText = 'learn.code.execute | ';
