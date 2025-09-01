@@ -1864,41 +1864,32 @@ async function buildPdfBlob(userTitle, logos = {}){
 
 // ---- Output header
 // Output
+// Output
 pdf.setFont('helvetica','bold'); pdf.setFontSize(12);
 y = ensureSpace(pdf, y, 18, env);
 pdf.text('Output', margin, y); y += 14;
 
-// Prefer plain text if present (console/judges etc.), otherwise true screenshot
-const outEl   = document.getElementById('output');
-const outText = (outEl?.innerText || '').trim();
+const outText = (document.getElementById('output')?.innerText || '').trim();
 
 if (outText) {
-  y = writeWrapped(pdf, y, outText, {
-    font:'courier', style:'normal', size:10, lh:12, env
-  });
+  // text output available → write it
+  y = writeWrapped(pdf, y, outText, { font:'courier', size:10, lh:12, env });
 } else {
-  // <-- your "PrintScreen of the output panel" path
-  const imgData = await captureOutputPanelAsPNG();
+  // no text → screenshot the preview/whole output panel
+  const png = await screenshotOutputForPdf();  // uses the iframe when same-origin
+  if (png) {
+    const pageW = pdf.internal.pageSize.getWidth();
+    const maxW  = pageW - margin * 2;
+    const props = pdf.getImageProperties(png);
+    const w = maxW;
+    const h = props ? (props.height * w / props.width) : 0;
 
-  // measure image to keep aspect ratio
-  const img = new Image();
-  img.src = imgData;
-  await new Promise(r => img.onload = r);
-
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const maxW  = pageW - margin * 2;
-  const maxH  = pageH - margin * 2;
-
-  let w = maxW;
-  let h = (img.height / img.width) * w;
-  if (h > maxH) { h = maxH; w = (img.width / img.height) * h; }
-
-  // ensure there’s room; if not, start a fresh page
-  y = ensureSpace(pdf, y, h, env);
-
-  pdf.addImage(imgData, 'PNG', margin, y, w, h, undefined, 'FAST');
-  y += h + 8;
+    y = ensureSpace(pdf, y, h, env);
+    pdf.addImage(png, 'PNG', margin, y, w, h, undefined, 'FAST');
+    y += h + 8;
+  } else {
+    y = writeWrapped(pdf, y, '(no output)', { font:'courier', size:10, lh:12, env });
+  }
 }
 
 
