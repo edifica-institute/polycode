@@ -1585,8 +1585,9 @@ async function urlToDataURL(url){
 function extractTitle(code){
   if (!code) return 'Sample Program';
   const first = String(code).split('\n')[0].trim();
-  if (/^title\s*:/i.test(first)) return first.replace(/^title\s*:/i, '').trim() || 'Sample Program';
-  return 'Sample Program';
+  const m = /^\s*(?:\/\*+|<!--|\(\*|\/\/|--|#|;+|%|')\s*title\s*:\s*(.*?)\s*(?:\*\/|-->|\*\))?\s*$/i
+            .exec(first);
+  return (m?.[1]?.trim()) || 'Sample Program';
 }
 function sanitizeFilename(s){
   return (s || 'Untitled').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
@@ -1598,7 +1599,8 @@ function ts(){
 
 // 🚀 Call this from your button click
 // Drop-in: call this directly from the button's click handler (no setTimeout, no promise chain before it)
-async function savePdfToDisk(e) {
+// Call directly from the button's click handler
+async function savePdfToDisk(e, { openPreview = true } = {}) {
   try {
     e?.preventDefault?.();
     e?.stopPropagation?.();
@@ -1608,66 +1610,71 @@ async function savePdfToDisk(e) {
     const title  = (typeof extractTitle === 'function' ? extractTitle(code) : 'Document');
     const fileName = `Polycode-${(langLabel||'').toUpperCase()}-${(typeof sanitizeFilename==='function'?sanitizeFilename(title):title)}-${(typeof ts==='function'?ts():Date.now())}.pdf`;
 
-    // 1) If File System Access API is available (Chrome/Edge desktop, secure, top-level), open picker *immediately*
+    // If we want a preview, pre-open a blank tab *synchronously* to keep user activation.
+    let previewWin = null;
+    if (openPreview) {
+      try { previewWin = window.open('', '_blank', 'noopener'); } catch {}
+    }
+
     if (window.isSecureContext && 'showSaveFilePicker' in window) {
-      // Make the picker call before any awaits that could break the user gesture.
+      // 1) Grab a handle first (user activation sensitive)
       const handle = await window.showSaveFilePicker({
         suggestedName: fileName,
         types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
       });
 
-      // 2) Now it's safe to do the heavier async work (PDF building) *after* we got the handle.
-      // Replace this with your actual PDF generator that returns a Blob
-      const pdfBlob = await buildPdfBlob(); // <-- your existing function
+      // 2) Build the PDF blob (your implementation)
+      const pdfBlob = await buildPdfBlob(); // <-- returns Blob
 
+      // 3) Write to disk
       const stream = await handle.createWritable();
       await stream.write(pdfBlob);
       await stream.close();
 
-      // optional UI feedback
-      window.toast?.('PDF saved to disk');
+      // 4) Preview (navigate the already-opened blank tab)
+      if (previewWin && !previewWin.closed) {
+        const u = URL.createObjectURL(pdfBlob);
+        previewWin.location = u;
+        // Cleanup the URL when that tab unloads (best effort)
+        previewWin.addEventListener('beforeunload', () => URL.revokeObjectURL(u), { once: true });
+      }
+
+      window.toast?.('PDF saved');
       return;
     }
 
-    // 3) Fallback for Safari/Firefox/iframes/HTTP: force a standard download via anchor
-    const pdfBlob = await buildPdfBlob(); // <-- your existing function
+    // --- Fallback: normal download + preview ---
+    const pdfBlob = await buildPdfBlob(); // <-- returns Blob
     const url = URL.createObjectURL(pdfBlob);
+
+    // programmatic download
     const a = document.createElement('a');
     a.href = url;
     a.download = fileName;
-    // ensure it's clickable by program
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+
+    // preview
+    if (previewWin && !previewWin.closed) {
+      previewWin.location = url; // same blob URL
+      previewWin.addEventListener('beforeunload', () => URL.revokeObjectURL(url), { once: true });
+    } else {
+      // if popup blocked or preview disabled, at least revoke later
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+    a.remove();
     window.toast?.('PDF download started');
   } catch (err) {
-    if (err?.name === 'AbortError') return; // user cancelled the picker
-    console.error('Save picker error:', err);
+    if (err?.name === 'AbortError') return; // user canceled the picker
+    console.error('Save/preview error:', err);
     window.toast?.('Failed to save/open the PDF');
   }
 }
 
 
 
-  
-function extractTitle(code){
-  if (!code) return 'Sample Program';
-  const first = String(code).split('\n')[0].trim();
-  if (/^title\s*:/i.test(first)) return first.replace(/^title\s*:/i, '').trim() || 'Sample Program';
-  return 'Sample Program';
-}
-function sanitizeFilename(s){
-  return (s || 'Untitled').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
-}
-function ts(){
-  const d = new Date(), p = n => String(n).padStart(2,'0');
-  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
-}
-
 
   
-
-
 
 async function sharePdf() {
   try {
