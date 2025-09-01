@@ -2203,7 +2203,7 @@ document.addEventListener('keydown', (ev) => {
 
 
 
-function toggleExpand(which, btn){
+/*function toggleExpand(which, btn){
   const app = document.querySelector('.app');
   const classes = ['expand-left','expand-center','expand-right'];
   const cls = `expand-${which}`;
@@ -2218,7 +2218,42 @@ function toggleExpand(which, btn){
     const el = document.getElementById('editor');
     requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
   }
+}*/
+
+function toggleExpand(which, btn){
+  const app = document.querySelector('.app');
+  if (!app) return;
+
+  const classes = ['expand-left','expand-center','expand-right'];
+  const cls = `expand-${which}`;
+  const turnOn = !app.classList.contains(cls);
+
+  // Apply expand class
+  classes.forEach(c => app.classList.toggle(c, c === cls && turnOn));
+
+  // Ensure the target side isn't collapsed/hidden (mobile safety)
+  if (which === 'left')  app.classList.remove('collapsed-left','hide-left');
+  if (which === 'right') app.classList.remove('collapsed-right','hide-right');
+
+  // Sync ALL expander buttons (don’t filter by [aria-pressed])
+  document.querySelectorAll('.btn.expander').forEach(b => {
+    const active = (b === btn && turnOn);
+    b.setAttribute('aria-pressed', active ? 'true' : 'false');
+    b.classList.toggle('is-on', active);
+  });
+
+  // Relayout Monaco if present
+  if (window.editor?.layout){
+    const el = document.getElementById('editor');
+    requestAnimationFrame(() =>
+      window.editor.layout({ width: el.clientWidth, height: el.clientHeight })
+    );
+  }
 }
+
+
+
+
 
 
 
