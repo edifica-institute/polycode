@@ -1,9 +1,9 @@
 {
-  "id": "/?app=polycode-v2",
+  "id": "/?app=polycode",
   "name": "PolyCode",
   "short_name": "PolyCode",
   "start_url": "/frontend/index.html",
-  "scope": "/",
+  "scope": "/frontend/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0b0f13",
@@ -21,14 +21,7 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
-}
-{
-  "id": "/?app=polycode",
-  "scope": "/frontend/",
-  "start_url": "/frontend/index.html",
-  "display": "standalone",
-
+  ],
   "launch_handler": { "client_mode": "navigate-existing" },
   "handle_links": "preferred"
 }
