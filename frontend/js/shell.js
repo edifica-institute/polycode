@@ -853,6 +853,7 @@ rstBtn?.addEventListener('click', () => {
   try { PC?.cancelCurrentSession?.('user'); } catch {}   // <-- add this line
 
   try { window.killRunner?.(); } catch {}
+  try { window.hardClearOutput?.({ preservePreview:false }); } catch {}
   try { window.clearRunUI?.(); } catch {}
   try { window.clearLang && window.clearLang(); } catch {}
 
@@ -2940,27 +2941,27 @@ class PCWebSocket {
 
     // ---- CLOSE ----
     this._real.addEventListener('close', (ev) => {
-      const userAbort = !!(this._isRunner && (this._sid === PC.__cancelledSid || PC.__userAbort));
+  const userAbort = !!(this._isRunner && (this._sid === PC.__cancelledSid || PC.__userAbort));
 
-      if (this._isRunner && current && current.id === this._sid) {
-        current.state = 'stopped';
-        current = null;
-      }
+  if (this._isRunner && current && current.id === this._sid) {
+    current.state = 'stopped';
+    current = null;
+  }
 
       // Always clear any waiting UI / probes
       clearWaitUI();
 
       // If this close was triggered by Reset: force the idle footer, not “error”
-      if (userAbort) {
-        try { setStatus?.('Reset','ok'); } catch {}
-        try { setFootStatus?.('rightFoot','waiting'); } catch {}
-        try { unfreezeUI?.(); } catch {}
-        // consume the flag so the next run isn't affected
-        PC.__userAbort = false;
-      }
+       if (userAbort) {
+    try { window.hardClearOutput?.({ preservePreview:false }); } catch {}   // <-- add this
+    try { setStatus?.('Reset','ok'); } catch {}
+    try { setFootStatus?.('rightFoot','waiting'); } catch {}
+    try { unfreezeUI?.(); } catch {}
+    PC.__userAbort = false;
+  }
 
-      this._onclose && this._onclose.call(this, ev);
-    });
+  this._onclose && this._onclose.call(this, ev);
+});
   }
 
   // ---- SEND (notice when stdin is being sent) ----
@@ -3306,6 +3307,38 @@ window.clearRunUI = function clearRunUI() {
 
   // Mark run as not in flight
   window.wsRunInFlight = false;
+};
+
+
+// Wipe the output panel + any partial/queued writes (safe no-op if absent)
+window.hardClearOutput = function hardClearOutput({ preservePreview = true } = {}) {
+  try { window.PolyShell?.stopInputTicker?.(); } catch {}
+  try { window.showInputRow?.(false); } catch {}
+
+  // If you have a console helper, prefer its clear API
+  try {
+    if (window.jconsole?.clear) {
+      window.jconsole.clear({ keepBanner:false, keepPartial:false });
+    }
+  } catch {}
+
+  // Kill any batching timers your app might use (best-effort; harmless if undefined)
+  try { clearTimeout(window.__pc_outFlushTimer); } catch {}
+  try { clearTimeout(window.__pc_outDebounce); } catch {}
+  try { window.__pc_outFlushTimer = window.__pc_outDebounce = null; } catch {}
+
+  // Brutal DOM clear (optionally keep the web preview iframe, if you use one on web pages)
+  const out = document.getElementById('output');
+  if (out) {
+    const preview = preservePreview ? out.querySelector('#preview') : null;
+    out.innerHTML = '';                          // remove all children
+    if (preview) out.appendChild(preview);       // reattach preview if requested
+    out.scrollTop = 0;
+    out.classList.add('screen-dim');
+
+    // Extra safety: remove any lingering “partial” nodes if your renderer used them
+    try { out.querySelectorAll('[data-partial], .partial, .ghost-line').forEach(n => n.remove()); } catch {}
+  }
 };
 
 
