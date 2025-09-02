@@ -863,6 +863,11 @@ runBtn?.addEventListener('click', async () => {
   const fenceAtStart = (window.PC?.__abortFence || 0);  // <-- add this
 
   try {
+
+    resetRunInternals();
+    try { window.hardClearOutput?.({ preservePreview: true }); } catch {}
+
+    
     runBtn.classList.add('is-running');
     clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
 
@@ -937,11 +942,15 @@ rstBtn?.addEventListener('click', () => {
   try { PC?.cancelCurrentSession?.('user'); } catch {}   // <-- add this line
 
   try { window.killRunner?.(); } catch {}
-  try { window.hardClearOutput?.({ preservePreview:true }); } catch {}
-  try { window.clearRunUI?.(); } catch {}
+ try { window.clearRunUI?.(); } catch {}
   try { window.clearLang && window.clearLang(); } catch {}
 
-  window.PolyShell?.reapplyTheme?.();
+try { window.cancelSqlRun?.(); } catch {}
+try { window.__sqlReader?.cancel?.(); } catch {}
+  resetRunInternals();
+   try { window.hardClearOutput?.({ preservePreview:true }); } catch {}
+  
+  try { window.PolyShell?.reapplyTheme?.(); } catch {}
 
  // Clear the friendly explanation block and our markers on reset
 try {
@@ -2878,6 +2887,7 @@ document.addEventListener('keydown', (ev) => {
 
       // Only intercept POST .../api/cc/prepare
       if (method === 'POST' && PREPARE_PATH_REGEX.test(url)) {
+        if (window.PC) { PC.__userAbort = false; PC.__cancelledSid = null; }
         // New connect session
         PC.__userAbort = false;
         PC.__cancelledSid = null;
@@ -2976,6 +2986,7 @@ class PCWebSocket {
     // ---- OPEN ----
     this._real.addEventListener('open', (ev) => {
       if (this._isRunner) {
+        if (window.PC) { PC.__userAbort = false; }
         PC.__userAbort = false;
         if (!current || current.id !== this._sid || current.state === 'cancelled') {
           try { this._real.close(); } catch {}
@@ -3408,6 +3419,28 @@ window.clearRunUI = function clearRunUI() {
   window.wsRunInFlight = false;
 };
 
+function resetRunInternals() {
+  try { clearTimeout(window.__waitProbe); } catch {}
+  window.__waitProbe = null;
+  window.__sawOutSinceInput = false;
+
+  try { clearTimeout(window.__pc_lastSentWasInputTimer); } catch {}
+  window.__pc_lastSentWasInputTimer = null;
+  window.__pc_lastSentWasInput = false;
+
+  try { clearTimeout(window.__pc_outFlushTimer); } catch {}
+  try { clearTimeout(window.__pc_outDebounce); } catch {}
+  window.__pc_outFlushTimer = window.__pc_outDebounce = null;
+
+  // any runner-side “in flight” flags you might have used
+  window.wsRunInFlight = false;
+
+  // clear global cancel markers so the next run isn't treated as an abort
+  try { window.PC && (PC.__userAbort = false, PC.__cancelledSid = null); } catch {}
+}
+
+
+
 
 
 
@@ -3437,34 +3470,45 @@ function showErrorExplanation(text) {
 
 // Wipe the output panel + any partial/queued writes (safe no-op if absent)
 // Wipe output content safely WITHOUT destroying the console host
+// Clears error text and transient nodes but keeps the output host intact.
 window.hardClearOutput = function hardClearOutput({ preservePreview = true } = {}) {
   try { window.PolyShell?.stopInputTicker?.(); } catch {}
   try { window.showInputRow?.(false); } catch {}
 
-  // Preferred: ask your console to clear itself
-  try { window.jconsole?.clear({ keepBanner:false, keepPartial:false }); } catch {}
-
-  // Cancel any batching timers you may have created
+  // Cancel any pending output timers/buffers you might use
   try { clearTimeout(window.__pc_outFlushTimer); } catch {}
   try { clearTimeout(window.__pc_outDebounce); } catch {}
   window.__pc_outFlushTimer = window.__pc_outDebounce = null;
 
-  // Remove obvious transient nodes but DO NOT nuke the whole container
   const out = document.getElementById('output');
-  if (out) {
-    try { out.querySelectorAll('[data-partial], .partial, .ghost-line').forEach(n => n.remove()); } catch {}
-    // If you have a known inner lines container, clear THAT only:
-    const lines = out.querySelector('[data-console-root], #console, .console, .lines, pre.stdout');
-    if (lines) lines.textContent = '';
-    // (Optional) keep preview iframe
-    if (!preservePreview) {
-      const ifr = out.querySelector('#preview, iframe#preview');
-      if (ifr) ifr.remove();
-    }
-    out.scrollTop = 0;
-    out.classList.add('screen-dim');
+  if (!out) return;
+
+  // Remove known transient lines/partials/banners and error classes
+  try { out.querySelectorAll('[data-partial], .partial, .ghost-line, .banner, .msg.status.error')
+          .forEach(n => n.remove()); } catch {}
+  out.classList.remove('error');
+  out.removeAttribute('aria-busy');
+
+  // Clear common “lines” containers used by C/C++/SQL runners
+  const candidates = [
+    '[data-console-root]', '#console', '.console', '.lines',
+    'pre.stdout', 'pre.stderr', '.jconsole-body', '.runner-out'
+  ];
+  for (const sel of candidates) {
+    const node = out.querySelector(sel);
+    if (node) { node.textContent = ''; }
   }
+
+  // Keep preview iframe unless explicitly told not to
+  if (!preservePreview) {
+    const ifr = out.querySelector('#preview, iframe#preview');
+    if (ifr) ifr.remove();
+  }
+
+  out.scrollTop = 0;
+  out.classList.add('screen-dim'); // idle look
 };
+
 
 
 
