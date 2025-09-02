@@ -40,20 +40,26 @@
     );
   }
 
-  function updateUI() {
-    if (isStandalone()) {
-      // Already in the installed app → hide button
-      setBtn('Open App', true);
-      return;
-    }
-    // Not installed
-    if (deferredPrompt && !isIOS) {
-      setBtn('Install App', false);
-    } else {
-      // No prompt available yet (or iOS which never fires it)
-      setBtn('Install App', false);
-    }
+ // If already installed, hide the button and show a hint instead of trying to "launch".
+function updateUI() {
+  const btn = document.getElementById('btnPWA');
+  const hint = document.getElementById('pwaHint');
+
+  const standalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+
+  if (standalone) {
+    if (btn) btn.hidden = true;
+    if (hint) { hint.hidden = false; hint.textContent = 'PolyCode is installed. Open it from your Home Screen.'; }
+    return;
   }
+
+  // Not installed: keep showing the Install button (or iOS instructions)
+  if (btn) { btn.hidden = false; btn.textContent = 'Install App'; }
+  if (hint) hint.hidden = true;
+}
+
 
   // Listen for install availability
   window.addEventListener('beforeinstallprompt', (e) => {
