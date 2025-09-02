@@ -790,19 +790,38 @@ window.addEventListener('DOMContentLoaded', () => {
   });*/
 
 
-  runBtn?.addEventListener('click', async () => {
+runBtn?.addEventListener('click', async () => {
   let t0;
+  const fenceAtStart = (window.PC?.__abortFence || 0);  // <-- add this
+
   try {
     runBtn.classList.add('is-running');
     clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
 
-    t0 = performance.now();                      // start timing
+    t0 = performance.now();
     await window.runLang();
-    const elapsed = fmtDuration(performance.now() - t0);  // end timing
+    const elapsed = fmtDuration(performance.now() - t0);
 
     setStatus('OK','ok');
     setFootStatus('rightFoot','success', { detail: `Time: ${elapsed}` });
-  } catch(e) {
+
+  } catch (e) {
+    // --- swallow user-abort / reset-in-progress rejections ---
+    const abortedSinceStart = (window.PC?.__abortFence || 0) !== fenceAtStart;
+    const suppress = (window.PC?.__suppressRunErrorUntil || 0) > performance.now();
+    const looksAborted =
+      abortedSinceStart || suppress ||
+      (e && (e.name === 'AbortError' || /abort|cancel/i.test(String(e.message||''))));
+
+    if (looksAborted) {
+      try { setStatus('Reset','ok'); } catch {}
+      try { setFootStatus('rightFoot','waiting'); } catch {}
+      try { unfreezeUI?.(); } catch {}
+      if (window.PC) window.PC.__suppressRunErrorUntil = 0; // consume one-shot
+      return; // <- critically, do NOT fall through to error painting
+    }
+    // ---------------------------------------------------------
+
     setStatus('Error','err');
     if (t0) {
       const elapsed = fmtDuration(performance.now() - t0);
@@ -812,11 +831,13 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     const m = /line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
     showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
+
   } finally {
     spin(false);
     runBtn.classList.remove('is-running');
   }
 });
+
 
   // RESET
   /*rstBtn?.addEventListener('click', () => {
@@ -2676,15 +2697,17 @@ async function buildCodeImageDataURL() {
 
 // ---- Replace the existing cancel helper in your “Polycode: Global connect guard & session gate” IIFE ----
 PC.cancelCurrentSession = function(reason = 'user') {
-  // Mark this as a user abort so close handlers & run() knows
+  // --- add these two lines ---
+  PC.__abortFence = (PC.__abortFence | 0) + 1;            // bump fence: a reset happened
+  PC.__suppressRunErrorUntil = performance.now() + 2000;  // swallow run error for ~2s
+  // ----------------------------
+
   PC.__userAbort = true;
   PC.__cancelledSid = current?.id || null;
 
-  // Abort in-flight /prepare
   try { pendingAbort?.abort(); } catch {}
   pendingAbort = null;
 
-  // Close runner socket (if any)
   if (current) {
     current.state = 'cancelled';
     try { current.ws?.close(); } catch {}
@@ -2692,10 +2715,10 @@ PC.cancelCurrentSession = function(reason = 'user') {
     current = null;
   }
 
-  // Clean any lingering “waiting for input” UI immediately
   try { window.PolyShell?.stopInputTicker?.(); } catch {}
   try { window.clearRunUI?.(); } catch {}
 };
+
 
 
   // ---- Auto-lock based on modal visibility (no changes to pages) ----
