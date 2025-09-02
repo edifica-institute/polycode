@@ -641,6 +641,12 @@ window.runLang = async function(){
 
  <script src="./js/lang-select.js" defer></script>
 
+<script type="module">
+  import { parseCompilerOutput, renderHintHTML } from './js/error-helper.js';
+  // Expose for shell.js if needed:
+  window.PolyErrorHelper = { parseCompilerOutput, renderHintHTML };
+</script>
 
+  
 </body>
 </html>
