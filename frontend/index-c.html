@@ -524,6 +524,14 @@ window.runLang = async function(){
         showInputRow(false);
         window.wsRunInFlight = false;
         setComplexityEnabled(!!ok); // enable Complexity button only on success
+        if (!ok) {
+  const j = document.getElementById('jconsole')?.textContent || '';
+  const st = document.getElementById('stderrText');
+  if (st) {
+    st.textContent = j;
+    st.style.display = 'block'; // optional: show raw stderr only on failure
+  }
+}
         ok ? resolve() : reject(new Error('run_failed'));
       };
 
