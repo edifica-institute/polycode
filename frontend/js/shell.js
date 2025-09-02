@@ -2789,47 +2789,55 @@ document.addEventListener('keydown', (ev) => {
 
   // ---- Wrap WebSocket for runner channel; gate late output ----
   const _WS = window.WebSocket;
- class PCWebSocket {
+class PCWebSocket {
   constructor(url, protocols) {
     this._real = new _WS(url, protocols);
-    this._url = String(url || '');
-    this._sid = (current ? current.id : null);
+    this._url  = String(url || '');
+    this._sid  = (current ? current.id : null);
 
-    // Treat sockets to the runner as session-bound
+    // Session-binding: only for runner sockets
     this._isRunner = WS_TOKEN_REGEX.test(this._url);
     if (this._isRunner && current && current.state === 'connecting') {
       current.ws = this._real;
     }
 
-    // --- Prompt/wait heuristics (for C/C++ prompts etc.) ---
-    let promptDebounce = null;
-    let waitingShown   = false;
-    let lastSentWasInput = false;
+    // ---- Prompt / input-wait heuristic ----
+    let promptDebounce   = null;
+    let waitingShown     = false;
+    let seenAnyNewline   = false; // <-- NEW: gate "waiting" until we've seen a newline
 
-    const cancelProbe = () => { try { clearTimeout(promptDebounce); } catch {} promptDebounce = null; };
+    const cancelProbe = () => {
+      try { clearTimeout(promptDebounce); } catch {}
+      promptDebounce = null;
+    };
+
     const showWaiting = () => {
-  if (!this._isRunner || waitingShown) return;
-  waitingShown = true;
-  try { window.showInputRow?.(true, { preserveOutput: true, keepPartialLastLine: true }); } catch {}
-  try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
-};
+      if (!this._isRunner || waitingShown) return;
+      waitingShown = true;
+      // Non-destructive: do NOT wipe partial last line
+      try { window.showInputRow?.(true, { preserveOutput: true, keepPartialLastLine: true }); } catch {}
+      try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
+    };
 
     const sawStdout = () => {
       waitingShown = false;
       cancelProbe();
-      // If the stream goes quiet shortly after a burst, we likely blocked on input (scanf)
+      // If stream goes quiet shortly after output, we may be blocked on input
       promptDebounce = setTimeout(() => {
-        //if (!lastSentWasInput && this._real?.readyState === _WS.OPEN) showWaiting(); }, 150);
-         if (!this.__pc_lastSentWasInput && this._real?.readyState === _WS.OPEN) showWaiting();
-}, 150);
+        if (!this.__pc_lastSentWasInput &&
+            this._real?.readyState === _WS.OPEN &&
+            seenAnyNewline) {            // <-- only after a newline has appeared
+          showWaiting();
+        }
+      }, 250); // slightly slower to avoid flicker
     };
 
-    // Proxy properties
+    // ---- Proxy properties ----
     Object.defineProperty(this, 'readyState', { get: () => this._real.readyState });
     Object.defineProperty(this, 'url',        { get: () => this._real.url });
     Object.defineProperty(this, 'binaryType', {
       get: () => this._real.binaryType,
-      set: (v) => { this._real.binaryType = v; }
+      set: v  => { this._real.binaryType = v; }
     });
 
     // Wrapped handler props
@@ -2838,7 +2846,7 @@ document.addEventListener('keydown', (ev) => {
     this._onerror = null;
     this._onclose = null;
 
-    // OPEN
+    // ---- OPEN ----
     this._real.addEventListener('open', (ev) => {
       if (this._isRunner) {
         // Gate invalid sessions
@@ -2848,48 +2856,63 @@ document.addEventListener('keydown', (ev) => {
         }
         current.state = 'running';
         waitingShown = false;
-        lastSentWasInput = false;
+        seenAnyNewline = false;          // reset for new run
+        this.__pc_lastSentWasInput = false;
         cancelProbe();
       }
       this._onopen && this._onopen.call(this, ev);
     });
 
-    // MESSAGE
+    // ---- MESSAGE ----
     this._real.addEventListener('message', (ev) => {
       if (this._isRunner) {
         // Drop stale output
         if (!current || current.id !== this._sid || current.state !== 'running') return;
 
-        // Try to detect "stdin requested" states across languages
         try {
           const d = ev.data;
 
-          // JSON messages from runners
+          // JSON messages from some runtimes
           if (typeof d === 'string' && d.length && d[0] === '{') {
             const m = JSON.parse(d);
+
             if (m && m.type === 'stdin_req') {
               waitingShown = false; cancelProbe();
-              showWaiting();
-            } else if (m && m.type === 'stdout' && typeof m.data === 'string') {
-              // If typical prompt without newline (e.g., "Enter n: ")
+              showWaiting(); // explicit signal wins (even before first newline)
+            }
+            else if (m && m.type === 'stdout' && typeof m.data === 'string') {
               const s = m.data;
-              const endsLikePrompt = /[:?] $/.test(s) && !s.includes('\n');
-              if (endsLikePrompt) {
+              if (s.includes('\n')) seenAnyNewline = true;
+
+              const endsLikePrompt = /[:?]\s$/.test(s) && !s.includes('\n');
+              if (endsLikePrompt && seenAnyNewline) {
                 waitingShown = false; cancelProbe();
                 showWaiting();
               } else {
                 sawStdout();
               }
-            } else {
-              // other message types still reset the probe
+            }
+            else {
+              // other JSON payloads reset the quiet-probe
               waitingShown = false; cancelProbe();
             }
+          } else if (typeof d === 'string') {
+            // Plain text stream (typical for your cc-runner)
+            if (d.includes('\n')) seenAnyNewline = true;
+
+            const endsLikePrompt = /[:?]\s$/.test(d) && !d.includes('\n');
+            if (endsLikePrompt && seenAnyNewline) {
+              waitingShown = false; cancelProbe();
+              showWaiting();
+            } else {
+              sawStdout();
+            }
           } else {
-            // Non-JSON (Blob/ArrayBuffer/plain text chunks): treat as stdout burst
+            // Blob/ArrayBuffer etc.: treat as generic stdout burst
             sawStdout();
           }
         } catch {
-          // On parse errors, still treat as stdout burst
+          // On parse errors, still treat as stdout; keep newline gating
           sawStdout();
         }
       }
@@ -2898,36 +2921,32 @@ document.addEventListener('keydown', (ev) => {
       this._onmessage && this._onmessage.call(this, ev);
     });
 
-    // ERROR
+    // ---- ERROR ----
     this._real.addEventListener('error', (ev) => {
-      // Clear any lingering "waiting" UI if the socket errors out
       try { window.clearRunUI?.(); } catch {}
       this._onerror && this._onerror.call(this, ev);
     });
 
-    // CLOSE
+    // ---- CLOSE ----
     this._real.addEventListener('close', (ev) => {
       if (this._isRunner && current && current.id === this._sid) {
         current.state = 'stopped';
         current = null;
       }
-      // Also clear run UI on normal/abnormal close to avoid stale banners
       try { window.clearRunUI?.(); } catch {}
       this._onclose && this._onclose.call(this, ev);
     });
   }
 
-  // SEND (tap to notice when the user provides stdin)
+  // ---- SEND (tap when user provides stdin) ----
   send(data) {
     try {
       const s = (typeof data === 'string') ? data : '';
       if (s && s[0] === '{') {
         const m = JSON.parse(s);
         if (m?.type === 'stdin') {
-          // a user input line is being sent right now
-          // briefly suppress the "quiet → waiting" heuristic
-          // the next stdout burst (prompt echo or output) will re-evaluate
-          this.__pc_lastSentWasInputTimer && clearTimeout(this.__pc_lastSentWasInputTimer);
+          // Briefly suppress the quiet->waiting heuristic
+          if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
           this.__pc_lastSentWasInput = true;
           this.__pc_lastSentWasInputTimer = setTimeout(() => {
             this.__pc_lastSentWasInput = false;
@@ -2941,23 +2960,24 @@ document.addEventListener('keydown', (ev) => {
   close(code, reason) { this._real.close(code, reason); }
 
   // on* props
-  get onopen()    { return this._onopen; }
-  set onopen(fn)  { this._onopen = fn; }
+  get onopen()     { return this._onopen; }
+  set onopen(fn)   { this._onopen = fn; }
 
-  get onmessage() { return this._onmessage; }
+  get onmessage()  { return this._onmessage; }
   set onmessage(fn){ this._onmessage = fn; }
 
-  get onerror()   { return this._onerror; }
-  set onerror(fn) { this._onerror = fn; }
+  get onerror()    { return this._onerror; }
+  set onerror(fn)  { this._onerror = fn; }
 
-  get onclose()   { return this._onclose; }
-  set onclose(fn) { this._onclose = fn; }
+  get onclose()    { return this._onclose; }
+  set onclose(fn)  { this._onclose = fn; }
 
   // EventTarget passthrough
   addEventListener(...args)    { return this._real.addEventListener(...args); }
   removeEventListener(...args) { return this._real.removeEventListener(...args); }
   dispatchEvent(...args)       { return this._real.dispatchEvent(...args); }
 }
+
 
 
   // Only patch once
