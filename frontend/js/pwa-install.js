@@ -1,84 +1,114 @@
-// pwa-install.js — Show the right button (Install vs Launch) and make it work everywhere.
+// pwa-install.js — one smart button that Just Works
 (function () {
-  // ---- CONFIG ----
-  // Keep this in sync with your manifest.json
   const START_URL = '/frontend/index.html';
 
-  // Will hold the install prompt event when available
   let deferredPrompt = null;
 
-  // Helpers
+  const $ = (id) => document.getElementById(id);
   const isStandalone = () =>
     window.matchMedia('(display-mode: standalone)').matches ||
     window.navigator.standalone === true; // iOS
 
-  function byId(id) { return document.getElementById(id); }
-  function show(el) { el && (el.hidden = false); }
-  function hide(el) { el && (el.hidden = true); }
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid = /android/i.test(navigator.userAgent);
 
-  function updateUI() {
-    const installBtn = byId('btnPWAInstall');
-    const launchBtn  = byId('btnPWALaunch');
-
-    if (isStandalone()) {
-      hide(installBtn);
-      show(launchBtn);
-      return;
-    }
-    // Not standalone: show Install if we have a prompt, else hide Install and show Launch
-    if (deferredPrompt) {
-      show(installBtn);
-      hide(launchBtn);
-    } else {
-      // If the browser won't prompt yet, offer a Launch (opens START_URL in same tab)
-      hide(installBtn);
-      show(launchBtn);
+  function ensureButtons() {
+    // Use ONE button with id="btnPWA"
+    if (!$('btnPWA')) {
+      const btn = document.createElement('button');
+      btn.id = 'btnPWA';
+      btn.className = 'pwa-btn';
+      btn.hidden = true;
+      btn.textContent = 'Install App';
+      document.body.appendChild(btn);
     }
   }
 
-  // Catch the install prompt when the page qualifies
+  function setBtn(label, hidden) {
+    const btn = $('btnPWA');
+    if (!btn) return;
+    btn.textContent = label;
+    btn.hidden = !!hidden;
+  }
+
+  function showIOSInstructions() {
+    alert(
+      "Install PolyCode:\n\n" +
+      "1) Tap the Share button (square with arrow).\n" +
+      "2) Choose 'Add to Home Screen'.\n" +
+      "3) Open from your Home Screen for the full app."
+    );
+  }
+
+  function updateUI() {
+    if (isStandalone()) {
+      // Already in the installed app → hide button
+      setBtn('Open App', true);
+      return;
+    }
+    // Not installed
+    if (deferredPrompt && !isIOS) {
+      setBtn('Install App', false);
+    } else {
+      // No prompt available yet (or iOS which never fires it)
+      setBtn('Install App', false);
+    }
+  }
+
+  // Listen for install availability
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
     updateUI();
   });
 
-  // When the app gets installed
+  // When installed, hide the button
   window.addEventListener('appinstalled', () => {
     deferredPrompt = null;
     updateUI();
   });
 
-  // Button clicks
+  // Click behavior
   window.addEventListener('DOMContentLoaded', () => {
-    const installBtn = byId('btnPWAInstall');
-    const launchBtn  = byId('btnPWALaunch');
+    ensureButtons();
+    const btn = $('btnPWA');
+    if (!btn) return;
 
-    installBtn && installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) {
-        // No prompt available — navigate to START_URL as a fallback.
-        window.location.href = START_URL;
+    btn.addEventListener('click', async () => {
+      if (isStandalone()) {
+        // Already installed: if this isn't START_URL, navigate there; otherwise do nothing
+        if (location.pathname !== START_URL) location.href = START_URL;
         return;
       }
-      installBtn.disabled = true;
-      deferredPrompt.prompt();
-      try {
-        await deferredPrompt.userChoice; // {outcome: 'accepted'|'dismissed'}
-      } finally {
-        deferredPrompt = null;               // must reset per spec
-        installBtn.disabled = false;
-        updateUI();
-      }
-    });
 
-    launchBtn && launchBtn.addEventListener('click', () => {
-      // If already in standalone, just focus. Otherwise, navigate to your app home.
-      if (!isStandalone()) window.location.href = START_URL;
+      // Not installed
+      if (isIOS) {
+        // iOS never shows beforeinstallprompt
+        showIOSInstructions();
+        return;
+      }
+
+      if (deferredPrompt) {
+        btn.disabled = true;
+        deferredPrompt.prompt();
+        try { await deferredPrompt.userChoice; } finally {
+          deferredPrompt = null;
+          btn.disabled = false;
+          updateUI();
+        }
+      } else {
+        // No prompt yet → show gentle instructions (Android/desktop)
+        alert(
+          "To install PolyCode:\n\n" +
+          "• Open the browser menu (⋮ or ⋯)\n" +
+          "• Tap 'Install app' or 'Add to Home screen'\n"
+        );
+      }
     });
 
     updateUI();
   });
 
-  // Optional: show/hide correctly after page load too
+  // Also update once on load (covers some browsers)
   window.addEventListener('load', updateUI);
 })();
