@@ -2819,8 +2819,9 @@ document.addEventListener('keydown', (ev) => {
       cancelProbe();
       // If the stream goes quiet shortly after a burst, we likely blocked on input (scanf)
       promptDebounce = setTimeout(() => {
-        if (!lastSentWasInput && this._real?.readyState === _WS.OPEN) showWaiting();
-      }, 150);
+        //if (!lastSentWasInput && this._real?.readyState === _WS.OPEN) showWaiting(); }, 150);
+         if (!this.__pc_lastSentWasInput && this._real?.readyState === _WS.OPEN) showWaiting();
+}, 150);
     };
 
     // Proxy properties
@@ -3154,12 +3155,20 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
   classes.forEach(c => app.classList.toggle(c, c === cls && on));
 
   // sync all expander buttons' pressed state
-  document.querySelectorAll('.btn.expander').forEach(b => {
+  /*document.querySelectorAll('.btn.expander').forEach(b => {
     const isThis = (b === btn) && on;
     b.setAttribute('aria-pressed', isThis ? 'true' : 'false');
     b.classList.toggle('is-on', isThis);
-  });
+  });*/
 
+
+  document.querySelectorAll('.btn.expander').forEach(b => {
+  b.setAttribute('aria-pressed','false');
+  b.classList.remove('is-on');
+});
+
+
+  
   // Relayout editor when center size changes
   if (window.editor?.layout) {
     const el = document.getElementById('editor');
