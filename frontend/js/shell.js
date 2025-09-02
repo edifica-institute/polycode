@@ -2808,12 +2808,12 @@ document.addEventListener('keydown', (ev) => {
 
     const cancelProbe = () => { try { clearTimeout(promptDebounce); } catch {} promptDebounce = null; };
     const showWaiting = () => {
-      if (!this._isRunner || waitingShown) return;
-      waitingShown = true;
-      // Optional UI hooks (guarded if not present)
-      try { window.showInputRow?.(true); } catch {}
-      try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
-    };
+  if (!this._isRunner || waitingShown) return;
+  waitingShown = true;
+  try { window.showInputRow?.(true, { preserveOutput: true, keepPartialLastLine: true }); } catch {}
+  try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
+};
+
     const sawStdout = () => {
       waitingShown = false;
       cancelProbe();
