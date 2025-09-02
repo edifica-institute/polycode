@@ -3146,5 +3146,27 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
 
 
 
+// Centralized cleanup for run state
+window.clearRunUI = function clearRunUI() {
+  // Stop any pending "waiting" probes you installed earlier
+  try { clearTimeout(window.__waitProbe); } catch {}
+  window.__waitProbe = null;
+  window.__sawOutSinceInput = false;
+
+  // Hide input row if your app exposes this
+  if (typeof hideInputRow === 'function') hideInputRow();
+
+  // Reset any status/banners
+  if (typeof setStatus === 'function') setStatus('ready'); // normalized API if you have it
+  // Or fallbacks:
+  const banner = document.querySelector('[data-banner]');
+  if (banner) {
+    banner.textContent = 'Ready';
+    banner.classList.remove('is-error', 'is-waiting');
+  }
+
+  // Mark run as not in flight
+  window.wsRunInFlight = false;
+};
 
 
