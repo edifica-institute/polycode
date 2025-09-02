@@ -72,11 +72,16 @@ wss.on('connection', (ws, req) => {
     }
 
     if (msg.type === 'stdin') {
-      if (proc?.stdin?.writable) {
-        try { proc.stdin.write(String(msg.data ?? '')); } catch {}
-      }
-      return;
-    }
+  if (proc?.stdin?.writable) {
+    try { proc.stdin.write(String(msg.data ?? '')); } catch {}
+  }
+  // User provided input → pause "input wait" timer, re-arm hard timer
+  try { if (inputTimer) { clearTimeout(inputTimer); inputTimer = null; } } catch {}
+  try { if (hardTimer) { clearTimeout(hardTimer); } } catch {}
+  hardTimer = armTimer(hardLimitMs, () => { try { proc?.kill('SIGKILL'); } catch {} });
+  return;
+}
+
 
     if (msg.type === 'run') {
       await cleanup();
