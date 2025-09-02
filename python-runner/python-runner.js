@@ -151,10 +151,18 @@ runpy.run_path('main.py', run_name='__main__')
         const lines = s.split(/\r?\n/);
         for (const line of lines) {
           if (!line) continue;
-          if (/\[\[CTRL\]\]:stdin_req/.test(line)) {
-            try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
-            continue;
-          }
+        if (/\[\[CTRL\]\]:stdin_req/.test(line)) {
+  // Blocked on input → pause hard timer, arm input-wait timer
+  try { if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; } } catch {}
+  try { if (inputTimer) { clearTimeout(inputTimer); } } catch {}
+  inputTimer = armTimer(inputWaitMs, () => {
+    try { ws.send(JSON.stringify({ type: 'stderr', data: 'Input wait timed out.\n' })); } catch {}
+    try { proc?.kill('SIGKILL'); } catch {}
+  });
+  try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
+  continue;
+}
+
           try { ws.send(JSON.stringify({ type: 'stderr', data: line + '\n' })); } catch {}
         }
       });
