@@ -785,12 +785,14 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   // Fallback: read from DOM if present
   const domErr = document.getElementById('stderrText')?.textContent || '';
   const domOut = document.getElementById('stdoutText')?.textContent || '';
-
+  
   const stderr = String(cachedErr || domErr || '');
   const stdout = String(cachedOut || domOut || '');
   const code   = window.editor?.getValue?.() || '';
   const explainEl = document.getElementById('stderrExplain');
 
+  window.PolyShell.setRawOutputs(stdout, stderr);
+refreshStderrExplanation();
   // If we have nowhere to render, just exit (alert option still possible)
   if (!explainEl && !alsoAlert) return;
 
