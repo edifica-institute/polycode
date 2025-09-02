@@ -791,8 +791,8 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   const code   = window.editor?.getValue?.() || '';
   const explainEl = document.getElementById('stderrExplain');
 
-  window.PolyShell.setRawOutputs(stdout, stderr);
-refreshStderrExplanation();
+  //window.PolyShell.setRawOutputs(stdout, stderr);
+//refreshStderrExplanation();
   // If we have nowhere to render, just exit (alert option still possible)
   if (!explainEl && !alsoAlert) return;
 
