@@ -828,23 +828,19 @@ window.addEventListener('DOMContentLoaded', () => {
     unfreezeUI(); // will set animated 'ready' + 'waiting'
   });*/
 
- rstBtn?.addEventListener('click', () => {
-  // 1) stop any in-flight runner (safe no-op if none)
+rstBtn?.addEventListener('click', () => {
+  try { PC?.cancelCurrentSession?.('user'); } catch {}   // <-- add this line
+
   try { window.killRunner?.(); } catch {}
-
-  // 2) clear UI state (waiting banner, probes, input row, ws flags)
   try { window.clearRunUI?.(); } catch {}
-
-  // 3) page-specific reset hook (your old one)
   try { window.clearLang && window.clearLang(); } catch {}
 
-  // 4) keep your theme touch-up
   window.PolyShell?.reapplyTheme?.();
 
-  // 5) status + idle UI
   setStatus('Reset','ok');
   unfreezeUI(); // sets center:ready, right:waiting
 });
+
 
 
   
@@ -2678,19 +2674,29 @@ async function buildCodeImageDataURL() {
   PC.lockUI   = () => { uiLock = true; };
   PC.unlockUI = () => { uiLock = false; };
 
-  PC.cancelCurrentSession = function(reason = 'user') {
-    // Abort prepare (if in-flight)
-    try { pendingAbort?.abort(); } catch {}
-    pendingAbort = null;
+// ---- Replace the existing cancel helper in your “Polycode: Global connect guard & session gate” IIFE ----
+PC.cancelCurrentSession = function(reason = 'user') {
+  // Mark this as a user abort so close handlers & run() knows
+  PC.__userAbort = true;
+  PC.__cancelledSid = current?.id || null;
 
-    // Invalidate/gate session
-    if (current) {
-      current.state = 'cancelled';
-      try { current.ws?.close(); } catch {}
-      current.ws = null;
-      current = null;
-    }
-  };
+  // Abort in-flight /prepare
+  try { pendingAbort?.abort(); } catch {}
+  pendingAbort = null;
+
+  // Close runner socket (if any)
+  if (current) {
+    current.state = 'cancelled';
+    try { current.ws?.close(); } catch {}
+    current.ws = null;
+    current = null;
+  }
+
+  // Clean any lingering “waiting for input” UI immediately
+  try { window.PolyShell?.stopInputTicker?.(); } catch {}
+  try { window.clearRunUI?.(); } catch {}
+};
+
 
   // ---- Auto-lock based on modal visibility (no changes to pages) ----
   const connectModal = document.querySelector(CONNECT_MODAL_SELECTOR);
@@ -2795,26 +2801,28 @@ class PCWebSocket {
     this._url  = String(url || '');
     this._sid  = (current ? current.id : null);
 
-    // Session-binding: only for runner sockets
     this._isRunner = WS_TOKEN_REGEX.test(this._url);
     if (this._isRunner && current && current.state === 'connecting') {
       current.ws = this._real;
     }
 
-    // ---- Prompt / input-wait heuristic ----
+    // ---- prompt/input heuristic state ----
     let promptDebounce   = null;
     let waitingShown     = false;
-    let seenAnyNewline   = false; // <-- NEW: gate "waiting" until we've seen a newline
+    let seenAnyNewline   = false;
 
-    const cancelProbe = () => {
-      try { clearTimeout(promptDebounce); } catch {}
-      promptDebounce = null;
+    const cancelProbe = () => { try { clearTimeout(promptDebounce); } catch {} promptDebounce = null; };
+
+    const clearWaitUI = () => {
+      try { window.PolyShell?.stopInputTicker?.(); } catch {}
+      try { window.clearRunUI?.(); } catch {}
+      waitingShown = false;
+      cancelProbe();
     };
 
     const showWaiting = () => {
       if (!this._isRunner || waitingShown) return;
       waitingShown = true;
-      // Non-destructive: do NOT wipe partial last line
       try { window.showInputRow?.(true, { preserveOutput: true, keepPartialLastLine: true }); } catch {}
       try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
     };
@@ -2822,17 +2830,17 @@ class PCWebSocket {
     const sawStdout = () => {
       waitingShown = false;
       cancelProbe();
-      // If stream goes quiet shortly after output, we may be blocked on input
+      // Only start quiet->waiting probe after we’ve seen at least one newline
       promptDebounce = setTimeout(() => {
         if (!this.__pc_lastSentWasInput &&
             this._real?.readyState === _WS.OPEN &&
-            seenAnyNewline) {            // <-- only after a newline has appeared
+            seenAnyNewline) {
           showWaiting();
         }
-      }, 250); // slightly slower to avoid flicker
+      }, 250);
     };
 
-    // ---- Proxy properties ----
+    // ---- proxy props ----
     Object.defineProperty(this, 'readyState', { get: () => this._real.readyState });
     Object.defineProperty(this, 'url',        { get: () => this._real.url });
     Object.defineProperty(this, 'binaryType', {
@@ -2840,23 +2848,19 @@ class PCWebSocket {
       set: v  => { this._real.binaryType = v; }
     });
 
-    // Wrapped handler props
-    this._onopen = null;
-    this._onmessage = null;
-    this._onerror = null;
-    this._onclose = null;
+    // wrapped handlers
+    this._onopen = null; this._onmessage = null; this._onerror = null; this._onclose = null;
 
     // ---- OPEN ----
     this._real.addEventListener('open', (ev) => {
       if (this._isRunner) {
-        // Gate invalid sessions
         if (!current || current.id !== this._sid || current.state === 'cancelled') {
           try { this._real.close(); } catch {}
           return;
         }
         current.state = 'running';
         waitingShown = false;
-        seenAnyNewline = false;          // reset for new run
+        seenAnyNewline = false;
         this.__pc_lastSentWasInput = false;
         cancelProbe();
       }
@@ -2866,91 +2870,86 @@ class PCWebSocket {
     // ---- MESSAGE ----
     this._real.addEventListener('message', (ev) => {
       if (this._isRunner) {
-        // Drop stale output
         if (!current || current.id !== this._sid || current.state !== 'running') return;
 
         try {
           const d = ev.data;
 
-          // JSON messages from some runtimes
           if (typeof d === 'string' && d.length && d[0] === '{') {
+            // JSON envelope (used by some runners)
             const m = JSON.parse(d);
 
-            if (m && m.type === 'stdin_req') {
-              waitingShown = false; cancelProbe();
-              showWaiting(); // explicit signal wins (even before first newline)
-            }
-            else if (m && m.type === 'stdout' && typeof m.data === 'string') {
+            if (m?.type === 'stdin_req') {
+              waitingShown = false; cancelProbe(); showWaiting();
+            } else if (m?.type === 'stdout' && typeof m.data === 'string') {
               const s = m.data;
               if (s.includes('\n')) seenAnyNewline = true;
-
               const endsLikePrompt = /[:?]\s$/.test(s) && !s.includes('\n');
-              if (endsLikePrompt && seenAnyNewline) {
-                waitingShown = false; cancelProbe();
-                showWaiting();
-              } else {
-                sawStdout();
-              }
-            }
-            else {
-              // other JSON payloads reset the quiet-probe
+              if (endsLikePrompt && seenAnyNewline) { waitingShown = false; cancelProbe(); showWaiting(); }
+              else { sawStdout(); }
+            } else {
               waitingShown = false; cancelProbe();
             }
           } else if (typeof d === 'string') {
-            // Plain text stream (typical for your cc-runner)
+            // plain text
             if (d.includes('\n')) seenAnyNewline = true;
-
             const endsLikePrompt = /[:?]\s$/.test(d) && !d.includes('\n');
-            if (endsLikePrompt && seenAnyNewline) {
-              waitingShown = false; cancelProbe();
-              showWaiting();
-            } else {
-              sawStdout();
-            }
+            if (endsLikePrompt && seenAnyNewline) { waitingShown = false; cancelProbe(); showWaiting(); }
+            else { sawStdout(); }
           } else {
-            // Blob/ArrayBuffer etc.: treat as generic stdout burst
+            // blob/ArrayBuffer etc.
             sawStdout();
           }
         } catch {
-          // On parse errors, still treat as stdout; keep newline gating
           sawStdout();
         }
       }
 
-      // Forward to page listener
       this._onmessage && this._onmessage.call(this, ev);
     });
 
     // ---- ERROR ----
     this._real.addEventListener('error', (ev) => {
-      try { window.clearRunUI?.(); } catch {}
+      // If user aborted, do not leave “waiting for input” on screen
+      clearWaitUI();
       this._onerror && this._onerror.call(this, ev);
     });
 
     // ---- CLOSE ----
     this._real.addEventListener('close', (ev) => {
+      const userAbort = !!(this._isRunner && (this._sid === PC.__cancelledSid || PC.__userAbort));
+
       if (this._isRunner && current && current.id === this._sid) {
         current.state = 'stopped';
         current = null;
       }
-      try { window.clearRunUI?.(); } catch {}
+
+      // Always clear any waiting UI / probes
+      clearWaitUI();
+
+      // If this close was triggered by Reset: force the idle footer, not “error”
+      if (userAbort) {
+        try { setStatus?.('Reset','ok'); } catch {}
+        try { setFootStatus?.('rightFoot','waiting'); } catch {}
+        try { unfreezeUI?.(); } catch {}
+        // consume the flag so the next run isn't affected
+        PC.__userAbort = false;
+      }
+
       this._onclose && this._onclose.call(this, ev);
     });
   }
 
-  // ---- SEND (tap when user provides stdin) ----
+  // ---- SEND (notice when stdin is being sent) ----
   send(data) {
     try {
       const s = (typeof data === 'string') ? data : '';
       if (s && s[0] === '{') {
         const m = JSON.parse(s);
         if (m?.type === 'stdin') {
-          // Briefly suppress the quiet->waiting heuristic
           if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
           this.__pc_lastSentWasInput = true;
-          this.__pc_lastSentWasInputTimer = setTimeout(() => {
-            this.__pc_lastSentWasInput = false;
-          }, 50);
+          this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
         }
       }
     } catch {}
@@ -2959,24 +2958,16 @@ class PCWebSocket {
 
   close(code, reason) { this._real.close(code, reason); }
 
-  // on* props
-  get onopen()     { return this._onopen; }
-  set onopen(fn)   { this._onopen = fn; }
+  get onopen()      { return this._onopen; }    set onopen(fn)   { this._onopen = fn; }
+  get onmessage()   { return this._onmessage; } set onmessage(fn){ this._onmessage = fn; }
+  get onerror()     { return this._onerror; }   set onerror(fn)  { this._onerror = fn; }
+  get onclose()     { return this._onclose; }   set onclose(fn)  { this._onclose = fn; }
 
-  get onmessage()  { return this._onmessage; }
-  set onmessage(fn){ this._onmessage = fn; }
-
-  get onerror()    { return this._onerror; }
-  set onerror(fn)  { this._onerror = fn; }
-
-  get onclose()    { return this._onclose; }
-  set onclose(fn)  { this._onclose = fn; }
-
-  // EventTarget passthrough
-  addEventListener(...args)    { return this._real.addEventListener(...args); }
-  removeEventListener(...args) { return this._real.removeEventListener(...args); }
-  dispatchEvent(...args)       { return this._real.dispatchEvent(...args); }
+  addEventListener(...a){ return this._real.addEventListener(...a); }
+  removeEventListener(...a){ return this._real.removeEventListener(...a); }
+  dispatchEvent(...a){ return this._real.dispatchEvent(...a); }
 }
+
 
 
 
