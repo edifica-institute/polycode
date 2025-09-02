@@ -56,14 +56,19 @@ function parseGcc(out) {
   return ds;
 }
 function runWithLimits(cmd, args, cwd) {
-  // CPU 10s, ~256MB vmem, 1GB file size; hard timeout 30s
+  // CPU 10s, ~256MB vmem, 1GB file size; hard timeout configurable (default 300s)
   // stdbuf -o0 -e0 => unbuffer stdout/stderr so prompts appear immediately
+  const timeoutSec = Math.max(1, Number(process.env.CC_TIMEOUT_S || 300)); // 5 minutes default
   const bash = `
-    ulimit -t 10 -v 262144 -f 1048576;
-    timeout 30s stdbuf -o0 -e0 ${[cmd, ...args].map(a => `'${a.replace(/'/g,"'\\''")}'`).join(' ')}
+    ulimit -t ${process.env.CC_CPU_SECS || 10} -v 262144 -f 1048576;
+    stdbuf -o0 -e0 ${[cmd, ...args].map(a => `'${a.replace(/'/g,"'\\''")}'`).join(' ')}
   `;
-  return spawn("bash", ["-lc", bash], { cwd });
+  const child = spawn("bash", ["-lc", bash], { cwd });
+  const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, timeoutSec * 1000);
+  child.on("close", () => { try { clearTimeout(killer); } catch {} });
+  return child;
 }
+
 
 function compilerFor(lang, entry) {
   if (lang === "c") return { cc: "gcc", std: "-std=c11" };
