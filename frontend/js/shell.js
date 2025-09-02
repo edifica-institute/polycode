@@ -931,7 +931,7 @@ rstBtn?.addEventListener('click', () => {
   try { PC?.cancelCurrentSession?.('user'); } catch {}   // <-- add this line
 
   try { window.killRunner?.(); } catch {}
-  try { window.hardClearOutput?.({ preservePreview:false }); } catch {}
+  try { window.hardClearOutput?.({ preservePreview:true }); } catch {}
   try { window.clearRunUI?.(); } catch {}
   try { window.clearLang && window.clearLang(); } catch {}
 
@@ -2873,6 +2873,8 @@ document.addEventListener('keydown', (ev) => {
       // Only intercept POST .../api/cc/prepare
       if (method === 'POST' && PREPARE_PATH_REGEX.test(url)) {
         // New connect session
+        PC.__userAbort = false;
+        PC.__cancelledSid = null;
         const id = ++sessionSeq;
         current = { id, state: 'connecting', ws: null };
 
@@ -2968,6 +2970,7 @@ class PCWebSocket {
     // ---- OPEN ----
     this._real.addEventListener('open', (ev) => {
       if (this._isRunner) {
+        PC.__userAbort = false;
         if (!current || current.id !== this._sid || current.state === 'cancelled') {
           try { this._real.close(); } catch {}
           return;
@@ -3043,7 +3046,7 @@ class PCWebSocket {
 
       // If this close was triggered by Reset: force the idle footer, not “error”
        if (userAbort) {
-    try { window.hardClearOutput?.({ preservePreview:false }); } catch {}   // <-- add this
+    try { window.hardClearOutput?.({ preservePreview:true }); } catch {}   // <-- add this
     try { setStatus?.('Reset','ok'); } catch {}
     try { setFootStatus?.('rightFoot','waiting'); } catch {}
     try { unfreezeUI?.(); } catch {}
@@ -3427,34 +3430,35 @@ function showErrorExplanation(text) {
 
 
 // Wipe the output panel + any partial/queued writes (safe no-op if absent)
+// Wipe output content safely WITHOUT destroying the console host
 window.hardClearOutput = function hardClearOutput({ preservePreview = true } = {}) {
   try { window.PolyShell?.stopInputTicker?.(); } catch {}
   try { window.showInputRow?.(false); } catch {}
 
-  // If you have a console helper, prefer its clear API
-  try {
-    if (window.jconsole?.clear) {
-      window.jconsole.clear({ keepBanner:false, keepPartial:false });
-    }
-  } catch {}
+  // Preferred: ask your console to clear itself
+  try { window.jconsole?.clear({ keepBanner:false, keepPartial:false }); } catch {}
 
-  // Kill any batching timers your app might use (best-effort; harmless if undefined)
+  // Cancel any batching timers you may have created
   try { clearTimeout(window.__pc_outFlushTimer); } catch {}
   try { clearTimeout(window.__pc_outDebounce); } catch {}
-  try { window.__pc_outFlushTimer = window.__pc_outDebounce = null; } catch {}
+  window.__pc_outFlushTimer = window.__pc_outDebounce = null;
 
-  // Brutal DOM clear (optionally keep the web preview iframe, if you use one on web pages)
+  // Remove obvious transient nodes but DO NOT nuke the whole container
   const out = document.getElementById('output');
   if (out) {
-    const preview = preservePreview ? out.querySelector('#preview') : null;
-    out.innerHTML = '';                          // remove all children
-    if (preview) out.appendChild(preview);       // reattach preview if requested
+    try { out.querySelectorAll('[data-partial], .partial, .ghost-line').forEach(n => n.remove()); } catch {}
+    // If you have a known inner lines container, clear THAT only:
+    const lines = out.querySelector('[data-console-root], #console, .console, .lines, pre.stdout');
+    if (lines) lines.textContent = '';
+    // (Optional) keep preview iframe
+    if (!preservePreview) {
+      const ifr = out.querySelector('#preview, iframe#preview');
+      if (ifr) ifr.remove();
+    }
     out.scrollTop = 0;
     out.classList.add('screen-dim');
-
-    // Extra safety: remove any lingering “partial” nodes if your renderer used them
-    try { out.querySelectorAll('[data-partial], .partial, .ghost-line').forEach(n => n.remove()); } catch {}
   }
 };
+
 
 
