@@ -44,6 +44,17 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 
 
 
+// Keep the last raw outputs here so the explainer doesn't depend on DOM text
+window.PolyRun = window.PolyRun || { stdout: '', stderr: '' };
+
+// Call this whenever you render new raw output
+window.PolyShell = window.PolyShell || {};
+window.PolyShell.setRawOutputs = function setRawOutputs(stdout, stderr) {
+  window.PolyRun.stdout = String(stdout || '');
+  window.PolyRun.stderr = String(stderr || '');
+};
+
+
 
 
 
@@ -766,26 +777,34 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // ---- Friendly error: read stderr/stdout and append detailed explanation under it
-async function refreshStderrExplanation() {
-  const explainBox = document.getElementById('stderrExplain');
-  if (!explainBox) return; // nothing to render into
+async function refreshStderrExplanation({ alsoAlert = false } = {}) {
+  // Prefer cached raw outputs (set via PolyShell.setRawOutputs)
+  const cachedErr = window.PolyRun?.stderr ?? '';
+  const cachedOut = window.PolyRun?.stdout ?? '';
 
-  const stderr = document.getElementById('stderrText')?.textContent || '';
-  const stdout = document.getElementById('stdoutText')?.textContent || '';
+  // Fallback: read from DOM if present
+  const domErr = document.getElementById('stderrText')?.textContent || '';
+  const domOut = document.getElementById('stdoutText')?.textContent || '';
+
+  const stderr = String(cachedErr || domErr || '');
+  const stdout = String(cachedOut || domOut || '');
   const code   = window.editor?.getValue?.() || '';
-  const lang   = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
+  const explainEl = document.getElementById('stderrExplain');
 
-  // No errors → clear and exit
-  if (!(stderr.trim() || /(?:Error|Exception|Traceback)/i.test(stdout))) {
-    explainBox.innerHTML = '';
-    // also clear our markers if any
+  // If we have nowhere to render, just exit (alert option still possible)
+  if (!explainEl && !alsoAlert) return;
+
+  // Quick check: is there anything error-like?
+  const looksLikeError = !!(stderr.trim() || /(?:Error|Exception|Traceback)/i.test(stdout));
+  if (!looksLikeError) {
+    if (explainEl) explainEl.innerHTML = '';
     if (window.monaco && window.editor) {
       monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', []);
     }
     return;
   }
 
-  // Load the helper (from step 1 import or dynamic import fallback)
+  // Load helper (either from window or dynamic import)
   let parseCompilerOutput, renderHintHTML;
   if (window.PolyErrorHelper) {
     ({ parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper);
@@ -793,33 +812,55 @@ async function refreshStderrExplanation() {
     ({ parseCompilerOutput, renderHintHTML } = await import('./js/error-helper.js'));
   }
 
+  const lang = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
   const { hints, summary, annotations } = parseCompilerOutput({ lang, stderr, stdout, code });
 
-  explainBox.innerHTML = hints.length
-    ? `
-      <div class="eh-wrap">
-        <div class="eh-head">
-          <strong>Explanation (Beta)</strong>
-          <span class="eh-summary">${summary.replace(/\n/g,'<br>')}</span>
+  // Render below stderr
+  if (explainEl) {
+    if (hints.length) {
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Explanation</h3>
+        <div class="eh-wrap">
+          <div class="eh-head">
+            <strong>Explanation (Beta)</strong>
+            <span class="eh-summary">${summary.replace(/\n/g,'<br>')}</span>
+          </div>
+          ${hints.map(renderHintHTML).join('')}
         </div>
-        ${hints.map(renderHintHTML).join('')}
-      </div>
-    `
-    : `
-      <div class="eh-wrap">
-        <div class="eh-head"><strong>Explanation (Beta)</strong></div>
-        <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
-      </div>
-    `;
+      `;
+    } else {
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Explanation</h3>
+        <div class="eh-wrap">
+          <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
+        </div>
+      `;
+    }
+  }
 
-  // Optional markers in Monaco
-  if (window.monaco && window.editor && annotations?.length) {
-    const markers = annotations.map(a => ({
-      startLineNumber: a.line, endLineNumber: a.line,
-      startColumn: 1, endColumn: 300,
-      message: a.message, severity: monaco.MarkerSeverity.Error
-    }));
-    monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', markers);
+  // Monaco markers
+  if (window.monaco && window.editor) {
+    monaco.editor.setModelMarkers(
+      window.editor.getModel(),
+      'polycode-eh',
+      (annotations || []).map(a => ({
+        startLineNumber: a.line || 1,
+        endLineNumber: a.line || 1,
+        startColumn: 1,
+        endColumn: 300,
+        message: a.message || 'Error',
+        severity: monaco.MarkerSeverity.Error
+      }))
+    );
+  }
+
+  // Optional: show alert dialog too
+  if (alsoAlert && (hints?.length || stderr || stdout)) {
+    const head = 'Polycode Explanation';
+    const errText = stderr || stdout;
+    const first = hints?.[0];
+    const friendly = first ? `${first.title}${first.line ? ` (line ${first.line})` : ''}\n\n${first.detail}\n\nTry: ${first.fix || 'Check the line reported above.'}` : '';
+    alert(`${head}\n\n${friendly || 'See Output panel for details.'}\n\n--- Raw Error ---\n${errText.substring(0, 2000)}`);
   }
 }
 
@@ -861,7 +902,7 @@ async function refreshStderrExplanation() {
 runBtn?.addEventListener('click', async () => {
   let t0;
   const fenceAtStart = (window.PC?.__abortFence || 0);  // <-- add this
-
+if (window.PC) window.PC.__suppressRunErrorUntil = 0;
   try {
 
     resetRunInternals();
@@ -877,16 +918,21 @@ runBtn?.addEventListener('click', async () => {
 
     setStatus('OK','ok');
     setFootStatus('rightFoot','success', { detail: `Time: ${elapsed}` });
+
+
+    const stdout = document.getElementById('stdoutText')?.textContent || '';
+const stderr = document.getElementById('stderrText')?.textContent || '';
+window.PolyShell.setRawOutputs(stdout, stderr);
+
     try { await refreshStderrExplanation(); } catch {}
 
   } catch (e) {
     // --- swallow user-abort / reset-in-progress rejections ---
-    const abortedSinceStart = (window.PC?.__abortFence || 0) !== fenceAtStart;
-    const suppress = (window.PC?.__suppressRunErrorUntil || 0) > performance.now();
-    const looksAborted =
-      abortedSinceStart || suppress ||
-      (e && (e.name === 'AbortError' || /abort|cancel/i.test(String(e.message||''))));
-
+     const abortedSinceStart = (window.PC?.__abortFence || 0) !== fenceAtStart;
+ const looksAborted =
+   abortedSinceStart ||
+   (e && (e.name === 'AbortError' || /abort|cancel/i.test(String(e.message||''))));
+    
     if (looksAborted) {
       try { setStatus('Reset','ok'); } catch {}
       try { setFootStatus('rightFoot','waiting'); } catch {}
@@ -917,6 +963,9 @@ runBtn?.addEventListener('click', async () => {
     alert("Error:\n" + e.message);
   }
 
+    const stdout = document.getElementById('stdoutText')?.textContent || '';
+const stderr = document.getElementById('stderrText')?.textContent || '';
+window.PolyShell.setRawOutputs(stdout, stderr);
     
 // Even on error, show friendly explanations under stderr
 try { await refreshStderrExplanation(); } catch {}
@@ -926,6 +975,20 @@ try { await refreshStderrExplanation(); } catch {}
     runBtn.classList.remove('is-running');
   }
 });
+
+  (function observeStderr() {
+  const host = document.getElementById('stderrText');
+  if (!host || !('MutationObserver' in window)) return;
+  const mo = new MutationObserver(() => {
+    // Keep cache fresh and re-run explainer
+    window.PolyShell.setRawOutputs(
+      document.getElementById('stdoutText')?.textContent || '',
+      document.getElementById('stderrText')?.textContent || ''
+    );
+    refreshStderrExplanation().catch(()=>{});
+  });
+  mo.observe(host, { childList: true, characterData: true, subtree: true });
+})();
 
 
   // RESET
@@ -964,6 +1027,7 @@ try {
   }
 } catch {}
 
+  window.PolyShell.setRawOutputs('', '');
   setStatus('Reset','ok');
   unfreezeUI(); // sets center:ready, right:waiting
 });
@@ -2805,7 +2869,7 @@ async function buildCodeImageDataURL() {
 PC.cancelCurrentSession = function(reason = 'user') {
   // --- add these two lines ---
   PC.__abortFence = (PC.__abortFence | 0) + 1;            // bump fence: a reset happened
-  PC.__suppressRunErrorUntil = performance.now() + 2000;  // swallow run error for ~2s
+  //PC.__suppressRunErrorUntil = performance.now() + 2000;  // swallow run error for ~2s
   // ----------------------------
 
   PC.__userAbort = true;
@@ -3384,9 +3448,8 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
     app.classList.remove('expand-left','expand-center','expand-right');
     // Also un-blue ALL expander buttons
     document.querySelectorAll('.btn.expander').forEach(b => {
-  const isThis = (b === btn) && on;
-  b.setAttribute('aria-pressed', isThis ? 'true' : 'false'); // ← correct
-  b.classList.toggle('is-on', isThis);
+  b.setAttribute('aria-pressed','false');
+  b.classList.remove('is-on');
 });
 
   });
@@ -3490,15 +3553,24 @@ window.hardClearOutput = function hardClearOutput({ preservePreview = true } = {
   out.removeAttribute('aria-busy');
 
   // Clear common “lines” containers used by C/C++/SQL runners
-  const candidates = [
-    '[data-console-root]', '#console', '.console', '.lines',
-    'pre.stdout', 'pre.stderr', '.jconsole-body', '.runner-out'
-  ];
+   const candidates = [
+   '[data-console-root]','#console','.console','.lines','.runner-out','.jconsole-body',
+   'pre.stdout','pre.stderr','#stdout','#stderr','.stdout','.stderr',
+   '#outText','#errText','[role="log"]','[role="status"]',
+   '.terminal','.xterm-rows','.xterm-screen',
+   '#output pre','#output code'
+ ];
   for (const sel of candidates) {
     const node = out.querySelector(sel);
     if (node) { node.textContent = ''; }
   }
 
+   // Fallback: if anything textual still remains, strip all text nodes
+ if (/\S/.test(out.textContent || '')) {
+   [...out.querySelectorAll('*')].forEach(n => {
+     if (n.firstChild && n.childNodes.length === 1 && n.firstChild.nodeType === 3) n.textContent = '';
+   });
+ }
   // Keep preview iframe unless explicitly told not to
   if (!preservePreview) {
     const ifr = out.querySelector('#preview, iframe#preview');
