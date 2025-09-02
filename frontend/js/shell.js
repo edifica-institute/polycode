@@ -900,6 +900,13 @@ runBtn?.addEventListener('click', async () => {
     }
     const m = /line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
     showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
+
+     const friendly = window.ErrorExplainer?.explain
+    ? window.ErrorExplainer.explain(e?.message || '')
+    : '';
+  showErrorExplanation(friendly);
+
+    
 // Even on error, show friendly explanations under stderr
 try { await refreshStderrExplanation(); } catch {}
 
@@ -3391,6 +3398,32 @@ window.clearRunUI = function clearRunUI() {
   // Mark run as not in flight
   window.wsRunInFlight = false;
 };
+
+
+
+
+
+
+function showErrorExplanation(text) {
+  const explainEl = document.getElementById('stderrExplain');
+  if (!explainEl) return;
+
+  // Clear old content
+  explainEl.innerHTML = '';
+
+  if (text && text.trim()) {
+    explainEl.innerHTML = `
+      <h3 style="margin:8px 0;color:#2e5bea;">Polycode Explanation</h3>
+      <div class="explain-body">${text}</div>
+    `;
+    explainEl.style.display = 'block';
+  } else {
+    explainEl.style.display = 'none';
+  }
+}
+
+
+
 
 
 // Wipe the output panel + any partial/queued writes (safe no-op if absent)
