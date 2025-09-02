@@ -360,6 +360,26 @@ function spin(on) {
   });
 }*/
 
+function installSelectAllAction(ed){
+  if (!window.monaco || !ed?.getModel) return;
+  ed.addAction({
+    id: 'polycode.selectAll',
+    label: 'Select All',
+    keybindings: [ monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyA ],
+    // this makes it appear in both desktop right-click and mobile long-press menus
+    contextMenuGroupId: '9_cutcopypaste',
+    contextMenuOrder: 1,
+    run: (editor) => {
+      const model = editor.getModel();
+      if (!model) return;
+      const full = model.getFullModelRange();
+      editor.setSelection(full);
+      editor.revealRangeInCenter(full);
+    }
+  });
+}
+
+
 
 function ensureMonacoLoader(){
   return new Promise((resolve, reject) => {
@@ -390,6 +410,7 @@ function initMonaco({ value, language }) {
           padding: { top: 20, bottom: 12 },
           scrollBeyondLastLine: false
         });
+        installSelectAllAction(window.editor);
         resolve();
       });
     });
@@ -901,6 +922,26 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   });*/
 
 
+
+  function getSelectedCodeOrNullFor(langId){
+  const ed = window.editor;
+  if (!ed?.getModel) return null;
+  const model = ed.getModel();
+  const sels = ed.getSelections?.() || [ed.getSelection()];
+  const chunks = [];
+  for (const sel of sels) {
+    if (!sel) continue;
+    const t = model.getValueInRange(sel);
+    if (t && t.trim()) chunks.push(t);
+  }
+  if (!chunks.length) return null;
+  const joined = chunks.join('\n');
+  return (langId === 'sql') ? joined : null;   // limit to SQL; change to `joined` to enable for all
+}
+
+
+  
+
 runBtn?.addEventListener('click', async () => {
   let t0;
   const fenceAtStart = (window.PC?.__abortFence || 0);  // <-- add this
@@ -915,7 +956,22 @@ if (window.PC) window.PC.__suppressRunErrorUntil = 0;
     clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
 
     t0 = performance.now();
-    await window.runLang();
+    
+    
+   // await window.runLang();
+
+
+const langId = window.editor?.getModel?.()?.getLanguageId?.() || '';
+ const selectionForSql = getSelectedCodeOrNullFor(langId);
+ if (selectionForSql) {
+   setStatus('Running Selection…');                 // nice UX
+   setFootStatus('rightFoot','running',{ detail:'Selection' });
+ }
+ await window.runLang(selectionForSql || null);
+    
+    
+    
+    
     const elapsed = fmtDuration(performance.now() - t0);
 
     setStatus('OK','ok');
