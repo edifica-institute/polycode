@@ -23,3 +23,12 @@
     }
   ]
 }
+{
+  "id": "/?app=polycode",
+  "scope": "/frontend/",
+  "start_url": "/frontend/index.html",
+  "display": "standalone",
+
+  "launch_handler": { "client_mode": "navigate-existing" },
+  "handle_links": "preferred"
+}
