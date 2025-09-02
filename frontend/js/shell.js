@@ -906,6 +906,12 @@ runBtn?.addEventListener('click', async () => {
     : '';
   showErrorExplanation(friendly);
 
+    if (friendly) {
+    alert("Error:\n" + e.message + "\n\nPolycode Explanation:\n" + friendly);
+  } else {
+    alert("Error:\n" + e.message);
+  }
+
     
 // Even on error, show friendly explanations under stderr
 try { await refreshStderrExplanation(); } catch {}
