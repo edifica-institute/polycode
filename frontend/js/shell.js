@@ -761,6 +761,74 @@ window.addEventListener('DOMContentLoaded', () => {
 })(); // <-- ✅ this line was missing*/
 
 
+
+
+
+
+// ---- Friendly error: read stderr/stdout and append detailed explanation under it
+async function refreshStderrExplanation() {
+  const explainBox = document.getElementById('stderrExplain');
+  if (!explainBox) return; // nothing to render into
+
+  const stderr = document.getElementById('stderrText')?.textContent || '';
+  const stdout = document.getElementById('stdoutText')?.textContent || '';
+  const code   = window.editor?.getValue?.() || '';
+  const lang   = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
+
+  // No errors → clear and exit
+  if (!(stderr.trim() || /(?:Error|Exception|Traceback)/i.test(stdout))) {
+    explainBox.innerHTML = '';
+    // also clear our markers if any
+    if (window.monaco && window.editor) {
+      monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', []);
+    }
+    return;
+  }
+
+  // Load the helper (from step 1 import or dynamic import fallback)
+  let parseCompilerOutput, renderHintHTML;
+  if (window.PolyErrorHelper) {
+    ({ parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper);
+  } else {
+    ({ parseCompilerOutput, renderHintHTML } = await import('./js/error-helper.js'));
+  }
+
+  const { hints, summary, annotations } = parseCompilerOutput({ lang, stderr, stdout, code });
+
+  explainBox.innerHTML = hints.length
+    ? `
+      <div class="eh-wrap">
+        <div class="eh-head">
+          <strong>Explanation (Beta)</strong>
+          <span class="eh-summary">${summary.replace(/\n/g,'<br>')}</span>
+        </div>
+        ${hints.map(renderHintHTML).join('')}
+      </div>
+    `
+    : `
+      <div class="eh-wrap">
+        <div class="eh-head"><strong>Explanation (Beta)</strong></div>
+        <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
+      </div>
+    `;
+
+  // Optional markers in Monaco
+  if (window.monaco && window.editor && annotations?.length) {
+    const markers = annotations.map(a => ({
+      startLineNumber: a.line, endLineNumber: a.line,
+      startColumn: 1, endColumn: 300,
+      message: a.message, severity: monaco.MarkerSeverity.Error
+    }));
+    monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', markers);
+  }
+}
+
+
+
+
+
+
+
 (function () {
   const runBtn = document.getElementById('btnRun');
   const rstBtn = document.getElementById('btnReset');
@@ -804,6 +872,7 @@ runBtn?.addEventListener('click', async () => {
 
     setStatus('OK','ok');
     setFootStatus('rightFoot','success', { detail: `Time: ${elapsed}` });
+    try { await refreshStderrExplanation(); } catch {}
 
   } catch (e) {
     // --- swallow user-abort / reset-in-progress rejections ---
@@ -831,6 +900,8 @@ runBtn?.addEventListener('click', async () => {
     }
     const m = /line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
     showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
+// Even on error, show friendly explanations under stderr
+try { await refreshStderrExplanation(); } catch {}
 
   } finally {
     spin(false);
@@ -858,6 +929,14 @@ rstBtn?.addEventListener('click', () => {
   try { window.clearLang && window.clearLang(); } catch {}
 
   window.PolyShell?.reapplyTheme?.();
+
+  // Clear the friendly explanation block and our markers on reset
+try { document.getElementById('stderrExplain')?.innerHTML = ''; } catch {}
+try {
+  if (window.monaco && window.editor) {
+    monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', []);
+  }
+} catch {}
 
   setStatus('Reset','ok');
   unfreezeUI(); // sets center:ready, right:waiting
