@@ -930,8 +930,12 @@ rstBtn?.addEventListener('click', () => {
 
   window.PolyShell?.reapplyTheme?.();
 
-  // Clear the friendly explanation block and our markers on reset
-try { document.getElementById('stderrExplain')?.innerHTML = ''; } catch {}
+ // Clear the friendly explanation block and our markers on reset
+try {
+  const explainEl = document.getElementById('stderrExplain');
+  if (explainEl) explainEl.innerHTML = '';
+} catch {}
+
 try {
   if (window.monaco && window.editor) {
     monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', []);
