@@ -885,6 +885,8 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
     alert(`${head}\n\n${friendly || 'See Output panel for details.'}\n\n--- Raw Error ---\n${errText.substring(0, 2000)}`);
   }
 }
+// after function refreshStderrExplanation() { ... }
+window.refreshStderrExplanation = refreshStderrExplanation;
 
 
 
