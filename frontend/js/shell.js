@@ -3664,7 +3664,7 @@ function termWriteStyled(msg) {
 }
 
 
-function showCompileFailNotice(msg = 'Compilation Failed — See Details Below.') {
+function showCompileFailNotice(kind = 'compile') {
   const pre = document.getElementById('stderrText') || document.getElementById('stdoutText');
   if (!pre) return;
   if (document.getElementById('pcFailNote')) return;
@@ -3672,9 +3672,13 @@ function showCompileFailNotice(msg = 'Compilation Failed — See Details Below.'
   const n = document.createElement('div');
   n.id = 'pcFailNote';
   n.className = 'pc-fail-banner';
-  n.textContent = msg;
+  n.textContent =
+    kind === 'compile'
+      ? 'Compilation Failed — See Details Below.'
+      : 'Execution Failed — See Details Below.';
   pre.parentNode.insertBefore(n, pre);
 }
+
 
 function hideCompileFailNotice() {
   const n = document.getElementById('pcFailNote');
