@@ -503,7 +503,7 @@ function scheduleIdleProbe(){
 
           const prep = await prepare();
 
-          if (!prep || !prep.ok || !prep.token){
+          /*if (!prep || !prep.ok || !prep.token){
             stopStatusDots();
             const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
             termWrite((log||'').trim() + '\n');
@@ -515,7 +515,48 @@ function scheduleIdleProbe(){
             setComplexityEnabled(false);
             showCompileFailNotice('compile');
             return reject(new Error('compile_failed'));
-          }
+          }*/
+
+
+if (!prep || !prep.ok || !prep.token) {
+  stopStatusDots();
+
+  // 1) Get compiler output
+  const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
+  const pretty = (log || '').trim() || 'Compilation Failed.';
+
+  // 2) Print into the compiler-error area
+  const stderrEl = document.getElementById('stderrText');
+  if (stderrEl) stderrEl.textContent = pretty;
+
+  // 3) Also mirror to the console (optional)
+  termWrite(pretty + '\n');
+
+  // 4) Monaco marker
+  const parsed = parseCxxCompileErrorLine(log || '');
+  if (parsed) { setEditorMarker(parsed.line, parsed.msg); }
+  else { setEditorMarker(1, (log.split('\n')[0] || 'Compilation Failed').trim()); }
+
+  // 5) Status + footer
+  window.PolyShell?.setRunnerPhase?.('error');
+  window.PolyShell?.setStatus('Execution Failed','error');
+  setComplexityEnabled(false);
+
+  // 6) Red banner (Title Case)
+  showFailNotice('compile');
+
+  return reject(new Error('compile_failed'));
+}
+
+
+
+
+
+
+
+
+
+          
           runState.compiled = true;
 
           showRunnerOverlay('Connecting to C++ runner…', 12, 'Creating interactive session…');
