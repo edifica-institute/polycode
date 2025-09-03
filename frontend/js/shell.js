@@ -3662,3 +3662,20 @@ function termWriteStyled(msg) {
   host.scrollTop = host.scrollHeight;
 }
 
+
+function showCompileFailNotice(msg = 'Compilation failed — see details below.') {
+  const pre = document.getElementById('stderrText') || document.getElementById('stdoutText');
+  if (!pre || document.getElementById('pcFailNote')) return;
+  const n = document.createElement('div');
+  n.id = 'pcFailNote';
+  n.style.cssText =
+    'margin:0 0 6px;padding:6px 8px;border-radius:6px;' +
+    'background:#c62828;color:#fff;font-weight:600;line-height:1.2;';
+  n.textContent = msg;
+  pre.parentNode.insertBefore(n, pre); // show above the logs
+}
+
+function hideCompileFailNotice() {
+  const n = document.getElementById('pcFailNote');
+  if (n) n.remove();
+}
