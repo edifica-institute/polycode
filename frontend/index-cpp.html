@@ -592,6 +592,7 @@ function scheduleIdleProbe(){
           window.PolyShell?.setStatus('Execution Failed','error');
           document.getElementById('output')?.classList.add('error');
           termWrite((err && err.message) ? (err.message+'\n') : 'Execution failed\n');
+          showFailNotice('runtime');
           reject(err);
         }
       });
