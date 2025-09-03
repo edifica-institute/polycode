@@ -1754,7 +1754,7 @@ async function buildReportImageBlob() {
   y += 18;
 
   // compute code rect & draw image centered
-  const codeX = margin + Math.round((contentW - codeSz.w) / 2);
+  const codeX = margin;// + Math.round((contentW - codeSz.w) / 2);
   const codeRect = { x: codeX, y, w: codeSz.w, h: codeSz.h };
 
   // draw code image first
@@ -1784,7 +1784,7 @@ async function buildReportImageBlob() {
   ctx.fillText('Output', leftX, y);
   y += 18;
 
-  const outX = margin + Math.round((contentW - outSz.w) / 2);
+  const outX = margin;// + Math.round((contentW - outSz.w) / 2);
   ctx.drawImage(outImg, outX, y, outSz.w, outSz.h);
   y += outSz.h + gapY;
 
