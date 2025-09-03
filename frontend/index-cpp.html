@@ -513,6 +513,7 @@ function scheduleIdleProbe(){
             window.PolyShell?.setRunnerPhase?.('error');
             window.PolyShell?.setStatus('Execution Failed','error');
             setComplexityEnabled(false);
+            showFailNotice('compile');
             return reject(new Error('compile_failed'));
           }
           runState.compiled = true;
