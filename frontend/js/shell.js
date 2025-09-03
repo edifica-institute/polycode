@@ -3638,4 +3638,19 @@ window.hardClearOutput = function hardClearOutput({ preservePreview = true } = {
 
 
 
+// Write a styled host note into the console/output area
+function termWriteErrorLine(text){
+  const host = document.getElementById('stdoutText'); // <-- the visible console PRE/DIV
+  if (!host) return;
+
+  // make a line element so we can color just this message
+  const line = document.createElement('div');
+  line.className = 'pc-note-error';
+  line.textContent = text;
+
+  // append and keep scroll pinned to bottom
+  host.appendChild(line);
+  host.appendChild(document.createTextNode('\n'));
+  host.scrollTop = host.scrollHeight;
+}
 
