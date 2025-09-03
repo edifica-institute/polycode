@@ -384,7 +384,7 @@ function guessSqlErrorLine(msg){
 
   // 1) Mirror into the "compiler" block
   const st = document.getElementById('stderrText');
-  if (st) st.textContent = msg;
+  //if (st) st.textContent = msg;
 
   // 2) Show the red banner (reuse compile banner for runtime SQL errors)
   if (!document.getElementById('pcFailNote')) {
