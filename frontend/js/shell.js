@@ -1015,7 +1015,7 @@ window.PolyShell.setRawOutputs(stdout, stderr);
 
 
 
-await refreshStderrExplanation({ alsoAlert: true });
+await refreshStderrExplanation({ alsoAlert: false });
 
     
     const stdout = document.getElementById('stdoutText')?.textContent || '';
