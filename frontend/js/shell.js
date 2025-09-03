@@ -3637,20 +3637,28 @@ window.hardClearOutput = function hardClearOutput({ preservePreview = true } = {
 };
 
 
+function ansiToHtml(str) {
+  if (!str) return '';
+  // simple replacements: red, green, yellow, reset
+  return str
+    .replace(/\x1b\[31m/g, '<span style="color:#e53935;">')  // red
+    .replace(/\x1b\[32m/g, '<span style="color:#43a047;">')  // green
+    .replace(/\x1b\[33m/g, '<span style="color:#fbc02d;">')  // yellow
+    .replace(/\x1b\[0m/g, '</span>');                        // reset
+}
 
-// Write a styled host note into the console/output area
-function termWriteErrorLine(text){
-  const host = document.getElementById('stdoutText'); // <-- the visible console PRE/DIV
+
+function termWriteStyled(msg) {
+  const host = document.getElementById('stdoutText'); // or your console element
   if (!host) return;
 
-  // make a line element so we can color just this message
-  const line = document.createElement('div');
-  line.className = 'pc-note-error';
-  line.textContent = text;
+  // keep compiler logs plain
+  // only use innerHTML for our own trusted messages
+  const html = ansiToHtml(msg);
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  host.appendChild(div);
 
-  // append and keep scroll pinned to bottom
-  host.appendChild(line);
-  host.appendChild(document.createTextNode('\n'));
   host.scrollTop = host.scrollHeight;
 }
 
