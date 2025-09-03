@@ -518,39 +518,35 @@ function scheduleIdleProbe(){
           }*/
 
 
-if (!prep || !prep.ok || !prep.token) {
+if (!prep || !prep.ok || !prep.token){
   stopStatusDots();
 
-  // 1) Get compiler output
-  const log    = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
-  const pretty = (log || '').trim() || 'Compilation Failed.';
+  const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
+  const trimmed = (log || '').trim();
 
-  // 2) Print into the compiler-error area
-  const stderrEl = document.getElementById('stderrText');
-  if (stderrEl) stderrEl.textContent = pretty;
+  // Show the banner in red
+  showCompileFailNotice();
 
-  // 3) (Optional) Mirror to console. Remove this line if you
-  //     don’t want the error to appear twice.
-  // termWrite(pretty + '\n');
+  // Put full log into #stderrText (single source of truth)
+  const st = document.getElementById('stderrText');
+  if (st) { st.textContent = trimmed; st.style.display = 'block'; }
 
-  // 4) Monaco marker
-  const parsed = parseCxxCompileErrorLine(log || '');
-  if (parsed) { setEditorMarker(parsed.line, parsed.msg); }
-  else        { setEditorMarker(1, (log.split('\n')[0] || 'Compilation Failed').trim()); }
+  // Optional: keep your Monaco marker for first precise error
+  const m = /main\.(?:cpp|cc|cxx|C):(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(trimmed);
+  if (m) { setEditorMarker(Math.max(1, parseInt(m[1],10)), m[2]); }
+  else   { setEditorMarker(1, (trimmed.split('\n')[0] || 'Compilation failed').trim()); }
 
-  // 5) Status + footer
+  // Keep PolyShell cache in sync and render friendly explanation
+  window.PolyShell?.setRawOutputs('', trimmed);
+  try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}
+
   window.PolyShell?.setRunnerPhase?.('error');
   window.PolyShell?.setStatus('Execution Failed','error');
   setComplexityEnabled(false);
 
-  // 6) Feed outputs to PolyShell (so the analyzer has the stderr)
-  window.PolyShell?.setRawOutputs?.('', stderrEl?.textContent || '');
-
-  // 7) Show the red banner (title-cased) and run the friendly analyzer
-  showCompileFailNotice('compile');              // puts the red “Compilation Failed — See Details Below.” banner
-  try { await refreshStderrExplanation({ alsoAlert:false }); } catch {}
-
-  return reject(new Error('compile_failed'));
+  // Reject with a meaningful first line
+  const firstLine = trimmed.split('\n').find(Boolean) || 'Compilation failed';
+  return reject(new Error(firstLine));
 }
 
 
