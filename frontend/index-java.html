@@ -729,6 +729,17 @@
         const fileName  = `${className}.java`;
 
         setConsole('');
+
+        (function(){
+  const s = document.getElementById('stderrText');
+  if (s) s.textContent = '';
+  const x = document.getElementById('stderrExplain');
+  if (x) x.innerHTML = '';
+  const b = document.getElementById('pcFailNote');
+  if (b) b.remove();
+})();
+
+        
         document.getElementById('output')?.classList.remove('error');
 
         needsStdin = codeNeedsInput(code);
@@ -764,7 +775,7 @@
           const acc = { compileErr: '', stderr: '', stdout: '' };
 
           const waitForExit = new Promise((resolve, reject) => {
-            const onMsg = (ev) => {
+            const onMsg = async(ev) => {
               try {
                 const m = JSON.parse(String(ev.data));
                 if (m.type === 'pong') return;
@@ -791,7 +802,13 @@
                   stopInputCountdown();
                 } else if (m.type === 'compileErr') {
                   acc.compileErr += m.data;
-                  termWrite(m.data);
+                  //termWrite(m.data);
+                  const st = document.getElementById('stderrText');
+  if (st) st.textContent = acc.compileErr.trim();
+  showCompileFailNotice('compile');
+  try { await refreshStderrExplanation(); } catch {}
+
+                  
                   window.PolyShell?.stopInputTicker?.();
                   window.PolyShell?.setRunnerPhase?.('error');
                   stopInputCountdown();
@@ -814,6 +831,14 @@
                     const errText   = (acc.compileErr || acc.stderr || 'Execution failed').trim();
                     const firstLine = (errText.split('\n')[0] || 'Execution failed');
                     const line      = findJavaErrorLine(errText, className);
+
+                    // NEW: mirror to compiler area + banner + friendly
+const st = document.getElementById('stderrText');
+if (st) st.textContent = errText;
+showCompileFailNotice('compile');
+try { await refreshStderrExplanation(); } catch {}
+
+                    
                     setEditorMarker(line, firstLine);
                     window.PolyShell?.setStatus('Execution Failed', 'error');
                     setComplexityEnabled(false); // ensure disabled on failure
@@ -901,6 +926,20 @@
         const stderr     = data.run?.stderr || '';
         const stdout     = data.run?.stdout || '';
 
+
+        // Mirror compiler/runtime text
+const st = document.getElementById('stderrText');
+if (st) st.textContent = (compileErr || stderr || '').trim();
+
+// If failure, show banner + friendly
+const prelimOk = (data.run?.code === 0) && !compileErr;
+if (!prelimOk) {
+  showCompileFailNotice('compile');
+  Promise.resolve().then(() => refreshStderrExplanation()).catch(() => {});
+}
+
+
+        
         const usedScanner = /\bnew\s+Scanner\s*\(\s*System\.in\s*\)/.test(code);
         if (usedScanner && !stdin && data.run?.code !== 0 && /NoSuchElementException/.test(stderr || '')) {
           const tip =
