@@ -530,7 +530,7 @@ if (!prep || !prep.ok || !prep.token) {
   if (stderrEl) stderrEl.textContent = pretty;
 
   // 3) Also mirror to the console (optional)
-  termWrite(pretty + '\n');
+  //termWrite(pretty + '\n');
 
   // 4) Monaco marker
   const parsed = parseCxxCompileErrorLine(log || '');
