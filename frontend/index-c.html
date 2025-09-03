@@ -510,36 +510,42 @@ window.runLang = async function(){
 
 
 
-      if (!prep || !prep.ok || !prep.token){
+if (!prep || !prep.ok || !prep.token) {
   stopStatusDots();
 
+  // 1) Get compiler log (stderr preferred, then stdout/aggregate)
   const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
-  termWrite((log || '').trim() + '\n');
+  const trimmed = (log || '').trim();
 
-  // keep your Monaco marker
-  const m = /main\.c:(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(log || '');
-  if (m) { setEditorMarker(Math.max(1, parseInt(m[1],10)), m[2]); }
-  else   { setEditorMarker(1, (log.split('\n')[0] || 'Compilation failed').trim()); }
+  // 2) Show a short note in the console (not the whole log — avoids duplication)
+  termWrite('Compilation failed — see details below.\n');
 
-  // NEW: make stderr available to the explainer
+  // 3) Put the full log ONLY into #stderrText (single source of truth for the explainer/UI)
   const st = document.getElementById('stderrText');
   if (st) {
-    st.textContent = log || '';
+    st.textContent = trimmed;
     st.style.display = 'block';
   }
-  // keep PolyShell’s cache in sync so the explainer sees it
-  window.PolyShell?.setRawOutputs('', log || '');
 
-  // NEW: render the friendly block immediately
-  try { await window.refreshStderrExplanation?.(); } catch {}
+  // 4) Set Monaco marker from the first precise error, if present
+  const m = /main\.c:(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(trimmed);
+  if (m) { setEditorMarker(Math.max(1, parseInt(m[1], 10)), m[2]); }
+  else   { setEditorMarker(1, (trimmed.split('\n')[0] || 'Compilation failed').trim()); }
 
+  // 5) Keep PolyShell cache in sync for the explainer
+  window.PolyShell?.setRawOutputs('', trimmed);
+
+  // 6) Render the friendly explanation INLINE now (no alert here to avoid double popups)
+  try { await window.refreshStderrExplanation?.({ alsoAlert: false }); } catch {}
+
+  // 7) Status/UI
   window.PolyShell?.setRunnerPhase?.('error');
   window.PolyShell?.setStatus('Execution Failed', 'error');
-
-  // Make your alert show something useful (first non-empty line)
-  const first = (log || '').split('\n').find(Boolean) || 'Compilation failed';
   setComplexityEnabled(false);
-  return reject(new Error(first));
+
+  // 8) Reject with a meaningful first line (so your catch has a good .message)
+  const firstLine = trimmed.split('\n').find(Boolean) || 'Compilation failed';
+  return reject(new Error(firstLine));
 }
 
 
