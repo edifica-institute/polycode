@@ -518,35 +518,34 @@ function scheduleIdleProbe(){
           }*/
 
 
-if (!prep || !prep.ok || !prep.token){
+if (!prep || !prep.ok || !prep.token) {
   stopStatusDots();
 
+  // 1) Get compiler output
   const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
-  const trimmed = (log || '').trim();
+  const pretty = (log || '').trim() || 'Compilation Failed.';
 
-  // Show the banner in red
-  showCompileFailNotice();
+  // 2) Print into the compiler-error area
+  const stderrEl = document.getElementById('stderrText');
+  if (stderrEl) stderrEl.textContent = pretty;
 
-  // Put full log into #stderrText (single source of truth)
-  const st = document.getElementById('stderrText');
-  if (st) { st.textContent = trimmed; st.style.display = 'block'; }
+  // 3) Also mirror to the console (optional)
+  termWrite(pretty + '\n');
 
-  // Optional: keep your Monaco marker for first precise error
-  const m = /main\.(?:cpp|cc|cxx|C):(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(trimmed);
-  if (m) { setEditorMarker(Math.max(1, parseInt(m[1],10)), m[2]); }
-  else   { setEditorMarker(1, (trimmed.split('\n')[0] || 'Compilation failed').trim()); }
+  // 4) Monaco marker
+  const parsed = parseCxxCompileErrorLine(log || '');
+  if (parsed) { setEditorMarker(parsed.line, parsed.msg); }
+  else { setEditorMarker(1, (log.split('\n')[0] || 'Compilation Failed').trim()); }
 
-  // Keep PolyShell cache in sync and render friendly explanation
-  window.PolyShell?.setRawOutputs('', trimmed);
-  try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}
-
+  // 5) Status + footer
   window.PolyShell?.setRunnerPhase?.('error');
   window.PolyShell?.setStatus('Execution Failed','error');
   setComplexityEnabled(false);
 
-  // Reject with a meaningful first line
-  const firstLine = trimmed.split('\n').find(Boolean) || 'Compilation failed';
-  return reject(new Error(firstLine));
+  // 6) Red banner (Title Case)
+  showFailNotice('compile');
+
+  return reject(new Error('compile_failed'));
 }
 
 
