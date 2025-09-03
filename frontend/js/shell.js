@@ -1563,30 +1563,11 @@ async function onClickCaptureShare(e){
 }
 
 // Wire it up (replace previous click binding for this button)
-//document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
+document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
 
 
 // Hook the button (replace the old saveFile binding)
-//document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
-
-
-document.getElementById('btnSaveFile')?.addEventListener('click', async (e) => {
-  e?.preventDefault?.();
-  await withForcedLight(async () => {
-    await onClickCaptureShare(e);   // (this calls buildReportImageBlob inside)
-  });
-});
-
-
-
-
-
-
-
-
-
-
-  
+document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
 
 // Optional: keep Ctrl/Cmd+S for original saveFile and use Ctrl/Cmd+Shift+S for screenshot
 document.addEventListener('keydown', (e) => {
@@ -1851,27 +1832,6 @@ async function buildReportImageBlob() {
 
 //Entire PDF Section below
 
-async function withForcedLight(runCapture){
-  const was = window.PolyShell?.getTheme?.() || (document.body.classList.contains('light') ? 'light' : 'dark');
-  if (was !== 'light') {
-    window.PolyShell?.setTheme?.('light');
-    // let styles/Monaco repaint before capture
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  }
-  try { return await runCapture(); }
-  finally { if (was !== 'light') window.PolyShell?.setTheme?.(was); }
-}
-
-
-
-
-
-
-
-
-
-  
-
   document.addEventListener('DOMContentLoaded', () => {
   const ifr = document.getElementById('preview');
   if (ifr) {
@@ -1993,20 +1953,7 @@ async function captureOutputImageDataURL(){
           backgroundColor: '#ffffff',
           scale: 2,
           useCORS: true,
-          allowTaint: true,
-          onclone: (doc) => {
-    // Force light in the cloned DOM
-    doc.documentElement.dataset.theme = 'light';
-    doc.body.classList.add('light');
-    // optional: neutralize dark-only backgrounds
-    const s = doc.createElement('style');
-    s.textContent = `
-      :root { color-scheme: light !important; }
-      #output, html, body { background:#ffffff !important; color:#000 !important; }
-      .monaco-editor, .monaco-editor * { visibility: hidden !important; } /* keep as you had */
-    `;
-    doc.head.appendChild(s);
-  }
+          allowTaint: true
         });
         return canvas.toDataURL('image/png');
       }
@@ -2016,7 +1963,7 @@ async function captureOutputImageDataURL(){
 
     // 2b. Ask the iframe to self-capture via postMessage
     try {
-      const url = await askPreviewForScreenshot(ifr, 3000, { forceLight:true });
+      const url = await askPreviewForScreenshot(ifr, 3000);
       if (url) return url;
     } catch (_) {
       /* fall back */
@@ -2070,7 +2017,7 @@ function askPreviewForScreenshot(ifr, timeout=2500){
 
     window.addEventListener('message', onMsg);
     try {
-      ifr.contentWindow.postMessage({ __polycode:'snap', forceLight:true }, '*');
+      ifr.contentWindow.postMessage('__polycode_snap__', '*');
     } catch (err) {
       clearTimeout(tid);
       window.removeEventListener('message', onMsg);
@@ -2356,26 +2303,22 @@ async function installPreviewSnapper(){
         });
       }
 
-window.addEventListener('message', async (e) => {
-  const d = e.data;
-  if (!d || d.__polycode !== 'snap') return;
-  const wasLight = document.body.classList.contains('light');
-  if (d.forceLight && !wasLight) {
-    document.body.classList.add('light');
-    document.documentElement.dataset.theme = 'light';
-    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-  }
-  try {
-    // …take html2canvas of documentElement…
-    // post back dataURL
-  } finally {
-    if (d.forceLight && !wasLight) {
-      document.body.classList.remove('light');
-      delete document.documentElement.dataset.theme;
-    }
-  }
-});
-
+      window.addEventListener('message', async (e) => {
+        if (!e || e.data !== '__polycode_snap__') return;
+        try{
+          const h2c = await loadHtml2Canvas();
+          const canvas = await h2c(document.documentElement, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            useCORS: true,
+            allowTaint: true
+          });
+          const url = canvas.toDataURL('image/png');
+          parent.postMessage({ __polycode:'snap', ok:true, url, w:canvas.width, h:canvas.height }, '*');
+        }catch(err){
+          parent.postMessage({ __polycode:'snap', ok:false, error: String(err) }, '*');
+        }
+      });
     })();
   `;
   doc.head.appendChild(sc);
@@ -2956,13 +2899,7 @@ async function buildCodeImageDataURL() {
   
   // Hook up buttons when the page is ready
   window.addEventListener('load', () => {
-    //document.getElementById('btnSharePdf')?.addEventListener('click', savePdfToDisk); // or sharePdf
-    document.getElementById('btnSharePdf')?.addEventListener('click', async (e) => {
-  e?.preventDefault?.();
-  await withForcedLight(async () => {
-    await savePdfToDisk();    // whatever your PDF builder is named
-  });
-});
+    document.getElementById('btnSharePdf')?.addEventListener('click', savePdfToDisk); // or sharePdf
   });
 
   // Ctrl/Cmd+S to save file
