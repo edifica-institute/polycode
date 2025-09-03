@@ -2485,25 +2485,29 @@ const nextFrame = (n=1) => new Promise(r=>{
   requestAnimationFrame(hop);
 });
 
+let __capturingNow = false;
 async function withLightForCapture(fn){
+  if (__capturingNow) return;          // ignore re-entrant calls
+  __capturingNow = true;
   const wasLight = (window.PolyShell?.getTheme?.() === 'light');
+  const active = document.activeElement;
+  const x = window.scrollX, y = window.scrollY;
+
   document.documentElement.classList.add('pc-capturing');
-
-  if (!wasLight) {
-    try { window.PolyShell?.setTheme?.('light'); } catch {}
-  }
-
-  await nextFrame(2); // let styles settle
+  if (!wasLight) { try { window.PolyShell?.setTheme?.('light'); } catch {} }
+  await nextFrame(2);
 
   try {
     return await fn();
   } finally {
-    if (!wasLight) {
-      try { window.PolyShell?.setTheme?.('dark'); } catch {}
-    }
+    if (!wasLight) { try { window.PolyShell?.setTheme?.('dark'); } catch {} }
     document.documentElement.classList.remove('pc-capturing');
+    window.scrollTo(x, y);             // keep scroll position stable
+    active?.focus?.();                 // restore focus/caret
+    __capturingNow = false;
   }
 }
+
 
 
 
