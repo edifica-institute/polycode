@@ -522,31 +522,37 @@ if (!prep || !prep.ok || !prep.token) {
   stopStatusDots();
 
   // 1) Get compiler output
-  const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
+  const log    = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
   const pretty = (log || '').trim() || 'Compilation Failed.';
 
   // 2) Print into the compiler-error area
   const stderrEl = document.getElementById('stderrText');
   if (stderrEl) stderrEl.textContent = pretty;
 
-  // 3) Also mirror to the console (optional)
-  termWrite(pretty + '\n');
+  // 3) (Optional) Mirror to console. Remove this line if you
+  //     don’t want the error to appear twice.
+  // termWrite(pretty + '\n');
 
   // 4) Monaco marker
   const parsed = parseCxxCompileErrorLine(log || '');
   if (parsed) { setEditorMarker(parsed.line, parsed.msg); }
-  else { setEditorMarker(1, (log.split('\n')[0] || 'Compilation Failed').trim()); }
+  else        { setEditorMarker(1, (log.split('\n')[0] || 'Compilation Failed').trim()); }
 
   // 5) Status + footer
   window.PolyShell?.setRunnerPhase?.('error');
   window.PolyShell?.setStatus('Execution Failed','error');
   setComplexityEnabled(false);
 
-  // 6) Red banner (Title Case)
-  showCompileFailNotice('compile');
+  // 6) Feed outputs to PolyShell (so the analyzer has the stderr)
+  window.PolyShell?.setRawOutputs?.('', stderrEl?.textContent || '');
+
+  // 7) Show the red banner (title-cased) and run the friendly analyzer
+  showCompileFailNotice('compile');              // puts the red “Compilation Failed — See Details Below.” banner
+  try { await refreshStderrExplanation({ alsoAlert:false }); } catch {}
 
   return reject(new Error('compile_failed'));
 }
+
 
 
 
