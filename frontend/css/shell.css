@@ -1449,7 +1449,11 @@ body[data-boot] .right.panel{
 .eh-snip-line em{opacity:.65; width:3ch; text-align:right; font-style:normal}
 
 
-
+/* host notice line in the console */
+.pc-note-error {
+  color: #ff4d4d;           /* adjust for theme if you want */
+  font-weight: 600;
+}
 
 
 
