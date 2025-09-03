@@ -493,7 +493,7 @@ window.runLang = async function(){
       if (!res.ok) throw new Error('Prepare failed: ' + res.status);
       const prep = await res.json();
 
-      if (!prep || !prep.ok || !prep.token){
+     /* if (!prep || !prep.ok || !prep.token){
         // print compiler output, set Monaco markers, then REJECT
         stopStatusDots();
         const log = (prep && (prep.compileLog || prep.stderr || prep.stdout)) || '';
@@ -506,12 +506,12 @@ window.runLang = async function(){
         setComplexityEnabled(false);
        showCompileFailNotice();
         return reject(new Error('compile_failed'));
-      }
+      }*/
 
 
 
 
-/*if (!prep || !prep.ok || !prep.token) {
+if (!prep || !prep.ok || !prep.token) {
   stopStatusDots();
 
   // 1) Get compiler log (stderr preferred, then stdout/aggregate)
@@ -548,7 +548,7 @@ window.runLang = async function(){
   const firstLine = trimmed.split('\n').find(Boolean) || 'Compilation failed';
    showCompileFailNotice();
   return reject(new Error(firstLine));
-}*/
+}
 
 
 
