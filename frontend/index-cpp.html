@@ -513,7 +513,7 @@ function scheduleIdleProbe(){
             window.PolyShell?.setRunnerPhase?.('error');
             window.PolyShell?.setStatus('Execution Failed','error');
             setComplexityEnabled(false);
-            showFailNotice('compile');
+            showCompileFailNotice('compile');
             return reject(new Error('compile_failed'));
           }
           runState.compiled = true;
@@ -592,7 +592,7 @@ function scheduleIdleProbe(){
           window.PolyShell?.setStatus('Execution Failed','error');
           document.getElementById('output')?.classList.add('error');
           termWrite((err && err.message) ? (err.message+'\n') : 'Execution failed\n');
-          showFailNotice('runtime');
+          showCompileFailNotice('runtime');
           reject(err);
         }
       });
