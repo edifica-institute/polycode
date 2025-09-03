@@ -1456,9 +1456,10 @@ body[data-boot] .right.panel{
 }
 
 #pcFailNote.pc-fail-banner {
-  margin: 0 0 6px;
-  font-weight: 600;
-  color: #ff4d4d !important;   /* bright red text */
+  margin: 8px 0 6px;
+  color: #c62828;   /* strong red */
+  font-size: 1.17em;  /* h3 default */
+  font-weight: bold;
 }
 
 
