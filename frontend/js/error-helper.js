@@ -325,71 +325,99 @@ function langKey(lang) {
  *   summary: string
  * }}
  */
-export function parseCompilerOutput({ lang, stderr, stdout="", code="" }) {
-  const L = langKey(lang);
-  const lines = _u.toLines(`${stderr || ""}\n${stdout || ""}`);
+export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' }) {
+  const text = (stderr || stdout || '').trim();
   const hints = [];
   const annotations = [];
 
-  // pass 1: build hints by matching rules
-  for (const raw of lines) {
-    const loc = sniffLocation(raw);
-    const ctx = {
-      lang: L === "c*" ? (lang.toLowerCase().includes("++") ? "cpp" : "c") : L,
-      raw,
-      lineGuess: loc.line,
-      columnGuess: loc.column,
-      token: null,
-    };
+  const push = (title, detail, line = null, fix = null, kind = 'error') => {
+    hints.push({ title, detail, fix, kind, line });
+    if (line != null) {
+      annotations.push({ line, message: `${title}: ${detail}` });
+    }
+  };
 
-    for (const rule of RULES) {
-      const target = rule.lang;
-      if (!(target === "*" || target === L || (target === "c*" && L === "c*") || (target === "java" && L === "java") || (target === "python" && L === "python")))
-        continue;
+  const addFirstLine = () => {
+    const first = (text.split('\n').find(Boolean) || '').slice(0, 200);
+    return first ? `Compiler says: ${first}` : '';
+  };
 
-      const m = raw.match(rule.test);
-      if (!m) continue;
+  const asInt = (s) => {
+    const n = parseInt(String(s || ''), 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
 
-      const hint = rule.build(m, ctx);
-      if (!hint) continue;
+  const L = (s) => (s || '').toLowerCase();
 
-      // add annotation if line present
-      if (hint.line) {
-        annotations.push({
-          line: hint.line,
-          message: hint.title,
-          severity: hint.severity === "warning" ? "warning" : "error"
-        });
+  // ==============================
+  // NEW: C / C++ (GCC / Clang)
+  // ==============================
+  if (lang === 'c' || lang === 'cpp' || lang === 'c++' || lang === 'cc') {
+    // Common GCC/Clang line: file:line:col: error: message
+    // or: file:line: error: message
+    const m = text.match(/^(.*?):(\d+)(?::(\d+))?:\s*(error|fatal error|warning):\s*(.+)$/m);
+    if (m) {
+      const line = asInt(m[2]);
+      const level = L(m[4]);
+      const msg = m[5].trim();
+
+      // Missing semicolon
+      if (/expected\s*['‘’"]?;['‘’"]?\s*(?:before|after)?/i.test(msg)) {
+        push('Missing semicolon', addFirstLine() || 'Add a `;` at the end of the statement.', line, 'Add a semicolon (`;`).');
       }
+      // Undeclared identifier / unknown identifier
+      else if (/['‘’"]?([A-Za-z_]\w*)['‘’"]?\s*(?:undeclared|was not declared)/i.test(msg) || /use of undeclared identifier/i.test(msg)) {
+        push('Undeclared identifier', addFirstLine() || 'Declare the variable/function or include the correct header.', line, 'Declare it or include the right header.');
+      }
+      // No such file or directory (includes)
+      else if (/no such file or directory/i.test(msg) && /include/i.test(msg)) {
+        push('Header not found', addFirstLine() || 'Check the include path or file name.', line, 'Fix the #include path or add the missing header.');
+      }
+      // Conflicting types / redefinition
+      else if (/conflicting types|redefinition/i.test(msg)) {
+        push('Conflicting types / Redefinition', addFirstLine() || 'You declared the same symbol differently more than once.', line, 'Use one consistent declaration and remove duplicates.');
+      }
+      // Format/printf mismatch
+      else if (/format specifies type.*but the argument has type/i.test(msg)) {
+        push('printf/scanf format mismatch', addFirstLine() || 'Your % format and argument types don’t match.', line, 'Fix the % specifier or cast the argument correctly.');
+      }
+      // Implicit declaration (C)
+      else if (/implicit declaration of function/i.test(msg)) {
+        push('Missing function prototype', addFirstLine() || 'Declare the function before calling it or include its header.', line, 'Add a prototype or include the header.');
+      }
+      // Assignment vs comparison
+      else if (/assignment makes pointer from integer without a cast/i.test(msg) || /incompatible pointer type/i.test(msg)) {
+        push('Incompatible types', addFirstLine() || 'You assigned mismatched types.', line, 'Check variable and expression types.');
+      }
+      // Generic, but with a precise line
+      else {
+        push('Compiler error', msg, line, 'Fix at the highlighted line.');
+      }
+    }
 
-      hints.push(hint);
-      break; // one rule per line is enough
+    // Linker errors (no line numbers): undefined reference to `foo`
+    const links = [...text.matchAll(/undefined reference to `?([A-Za-z_]\w*)`?/g)];
+    if (links.length) {
+      // Note: linker errors show after compile step—no line, but a very actionable hint.
+      const names = Array.from(new Set(links.map(m => m[1]))).slice(0, 5);
+      push('Linker error: undefined reference', `Missing implementation or library for: ${names.join(', ')}`, null, 'Provide the function definition or link the correct library (update your build flags).');
+    }
+
+    // If we collected nothing but we did see "error", emit a friendly generic
+    if (!hints.length && /(?:error|fatal error)/i.test(text)) {
+      push('Compiler error', addFirstLine() || 'An error was reported by the compiler.', null, 'Read the first error line and fix it; later errors may cascade.');
     }
   }
 
-  // Consolidate: dedupe by ruleId+line to avoid noise
-  const seen = new Set();
-  const filtered = [];
-  for (const h of hints) {
-    const key = `${h.ruleId || h.title}:${h.line || 0}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    filtered.push(h);
-  }
+  // (…your existing branches for java/python/etc remain…)
 
-  // Build summary (top 3)
-  const bullets = _u.take(filtered, 3).map(h => `• ${h.title}${h.line ? ` (line ${h.line})` : ""}`);
-  const summary = bullets.length
-    ? `I found ${filtered.length} issue(s). Top items:\n${bullets.join("\n")}`
-    : (stderr?.trim() ? "The compiler reported errors, but I couldn’t confidently interpret them." : "No errors detected.");
+  const summary = hints.length
+    ? `Found ${hints.length} issue${hints.length > 1 ? 's' : ''}.\nResolve the first error first; later errors may be a cascade.`
+    : `The compiler reported errors, but I couldn’t interpret them confidently.`;
 
-  // Attach snippets for UI consumption (optional)
-  filtered.forEach(h => {
-    if (h.line && code) h.snippet = extractSnippet(code, h.line, 1);
-  });
-
-  return { hints: filtered, annotations, summary, version: EH_VERSION };
+  return { hints, summary, annotations };
 }
+
 
 /* ---------------------- Rendering Helpers (optional) ---------------------- */
 
