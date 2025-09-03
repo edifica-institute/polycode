@@ -701,6 +701,13 @@ if (!prep || !prep.ok || !prep.token) {
   </script>
   <script src="./js/complexityc.js" defer></script>
    <script src="./js/lang-select.js" defer></script>
-  
+
+
+
+  <script type="module">
+  import { parseCompilerOutput, renderHintHTML } from './js/error-helper.js';
+  // Expose for shell.js if needed:
+  window.PolyErrorHelper = { parseCompilerOutput, renderHintHTML };
+</script>
 </body>
 </html>
