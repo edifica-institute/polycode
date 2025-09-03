@@ -836,7 +836,38 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
     ({ parseCompilerOutput, renderHintHTML } = await import('./js/error-helper.js'));
   }
 
-  const lang = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
+  //const lang = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
+// Drop-in replacement for the old `const lang = …` line
+const lang = (() => {
+  // 1) Ask Monaco first (most reliable when the editor is loaded)
+  const monacoId = window.editor?.getModel?.()?.getLanguageId?.();
+  if (monacoId) return ({
+    'c':'c', 'cpp':'cpp', 'c++':'cpp',
+    'java':'java', 'python':'python', 'py':'python',
+    'sql':'sql', 'mysql':'sql', 'sqlite':'sql',
+    'html':'web','javascript':'web','typescript':'web','css':'web'
+  })[monacoId.toLowerCase()] || monacoId.toLowerCase();
+
+  // 2) Accept a page hint if present
+  const hinted = (document.body.getAttribute('data-lang') || '').toLowerCase();
+  if (hinted) return hinted;
+
+  // 3) Fall back to the language dropdown’s label
+  const label = (document.querySelector('#langSelect option:checked')?.textContent || '').toLowerCase();
+  if (label.includes('c++'))       return 'cpp';
+  if (label === 'c')               return 'c';
+  if (label.includes('python'))    return 'python';
+  if (label.includes('java'))      return 'java';
+  if (label.includes('sql'))       return 'sql';
+  if (label.includes('html') || label.includes('css') || label.includes('js') || label.includes('web'))
+                                   return 'web';
+
+  // 4) Final fallback
+  return 'c';
+})();
+
+
+  
   const { hints, summary, annotations } = parseCompilerOutput({ lang, stderr, stdout, code });
 
   // Render below stderr
