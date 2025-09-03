@@ -379,35 +379,37 @@ function guessSqlErrorLine(msg){
         block.style.marginBottom = '14px';
         out.appendChild(block);
       });
-    } catch (e) {
+   } catch (e) {
   const msg = (e?.message || String(e || 'SQL error')).trim();
 
-  // 1) Mirror into the "compiler" block
-  const st = document.getElementById('stderrText');
-  //if (st) st.textContent = msg;
+  // Clear the results grid so we don't duplicate the message
+  const out = document.getElementById('sqlout');
+  if (out) out.replaceChildren(); // or: out.textContent = '';
 
-  // 2) Show the red banner (reuse compile banner for runtime SQL errors)
+  // 1) Mirror into the compiler/error block
+  const st = document.getElementById('stderrText');
+  if (st) st.textContent = msg;
+
+  // 2) Red banner (reuse compile banner for SQL runtime errors)
   if (!document.getElementById('pcFailNote')) {
-    showCompileFailNotice('runtime'); // or 'compile' — both render Title Case
+    showCompileFailNotice('runtime'); // shows "Runtime Error — See Details Below."
   }
 
-  // 3) Try a friendly explanation
+  // 3) Friendly explanation
   try { await refreshStderrExplanation(); } catch {}
 
-  // 4) Drop a Monaco marker on a best-guess line
+  // 4) Monaco marker (best guess)
   try {
     const line = guessSqlErrorLine(msg);
     const firstLine = msg.split('\n')[0] || 'SQL error';
     setSqlEditorMarker(line, firstLine);
   } catch {}
 
-  // 5) Keep your visible console block for SQL results area (optional)
-  document.getElementById('sqlout').innerHTML =
-    '<pre>' + msg.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])) + '</pre>';
-
-  // Let shell.js handle status/footers/error phase if it’s listening
+  // IMPORTANT: don't write msg into #sqlout anymore
+  // throw so shell.js can set status/footers
   throw e;
 }
+
 
   };
 
