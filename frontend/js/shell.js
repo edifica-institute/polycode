@@ -979,7 +979,7 @@ const langId = window.editor?.getModel?.()?.getLanguageId?.() || '';
 
     setStatus('OK','ok');
     setFootStatus('rightFoot','success', { detail: `Time: ${elapsed}` });
-
+hideCompileFailNotice();
 
     const stdout = document.getElementById('stdoutText')?.textContent || '';
 const stderr = document.getElementById('stderrText')?.textContent || '';
@@ -1023,7 +1023,7 @@ const stderr = document.getElementById('stderrText')?.textContent || '';
 window.PolyShell.setRawOutputs(stdout, stderr);
     
 // Even on error, show friendly explanations under stderr
-try { await refreshStderrExplanation(); } catch {}
+
 
   } finally {
     spin(false);
@@ -1066,6 +1066,7 @@ rstBtn?.addEventListener('click', () => {
 try { window.cancelSqlRun?.(); } catch {}
 try { window.__sqlReader?.cancel?.(); } catch {}
   resetRunInternals();
+  hideCompileFailNotice(); 
    try { window.hardClearOutput?.({ preservePreview:true }); } catch {}
   
   try { window.PolyShell?.reapplyTheme?.(); } catch {}
