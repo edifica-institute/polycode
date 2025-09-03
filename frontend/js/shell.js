@@ -812,6 +812,8 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   const code   = window.editor?.getValue?.() || '';
   const explainEl = document.getElementById('stderrExplain');
 
+  window.PolyShell.setRawOutputs(stdout, stderr);
+
   
   // If we have nowhere to render, just exit (alert option still possible)
   if (!explainEl && !alsoAlert) return;
@@ -1011,17 +1013,11 @@ window.PolyShell.setRawOutputs(stdout, stderr);
     const m = /line\s*(\d+)(?:[:,]\s*col(?:umn)?\s*(\d+))?/i.exec(e?.message||'');
     showEditorError((e?.message)||String(e), m?Number(m[1]):1, m?Number(m[2]||1):1);
 
-     const friendly = window.ErrorExplainer?.explain
-    ? window.ErrorExplainer.explain(e?.message || '')
-    : '';
-  showErrorExplanation(friendly);
 
-    if (friendly) {
-    alert("Error:\n" + e.message + "\n\nPolycode Explanation:\n" + friendly);
-  } else {
-    alert("Error:\n" + e.message);
-  }
 
+await refreshStderrExplanation({ alsoAlert: true });
+
+    
     const stdout = document.getElementById('stdoutText')?.textContent || '';
 const stderr = document.getElementById('stderrText')?.textContent || '';
 window.PolyShell.setRawOutputs(stdout, stderr);
