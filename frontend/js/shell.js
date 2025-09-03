@@ -1514,7 +1514,8 @@ async function onClickCaptureShare(e){
   const fileName = `Polycode-${ts()}.png`;
 
   try{
-    const { blob } = await buildReportImageBlob();
+    //const { blob } = await buildReportImageBlob();
+    const { blob } = await withLightForCapture(() => buildReportImageBlob());
     const file = new File([blob], fileName, { type:'image/png' });
 
     // Share first (Android Chrome etc. → pick WhatsApp)
@@ -2466,6 +2467,43 @@ async function captureOutputPanelAsPNG() {
 
 
   
+// --- Light-mode capture helper (no visible flicker) -----------------
+(function ensureCaptureStyles(){
+  if (document.getElementById('pc-capture-style')) return;
+  const s = document.createElement('style');
+  s.id = 'pc-capture-style';
+  s.textContent = `
+    /* During capture, kill transitions & hide page to avoid theme-flash */
+    .pc-capturing, .pc-capturing * { transition: none !important; }
+    .pc-capturing body { opacity: 0 !important; } /* html2canvas/jsPDF still render */
+  `;
+  document.head.appendChild(s);
+})();
+
+const nextFrame = (n=1) => new Promise(r=>{
+  const hop = () => (n-- > 0) ? requestAnimationFrame(hop) : r();
+  requestAnimationFrame(hop);
+});
+
+async function withLightForCapture(fn){
+  const wasLight = (window.PolyShell?.getTheme?.() === 'light');
+  document.documentElement.classList.add('pc-capturing');
+
+  if (!wasLight) {
+    try { window.PolyShell?.setTheme?.('light'); } catch {}
+  }
+
+  await nextFrame(2); // let styles settle
+
+  try {
+    return await fn();
+  } finally {
+    if (!wasLight) {
+      try { window.PolyShell?.setTheme?.('dark'); } catch {}
+    }
+    document.documentElement.classList.remove('pc-capturing');
+  }
+}
 
 
 
@@ -2671,7 +2709,9 @@ async function savePdfToDisk(e) {
 
     // Build the PDF AFTER we have the file handle
     try { 
-      const blob = await buildPdfBlob(title); 
+      //const blob = await buildPdfBlob(title); 
+      const blob = await withLightForCapture(() => buildPdfBlob(title));
+
       const writable = await handle.createWritable(); 
       await writable.write(blob); 
       await writable.close(); 
@@ -2692,7 +2732,9 @@ async function savePdfToDisk(e) {
 
   // ----- Fallback (Safari/Firefox/iOS): open viewer only; user saves from viewer -----
   try { 
-    const blob = await buildPdfBlob(title); 
+    //const blob = await buildPdfBlob(title); 
+    const blob = await withLightForCapture(() => buildPdfBlob(title));
+
     const url = URL.createObjectURL(blob); 
     const w = window.open(url, '_blank', 'noopener'); 
     if (!w) window.location.assign(url); 
@@ -2711,7 +2753,9 @@ async function sharePdf() {
   try {
     const { langLabel } = getLangInfo();
     const title = `${langLabel} Session`;
-    const blob = await buildPdfBlob(title);
+    //const blob = await buildPdfBlob(title);
+    const blob = await withLightForCapture(() => buildPdfBlob(title));
+
     const file = new File([blob], `Polycode-${langLabel}.pdf`, { type: 'application/pdf' });
     const text = `Polycode ${langLabel} — ${title}`;
 
