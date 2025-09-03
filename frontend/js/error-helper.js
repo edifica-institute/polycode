@@ -557,28 +557,149 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
       break;
     }
 
-    case 'sql': {
-      // Postgres/MySQL common messages
-      if (/syntax error at or near/i.test(text)) {
-        const near = /syntax error at or near "([^"]+)"/i.exec(text)?.[1];
-        push('SQL syntax error', near ? `Problem near \`${near}\`.` : firstLine(text), null, 'Check SQL syntax near the token.', 'error', null, 'high');
-      }
-      if (/column .* does not exist/i.test(text)) {
-        const col = /column\s+("?[\w.]+"?)/i.exec(text)?.[1];
-        push('Unknown column', col ? `Column ${col} does not exist.` : 'A referenced column does not exist.', null, 'Fix the column name or add it.', 'error', null, 'high');
-      }
-      if (/relation .* does not exist/i.test(text)) {
-        const rel = /relation\s+("?[\w.]+"?)/i.exec(text)?.[1];
-        push('Unknown table', rel ? `Table ${rel} does not exist.` : 'A referenced table does not exist.', null, 'Fix the table name or create it.', 'error', null, 'high');
-      }
-      if (/duplicate key value violates unique constraint/i.test(text)) {
-        push('Unique constraint violation', firstLine(text), null, 'Insert a different value or change the constraint.', 'error', null, 'high');
-      }
-      if (/null value in column .* violates not-null constraint/i.test(text)) {
-        push('NOT NULL violation', firstLine(text), null, 'Provide a value for the NOT NULL column.', 'error', null, 'high');
-      }
-      break;
-    }
+case 'sql': {
+  const s = String(text || '');
+  const lower = s.toLowerCase();
+
+  // De-dupe guard so we don't push the same hint twice
+  const seen = new Set();
+  const pushOnce = (title, summary, code = null, fix = null, level = 'error', doc = null, priority = 'high') => {
+    if (seen.has(title)) return;
+    seen.add(title);
+    push(title, summary, code, fix, level, doc, priority);
+  };
+
+  // ---------- sqlite / sql.js (in-browser) ----------
+  // Table already exists
+  if (/\btable\b.*\balready exists\b/i.test(s)) {
+    const tbl = (s.match(/table\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
+    pushOnce(
+      'Table Already Exists',
+      `You’re trying to create ${tbl}, but it already exists in this in-memory DB.`,
+      null,
+      'Use `CREATE TABLE IF NOT EXISTS …` or `DROP TABLE ' + tbl + ';` before creating.'
+    );
+  }
+
+  // No such table
+  if (/no such table/i.test(s)) {
+    const name = (s.match(/no such table:\s*([^\s]+)/i) || [])[1] || 'that table';
+    pushOnce(
+      'No Such Table',
+      `The query references ${name}, but it hasn’t been created in this session.`,
+      null,
+      'Create the table first in the same run/session.'
+    );
+  }
+
+  // No such column
+  if (/no such column/i.test(s)) {
+    const col = (s.match(/no such column:\s*([^\s]+)/i) || [])[1] ||
+                (s.match(/column\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] ||
+                'that column';
+    pushOnce(
+      'No Such Column',
+      `Column ${col} doesn’t exist in the referenced table.`,
+      null,
+      'Check the column name and the table/alias you’re selecting from.'
+    );
+  }
+
+  // Syntax error near "X"
+  if (/near\s+"?[^"']+"?\s*:\s*syntax error/i.test(s) || /syntax error/i.test(s)) {
+    const near = (s.match(/near\s+"?([^"']+)"?\s*:/i) || [])[1];
+    pushOnce(
+      'SQL Syntax Error',
+      near ? `Problem near “${near}”.` : firstLine(s),
+      null,
+      'Check for missing commas/parentheses and clause order: SELECT … FROM … WHERE … GROUP BY … HAVING … ORDER BY …;'
+    );
+  }
+
+  // Datatype mismatch
+  if (/datatype mismatch/i.test(s)) {
+    pushOnce(
+      'Datatype Mismatch',
+      firstLine(s),
+      null,
+      'Cast to a compatible type or insert a value with the right type.'
+    );
+  }
+
+  // FOREIGN KEY constraint failed
+  if (/foreign key constraint failed/i.test(s)) {
+    pushOnce(
+      'FOREIGN KEY Constraint Failed',
+      firstLine(s),
+      null,
+      'Insert the parent row first, or ensure the referenced value exists.'
+    );
+  }
+
+  // UNIQUE constraint failed
+  if (/unique constraint failed/i.test(s) || /duplicate key/i.test(s)) {
+    pushOnce(
+      'UNIQUE Constraint Violation',
+      firstLine(s),
+      null,
+      'Ensure the value is unique or use an UPSERT/ON CONFLICT strategy.'
+    );
+  }
+
+  // Ambiguous column name
+  if (/ambiguous column name/i.test(s)) {
+    const col = (s.match(/ambiguous column name:\s*([^\s]+)/i) || [])[1] || 'this column';
+    pushOnce(
+      'Ambiguous Column Name',
+      `The column ${col} exists in more than one joined table.`,
+      null,
+      `Qualify it: e.g. \`t1.${col}\` or \`users.${col}\`.`
+    );
+  }
+
+  // GROUP BY / aggregate misuse
+  if (/\b(group by|aggregate)\b/i.test(s)) {
+    pushOnce(
+      'Aggregate / GROUP BY Issue',
+      'Non-aggregated columns in SELECT must appear in GROUP BY.',
+      null,
+      'Either aggregate the column (COUNT/SUM/…) or include it in GROUP BY.'
+    );
+  }
+
+  // Incomplete input (missing ) or ;)
+  if (/incomplete input/i.test(s)) {
+    pushOnce(
+      'Incomplete Statement',
+      'The SQL appears truncated (missing `)` or `;`).',
+      null,
+      'Close all parentheses and terminate statements with a semicolon.'
+    );
+  }
+
+  // ---------- Postgres / MySQL (keep your originals) ----------
+  if (/syntax error at or near/i.test(s)) {
+    const near = /syntax error at or near "([^"]+)"/i.exec(s)?.[1];
+    pushOnce('SQL syntax error', near ? `Problem near \`${near}\`.` : firstLine(s), null, 'Check SQL syntax near the token.');
+  }
+  if (/column .* does not exist/i.test(s)) {
+    const col = /column\s+("?[\w.]+"?)/i.exec(s)?.[1];
+    pushOnce('Unknown column', col ? `Column ${col} does not exist.` : 'A referenced column does not exist.', null, 'Fix the column name or add it.');
+  }
+  if (/relation .* does not exist/i.test(s)) {
+    const rel = /relation\s+("?[\w.]+"?)/i.exec(s)?.[1];
+    pushOnce('Unknown table', rel ? `Table ${rel} does not exist.` : 'A referenced table does not exist.', null, 'Fix the table name or create it.');
+  }
+  if (/duplicate key value violates unique constraint/i.test(s)) {
+    pushOnce('Unique constraint violation', firstLine(s), null, 'Insert a different value or change the constraint.');
+  }
+  if (/null value in column .* violates not-null constraint/i.test(s)) {
+    pushOnce('NOT NULL violation', firstLine(s), null, 'Provide a value for the NOT NULL column.');
+  }
+
+  break;
+}
+
   }
 
   // ---------- generic fallback ----------
@@ -612,6 +733,213 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
 
 
 /* ---------------------- Rendering Helpers (optional) ---------------------- */
+function findFirstLine(regex, code) {
+  try {
+    const src = String(code || '');
+    const m = regex.exec(src);
+    if (!m) return 1;
+    // count newlines up to the match
+    const upto = src.slice(0, m.index);
+    return 1 + (upto.match(/\n/g) || []).length;
+  } catch { return 1; }
+}
+
+
+
+// --- SQL (sqlite/sql.js) friendly parsing ---
+function explainSql(rawMsg = '', src = '') {
+  const msg = String(rawMsg || '').trim();
+  const lower = msg.toLowerCase();
+
+  const pickFirstLine = s => (String(s).split('\n')[0] || '').trim();
+  const codeSample = (t) => `<pre class="eh-snippet">${escapeHtml(t)}</pre>`;
+
+  // Helpers to extract names
+  const tbl = (msg.match(/table\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1];
+  const col = (msg.match(/column\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1];
+  const nearTok = (msg.match(/near\s+"?([^"']+)"?\s*:/i) || [])[1];
+
+  // 1) Table already exists
+  if (lower.includes('table') && lower.includes('already exists')) {
+    const name = tbl || 'that table';
+    return {
+      kind: 'sql',
+      title: 'Table Already Exists',
+      summary: `You’re trying to create ${name}, but it already exists in the current database.`,
+      fixes: [
+        'Use `CREATE TABLE IF NOT EXISTS …` to avoid failing when it already exists.',
+        'Or drop the existing table first: `DROP TABLE ' + (tbl||'table_name') + ';` (⚠ will delete its data).'
+      ],
+      html: codeSample(
+`-- safer create
+CREATE TABLE IF NOT EXISTS ${tbl || 'users'}(...);
+
+-- OR (destructive)
+DROP TABLE ${tbl || 'users'};
+CREATE TABLE ${tbl || 'users'}(...);`)
+    };
+  }
+
+  // 2) No such table
+  if (lower.includes('no such table')) {
+    const name = (msg.match(/no such table:\s*([^\s]+)/i) || [])[1] || tbl || 'that table';
+    return {
+      kind: 'sql',
+      title: 'No Such Table',
+      summary: `The query references ${name}, but it hasn’t been created in this session.`,
+      fixes: [
+        'Create the table before using it.',
+        'Ensure your CREATE statement ran successfully and in this same in-memory database.'
+      ],
+      html: codeSample(
+`CREATE TABLE ${name}(...);
+-- then
+SELECT * FROM ${name};`)
+    };
+  }
+
+  // 3) No such column
+  if (lower.includes('no such column')) {
+    const name = col || (msg.match(/no such column:\s*([^\s]+)/i) || [])[1] || 'that column';
+    return {
+      kind: 'sql',
+      title: 'No Such Column',
+      summary: `Column ${name} doesn’t exist in the referenced table.`,
+      fixes: [
+        'Check the column name (spelling/case).',
+        'Verify the table schema and that you’re selecting from the correct table alias.'
+      ]
+    };
+  }
+
+  // 4) Ambiguous column name
+  if (lower.includes('ambiguous column name')) {
+    const name = col || (msg.match(/ambiguous column name:\s*([^\s]+)/i) || [])[1] || 'this column';
+    return {
+      kind: 'sql',
+      title: 'Ambiguous Column Name',
+      summary: `The column ${name} exists in more than one joined table.`,
+      fixes: [
+        `Qualify the column with its table or alias, e.g. \`t1.${name}\` or \`users.${name}\`.`
+      ],
+      html: codeSample(
+`SELECT u.id, o.id
+FROM users u
+JOIN orders o ON o.user_id = u.id;`)
+    };
+  }
+
+  // 5) UNIQUE constraint failed
+  if (lower.includes('unique constraint failed')) {
+    return {
+      kind: 'sql',
+      title: 'UNIQUE Constraint Failed',
+      summary: 'You’re inserting/updating a row that duplicates a value in a UNIQUE column.',
+      fixes: [
+        'Ensure the value is unique before inserting.',
+        'Use UPSERT to handle duplicates gracefully.'
+      ],
+      html: codeSample(
+`INSERT INTO users(id,name) VALUES (1,'Alice')
+ON CONFLICT(id) DO UPDATE SET name=excluded.name;`)
+    };
+  }
+
+  // 6) FOREIGN KEY constraint failed
+  if (lower.includes('foreign key constraint failed')) {
+    return {
+      kind: 'sql',
+      title: 'FOREIGN KEY Constraint Failed',
+      summary: 'You inserted/updated a child row whose foreign key doesn’t match a parent row.',
+      fixes: [
+        'Insert the parent row first.',
+        'Ensure the foreign key value exists in the referenced table.'
+      ]
+    };
+  }
+
+  // 7) Syntax error near ...
+  if (lower.includes('syntax error') || lower.includes('parse error')) {
+    return {
+      kind: 'sql',
+      title: 'SQL Syntax Error',
+      summary: `There’s a syntax problem ${nearTok ? `near “${nearTok}”` : 'in your statement'}.`,
+      fixes: [
+        'Check for missing commas, parentheses, or keywords.',
+        'Verify the order of clauses: SELECT … FROM … WHERE … GROUP BY … HAVING … ORDER BY …;'
+      ]
+    };
+  }
+
+  // 8) GROUP BY / aggregate misuse
+  if (lower.includes('group by') || lower.includes('aggregate')) {
+    return {
+      kind: 'sql',
+      title: 'Aggregate / GROUP BY Issue',
+      summary: 'Non-aggregated columns in the SELECT list must appear in GROUP BY.',
+      fixes: [
+        'Either aggregate the column (e.g. COUNT, SUM, MAX) or include it in GROUP BY.',
+      ],
+      html: codeSample(
+`-- Good
+SELECT dept, COUNT(*) AS n
+FROM employees
+GROUP BY dept;`)
+    };
+  }
+
+  // 9) Datatype mismatch
+  if (lower.includes('datatype mismatch')) {
+    return {
+      kind: 'sql',
+      title: 'Datatype Mismatch',
+      summary: 'A value’s type is incompatible with the column or operation.',
+      fixes: [
+        'Cast to a compatible type, or insert a proper value.',
+      ],
+      html: codeSample(
+`SELECT CAST('42' AS INTEGER);`)
+    };
+  }
+
+  // 10) Incomplete input (often missing ; or ) )
+  if (lower.includes('incomplete input')) {
+    return {
+      kind: 'sql',
+      title: 'Incomplete Statement',
+      summary: 'The SQL statement appears truncated (missing `)` or `;`).',
+      fixes: [
+        'Close all parentheses and terminate statements with a semicolon.',
+      ]
+    };
+  }
+
+  // Fallback (generic)
+  return {
+    kind: 'sql',
+    title: pickFirstLine(msg) || 'SQL Error',
+    summary: 'The database reported an error. Review the message and your statement.',
+    fixes: []
+  };
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /** Turn a hint into minimal HTML (safe string; you can style with your CSS) */
 export function renderHintHTML(hint) {
