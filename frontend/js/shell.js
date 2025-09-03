@@ -843,10 +843,10 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   if (explainEl) {
     if (hints.length) {
       explainEl.innerHTML = `
-        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Explanation</h3>
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
         <div class="eh-wrap">
           <div class="eh-head">
-            <strong>Explanation (Beta)</strong>
+            <strong>Error Explanation</strong>
             <span class="eh-summary">${summary.replace(/\n/g,'<br>')}</span>
           </div>
           ${hints.map(renderHintHTML).join('')}
@@ -854,7 +854,7 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
       `;
     } else {
       explainEl.innerHTML = `
-        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Explanation</h3>
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
         <div class="eh-wrap">
           <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
         </div>
@@ -880,7 +880,7 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
 
   // Optional: show alert dialog too
   if (alsoAlert && (hints?.length || stderr || stdout)) {
-    const head = 'Polycode Explanation';
+    const head = 'Polycode Analysis';
     const errText = stderr || stdout;
     const first = hints?.[0];
     const friendly = first ? `${first.title}${first.line ? ` (line ${first.line})` : ''}\n\n${first.detail}\n\nTry: ${first.fix || 'Check the line reported above.'}` : '';
@@ -3573,7 +3573,7 @@ function showErrorExplanation(text) {
 
   if (text && text.trim()) {
     explainEl.innerHTML = `
-      <h3 style="margin:8px 0;color:#2e5bea;">Polycode Explanation</h3>
+      <h3 style="margin:8px 0;color:#2e5bea;">Polycode Analysis</h3>
       <div class="explain-body">${text}</div>
     `;
     explainEl.style.display = 'block';
