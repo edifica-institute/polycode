@@ -545,6 +545,7 @@ if (!prep || !prep.ok || !prep.token) {
 
   // 8) Reject with a meaningful first line (so your catch has a good .message)
   const firstLine = trimmed.split('\n').find(Boolean) || 'Compilation failed';
+   showCompileFailNotice();
   return reject(new Error(firstLine));
 }
 
