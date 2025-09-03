@@ -274,6 +274,12 @@
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
           </div>
+
+
+ <pre id="stderrText" class="console-block error" aria-label="Compiler Errors"></pre>
+            <!-- NEW: explanations will be injected here -->
+            <div id="stderrExplain" class="console-explain" aria-live="polite"></div>
+          
         </div>
 
         <div class="pane-foot">
@@ -1112,5 +1118,17 @@
 <script src="./js/complexity.js" defer></script>
 <script src="./js/lang-select.js" defer></script>
 
+
+
+
+
+
+<script type="module">
+  import { parseCompilerOutput, renderHintHTML } from './js/error-helper.js';
+  // Expose for shell.js if needed:
+  window.PolyErrorHelper = { parseCompilerOutput, renderHintHTML };
+</script>
+
+  
 </body>
 </html>
