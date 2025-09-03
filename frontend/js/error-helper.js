@@ -562,6 +562,20 @@ case 'sql': {
   const s = String(text || '');
   const first = firstLine(s);
 
+
+    if (/\btable\s+([`"'[\]A-Za-z0-9_.-]+)\s+already\s+exists\b/i.test(s)) {
+    const tbl = (s.match(/\btable\s+([`"'[\]A-Za-z0-9_.-]+)\s+already\s+exists\b/i) || [])[1] || 'the table';
+    push(
+      'Table Already Exists',
+      `Table ${tbl} already exists in the database.`,
+      null,
+      `Use \`CREATE TABLE IF NOT EXISTS ${tbl}(...)\` or drop it first with \`DROP TABLE ${tbl};\`.`,
+      'error', null, 'high'
+    );
+  }
+
+
+   
   // --- Table already exists (SQLite/sql.js & others) ---
   // e.g. "table users already exists"
   if (/\btable\s+[`"'[\]A-Za-z0-9_.-]+\s+already\s+exists\b/i.test(s) ||
