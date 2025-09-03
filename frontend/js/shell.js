@@ -1609,8 +1609,11 @@ function fitWatermark(ctx, img, W, H){
   const x = Math.round((W - w) / 2);
   const y = Math.round((H - h) / 2);
   ctx.save();
-  ctx.globalAlpha = 0.14;            // softer than 0.06
+  ctx.globalAlpha = 0.40;            // softer than 0.06
   ctx.drawImage(img, x, y, w, h);
+
+
+  
   ctx.restore();
 }
 
