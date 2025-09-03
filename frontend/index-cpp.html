@@ -543,7 +543,7 @@ if (!prep || !prep.ok || !prep.token) {
   setComplexityEnabled(false);
 
   // 6) Red banner (Title Case)
-  showFailNotice('compile');
+  showCompileFailNotice('compile');
 
   return reject(new Error('compile_failed'));
 }
