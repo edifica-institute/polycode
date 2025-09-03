@@ -557,148 +557,129 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
       break;
     }
 
+
 case 'sql': {
   const s = String(text || '');
-  const lower = s.toLowerCase();
+  const first = firstLine(s);
 
-  // De-dupe guard so we don't push the same hint twice
-  const seen = new Set();
-  const pushOnce = (title, summary, code = null, fix = null, level = 'error', doc = null, priority = 'high') => {
-    if (seen.has(title)) return;
-    seen.add(title);
-    push(title, summary, code, fix, level, doc, priority);
-  };
-
-  // ---------- sqlite / sql.js (in-browser) ----------
-  // Table already exists
-  if (/\btable\b.*\balready exists\b/i.test(s)) {
-    const tbl = (s.match(/table\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
-    pushOnce(
+  // --- Table already exists (SQLite/sql.js & others) ---
+  // e.g. "table users already exists"
+  if (/\btable\s+[`"'[\]A-Za-z0-9_.-]+\s+already\s+exists\b/i.test(s) ||
+      /\balready\s+exists\b.*\btable\b/i.test(s)) {
+    const tbl = (s.match(/\btable\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
+    push(
       'Table Already Exists',
-      `You’re trying to create ${tbl}, but it already exists in this in-memory DB.`,
+      `You’re trying to create ${tbl}, but it already exists in this database.`,
       null,
-      'Use `CREATE TABLE IF NOT EXISTS …` or `DROP TABLE ' + tbl + ';` before creating.'
+      `Use \`CREATE TABLE IF NOT EXISTS ${tbl}(...)\` or drop it first with \`DROP TABLE ${tbl};\`.`,
+      'error', null, 'high'
     );
   }
 
-  // No such table
-  if (/no such table/i.test(s)) {
-    const name = (s.match(/no such table:\s*([^\s]+)/i) || [])[1] || 'that table';
-    pushOnce(
-      'No Such Table',
-      `The query references ${name}, but it hasn’t been created in this session.`,
+  // --- Unknown table ---
+  // SQLite: "no such table: users" | Postgres: "relation users does not exist"
+  if (/\bno such table\b|\brelation\b.+\bdoes not exist\b/i.test(s)) {
+    const tbl = (s.match(/\b(?:no such table|relation)\s*[:\s]+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
+    push(
+      'Unknown Table',
+      `Table ${tbl} does not exist.`,
       null,
-      'Create the table first in the same run/session.'
+      'Create the table first or correct the table name.',
+      'error', null, 'high'
     );
   }
 
-  // No such column
-  if (/no such column/i.test(s)) {
-    const col = (s.match(/no such column:\s*([^\s]+)/i) || [])[1] ||
-                (s.match(/column\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] ||
-                'that column';
-    pushOnce(
-      'No Such Column',
-      `Column ${col} doesn’t exist in the referenced table.`,
+  // --- Unknown column ---
+  // SQLite: "no such column: x" | Postgres: 'column "x" does not exist'
+  if (/\bno such column\b|\bcolumn\b.+\bdoes not exist\b/i.test(s)) {
+    const col = (s.match(/\b(?:no such column|column)\s*[:\s]+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that column';
+    push(
+      'Unknown Column',
+      `Column ${col} does not exist.`,
       null,
-      'Check the column name and the table/alias you’re selecting from.'
+      'Fix the column name or add the column before querying it.',
+      'error', null, 'high'
     );
   }
 
-  // Syntax error near "X"
-  if (/near\s+"?[^"']+"?\s*:\s*syntax error/i.test(s) || /syntax error/i.test(s)) {
-    const near = (s.match(/near\s+"?([^"']+)"?\s*:/i) || [])[1];
-    pushOnce(
+  // --- Syntax error near token (SQLite & Postgres phrasing) ---
+  if (/\bsyntax error\b/i.test(s)) {
+    const token =
+      (/\bnear\s+["']?([^"']+)["']?\s*:\s*syntax error/i.exec(s)?.[1]) ||
+      (/\bsyntax error at or near\s+["']?([^"']+)["']?/i.exec(s)?.[1]);
+    push(
       'SQL Syntax Error',
-      near ? `Problem near “${near}”.` : firstLine(s),
+      token ? `Problem near \`${token}\`.` : first,
       null,
-      'Check for missing commas/parentheses and clause order: SELECT … FROM … WHERE … GROUP BY … HAVING … ORDER BY …;'
+      'Check the SQL syntax around the highlighted token/position.',
+      'error', null, 'high'
     );
   }
 
-  // Datatype mismatch
-  if (/datatype mismatch/i.test(s)) {
-    pushOnce(
+  // --- Unique / primary key constraint ---
+  // SQLite: "UNIQUE constraint failed: users.id"
+  // Postgres: "duplicate key value violates unique constraint"
+  if (/\bunique constraint failed\b|\bduplicate key\b|\bprimary key must be unique\b/i.test(s)) {
+    const what = (s.match(/unique constraint failed:\s*([A-Za-z0-9_.]+)/i)?.[1]) || 'a unique/primary key';
+    push(
+      'Unique Constraint Violation',
+      `Duplicate value for \`${what}\`.`,
+      null,
+      'Insert a different value, or change/remove the unique/primary key constraint.',
+      'error', null, 'high'
+    );
+  }
+
+  // --- NOT NULL constraint ---
+  // SQLite: "NOT NULL constraint failed: users.name"
+  // Postgres: "null value in column \"name\" violates not-null constraint"
+  if (/\bnot[- ]null constraint failed\b|\bnull value in column\b.+\bviolates not-null\b/i.test(s)) {
+    const what =
+      (s.match(/not[- ]null constraint failed:\s*([A-Za-z0-9_."]+)/i)?.[1]) ||
+      (s.match(/null value in column\s+([A-Za-z0-9_."]+)\s+violates/i)?.[1]) ||
+      'a NOT NULL column';
+    push(
+      'NOT NULL Violation',
+      `A required value for ${what} is missing.`,
+      null,
+      'Provide a non-NULL value for the column (or relax the constraint).',
+      'error', null, 'high'
+    );
+  }
+
+  // --- Foreign key constraint ---
+  if (/\bforeign key constraint failed\b|\breference constraint\b|\breferences\b.+\bfails\b/i.test(s)) {
+    push(
+      'Foreign Key Constraint Failed',
+      first,
+      null,
+      'Ensure the referenced parent row exists and that types/values match.',
+      'error', null, 'medium'
+    );
+  }
+
+  // --- Datatype mismatch / value too long ---
+  if (/\bdatatype mismatch\b|\bvalue too long\b|\binvalid input syntax\b/i.test(s)) {
+    push(
       'Datatype Mismatch',
-      firstLine(s),
+      first,
       null,
-      'Cast to a compatible type or insert a value with the right type.'
+      'Use a compatible type/size for the column, or cast/trim the value.',
+      'error', null, 'medium'
     );
-  }
-
-  // FOREIGN KEY constraint failed
-  if (/foreign key constraint failed/i.test(s)) {
-    pushOnce(
-      'FOREIGN KEY Constraint Failed',
-      firstLine(s),
-      null,
-      'Insert the parent row first, or ensure the referenced value exists.'
-    );
-  }
-
-  // UNIQUE constraint failed
-  if (/unique constraint failed/i.test(s) || /duplicate key/i.test(s)) {
-    pushOnce(
-      'UNIQUE Constraint Violation',
-      firstLine(s),
-      null,
-      'Ensure the value is unique or use an UPSERT/ON CONFLICT strategy.'
-    );
-  }
-
-  // Ambiguous column name
-  if (/ambiguous column name/i.test(s)) {
-    const col = (s.match(/ambiguous column name:\s*([^\s]+)/i) || [])[1] || 'this column';
-    pushOnce(
-      'Ambiguous Column Name',
-      `The column ${col} exists in more than one joined table.`,
-      null,
-      `Qualify it: e.g. \`t1.${col}\` or \`users.${col}\`.`
-    );
-  }
-
-  // GROUP BY / aggregate misuse
-  if (/\b(group by|aggregate)\b/i.test(s)) {
-    pushOnce(
-      'Aggregate / GROUP BY Issue',
-      'Non-aggregated columns in SELECT must appear in GROUP BY.',
-      null,
-      'Either aggregate the column (COUNT/SUM/…) or include it in GROUP BY.'
-    );
-  }
-
-  // Incomplete input (missing ) or ;)
-  if (/incomplete input/i.test(s)) {
-    pushOnce(
-      'Incomplete Statement',
-      'The SQL appears truncated (missing `)` or `;`).',
-      null,
-      'Close all parentheses and terminate statements with a semicolon.'
-    );
-  }
-
-  // ---------- Postgres / MySQL (keep your originals) ----------
-  if (/syntax error at or near/i.test(s)) {
-    const near = /syntax error at or near "([^"]+)"/i.exec(s)?.[1];
-    pushOnce('SQL syntax error', near ? `Problem near \`${near}\`.` : firstLine(s), null, 'Check SQL syntax near the token.');
-  }
-  if (/column .* does not exist/i.test(s)) {
-    const col = /column\s+("?[\w.]+"?)/i.exec(s)?.[1];
-    pushOnce('Unknown column', col ? `Column ${col} does not exist.` : 'A referenced column does not exist.', null, 'Fix the column name or add it.');
-  }
-  if (/relation .* does not exist/i.test(s)) {
-    const rel = /relation\s+("?[\w.]+"?)/i.exec(s)?.[1];
-    pushOnce('Unknown table', rel ? `Table ${rel} does not exist.` : 'A referenced table does not exist.', null, 'Fix the table name or create it.');
-  }
-  if (/duplicate key value violates unique constraint/i.test(s)) {
-    pushOnce('Unique constraint violation', firstLine(s), null, 'Insert a different value or change the constraint.');
-  }
-  if (/null value in column .* violates not-null constraint/i.test(s)) {
-    pushOnce('NOT NULL violation', firstLine(s), null, 'Provide a value for the NOT NULL column.');
   }
 
   break;
 }
+
+
+
+
+
+
+
+
+        
 
   }
 
