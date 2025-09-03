@@ -21,7 +21,10 @@ RUN python3 -m venv /opt/venv && \
     /opt/venv/bin/pip install --no-cache-dir \
       numpy pandas matplotlib scipy scikit-learn \
       seaborn sympy networkx requests \
-      statsmodels pillow
+      statsmodels pillow \
+      mysql-connector-python==8.3.* \
+      PyMySQL==1.1.*
+
 # If you *really* need to enforce a python3 name, use a conditional symlink:
 # RUN [ -e /opt/venv/bin/python3 ] || ln -s /opt/venv/bin/python /opt/venv/bin/python3
 
