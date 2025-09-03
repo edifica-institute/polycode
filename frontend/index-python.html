@@ -192,6 +192,13 @@
             <span id="consolePrefix"></span>
             <span id="consoleInput" contenteditable="true" spellcheck="false"></span>
           </div>
+
+
+           <pre id="stderrText" class="console-block error" aria-label="Compiler Errors"></pre>
+            <!-- NEW: explanations will be injected here -->
+            <div id="stderrExplain" class="console-explain" aria-live="polite"></div>
+
+          
         </div>
 
         <div class="pane-foot"><span class="msg" id="rightFoot">Waiting for Execution</span></div>
@@ -475,6 +482,17 @@ function findPythonErrorLine(text) {
     setConsole('');
     document.getElementById('output')?.classList.remove('error');
 
+    (function(){
+  const s = document.getElementById('stderrText');
+  if (s) s.textContent = '';
+  const x = document.getElementById('stderrExplain');
+  if (x) x.innerHTML = '';
+  const b = document.getElementById('pcFailNote');
+  if (b) b.remove();
+})();
+
+    
+
     let ws = (window.termWS && window.termWS.readyState===1) ? window.termWS : null;
     if (!ws) ws = await ensureRunnerWS(10000, { showOverlay:true });
     if (!ws){ try{ await wakeRunner(); }catch{} ws = await ensureRunnerWS(60000, { showOverlay:true }); }
@@ -531,15 +549,34 @@ const waitForExit = new Promise((resolve,reject)=>{
 
       if (m.type === 'stderr') {
   acc.stderr += m.data;
-  termWrite(m.data);
+  //termWrite(m.data);
 
-  // We only mark when there's enough info:
-  //  - we saw a frame line, ideally for main.py, OR
-  //  - we saw "Traceback" followed by an exception line.
+  // Mirror to compiler area
+  const st = document.getElementById('stderrText');
+  if (st) st.textContent = acc.stderr.trim();
+
+  // Show the red banner once (runtime flavor is fine)
+  if (!document.getElementById('pcFailNote')) showCompileFailNotice('runtime');
+
+  // Debounced friendly analysis (don’t spam per chunk)
+  if (!window.__pyFriendlyDebounce) {
+    window.__pyFriendlyDebounce = (() => {
+      let t = null;
+      return () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+          try { refreshStderrExplanation(); } catch {}
+        }, 80);
+      };
+    })();
+  }
+  window.__pyFriendlyDebounce();
+
+  // Existing logic to detect a good line to mark:
   const hasFrame = /File\s+"[^"]+",\s+line\s+\d+/.test(acc.stderr);
   const hasMain  = /File\s+"[^"]*main\.py",\s+line\s+\d+/.test(acc.stderr);
   const hasTb    = /\bTraceback\b/.test(acc.stderr);
-  const hasExc   = /\n[A-Za-z_]\w*Error\b.*\n?$/.test(acc.stderr); // ends with “...Error: ...”
+  const hasExc   = /\n[A-Za-z_]\w*Error\b.*\n?$/.test(acc.stderr);
 
   if (hasMain || (hasTb && hasExc) || (hasFrame && /\bSyntaxError\b/.test(acc.stderr))) {
     const line = findPythonErrorLine(acc.stderr);
@@ -547,10 +584,11 @@ const waitForExit = new Promise((resolve,reject)=>{
       (acc.stderr.split('\n').find(l => /\b(SyntaxError|Traceback)\b/.test(l)) || 'Execution failed');
     setEditorMarker(line, firstLine);
     window.PolyShell?.setStatus('Execution Failed', 'error');
-    flagFatalError();   // stop spinner early; exit may still be in-flight
+    flagFatalError();
   }
   return;
 }
+
 
 
       if (m.type === 'stdin_req'){
@@ -571,18 +609,20 @@ const waitForExit = new Promise((resolve,reject)=>{
           clearEditorMarkers();
           resolve();
         } else {
-          const errText = (acc.stderr || 'Execution failed').trim();
-          const firstLine = (errText.split('\n')[0] || 'Execution failed');
-          const line = findPythonErrorLine(errText);
-          setEditorMarker(line, firstLine);
-const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
-  window.PolyShell?.setRunnerPhase?.('error', { metrics: { execMs } });
-          window.PolyShell?.setStatus(`Execution Failed — ${execMs} ms`, 'error');
-          
-          // status already set by flagFatalError if patterns matched; ensure it's error anyway
-          window.PolyShell?.setStatus('Execution Failed', 'error');
-          reject(new Error(`line ${line}: ${firstLine}`));
-        }
+  const errText   = (acc.stderr || 'Execution failed').trim();
+  const firstLine = (errText.split('\n')[0] || 'Execution failed');
+  const line      = findPythonErrorLine(errText);
+
+  // NEW: mirror to compiler area + banner + friendly
+  const st = document.getElementById('stderrText');
+  if (st) st.textContent = errText;
+  if (!document.getElementById('pcFailNote')) showCompileFailNotice('runtime');
+  Promise.resolve().then(() => refreshStderrExplanation()).catch(() => {});
+
+  setEditorMarker(line, firstLine);
+  window.PolyShell?.setStatus('Execution Failed', 'error');
+  reject(new Error(`line ${line}: ${firstLine}`));
+}
         return;
       }
     }catch{}
@@ -647,7 +687,7 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
   };
 
   // ---- Reset ----
-  window.clearLang = function(){
+ /* window.clearLang = function(){
     window.__closingByUser = true;
     setConsole('');
     document.getElementById('output')?.style.setProperty('background','transparent','important');
@@ -657,7 +697,36 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
     try{ window.termWS?._stopHeartbeat?.(); }catch{}
     try{ window.termWS?.close(); }catch{} window.termWS=null; window.wsRunInFlight=false;
     // complexity remains disabled
-  };
+  };*/
+
+  window.clearLang = function(){
+  window.__closingByUser = true;
+  setConsole('');
+  document.getElementById('output')
+    ?.style.setProperty('background','transparent','important');
+
+  try { const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = ''; } catch {}
+  try { const row = document.getElementById('consoleRow'); if (row) row.style.display = 'none'; } catch {}
+
+  // Clear markers
+  try {
+    if (window.monaco && window.editor) {
+      const model = window.editor.getModel();
+      model && monaco.editor.setModelMarkers(model, 'py', []);
+    }
+  } catch {}
+
+  // NEW: clear compiler/friendly blocks
+  try { const s = document.getElementById('stderrText'); if (s) s.textContent = ''; } catch {}
+  try { const x = document.getElementById('stderrExplain'); if (x) x.innerHTML = ''; } catch {}
+  try { const b = document.getElementById('pcFailNote'); if (b) b.remove(); } catch {}
+
+  try { window.termWS?._stopHeartbeat?.(); } catch {}
+  try { window.termWS?.close(); } catch {}
+  window.termWS = null;
+  window.wsRunInFlight = false;
+};
+
 
   // --- Start after shell.js ---
   (function startWhenReady(){
@@ -699,6 +768,13 @@ const execMs = m?.metrics?.execMs ?? Math.round(performance.now() - __tStart);
   <script src="./js/lang-select.js" defer></script>
   <script src="./js/plot-preview.js" defer></script>
   
+<script type="module">
+  import { parseCompilerOutput, renderHintHTML } from './js/error-helper.js';
+  // Expose for shell.js if needed:
+  window.PolyErrorHelper = { parseCompilerOutput, renderHintHTML };
+</script>
 
+
+  
 </body>
 </html>
