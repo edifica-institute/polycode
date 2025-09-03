@@ -1455,6 +1455,11 @@ body[data-boot] .right.panel{
   font-weight: 600;
 }
 
+#pcFailNote.pc-fail-banner {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: #ff4d4d !important;   /* bright red text */
+}
 
 
 /* 1) Allow the middle row's children to shrink so their inner areas can scroll */
