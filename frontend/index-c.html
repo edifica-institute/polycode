@@ -518,7 +518,7 @@ if (!prep || !prep.ok || !prep.token) {
   const trimmed = (log || '').trim();
 
   // 2) Show a short note in the console (not the whole log — avoids duplication)
-  termWriteStyled('\x1b[31mCompilation Failed — See Details Below.\x1b[0m');
+  showCompileFailNotice();
 
   // 3) Put the full log ONLY into #stderrText (single source of truth for the explainer/UI)
   const st = document.getElementById('stderrText');
