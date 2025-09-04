@@ -82,8 +82,37 @@ HELLO ->
         </div>
         
       </section>
+
+
+
+      
       HERE BOSS
-<div id="logiccMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
+<div style="max-width:980px;margin:16px auto;padding:12px;border:1px solid #263040;border-radius:12px;background:#0b0f13">
+  <label for="logicExpr" style="display:block;margin-bottom:8px;color:#9ecbff;font-weight:600">
+    Enter Boolean expression
+  </label>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input id="logicExpr"
+           type="text"
+           placeholder="Examples:  A + B'C   |   (A + B') · C   |   NOT A + B*C"
+           style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid #2a3442; background:#111722; color:#e9edf3; font:14px system-ui" />
+    <button id="drawBtn"
+            type="button"
+            style="padding:10px 16px; border-radius:10px; border:1px solid #2a3442; background:#182233; color:#e9edf3; font:14px system-ui; cursor:pointer">
+      Draw
+    </button>
+  </div>
+  <div id="err" style="color:#ff8b8b;margin-top:8px;min-height:18px;font:13px system-ui"></div>
+</div>
+
+<!-- Diagram mount -->
+<div id="logicMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
+
+
+
+
+
+      
       <aside class="card">
         <h2>Result</h2>
         <div id="result" class="mono"></div>
@@ -598,11 +627,53 @@ function renderSimpleCircuitSVG(net, caption = "") {
 
 <script src="./js/boolean-nobend.js" defer></script>
 <script>
+  // Optional: normalize common “smart” characters so users can paste from docs
+  const normalizeExpr = (s) => String(s||'')
+    .replace(/[’‘`´]/g, "'")  // smart → straight apostrophe
+    .replace(/[·•⋅]/g, '·')   // bullets → middle dot
+    .replace(/\s+/g, ' ')     // collapse spaces
+    .trim();
+
+  function drawFromInput() {
+    const input = document.getElementById('logicExpr');
+    const mount = document.getElementById('logicMount');
+    const err   = document.getElementById('err');
+    const expr  = normalizeExpr(input.value);
+
+    err.textContent = '';
+    mount.innerHTML = '';
+
+    if (!expr) {
+      err.textContent = 'Please enter a Boolean expression.';
+      return;
+    }
+    try {
+      // renderNoBend comes from boolean-nobend.js
+      renderNoBend(expr, mount);
+    } catch (e) {
+      console.error(e);
+      err.textContent = 'Invalid expression. Use + (OR), ·/*/& (AND), apostrophe (\' ) or ~ / NOT (NOT), and parentheses.';
+    }
+  }
+
+  // Wire up
   window.addEventListener('DOMContentLoaded', () => {
-    // Examples:
-    renderNoBend("A + B'C", "#logiccMount");          // Y = A + (B' · C)
-    // renderNoBend("(A + B') · C", "#logiccMount");   // Y = (A + B') · C
-    // renderNoBend("NOT A + B*C", "#logiccMount");
+    const btn = document.getElementById('drawBtn');
+    const input = document.getElementById('logicExpr');
+
+    btn.addEventListener('click', drawFromInput);
+
+    // Press Enter to draw
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        drawFromInput();
+      }
+    });
+
+    // Optional: initial demo value
+    input.value = "A + B'C";
+    drawFromInput();
   });
 </script>
 
