@@ -1,4 +1,3 @@
-<script>
 (() => {
   // ======== Tiny Boolean -> SVG renderer for Polycode ========
   // API: drawLogic(expr, mountElOrSelector, opts?)
@@ -15,31 +14,25 @@
       if (isSpace(c)){ i++; continue; }
       if (c==='('){ out.push({t:TOK.L}); i++; continue; }
       if (c===')'){ out.push({t:TOK.R}); i++; continue; }
-      // operators
       if (c==='+' ){ out.push({t:TOK.OR}); i++; continue; }
       if (c==='·' || c==='*' || c==='&'){ out.push({t:TOK.AND}); i++; continue; }
       if (c==="'" ){ out.push({t:TOK.NOT, suffix:true}); i++; continue; }
       if (c==='~'){ out.push({t:TOK.NOT, prefix:true}); i++; continue; }
-
-      // keywords (NOT/AND/OR)
       if (/^[A-Za-z]/.test(c)){
-        // read word/var
         let j=i, word='';
         while (j<s.length && /[A-Za-z_]/.test(s[j])) word+=s[j++];
         const u=word.toUpperCase();
-        if (u==='OR')  { out.push({t:TOK.OR});  i=j; continue; }
-        if (u==='AND') { out.push({t:TOK.AND}); i=j; continue; }
-        if (u==='NOT') { out.push({t:TOK.NOT, prefix:true}); i=j; continue; }
-        // single-letter or word becomes variable; split into letters if long: A,B,C...
+        if (u==='OR'){ out.push({t:TOK.OR}); i=j; continue; }
+        if (u==='AND'){ out.push({t:TOK.AND}); i=j; continue; }
+        if (u==='NOT'){ out.push({t:TOK.NOT, prefix:true}); i=j; continue; }
         for (const ch of word) out.push({t:TOK.VAR, v:ch.toUpperCase()});
         i=j; continue;
       }
       throw new Error(`Unexpected character: ${c}`);
     }
-    // convert postfix ' to explicit NOT tokens applied after previous token
-    // We'll handle during parsing.
     return out;
   }
+
 
   // Shunting-yard: support prefix/suffix NOT
   function toPostfix(tokens){
@@ -344,4 +337,4 @@
   // expose
   window.drawLogic = drawLogic;
 })();
-</script>
+
