@@ -63,7 +63,22 @@
           <button class="btn secondary" id="btnCircuitNOR">NOR-only</button>
           <button class="btn secondary" id="btnKmapGroups">K-map Pairings &amp; Solution</button>
           <button class="btn secondary" id="btnClear">Clear</button>
+
+
+
+          <h1>Boolean Logic Visualizer</h1>
+
+  <input id="expr" placeholder="Enter Boolean: e.g., A + B'C" />
+  <button onclick="drawLogic(document.getElementById('expr').value, '#logicMount')">
+    Render
+  </button>
+
+  <div id="logicMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
+
+
+          
         </div>
+        
       </section>
 
       <aside class="card">
@@ -78,6 +93,13 @@
     </section>
   </main>
 
+  <script src="./js/boolean-logic-svg.js"></script>
+
+  <script>
+    drawLogic("A + B'C", "#logicMount");
+  </script>
+
+  
 <script type="module">
   const API = "https://polycode-ba.onrender.com";
   const $ = s => document.querySelector(s);
