@@ -6,79 +6,29 @@
 
   <title>polycode | Learn • Code • Execute</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
- <style>
-  /* Page */
-  body{
-    margin:0; display:grid; place-items:center; height:100vh;
-    background:linear-gradient(180deg,#0b0f13,#141922);
-    color:#e9edf3; font-family:system-ui,Roboto,Ubuntu,sans-serif;
-  }
-  .splash{ text-align:center; max-width:520px }
-  h1{
-    font-size:42px; margin-bottom:12px;
-    background:linear-gradient(90deg,#9ecbff,#7dffa0);
-    -webkit-background-clip:text; background-clip:text; color:transparent;
-  }
-  p{ color:#b8c1cd; margin:0 0 24px }
-  .tagline{ font-size:18px; font-weight:500; margin-bottom:28px; color:#9ecbff }
-  .footer{ margin-top:40px; font-size:14px; color:#7f8b99 }
-
-/* Responsive grid: two columns on desktop, one on mobile */
-.btn-row{
-  display:grid;
-  grid-template-columns: repeat(2, minmax(260px, 1fr));
-  gap: 22px 28px;                 /* row gap | column gap */
-  max-width: 760px;
-  margin: 24px auto;
-  justify-items: stretch;         /* full-width cards in each column */
-}
-@media (max-width: 640px){
-  .btn-row{ grid-template-columns: 1fr; }
-}
-
-/* Blue card button */
-.lang-btn{
-  position:relative;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  width:100%;
-  padding:16px 20px;
-  border-radius:16px;
-
-  /* classic blue look */
-  background: linear-gradient(180deg, #3b82f6, #2563eb);
-  color:#fff; text-decoration:none; font-weight:700;
-
-  /* subtle border + shadow */
-  border:1px solid rgba(255,255,255,.15);
-  box-shadow: 0 10px 26px rgba(0,0,0,.45);
-  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
-}
-.lang-btn:hover{
-  transform: translateY(-3px);
-  border-color: rgba(255,255,255,.25);
-  box-shadow: 0 16px 34px rgba(0,0,0,.55);
-}
-
-/* Title + subtitle */
-.lang-btn .label{ font-size:18px; letter-spacing:.2px; }
-.lang-btn .subtitle{
-  font-size:12px; margin-top:6px; line-height:1.35; text-align:center;
-  color:#dfe6ff;                 /* change to #f59e0b for orange */
-  white-space:normal;
-}
-
-/* Optional: small badge (e.g., for Python DB) */
-.lang-btn.badged::after{
-  content:"DB";
-  position:absolute; top:8px; right:10px;
-  font-size:10px; font-weight:700;
-  background:#ff8b8b; color:#fff;
-  padding:2px 6px; border-radius:999px;
-  box-shadow:0 2px 6px rgba(0,0,0,.25);
-}
-
-</style>
-
+  <style>
+    body{
+      margin:0; display:grid; place-items:center; height:100vh;
+      background:linear-gradient(180deg,#0b0f13,#141922);
+      color:#e9edf3; font-family:system-ui,Roboto,Ubuntu,sans-serif;
+    }
+    .splash{ text-align:center; max-width:520px }
+    h1{ font-size:42px; margin-bottom:12px;
+        background:linear-gradient(90deg,#9ecbff,#7dffa0);
+        -webkit-background-clip:text; background-clip:text; color:transparent }
+    p{ color:#b8c1cd; margin:0 0 24px }
+    .tagline{ font-size:18px; font-weight:500; margin-bottom:28px; color:#9ecbff }
+    .btn-row{display:flex; flex-wrap:wrap; gap:12px; justify-content:center}
+    .btn{
+      padding:12px 20px; border-radius:10px;
+      background:#2e5bea; color:white;
+      text-decoration:none; font-weight:600;
+      box-shadow:0 8px 20px rgba(0,0,0,.4);
+      transition:transform .15s ease, box-shadow .15s ease;
+    }
+    .btn:hover{ transform:translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,.5); }
+    .footer{ margin-top:40px; font-size:14px; color:#7f8b99 }
+  </style>
 </head>
 <body>
   <div class="splash">
@@ -87,20 +37,13 @@
     <p>Practice Java, C/C++, Python, and SQL with live I/O and complexity analysis.</p>
     <div class="btn-row">
       
-      <a href="./index-c.html" class="lang-btn">C<span class="subtitle">Pointers • Files • Data Structures</span></a>
-      <a href="./index-cpp.html" class="lang-btn">C++<span class="subtitle">Pointers • Files • Templates</span></a>
-      <a href="./index-java.html" class="lang-btn">Java<span class="subtitle">Data Structures • Collections • Files</span></a>
-      <!--<a href="./index-python.html" class="lang-btn">Python</a>-->
-      <a href="./index-sql.html" class="lang-btn">SQL<span class="subtitle">Tables • Queries • Joins</span></a>
-      <!--<a href="./index-python.html" class="btn sql-btn"><span class="label">Python</span><span class="subtitle">MySQL | Pandas | Files | PyPlot</span></a>-->
-
-      <a class="lang-btn" href="./index-python.html">
-  <span class="label">Python</span>
-  <span class="subtitle">MySQL • SQLite • Pandas • PyPlot</span>
-</a>
-
-      <a href="./index-web.html" class="lang-btn">HTML/CSS<span class="subtitle">HTML • CSS • JavaScript</span></a>
-      <!--<a href="./index-boolean.html" class="lang-btn">Boolean Algebra</a>-->
+      <a href="./index-c.html" class="btn">C</a>
+      <a href="./index-cpp.html" class="btn">C++</a>
+      <a href="./index-java.html" class="btn">Java</a>
+      <a href="./index-python.html" class="btn">Python</a>
+      <a href="./index-sql.html" class="btn">SQL</a>
+      <a href="./index-web.html" class="btn">HTML/CSS</a>
+      <!--<a href="./index-boolean.html" class="btn">Boolean Algebra</a>-->
       
     </div>
     <div class="footer">powered by <b>Edifica</b></div>
