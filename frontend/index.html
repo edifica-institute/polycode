@@ -74,6 +74,71 @@
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
 }
 
+
+
+
+
+
+
+
+
+
+    :root{
+  --bg:#0b0f13; --bg2:#141922; --panel:rgba(255,255,255,.06);
+  --glass-brd:rgba(255,255,255,.12); --text:#e9edf3; --muted:#b8c1cd;
+  --brand:#2e5bea; --pill:#1e2533; --accent:#f59e0b;
+  --shadow:0 12px 30px rgba(0,0,0,.45);
+}
+
+.lang-grid{
+  display:grid; gap:18px;
+  grid-template-columns: repeat( auto-fit, minmax(220px,1fr) );
+  max-width:900px; margin:24px auto;
+  padding:0 12px;
+}
+
+.lang-card{
+  position:relative; display:flex; flex-direction:column;
+  gap:10px; padding:18px 18px 16px;
+  color:var(--text); text-decoration:none; border-radius:16px;
+  background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+  backdrop-filter: blur(10px);
+  border:1px solid var(--glass-brd);
+  box-shadow: var(--shadow);
+  overflow:hidden; isolation:isolate;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.lang-card::before{
+  content:""; position:absolute; inset:-1px;
+  background: radial-gradient(120% 60% at -10% -30%, rgba(158,203,255,.25), transparent 60%),
+              radial-gradient(90% 60% at 110% 120%, rgba(125,255,160,.18), transparent 60%);
+  opacity:.6; pointer-events:none; z-index:-1;
+}
+.lang-card:hover{ transform: translateY(-4px); border-color: rgba(255,255,255,.22); }
+
+.lang-card .icon{
+  width:42px; height:42px; border-radius:12px;
+  display:grid; place-items:center;
+  background: #26324a; font-size:20px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.lang-card h3{
+  margin:0; font-size:18px; font-weight:700; letter-spacing:.2px;
+}
+.lang-card h3 .badge{
+  margin-left:8px; font-size:11px; font-weight:700;
+  color:#fff; background:#ff8b8b; padding:2px 6px; border-radius:999px;
+}
+
+.pills{ display:flex; flex-wrap:wrap; gap:6px; }
+.pills span{
+  font-size:12px; color:#dfe6ff; background:var(--pill);
+  border:1px solid rgba(255,255,255,.10);
+  padding:4px 8px; border-radius:999px;
+}
+
+/* optional: emphasize DB-related pills with orange */
+.pills span:nth-child(1).db, .pills span.db { color: var(--accent); border-color: rgba(245,158,11,.35); }
   </style>
 </head>
 <body>
@@ -88,7 +153,12 @@
       <a href="./index-java.html" class="btn">Java<span class="subtitle">Data Structures | Collections | Files</span></a>
       <!--<a href="./index-python.html" class="btn">Python</a>-->
       <a href="./index-sql.html" class="btn">SQL<span class="subtitle">Tables | Queries | Joins</span></a>
-      <a href="./index-python.html" class="btn sql-btn"><span class="label">Python</span><span class="subtitle">MySQL | Pandas | Files | PyPlot</span></a>
+      <!--<a href="./index-python.html" class="btn sql-btn"><span class="label">Python</span><span class="subtitle">MySQL | Pandas | Files | PyPlot</span></a>-->
+
+      <a class="btn" href="./index-python.html">
+  <span class="label">Python</span>
+  <span class="subtitle">MySQL • SQLite • Pandas • PyPlot</span>
+</a>
 
       <a href="./index-web.html" class="btn">HTML/CSS<span class="subtitle">HTML | CSS | JavaScript</span></a>
       <!--<a href="./index-boolean.html" class="btn">Boolean Algebra</a>-->
