@@ -1,14 +1,16 @@
+/* boolean-nobend.js — draw logic gate diagrams with straight wires (2-bend detours only when needed)
+   Ops: + (OR), ·/*/& (AND), postfix ' or prefix ~ / NOT, parentheses, implicit AND (AB == A·B)
+   Exact structure (NO algebraic simplification). AND/OR flattened to n-ary gates for neat multi-input shapes.
+*/
 (() => {
-  // =============== Parser (implicit AND + suffix NOT) ===============
+  // ---------------- Parser ----------------
   const TOK = { OR:'OR', AND:'AND', NOTP:'NOTP', VAR:'VAR', L:'(', R:')', SNOT:'SNOT' };
 
-  function normalizeExpr(s){
-    return String(s||'')
-      .replace(/[’‘`´]/g, "'")
-      .replace(/[·•⋅]/g, '·')
-      .replace(/\s+/g, ' ')
-      .trim();
-  }
+  const norm = (s) => String(s||'')
+    .replace(/[’‘`´]/g, "'")        // smart → straight apostrophe
+    .replace(/[·•⋅]/g, '·')         // bullets → middle dot
+    .replace(/\s+/g, ' ')
+    .trim();
 
   function tokenizeExpr(s){
     const t=[]; let i=0;
@@ -21,14 +23,15 @@
       if (c==='·'||c==='*'||c==='&'){ t.push({t:TOK.AND}); i++; continue; }
       if (c==='~'){ t.push({t:TOK.NOTP}); i++; continue; }
       if (/[A-Za-z]/.test(c)){
-        let j=i, word=''; while (j<s.length && /[A-Za-z_]/.test(s[j])) word+=s[j++];
-        const U=word.toUpperCase();
+        let j=i, w='';
+        while (j<s.length && /[A-Za-z_]/.test(s[j])) w+=s[j++];
+        const U=w.toUpperCase();
         if (U==='OR'){ t.push({t:TOK.OR}); i=j; continue; }
         if (U==='AND'){ t.push({t:TOK.AND}); i=j; continue; }
         if (U==='NOT'){ t.push({t:TOK.NOTP}); i=j; continue; }
-        for (const ch of word){
+        for (const ch of w){
           t.push({t:TOK.VAR, v:ch.toUpperCase()});
-          // absorb any immediate apostrophes for this var
+          // swallow postfix apostrophes for this variable (e.g., A'' => NOT NOT A)
           let k=j; while (k<s.length && s[k]==="'"){ t.push({t:TOK.SNOT}); k++; }
           j=k;
         }
@@ -41,8 +44,8 @@
   }
 
   function injectImplicitAnd(tokens){
-    const out=[]; const end = tk=>tk.t===TOK.VAR||tk.t===TOK.R||tk.t===TOK.SNOT;
-    const start = tk=>tk.t===TOK.VAR||tk.t===TOK.L||tk.t===TOK.NOTP;
+    const out=[]; const end=tk=>tk.t===TOK.VAR||tk.t===TOK.R||tk.t===TOK.SNOT;
+    const start=tk=>tk.t===TOK.VAR||tk.t===TOK.L||tk.t===TOK.NOTP;
     for (let i=0;i<tokens.length;i++){
       const tk=tokens[i];
       if (out.length && start(tk) && end(out[out.length-1])) out.push({t:TOK.AND});
@@ -53,7 +56,7 @@
 
   function toPostfix(tokens){
     const out=[], op=[];
-    const prec = t => t===TOK.NOTP?3: t===TOK.AND?2: t===TOK.OR?1:0;
+    const prec = t => t===TOK.NOTP?3 : t===TOK.AND?2 : t===TOK.OR?1 : 0;
     const flushN=()=>{ while(op.length && op[op.length-1].t===TOK.NOTP) out.push(op.pop()); };
     for (const tk of tokens){
       if (tk.t===TOK.VAR){ out.push(tk); flushN(); continue; }
@@ -96,27 +99,57 @@
     return st[0];
   }
 
-  function parse(expr){
-    const t1 = tokenizeExpr(normalizeExpr(expr));
-    const t2 = injectImplicitAnd(t1);
-    return astFromPostfix(toPostfix(t2));
+  // Flatten associative AND/OR to n-ary nodes (no algebraic simplification).
+  function assocify(node){
+    if (!node) return node;
+    if (node.type==='VAR') return node;
+    if (node.type==='NOT'){ node.a = assocify(node.a); return node; }
+    if (node.type==='AND' || node.type==='OR'){
+      const kind=node.type, inputs=[];
+      (function collect(n){
+        n = assocify(n);
+        if (n.type===kind){
+          const kids = n.inputs || [n.a, n.b];
+          kids.forEach(collect);
+        } else { inputs.push(n); }
+      })(node);
+      return { type:kind, inputs };
+    }
+    return node;
   }
 
-  // =============== Layout (columns by depth, rows by variables) ===============
-  function depth(n){ return n.type==='VAR'?0 : n.type==='NOT'?1+depth(n.a) : 1+Math.max(depth(n.a), depth(n.b)); }
+  function parse(expr){
+    const t1 = tokenizeExpr(norm(expr));
+    const t2 = injectImplicitAnd(t1);
+    const pf = toPostfix(t2);
+    return assocify(astFromPostfix(pf));
+  }
+
+  // ---------------- Layout ----------------
+  function depth(n){
+    if (n.type==='VAR') return 0;
+    if (n.type==='NOT') return 1 + depth(n.a);
+    if (n.type==='AND' || n.type==='OR'){
+      const kids = n.inputs || [n.a, n.b];
+      return 1 + Math.max(...kids.map(depth));
+    }
+    return 0;
+  }
 
   function collectVars(ast){
     const set=new Set(), list=[];
     (function walk(n){
       if (!n) return;
       if (n.type==='VAR'){ if(!set.has(n.name)){ set.add(n.name); list.push(n.name);} return; }
-      if (n.type==='NOT') walk(n.a); else { walk(n.a); walk(n.b); }
+      if (n.type==='NOT') walk(n.a);
+      else (n.inputs || [n.a,n.b]).forEach(walk);
     })(ast);
-    list.sort(); return list;
+    list.sort();
+    return list;
   }
 
   function layout(ast){
-    const xStep=160, margin=50, yStart=80, yGap=50;
+    const xStep=170, margin=70, yStart=80, yGap=52;
     const vars=collectVars(ast);
     const varY = new Map(vars.map((v,i)=>[v, yStart+i*yGap]));
     const maxD = depth(ast);
@@ -125,20 +158,26 @@
       n.depth = (n.type==='VAR'?0:d);
       if (n.type==='VAR'){ n.x = margin; n.y = varY.get(n.name); return; }
       if (n.type==='NOT'){ place(n.a, d-1); n.x = margin + d*xStep; n.y = n.a.y; return; }
-      place(n.a, d-1); place(n.b, d-1);
-      n.x = margin + d*xStep; n.y = (n.a.y + n.b.y)/2;
+      const kids = n.inputs || [];
+      kids.forEach(k => place(k, d-1));
+      n.x = margin + d*xStep;
+      n.y = kids.length ? (kids.reduce((s,k)=>s+k.y,0)/kids.length) : (yStart);
     })(ast, maxD);
 
     return {maxD, xStep, margin, yStart, yGap, varY};
   }
 
-  // =============== Gate geometry & collision helpers ===============
+  // ---------------- Geometry & routing ----------------
   function gateBox(n){
-    // approximate bounding boxes for collision avoidance
     if (n.type==='VAR') return null;
-    if (n.type==='NOT') return {x1:n.x-20, y1:n.y-20, x2:n.x+26, y2:n.y+20}; // triangle + bubble(r=6)
-    if (n.type==='AND') return {x1:n.x-20, y1:n.y-25, x2:n.x+60, y2:n.y+25};
-    if (n.type==='OR')  return {x1:n.x-10, y1:n.y-30, x2:n.x+70, y2:n.y+45};
+    if (n.type==='NOT') return {x1:n.x-22, y1:n.y-22, x2:n.x+30, y2:n.y+22};
+    const k = (n.inputs ? n.inputs.length : 2);
+    const step = 28, h = Math.max(step*(k-1)+50, 50);
+    if (n.type==='AND') return {x1:n.x-22, y1:n.y-h/2, x2:n.x+62, y2:n.y+h/2};
+    if (n.type==='OR'){
+      const xL = n.x - 12, xR = n.x + 70;
+      return {x1:xL, y1:n.y - h/2 - 6, x2:xR, y2:n.y + h/2 + 6};
+    }
   }
 
   function intersectsH(y, x1, x2, box){
@@ -147,159 +186,179 @@
     return (y>=box.y1 && y<=box.y2) && !(hi<=box.x1 || lo>=box.x2);
   }
 
-  // route with 0 bends; if blocked, do a 2-bend detour (down by default).
+  // Straight segment unless it would hit a gate; then 2-bend detour (under the obstacle).
   function routeSegment(p1, p2, boxes){
     if (p1.y === p2.y){
       const hits = boxes.filter(b => intersectsH(p1.y, p1.x, p2.x, b));
-      if (!hits.length) return {type:'line', points:[p1.x,p1.y,p2.x,p2.y]};
+      if (!hits.length) return {type:'line', pts:[p1.x,p1.y,p2.x,p2.y]};
       const pad=20;
       const detourY = Math.max(...hits.map(b=>b.y2)) + pad;
       const detourX = Math.min(p2.x-20, Math.max(...hits.map(b=>b.x2))+pad);
       return {type:'poly', pts:[p1.x,p1.y, detourX,p1.y, detourX,detourY, p2.x,detourY, p2.x,p2.y]};
     }
-    // L-shape: go to a safe X then up/down, then into target
-    const pad=20, detourX = p2.x - pad;
+    // vertical join: go to a safe X near target, then up/down, then into target
+    const pad=18, detourX = p2.x - pad;
     return {type:'poly', pts:[p1.x,p1.y, detourX,p1.y, detourX,p2.y, p2.x,p2.y]};
   }
 
-  // get ports (exact join points) in world coords
   function ports(n){
-    if (n.type==='VAR') return {out:{x:n.x+10, y:n.y}};
-    if (n.type==='NOT') return {
-      in1:{x:n.x-20, y:n.y},
-      out:{x:n.x+26, y:n.y} // bubble center = x+6, r=6 → right edge = x+12? but body extends; keep safe 26 matches box
-    };
-    if (n.type==='AND') return {
-      in1:{x:n.x-20, y:n.y-14}, in2:{x:n.x-20, y:n.y+14}, out:{x:n.x+60, y:n.y}
-    };
-    if (n.type==='OR') return {
-      in1:{x:n.x-10, y:n.y-20}, in2:{x:n.x-10, y:n.y+20}, out:{x:n.x+70, y:n.y+7}
-    };
+    if (n.type==='VAR') return { out:{x:n.x+12, y:n.y} };
+    if (n.type==='NOT') return { in1:{x:n.x-20,y:n.y}, out:{x:n.x+28,y:n.y} };
+
+    const k = (n.inputs ? n.inputs.length : 2);
+    const step = 28;
+    const topY = n.y - step*(k-1)/2;
+
+    if (n.type==='AND'){
+      const ins = {};
+      for (let i=0;i<k;i++) ins['in'+i] = {x:n.x-22, y: topY + i*step};
+      return Object.assign(ins, { out:{x:n.x+62, y:n.y} });
+    }
+    if (n.type==='OR'){
+      // Flat left wall at xL, output at nose tip xR
+      const xL = n.x - 12, xR = n.x + 70;
+      const ins = {};
+      for (let i=0;i<k;i++) ins['in'+i] = {x:xL, y: topY + i*step};
+      return Object.assign(ins, { out:{x:xR, y:n.y} });
+    }
   }
 
-  // =============== Render ===============
-  function renderNoBend(expr, mount, opts={}){
+  // ---------------- Render ----------------
+  function renderNoBend(expr, mount){
     const el = (typeof mount==='string') ? document.querySelector(mount) : mount;
     if (!el) throw new Error('Mount element not found');
 
     const ast = parse(expr);
     const L = layout(ast);
 
-    // collect all gate boxes after layout
+    // collect gate boxes
     const boxes=[];
     (function collect(n){
       if (!n) return;
-      if (n.type!=='VAR'){ const b=gateBox(n); if (b) boxes.push(Object.assign({id:Math.random()}, b)); }
-      if (n.type==='NOT') collect(n.a); else if (n.type==='AND'||n.type==='OR'){ collect(n.a); collect(n.b); }
+      if (n.type!=='VAR'){ const b=gateBox(n); if (b) boxes.push(b); }
+      if (n.type==='NOT') collect(n.a);
+      else (n.inputs||[n.a,n.b]).forEach(collect);
     })(ast);
 
-    const W = (L.margin + (L.maxD+1)*L.xStep + 180);
-    const H = Math.max(L.yStart + L.varY.size * L.yGap + 80, 260);
+    const W = (L.margin + (L.maxD+1)*L.xStep + 220);
+    const H = Math.max(L.yStart + (L.varY.size||1)*L.yGap + 100, 260);
 
-    const svgNS='http://www.w3.org/2000/svg';
-    const svg=document.createElementNS(svgNS,'svg');
+    const NS='http://www.w3.org/2000/svg';
+    const svg=document.createElementNS(NS,'svg');
     svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
     svg.setAttribute('width','100%');
     svg.setAttribute('height',`${H}px`);
-    svg.style.background = '#0b0f13';
-    svg.style.borderRadius = '12px';
+    svg.style.background='#0b0f13';
+    svg.style.borderRadius='12px';
 
-    const style=document.createElementNS(svgNS,'style');
+    const style=document.createElementNS(NS,'style');
     style.textContent = `
       .gate{ fill:#1e2024; stroke:#9ecbff; stroke-width:2 }
-      .wire{ stroke:#e9edf3; stroke-width:2; fill:none; stroke-linecap:round }
+      .wire{ stroke:#e9edf3; stroke-width:2; fill:none; stroke-linecap:butt } /* exact wire ends */
       .node{ fill:#e9edf3 }
       .pin { fill:#9ecbff; font:600 14px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif }
       .label{ fill:#b8c1cd; font:12px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif }
     `;
     svg.appendChild(style);
 
-    // draw input pins/labels for all variables
+    // Inputs (labels + pins)
     const vars = Array.from(L.varY.keys()).sort();
     vars.forEach(v=>{
-      const y=L.varY.get(v), x=30;
-      const t=document.createElementNS(svgNS,'text'); t.setAttribute('x','18'); t.setAttribute('y', y+4); t.setAttribute('class','pin'); t.textContent=v; svg.appendChild(t);
-      const c=document.createElementNS(svgNS,'circle'); c.setAttribute('class','node'); c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r','3'); svg.appendChild(c);
+      const y=L.varY.get(v), pinX=34;
+      const t=document.createElementNS(NS,'text'); t.setAttribute('x','18'); t.setAttribute('y', y+4); t.setAttribute('class','pin'); t.textContent=v; svg.appendChild(t);
+      const c=document.createElementNS(NS,'circle'); c.setAttribute('class','node'); c.setAttribute('cx', pinX); c.setAttribute('cy', y); c.setAttribute('r','3'); svg.appendChild(c);
     });
 
-    // --- Draw all gates first (so wires can route around their boxes) ---
+    // Gate drawing
     function drawGate(n){
       if (n.type==='VAR') return;
+
       if (n.type==='NOT'){
-        const p=document.createElementNS(svgNS,'path');
-        p.setAttribute('class','gate'); p.setAttribute('d', `M ${n.x-20} ${n.y-20} L ${n.x-20} ${n.y+20} L ${n.x+20} ${n.y} Z`);
+        const p=document.createElementNS(NS,'path');
+        p.setAttribute('class','gate');
+        p.setAttribute('d', `M ${n.x-20} ${n.y-20} L ${n.x-20} ${n.y+20} L ${n.x+20} ${n.y} Z`);
         svg.appendChild(p);
-        const bub=document.createElementNS(svgNS,'circle');
-        bub.setAttribute('class','gate'); bub.setAttribute('cx', n.x+26); bub.setAttribute('cy', n.y); bub.setAttribute('r','6'); bub.setAttribute('fill','#0b0f13'); svg.appendChild(bub);
-        const lbl=document.createElementNS(svgNS,'text'); lbl.setAttribute('class','label'); lbl.setAttribute('x', n.x-12); lbl.setAttribute('y', n.y-26); lbl.textContent='NOT'; svg.appendChild(lbl);
+        const bub=document.createElementNS(NS,'circle');
+        bub.setAttribute('class','gate'); bub.setAttribute('cx', n.x+28); bub.setAttribute('cy', n.y); bub.setAttribute('r','6'); bub.setAttribute('fill','#0b0f13'); svg.appendChild(bub);
+        const lbl=document.createElementNS(NS,'text'); lbl.setAttribute('class','label'); lbl.setAttribute('x', n.x-10); lbl.setAttribute('y', n.y-26); lbl.textContent='NOT'; svg.appendChild(lbl);
         drawGate(n.a); return;
       }
+
+      const kids = n.inputs || [n.a,n.b];
+      const k = kids.length || 2;
+      const step = 28;
+      const h = Math.max(step*(k-1)+50, 50);
+      const top = n.y - h/2, bot = n.y + h/2;
+
+      const path=document.createElementNS(NS,'path');
+      path.setAttribute('class','gate');
+
       if (n.type==='AND'){
-        const p=document.createElementNS(svgNS,'path');
-        p.setAttribute('class','gate');
-        p.setAttribute('d', `M ${n.x-20} ${n.y-25} L ${n.x+20} ${n.y-25} C ${n.x+65} ${n.y-25}, ${n.x+65} ${n.y+25}, ${n.x+20} ${n.y+25} L ${n.x-20} ${n.y+25} Z`);
-        svg.appendChild(p);
-        const lbl=document.createElementNS(svgNS,'text'); lbl.setAttribute('class','label'); lbl.setAttribute('x', n.x-4); lbl.setAttribute('y', n.y-31); lbl.textContent='AND'; svg.appendChild(lbl);
-        drawGate(n.a); drawGate(n.b); return;
+        path.setAttribute('d',
+          `M ${n.x-22} ${top}
+           L ${n.x+20} ${top}
+           C ${n.x+65} ${top}, ${n.x+65} ${bot}, ${n.x+20} ${bot}
+           L ${n.x-22} ${bot} Z`);
+      }else{ // OR with flat left wall at xL and nose to the right
+        const xL = n.x - 12;
+        path.setAttribute('d',
+          `M ${xL} ${top}
+           C ${n.x+18} ${top}, ${n.x+48} ${top}, ${n.x+66} ${top+15}
+           C ${n.x+84} ${n.y},   ${n.x+84} ${n.y+30}, ${n.x+66} ${bot+5}
+           C ${n.x+48} ${bot+20}, ${n.x+18} ${bot+20}, ${xL} ${bot}
+           L ${xL} ${top} Z`);
       }
-      if (n.type==='OR'){
-        const p=document.createElementNS(svgNS,'path');
-        p.setAttribute('class','gate');
-        p.setAttribute('d', `M ${n.x-10} ${n.y-30}
-                             C ${n.x+15} ${n.y-30}, ${n.x+50} ${n.y-30}, ${n.x+70} ${n.y-15}
-                             C ${n.x+90} ${n.y},    ${n.x+90} ${n.y+30}, ${n.x+70} ${n.y+45}
-                             C ${n.x+50} ${n.y+60}, ${n.x+15} ${n.y+60}, ${n.x-10} ${n.y+60}
-                             C ${n.x+15} ${n.y+30}, ${n.x+15} ${n.y},   ${n.x-10} ${n.y-30} Z`);
-        svg.appendChild(p);
-        const lbl=document.createElementNS(svgNS,'text'); lbl.setAttribute('class','label'); lbl.setAttribute('x', n.x+4); lbl.setAttribute('y', n.y-36); lbl.textContent='OR'; svg.appendChild(lbl);
-        drawGate(n.a); drawGate(n.b); return;
-      }
+      svg.appendChild(path);
+
+      const lbl=document.createElementNS(NS,'text');
+      lbl.setAttribute('class','label'); lbl.setAttribute('x', n.x-6); lbl.setAttribute('y', top-6); lbl.textContent=n.type;
+      svg.appendChild(lbl);
+
+      kids.forEach(drawGate);
     }
     drawGate(ast);
 
-    // --- Wire routing (no bends unless needed) ---
-    const allBoxes = boxes.slice(); // shallow copy
-    function drawWire(p1, p2){
-      const r = routeSegment(p1, p2, allBoxes);
+    // Wiring
+    function drawWireSeg(p1, p2){
+      const r = routeSegment(p1, p2, boxes);
       if (r.type==='line'){
-        const ln=document.createElementNS(svgNS,'line'); ln.setAttribute('class','wire');
-        ln.setAttribute('x1', r.points[0]); ln.setAttribute('y1', r.points[1]);
-        ln.setAttribute('x2', r.points[2]); ln.setAttribute('y2', r.points[3]); svg.appendChild(ln);
-      }else{
-        const pl=document.createElementNS(svgNS,'polyline'); pl.setAttribute('class','wire');
+        const ln=document.createElementNS(NS,'line'); ln.setAttribute('class','wire');
+        ln.setAttribute('x1', r.pts[0]); ln.setAttribute('y1', r.pts[1]); ln.setAttribute('x2', r.pts[2]); ln.setAttribute('y2', r.pts[3]); svg.appendChild(ln);
+      } else {
+        const pl=document.createElementNS(NS,'polyline'); pl.setAttribute('class','wire');
         pl.setAttribute('points', r.pts.join(' ')); svg.appendChild(pl);
       }
     }
 
-    // helper to wire a gate and recurse
     (function wire(n){
       if (n.type==='VAR') return;
+
       if (n.type==='NOT'){
         const p = ports(n), a = ports(n.a);
-        drawWire(a.out, p.in1); wire(n.a); return;
+        drawWireSeg(a.out, p.in1);
+        wire(n.a); return;
       }
-      const p = ports(n);
-      const a = ports(n.a), b = ports(n.b);
-      drawWire(a.out, p.in1);
-      drawWire(b.out, p.in2);
-      wire(n.a); wire(n.b);
+
+      const ps = ports(n);
+      const kids = n.inputs || [n.a,n.b];
+      kids.forEach((kid, i) => {
+        const pk = ports(kid);
+        drawWireSeg(pk.out, ps['in'+i]);
+        wire(kid);
+      });
     })(ast);
 
-    // draw inputs out to their first consumer (already done via recursion).
-    // draw final output to Y pin
+    // output wire to Y
     const rootOut = ports(ast).out;
-    // output label/pin
-    drawWire(rootOut, {x: W-120, y: rootOut.y});
-    const ypin=document.createElementNS(svgNS,'circle'); ypin.setAttribute('class','node');
-    ypin.setAttribute('cx', W-120); ypin.setAttribute('cy', rootOut.y); ypin.setAttribute('r','3'); svg.appendChild(ypin);
-    const ylbl=document.createElementNS(svgNS,'text'); ylbl.setAttribute('class','pin');
-    ylbl.setAttribute('x', W-110); ylbl.setAttribute('y', rootOut.y+4); ylbl.textContent='Y'; svg.appendChild(ylbl);
+    drawWireSeg(rootOut, {x: W-140, y: rootOut.y});
+    const ypin=document.createElementNS(NS,'circle'); ypin.setAttribute('class','node');
+    ypin.setAttribute('cx', W-140); ypin.setAttribute('cy', rootOut.y); ypin.setAttribute('r','3'); svg.appendChild(ypin);
+    const ylbl=document.createElementNS(NS,'text'); ylbl.setAttribute('class','pin'); ylbl.setAttribute('x', W-130); ylbl.setAttribute('y', rootOut.y+4); ylbl.textContent='Y'; svg.appendChild(ylbl);
 
-    // input pins already drawn; add from pin to var node
-    vars.forEach(v=>{
-      const y=L.varY.get(v);
-      const wireStart={x:40,y}, varPort={x: L.margin, y};
-      drawWire(wireStart, varPort);
+    // input wires from pins → first var node
+    const pinX=34, varX=L.margin;
+    Array.from(L.varY.entries()).forEach(([v, y])=>{
+      drawWireSeg({x:pinX, y}, {x:varX, y});
     });
 
     el.innerHTML=''; el.appendChild(svg);
