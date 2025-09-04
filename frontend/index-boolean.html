@@ -1,375 +1,590 @@
-/* boolean-nobend.js — draw logic gate diagrams with straight wires
-   Ops supported:
-     +   (OR)
-     ·,* ,& (AND)   // middle dot, asterisk, or ampersand
-     '   (postfix NOT)  — e.g., A'
-     ~   (prefix  NOT)  — e.g., ~A or NOT A
-   Parentheses and implicit AND (AB == A·B) supported.
-   Exact structure (NO algebraic simplification). AND/OR flattened to n-ary gates.
-*/
-(() => {
-  // ---------------- Parser ----------------
-  const TOK = { OR:'OR', AND:'AND', NOTP:'NOTP', VAR:'VAR', L:'(', R:')', SNOT:'SNOT' };
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>polycode | Boolean Algebra</title>
+ 
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <link rel="icon" href="./assets/logo.png" />
+  <style>
+    :root{ --bg:#0b0f13; --bg2:#141922; --panel:#1e2024; --text:#e9edf3; --muted:#aeb5bd; --link:#9ecbff; --brand:#2e5bea; --border:#2b2f34; }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:linear-gradient(180deg,var(--bg),var(--bg2)); color:var(--text); font-family:system-ui,Roboto,Ubuntu,sans-serif; }
+    a{ color:var(--link); text-decoration:none } a:hover{ text-decoration:underline }
+    header{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#1a1c1f; border-bottom:1px solid var(--border) }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700 }
+    .brand img{ width:26px; height:26px; border-radius:6px }
+    main{ max-width:1100px; margin:0 auto; padding:18px }
+    .grid{ display:grid; gap:16px; grid-template-columns:1fr; }
+    @media (min-width:980px){ .grid{ grid-template-columns:1.1fr .9fr; } }
+    .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:0 16px 50px rgba(0,0,0,.28) }
+    .card h2{ margin:0 0 10px; font-size:20px }
+    textarea{ width:100%; min-height:90px; background:#141922; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px; outline:none }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0 }
+    .btn{ padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--brand); color:#fff; font-weight:600; cursor:pointer }
+    .btn.secondary{ background:#24272d; color:#d5dbe4 }
+    .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+    table{ width:auto; border-collapse:collapse; font-size:14px }
+    th,td{ border:1px solid var(--border); padding:6px 8px; text-align:center }
+    th{ background:#1a1c1f }
+    .muted{ color:#aeb5bd }
+    .grid > .card.wide { grid-column: 1 / -1; }
+    #result svg { max-height: none !important; width: 100%; height: auto; }
+    aside.card.wide { padding-block: 24px; }
+  </style>
 
-  const norm = (s) => String(s||'')
-    .replace(/[’‘`´]/g, "'")        // smart → straight apostrophe
-    .replace(/[·•⋅]/g, '·')         // bullets → middle dot
+
+    </head>
+<body>
+  <header>
+    <div class="brand"><img src="./assets/logo.png" alt="polycode"/><div>PolyCode — Boolean Algebra</div></div>
+    <nav><a href="./index.html">Home</a></nav>
+  </header>
+
+  <main>
+    <div class="grid">
+      <section class="card">
+        <h2>Expression</h2>
+        <p class="muted mono">
+          Ops: + (OR), ·/*/& (AND), ~(NOT), ^ (XOR), parentheses.
+          Implicit AND allowed, e.g., <b>AB + A~C</b>.
+          K-map commands: <b>kmap A,B,C : Σm(1,3,5)</b>, <b>kmap A,B : ΠM(0,2)</b>, or <b>kmap A,B,C : AB + A'C</b>.
+        </p>
+        <textarea id="expr" placeholder="Example: A·B + ¬A·C"></textarea>
+        <div class="row">
+          <label class="muted"><input type="checkbox" id="includeTable"> Show truth table</label>
+          <span class="muted">Vars (optional, comma):</span>
+          <input id="vars" placeholder="A,B,C" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:#141922;color:var(--text)">
+          <button class="btn" id="btnSimplify">Simplify</button>
+          <!-- NEW: teaching-safe buttons -->
+          <button class="btn secondary" id="btnSimplifyDraw">Simplify &amp; Draw</button>
+          <button class="btn secondary" id="btnSimplyDraw">Simply Draw</button>
+          <!-- legacy circuit modes kept for now -->
+          <button class="btn secondary" id="btnCircuitNAND">NAND-only</button>
+          <button class="btn secondary" id="btnCircuitNOR">NOR-only</button>
+          <button class="btn secondary" id="btnKmapGroups">K-map Pairings &amp; Solution</button>
+          <button class="btn secondary" id="btnClear">Clear</button>
+
+
+
+          <h1>Boolean Logic Visualizer</h1>
+
+ <input id="logicExpr" placeholder="A + B'C" />
+<button id="renderBtn" type="button">Render</button>
+<div id="logicMount"></div>
+
+
+  <div id="logicMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
+
+HELLO ->
+          <div id="gvMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
+        </div>
+        
+      </section>
+
+
+
+      
+      HERE BOSS
+<div style="max-width:980px;margin:16px auto;padding:12px;border:1px solid #263040;border-radius:12px;background:#0b0f13">
+  <label for="logicExpr" style="display:block;margin-bottom:8px;color:#9ecbff;font-weight:600">
+    Enter Boolean expression
+  </label>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input id="logicExpr"
+           type="text"
+           placeholder="Examples:  A + B'C   |   (A + B') · C   |   NOT A + B*C"
+           style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid #2a3442; background:#111722; color:#e9edf3; font:14px system-ui" />
+    <button id="drawBtn"
+            type="button"
+            style="padding:10px 16px; border-radius:10px; border:1px solid #2a3442; background:#182233; color:#e9edf3; font:14px system-ui; cursor:pointer">
+      Draw
+    </button>
+  </div>
+  <div id="err" style="color:#ff8b8b;margin-top:8px;min-height:18px;font:13px system-ui"></div>
+</div>
+
+<!-- Diagram mount -->
+<div id="logicccMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
+
+
+
+
+
+      
+      <aside class="card">
+        <h2>Result</h2>
+        <div id="result" class="mono"></div>
+      </aside>
+    </div>
+
+    <section class="card" id="ttCard" style="display:none">
+      <h2>Truth Table</h2>
+      <div id="tt"></div>
+    </section>
+  </main>
+
+
+
+
+<!-- In boolean.html -->
+
+
+
+
+
+
+
+
+  
+<script src="./js/boolean-logic-svg.js" defer></script>
+<!--<script>
+  // OPTIONAL: if you kept normalizeExpr from earlier patches
+  const normalizeExpr = (s) => String(s||'')
+    .replace(/[’‘`´]/g, "'")
+    .replace(/[·•⋅]/g, '·')
     .replace(/\s+/g, ' ')
     .trim();
 
-  function tokenizeExpr(s){
-    const t=[]; let i=0;
-    while (i<s.length){
-      const c=s[i];
-      if (/\s/.test(c)){ i++; continue; }
-      if (c==='('){ t.push({t:TOK.L}); i++; continue; }
-      if (c===')'){ t.push({t:TOK.R}); i++; continue; }
-      if (c==='+'){ t.push({t:TOK.OR}); i++; continue; }
-      if (c==='·'||c==='*'||c==='&'){ t.push({t:TOK.AND}); i++; continue; }
-      if (c==='~'){ t.push({t:TOK.NOTP}); i++; continue; }
-      if (/[A-Za-z]/.test(c)){
-        let j=i, w='';
-        while (j<s.length && /[A-Za-z_]/.test(s[j])) w+=s[j++];
-        const U=w.toUpperCase();
-        if (U==='OR'){ t.push({t:TOK.OR}); i=j; continue; }
-        if (U==='AND'){ t.push({t:TOK.AND}); i=j; continue; }
-        if (U==='NOT'){ t.push({t:TOK.NOTP}); i=j; continue; }
-        for (const ch of w){
-          t.push({t:TOK.VAR, v:ch.toUpperCase()});
-          // swallow postfix apostrophes for this variable (A'' => NOT NOT A)
-          let k=j; while (k<s.length && s[k]==="'"){ t.push({t:TOK.SNOT}); k++; }
-          j=k;
+  window.addEventListener('DOMContentLoaded', () => {
+    const input  = document.getElementById('logicExpr');
+    const mount  = document.getElementById('logicMount');
+    const button = document.getElementById('renderBtn');
+
+    const render = () => {
+      // If you ever switch to a <textarea> or contenteditable, this still works
+      const val = ('value' in input ? input.value : input.textContent) || '';
+      const expr = normalizeExpr ? normalizeExpr(val) : val.trim();
+
+      console.log('draw expr =', JSON.stringify(expr)); // debug
+      drawLogic(expr, mount); // pass the DOM node (removes selector ambiguity)
+    };
+
+    button.addEventListener('click', (e) => { e.preventDefault(); render(); });
+  });
+</script>-->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+<script type="module">
+  const API = "https://polycode-ba.onrender.com";
+  const $ = s => document.querySelector(s);
+  const exprEl = $("#expr"), varsEl = $("#vars"), resEl = $("#result");
+  const includeTableEl = $("#includeTable"), ttCard = $("#ttCard"), ttEl = $("#tt");
+  const gray = n => n ^ (n >> 1);
+
+  $("#btnClear").addEventListener("click", () => {
+    exprEl.value = ""; varsEl.value = "";
+    resEl.innerHTML = ""; ttCard.style.display = "none"; ttEl.innerHTML = "";
+  });
+
+  /* ---------- KMAP parsing (unchanged) ---------- */
+  function parseKmapCommand(s){
+    const mHdr = /^kmap\s+([A-Za-z0-9_]+(?:\s*,\s*[A-Za-z0-9_]+){1,3})\s*[:=]\s*(.+)$/i.exec(s.trim());
+    if (!mHdr) return null;
+    const vars = mHdr[1].split(",").map(x=>x.trim());
+    let rhs = mHdr[2].trim();
+
+    let dontCares = [];
+    const mDC = /(?:[,;]\s*d\s*\(\s*([0-9,\s]+)\s*\)\s*)$/i.exec(rhs);
+    if (mDC) { dontCares = mDC[1].split(",").map(x=>+x.trim()).filter(Number.isFinite); rhs = rhs.slice(0, mDC.index).trim(); }
+
+    const parseList = str => str.split(",").map(x=>+x.trim()).filter(Number.isFinite);
+    const reSigma = /^(?:Σ|sigma|s)\s*m?\s*\(\s*([0-9,\s]+)\s*\)$/i;
+    const rePi    = /^(?:Π|pi|prod|p)\s*m?\s*\(\s*([0-9,\s]+)\s*\)$/i;
+
+    if (reSigma.test(rhs)) {
+      const mm = reSigma.exec(rhs);
+      const minterms = parseList(mm[1]);
+      return { vars, mode:"ones", minterms, dontCares };
+    }
+    if (rePi.test(rhs)) {
+      const mm = rePi.exec(rhs);
+      const maxterms = parseList(mm[1]);
+      const n = vars.length, U = Array.from({length:1<<n},(_,i)=>i);
+      const bad = new Set([...maxterms, ...dontCares]);
+      const minterms = U.filter(i => !bad.has(i));
+      return { vars, mode:"zeros", maxterms, minterms, dontCares };
+    }
+    if (/^[0-9,\s]+$/.test(rhs)) {
+      const minterms = parseList(rhs);
+      return { vars, mode:"ones", minterms, dontCares };
+    }
+    return { vars, expr: rhs, dontCares };
+  }
+
+  /* ---------- Teaching-safe simple circuit renderer ---------- */
+  // Layout: strict columns, fixed spacing, straight wires into gate faces.
+/* ---------- Teaching-safe simple circuit renderer (no crossings, 90° only) ---------- */
+function renderSimpleCircuitSVG(net, caption = "") {
+  const GW=64, GH=40, PIN=10, XSTEP=140, YSTEP=70, PAD=24;
+  const textSize = 14;
+
+  // Build nodes/graph
+  const nodes = new Map(), succ = new Map(), pred = new Map();
+  const addNode = n => { nodes.set(n.id, n); succ.has(n.id)||succ.set(n.id,[]); pred.has(n.id)||pred.set(n.id,[]); };
+  net.gates.forEach(g => addNode({...g}));
+  net.inputs.forEach(i => addNode({ id:i.id, type:"IN", ins:[], label:i.label }));
+  // OUT node present for topology but we'll not draw its incoming wire
+  addNode({ id: net.output, type:"OUT", ins: nodes.get(net.output)?.ins || [] });
+  nodes.forEach(n => (n.ins||[]).forEach(p => { if(!nodes.has(p)) addNode({id:p,type:"WIRE",ins:[]}); succ.get(p).push(n.id); pred.get(n.id).push(p); }));
+
+  // Longest-path levels
+  const level = new Map();
+  const lev = id => level.has(id) ? level.get(id)
+    : level.set(id, (["IN","VCC","GND"].includes(nodes.get(id)?.type)) ? 0
+      : Math.max(0,...(pred.get(id)||[]).map(lev))+1).get(id);
+  nodes.forEach((_,id)=>lev(id));
+
+  // Pack per level
+  const layers=[]; level.forEach((v,id)=> (layers[v]||(layers[v]=[])).push(id));
+  const abs = new Map();
+  layers.forEach((ids, lx) => ids.forEach((id, ly) => {
+    abs.set(id, { x: PAD + lx*XSTEP, y: PAD + ly*YSTEP });
+  }));
+
+  const width  = (layers.length+1)*XSTEP + 2*PAD;
+  const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?28:0);
+  const pinY = (y,n,k)=> y + GH*((k+1)/(Math.max(1,n)+1));
+
+  // Gate glyphs (classic)
+  const bubble = (x,y,r=6)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="currentColor"/>`;
+  const gAND = (x,y)=>`<path d="M${x},${y} H${x+GW/2} A${GH/2},${GH/2} 0 0 1 ${x+GW/2},${y+GH} H${x} Z" fill="none" stroke="currentColor"/>`;
+  const gOR  = (x,y)=>`
+    <path d="M${x+10},${y}
+             C ${x+GW*0.55},${y} ${x+GW*0.78},${y+GH/2} ${x+GW-10},${y+GH/2}
+             C ${x+GW*0.78},${y+GH/2} ${x+GW*0.55},${y+GH} ${x+10},${y+GH}
+             C ${x+4},${y+GH-10} ${x+4},${y+10} ${x+10},${y}"
+          fill="none" stroke="currentColor"/>`;
+  const gXOR = (x,y)=> gOR(x,y) + `<path d="M${x+4},${y} C ${x+GW*0.32},${y} ${x+GW*0.38},${y+GH/2} ${x+4},${y+GH}"
+                                   fill="none" stroke="currentColor"/>`;
+  const gNOT = (x,y)=>`<path d="M${x},${y} L${x},${y+GH} L${x+GW-14},${y+GH/2} Z" fill="none" stroke="currentColor"/>` + bubble(x+GW-6, y+GH/2, 6);
+  const gNAND= (x,y)=> gAND(x,y) + bubble(x+GW, y+GH/2, 6);
+  const gNOR = (x,y)=> gOR(x,y)  + bubble(x+GW, y+GH/2, 6);
+  const gXNOR= (x,y)=> gXOR(x,y) + bubble(x+GW, y+GH/2, 6);
+
+  function drawGate(n){
+    if (n.type==="WIRE" || n.type==="OUT") return "";
+    const p = abs.get(n.id);
+    const nIns=(n.ins||[]).length||1;
+    const pins = Array.from({length:nIns},(_,k)=>{
+      const py = pinY(p.y, nIns, k);
+      return `<line x1="${p.x-10}" y1="${py}" x2="${p.x}" y2="${py}" stroke="currentColor"/>`;
+    }).join("");
+
+    if (n.type === "IN") {
+      const r=9, cx=p.x+r, cy=p.y+r;
+      return `<g class="gate IN">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="currentColor"/>
+        <line x1="${cx+r}" y1="${cy}" x2="${cx+r+PIN}" y2="${cy}" stroke="currentColor"/>
+        <text x="${p.x-8}" y="${cy+5}" text-anchor="end" class="mono" font-size="${textSize}" fill="currentColor">${n.label||n.id}</text>
+      </g>`;
+    }
+
+    const body = {
+      "AND": gAND(p.x,p.y), "OR": gOR(p.x,p.y), "XOR": gXOR(p.x,p.y), "NOT": gNOT(p.x,p.y),
+      "NAND": gNAND(p.x,p.y), "NOR": gNOR(p.x,p.y), "XNOR": gXNOR(p.x,p.y)
+    }[n.type] || `<rect x="${p.x}" y="${p.y}" width="${GW}" height="${GH}" rx="10" fill="none" stroke="currentColor"/>`;
+
+    return `<g class="gate ${n.type}">${pins}${body}</g>`;
+  }
+
+  const outX = id => {
+    const t = nodes.get(id)?.type || "WIRE";
+    const p = abs.get(id);
+    if (t === "IN"){ const r = 9; return p.x + r + r + PIN; }
+    return p.x + GW;
+  };
+
+  // H-only (same row) OR H–V–H via a spine left of the destination gate column.
+  function wiresTo(tid){
+    const t   = nodes.get(tid);
+    const dst = abs.get(tid);
+    const xGateLeft = dst.x;          // gate’s left face
+    const SPINE = xGateLeft - 28;     // routing spine (guaranteed left of body)
+    const ins = (t.ins || []);
+
+    return ins.map((sid, k) => {
+      const sp = abs.get(sid);
+      const y1 = (nodes.get(sid)?.type === "IN") ? sp.y + 9 : sp.y + GH/2;
+      const y2 = pinY(dst.y, ins.length || 1, k);
+      const x1 = outX(sid);
+
+      if (Math.abs(y1 - y2) < 1e-6) {
+        // same row: straight into pin (no unnecessary bends)
+        return `M${x1},${y1} H${xGateLeft}`;
+      }
+      // Route outside symbols: H to spine, V to target row, H into pin
+      return `M${x1},${y1} H${SPINE} V${y2} H${xGateLeft}`;
+    }).join(" ");
+  }
+
+  const gatesSVG = Array.from(nodes.values()).map(drawGate).join("");
+  // Draw all wires EXCEPT into the OUT node (we’ll make one final output line)
+  const wiresSVG = Array.from(nodes.values())
+    .filter(n => (n.ins||[]).length && n.id !== net.output)
+    .map(n=>`<path d="${wiresTo(n.id)}" stroke="currentColor" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)
+    .join("");
+
+  // Single clean output line to the lamp
+  const lastSrc = (pred.get(net.output) || [])[0];
+  const lastSrcPos = abs.get(lastSrc) || { x: width-80, y: height/2 };
+  const yOut = (nodes.get(lastSrc)?.type === "IN") ? lastSrcPos.y + 9 : lastSrcPos.y + GH/2;
+  const xOutStart = outX(lastSrc);
+  const lampX = (abs.get(net.output)?.x || (PAD + (layers.length)*XSTEP)) + GW + 50;
+  const lampY = (abs.get(net.output)?.y || (height/2)) + GH/2;
+
+  const outputLine = `<path d="M${xOutStart},${yOut} H${lampX-36}" stroke="currentColor" fill="none" stroke-width="2.6" stroke-linecap="round" />`;
+  const lamp = `
+    <g transform="translate(${lampX-36}, ${lampY-18})" stroke="currentColor" fill="none">
+      <path d="M0,18 C0,8 8,0 18,0 C28,0 36,8 36,18 C36,26 31,31 27,34 L24,42 H12 L9,34 C5,31 0,26 0,18 Z" />
+      <circle cx="18" cy="18" r="12" />
+    </g>`;
+
+  const style = `
+    <style>
+      .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+      text { font-size: ${textSize}px; }
+    </style>`;
+
+  const captionSVG = caption ? `<text x="${PAD}" y="${height-8}" class="mono" fill="currentColor">F = ${caption}</text>` : "";
+
+  return `<svg viewBox="0 0 ${width+160} ${height}" width="100%" preserveAspectRatio="xMinYMin meet">
+    ${style}
+    <g>${gatesSVG}</g>
+    <g>${wiresSVG}${outputLine}</g>
+    ${lamp}
+    ${captionSVG}
+  </svg>`;
+}
+
+
+  /* ---------- Existing: Simplify / K-map / TT ---------- */
+  $("#btnSimplify").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    if (!text) { alert("Enter an expression or a kmap command"); return; }
+
+    // K-map command?
+    const km = parseKmapCommand(text);
+    if (km) {
+      ttCard.style.display = "none"; ttEl.innerHTML = "";
+      resEl.textContent = "Building K-map…";
+      try {
+        let displayMins = km.minterms;
+        if (km.expr) {
+          const r1 = await fetch(API + "/api/ba/simplify", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
+          });
+          const j1 = await r1.json();
+          if (!j1.ok) throw new Error(j1.error || "simplify error");
+          displayMins = j1.minterms;
         }
-        i=j; continue;
-      }
-      if (c==="'"){ t.push({t:TOK.SNOT}); i++; continue; }
-      throw new Error('Unexpected character: '+c);
-    }
-    return t;
-  }
+        const body = km.mode === "zeros"
+          ? { vars: km.vars, mode: "zeros", maxterms: km.maxterms, full: true }
+          : { vars: km.vars, mode: "ones",  minterms: displayMins, full: true };
 
-  function injectImplicitAnd(tokens){
-    const out=[]; const end=tk=>tk.t===TOK.VAR||tk.t===TOK.R||tk.t===TOK.SNOT;
-    const start=tk=>tk.t===TOK.VAR||tk.t===TOK.L||tk.t===TOK.NOTP;
-    for (let i=0;i<tokens.length;i++){
-      const tk=tokens[i];
-      if (out.length && start(tk) && end(out[out.length-1])) out.push({t:TOK.AND});
-      out.push(tk);
-    }
-    return out;
-  }
+        const r = await fetch(API + "/api/ba/kmap", {
+          method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body)
+        });
+        const j = await r.json(); if (!j.ok) throw new Error(j.error || "kmap error");
 
-  function toPostfix(tokens){
-    const out=[], op=[];
-    const prec = t => t===TOK.NOTP?3 : t===TOK.AND?2 : t===TOK.OR?1 : 0;
-    const flushN=()=>{ while(op.length && op[op.length-1].t===TOK.NOTP) out.push(op.pop()); };
-    for (const tk of tokens){
-      if (tk.t===TOK.VAR){ out.push(tk); flushN(); continue; }
-      if (tk.t===TOK.SNOT){ out.push({t:TOK.NOTP}); continue; }
-      if (tk.t===TOK.NOTP){ op.push(tk); continue; }
-      if (tk.t===TOK.L){ op.push(tk); continue; }
-      if (tk.t===TOK.R){
-        while (op.length && op[op.length-1].t!==TOK.L) out.push(op.pop());
-        if (!op.length) throw new Error('Mismatched )');
-        op.pop(); flushN(); continue;
-      }
-      if (tk.t===TOK.AND || tk.t===TOK.OR){
-        while (op.length){
-          const top=op[op.length-1];
-          if (top.t===TOK.L) break;
-          if (prec(top)>=prec(tk.t)) out.push(op.pop()); else break;
-        }
-        op.push(tk); continue;
-      }
-      throw new Error('Bad token stream');
-    }
-    while (op.length){
-      const t=op.pop(); if (t.t===TOK.L||t.t===TOK.R) throw new Error('Mismatched ()'); out.push(t);
-    }
-    return out;
-  }
-
-  function astFromPostfix(pf){
-    const st=[];
-    for (const tk of pf){
-      if (tk.t===TOK.VAR){ st.push({type:'VAR', name:tk.v}); continue; }
-      if (tk.t===TOK.NOTP){ const a=st.pop(); if(!a) throw 'Invalid expression'; st.push({type:'NOT', a}); continue; }
-      if (tk.t===TOK.AND || tk.t===TOK.OR){
-        const b=st.pop(), a=st.pop(); if(!a||!b) throw 'Invalid expression';
-        st.push({type: tk.t===TOK.AND?'AND':'OR', a,b}); continue;
-      }
-      throw 'Invalid expression';
-    }
-    if (st.length!==1) throw 'Invalid expression';
-    return st[0];
-  }
-
-  // Flatten associative AND/OR to n-ary nodes (no algebraic simplification).
-  function assocify(node){
-    if (!node) return node;
-    if (node.type==='VAR') return node;
-    if (node.type==='NOT'){ node.a = assocify(node.a); return node; }
-    if (node.type==='AND' || node.type==='OR'){
-      const kind=node.type, inputs=[];
-      (function collect(n){
-        n = assocify(n);
-        if (n.type===kind){
-          const kids = n.inputs || [n.a, n.b];
-          kids.forEach(collect);
-        } else { inputs.push(n); }
-      })(node);
-      return { type:kind, inputs };
-    }
-    return node;
-  }
-
-  function parse(expr){
-    const t1 = tokenizeExpr(norm(expr));
-    const t2 = injectImplicitAnd(t1);
-    const pf = toPostfix(t2);
-    return assocify(astFromPostfix(pf));
-  }
-
-  // ---------------- Layout ----------------
-  function depth(n){
-    if (n.type==='VAR') return 0;
-    if (n.type==='NOT') return 1 + depth(n.a);
-    if (n.type==='AND' || n.type==='OR'){
-      const kids = n.inputs || [n.a, n.b];
-      return 1 + Math.max(...kids.map(depth));
-    }
-    return 0;
-  }
-
-  function collectVars(ast){
-    const set=new Set(), list=[];
-    (function walk(n){
-      if (!n) return;
-      if (n.type==='VAR'){ if(!set.has(n.name)){ set.add(n.name); list.push(n.name);} return; }
-      if (n.type==='NOT') walk(n.a);
-      else (n.inputs || [n.a,n.b]).forEach(walk);
-    })(ast);
-    list.sort();
-    return list;
-  }
-
-  function layout(ast){
-    const xStep=170, margin=70, yStart=80, yGap=52;
-    const vars=collectVars(ast);
-    const varY = new Map(vars.map((v,i)=>[v, yStart+i*yGap]));
-    const maxD = depth(ast);
-
-    (function place(n, d){
-      n.depth = (n.type==='VAR'?0:d);
-      if (n.type==='VAR'){ n.x = margin; n.y = varY.get(n.name); return; }
-      if (n.type==='NOT'){ place(n.a, d-1); n.x = margin + d*xStep; n.y = n.a.y; return; }
-      const kids = n.inputs || [];
-      kids.forEach(k => place(k, d-1));
-      n.x = margin + d*xStep;
-      n.y = kids.length ? (kids.reduce((s,k)=>s+k.y,0)/kids.length) : (yStart);
-    })(ast, maxD);
-
-    return {maxD, xStep, margin, yStart, yGap, varY};
-  }
-
-  // ---------------- Geometry & routing ----------------
-  function gateBox(n){
-    if (n.type==='VAR') return null;
-    if (n.type==='NOT') return {x1:n.x-22, y1:n.y-22, x2:n.x+30, y2:n.y+22};
-    const k = (n.inputs ? n.inputs.length : 2);
-    const step = 28, h = Math.max(step*(k-1)+50, 50);
-    if (n.type==='AND') return {x1:n.x-22, y1:n.y-h/2, x2:n.x+62, y2:n.y+h/2};
-    if (n.type==='OR'){
-      const xL = n.x - 12, xR = n.x + 70;
-      return {x1:xL, y1:n.y - h/2 - 6, x2:xR, y2:n.y + h/2 + 6};
-    }
-  }
-
-  function intersectsH(y, x1, x2, box){
-    if (!box) return false;
-    const lo=Math.min(x1,x2), hi=Math.max(x1,x2);
-    return (y>=box.y1 && y<=box.y2) && !(hi<=box.x1 || lo>=box.x2);
-  }
-
-  // Straight segment unless it would hit a gate; then 2-bend detour (under the obstacle).
-  function routeSegment(p1, p2, boxes){
-    if (p1.y === p2.y){
-      const hits = boxes.filter(b => intersectsH(p1.y, p1.x, p2.x, b));
-      if (!hits.length) return {type:'line', pts:[p1.x,p1.y,p2.x,p2.y]};
-      const pad=20;
-      const detourY = Math.max(...hits.map(b=>b.y2)) + pad;
-      const detourX = Math.min(p2.x-20, Math.max(...hits.map(b=>b.x2))+pad);
-      return {type:'poly', pts:[p1.x,p1.y, detourX,p1.y, detourX,detourY, p2.x,detourY, p2.x,p2.y]};
-    }
-    // vertical join: go to a safe X near target, then up/down, then into target
-    const pad=18, detourX = p2.x - pad;
-    return {type:'poly', pts:[p1.x,p1.y, detourX,p1.y, detourX,p2.y, p2.x,p2.y]};
-  }
-
-  function ports(n){
-    if (n.type==='VAR') return { out:{x:n.x+12, y:n.y} };
-    if (n.type==='NOT') return { in1:{x:n.x-20,y:n.y}, out:{x:n.x+28,y:n.y} };
-
-    const k = (n.inputs ? n.inputs.length : 2);
-    const step = 28;
-    const topY = n.y - step*(k-1)/2;
-
-    if (n.type==='AND'){
-      const ins = {};
-      for (let i=0;i<k;i++) ins['in'+i] = {x:n.x-22, y: topY + i*step};
-      return Object.assign(ins, { out:{x:n.x+62, y:n.y} });
-    }
-    if (n.type==='OR'){
-      // Flat left wall at xL, output at nose tip xR
-      const xL = n.x - 12, xR = n.x + 70;
-      const ins = {};
-      for (let i=0;i<k;i++) ins['in'+i] = {x:xL, y: topY + i*step};
-      return Object.assign(ins, { out:{x:xR, y:n.y} });
-    }
-  }
-
-  // ---------------- Render ----------------
-  function renderNoBend(expr, mount){
-    const el = (typeof mount==='string') ? document.querySelector(mount) : mount;
-    if (!el) throw new Error('Mount element not found');
-
-    const ast = parse(expr);
-    const L = layout(ast);
-
-    // collect gate boxes
-    const boxes=[];
-    (function collect(n){
-      if (!n) return;
-      if (n.type!=='VAR'){ const b=gateBox(n); if (b) boxes.push(b); }
-      if (n.type==='NOT') collect(n.a);
-      else (n.inputs||[n.a,n.b]).forEach(collect);
-    })(ast);
-
-    const W = (L.margin + (L.maxD+1)*L.xStep + 220);
-    const H = Math.max(L.yStart + (L.varY.size||1)*L.yGap + 100, 260);
-
-    const NS='http://www.w3.org/2000/svg';
-    const svg=document.createElementNS(NS,'svg');
-    svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
-    svg.setAttribute('width','100%');
-    svg.setAttribute('height',`${H}px`);
-    svg.style.background='#0b0f13';
-    svg.style.borderRadius='12px';
-
-    const style=document.createElementNS(NS,'style');
-    style.textContent = `
-      .gate{ fill:#1e2024; stroke:#9ecbff; stroke-width:2 }
-      .wire{ stroke:#e9edf3; stroke-width:2; fill:none; stroke-linecap:butt } /* exact wire ends */
-      .node{ fill:#e9edf3 }
-      .pin { fill:#9ecbff; font:600 14px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif }
-      .label{ fill:#b8c1cd; font:12px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif }
-    `;
-    svg.appendChild(style);
-
-    // Inputs (labels + pins)
-    const vars = Array.from(L.varY.keys()).sort();
-    vars.forEach(v=>{
-      const y=L.varY.get(v), pinX=34;
-      const t=document.createElementNS(NS,'text'); t.setAttribute('x','18'); t.setAttribute('y', y+4); t.setAttribute('class','pin'); t.textContent=v; svg.appendChild(t);
-      const c=document.createElementNS(NS,'circle'); c.setAttribute('class','node'); c.setAttribute('cx', pinX); c.setAttribute('cy', y); c.setAttribute('r','3'); svg.appendChild(c);
-    });
-
-    // Gate drawing
-    function drawGate(n){
-      if (n.type==='VAR') return;
-
-      if (n.type==='NOT'){
-        const p=document.createElementNS(NS,'path');
-        p.setAttribute('class','gate');
-        p.setAttribute('d', `M ${n.x-20} ${n.y-20} L ${n.x-20} ${n.y+20} L ${n.x+20} ${n.y} Z`);
-        svg.appendChild(p);
-        const bub=document.createElementNS(NS,'circle');
-        bub.setAttribute('class','gate'); bub.setAttribute('cx', n.x+28); bub.setAttribute('cy', n.y); bub.setAttribute('r','6'); bub.setAttribute('fill','#0b0f13'); svg.appendChild(bub);
-        const lbl=document.createElementNS(NS,'text'); lbl.setAttribute('class','label'); lbl.setAttribute('x', n.x-10); lbl.setAttribute('y', n.y-26); lbl.textContent='NOT'; svg.appendChild(lbl);
-        drawGate(n.a); return;
-      }
-
-      const kids = n.inputs || [n.a,n.b];
-      const k = kids.length || 2;
-      const step = 28;
-      const h = Math.max(step*(k-1)+50, 50);
-      const top = n.y - h/2, bot = n.y + h/2;
-
-      const path=document.createElementNS(NS,'path');
-      path.setAttribute('class','gate');
-
-      if (n.type==='AND'){
-        path.setAttribute('d',
-          `M ${n.x-22} ${top}
-           L ${n.x+20} ${top}
-           C ${n.x+65} ${top}, ${n.x+65} ${bot}, ${n.x+20} ${bot}
-           L ${n.x-22} ${bot} Z`);
-      }else{ // OR with flat left wall
-        const xL = n.x - 12;
-        path.setAttribute('d',
-          `M ${xL} ${top}
-           C ${n.x+18} ${top}, ${n.x+48} ${top}, ${n.x+66} ${top+15}
-           C ${n.x+84} ${n.y},   ${n.x+84} ${n.y+30}, ${n.x+66} ${bot+5}
-           C ${n.x+48} ${bot+20}, ${n.x+18} ${bot+20}, ${xL} ${bot}
-           L ${xL} ${top} Z`);
-      }
-      svg.appendChild(path);
-
-      const lbl=document.createElementNS(NS,'text');
-      lbl.setAttribute('class','label'); lbl.setAttribute('x', n.x-6); lbl.setAttribute('y', top-6); lbl.textContent=n.type;
-      svg.appendChild(lbl);
-
-      kids.forEach(drawGate);
-    }
-    drawGate(ast);
-
-    // Wiring
-    function drawWireSeg(p1, p2){
-      const r = routeSegment(p1, p2, boxes);
-      if (r.type==='line'){
-        const ln=document.createElementNS(NS,'line'); ln.setAttribute('class','wire');
-        ln.setAttribute('x1', r.pts[0]); ln.setAttribute('y1', r.pts[1]); ln.setAttribute('x2', r.pts[2]); ln.setAttribute('y2', r.pts[3]); svg.appendChild(ln);
-      } else {
-        const pl=document.createElementNS(NS,'polyline'); pl.setAttribute('class','wire');
-        pl.setAttribute('points', r.pts.join(' ')); svg.appendChild(pl);
-      }
+        resEl.innerHTML = `
+          <div class="mono" style="margin-bottom:6px">${j.mode==="zeros" ? `Solution (POS): ${j.simplified}` : `Solution (SOP): ${j.simplified}`}</div>
+          <!-- K-map SVG could be injected here (omitted to keep focus on circuit clarity) -->
+        `;
+      } catch (e) { resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+      return;
     }
 
-    (function wire(n){
-      if (n.type==='VAR') return;
-
-      if (n.type==='NOT'){
-        const p = ports(n), a = ports(n.a);
-        drawWireSeg(a.out, p.in1);
-        wire(n.a); return;
-      }
-
-      const ps = ports(n);
-      const kids = n.inputs || [n.a,n.b];
-      kids.forEach((kid, i) => {
-        const pk = ports(kid);
-        drawWireSeg(pk.out, ps['in'+i]);
-        wire(kid);
+    // Otherwise, normal simplify flow
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
+    resEl.textContent = "Working…";
+    try{
+      const r = await fetch(API + "/api/ba/simplify", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ expr: text, vars, includeTable: includeTableEl.checked })
       });
-    })(ast);
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error||"error");
+      const { vars:V, minterms, maxterms, sop, pos, simplifiedSOP } = j;
+      resEl.innerHTML = `
+        <div>Vars: ${V.join(", ")}</div>
+        <div>Σ m: ${sop}</div>
+        <div>Π M: ${pos}</div>
+        <div>Simplified (SOP): <b>${simplifiedSOP}</b></div>
+        <div class="muted">Minterms: [${minterms.join(", ")}] — Maxterms: [${maxterms.join(", ")}]</div>
+      `;
+      if (includeTableEl.checked && j.table){
+        const rows = j.table;
+        const cols = V.map(v=>`<th>${v}</th>`).join("") + "<th>f</th>";
+        const trs = rows.map(r=>{
+          const tds = V.map(v=>`<td>${r.env[v]?1:0}</td>`).join("") + `<td>${r.out}</td>`;
+          return `<tr>${tds}</tr>`;
+        }).join("");
+        ttEl.innerHTML = `<table><thead><tr>${cols}</tr></thead><tbody>${trs}</tbody></table>`;
+        ttCard.style.display="";
+      } else { ttCard.style.display="none"; ttEl.innerHTML=""; }
+    }catch(e){
+      resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
+      ttCard.style.display="none"; ttEl.innerHTML="";
+    }
+  });
 
-    // output wire to Y
-    const rootOut = ports(ast).out;
-    drawWireSeg(rootOut, {x: W-140, y: rootOut.y});
-    const ypin=document.createElementNS(NS,'circle'); ypin.setAttribute('class','node');
-    ypin.setAttribute('cx', W-140); ypin.setAttribute('cy', rootOut.y); ypin.setAttribute('r','3'); svg.appendChild(ypin);
-    const ylbl=document.createElementNS(NS,'text'); ylbl.setAttribute('class','pin'); ylbl.setAttribute('x', W-130); ylbl.setAttribute('y', rootOut.y+4); ylbl.textContent='Y'; svg.appendChild(ylbl);
-
-    // input wires from pins → first var node
-    const pinX=34, varX=L.margin;
-    Array.from(L.varY.entries()).forEach(([v, y])=>{
-      drawWireSeg({x:pinX, y}, {x:varX, y});
+  /* ---------- NEW buttons: Simplify & Draw / Simply Draw ---------- */
+  async function fetchNetlist(expr, vars, style="mixed") {
+    const r = await fetch(API + "/api/ba/netlist", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ expr, vars, style })
     });
-
-    el.innerHTML=''; el.appendChild(svg);
-    return svg;
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "netlist error");
+    return j;
   }
 
-  // expose (avoid clobber)
-  if (!window.renderNoBend) window.renderNoBend = renderNoBend;
-})();
+  $("#btnSimplifyDraw").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) { alert("Enter an expression"); return; }
+    resEl.textContent = "Simplifying…";
+    try {
+      const r1 = await fetch(API + "/api/ba/simplify", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ expr: text, vars, includeTable: false })
+      });
+      const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error || "simplify error");
+      const net = await fetchNetlist(j1.simplifiedSOP || j1.simplified || text, vars, "mixed");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, j1.simplifiedSOP || j1.simplified || text);
+    } catch (e) { resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+
+  $("#btnSimplyDraw").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) { alert("Enter an expression"); return; }
+    resEl.textContent = "Drawing…";
+    try {
+      const net = await fetchNetlist(text, vars, "mixed");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, text);
+    } catch (e) { resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+
+  // Keep NAND/NOR buttons for parity (they’ll also use the simple renderer)
+  $("#btnCircuitNAND").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) return alert("Enter an expression");
+    resEl.textContent = "Drawing (NAND)…";
+    try {
+      const net = await fetchNetlist(text, vars, "nand");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, text + "  (NAND)");
+    } catch(e){ resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+  $("#btnCircuitNOR").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) return alert("Enter an expression");
+    resEl.textContent = "Drawing (NOR)…";
+    try {
+      const net = await fetchNetlist(text, vars, "nor");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, text + "  (NOR)");
+    } catch(e){ resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+
+  /* ---------- (Optional) K-map groups button stays wired to your API ---------- */
+  $("#btnKmapGroups").addEventListener("click", () => {
+    ttCard.style.display="none"; ttEl.innerHTML="";
+    resEl.textContent = "Analyzing K-map… (renderer simplified for teaching)";
+  });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script src="./js/boolean-nobend.js" defer></script>
+<script>
+  // Optional: normalize common “smart” characters so users can paste from docs
+  const normalizeExpr = (s) => String(s||'')
+    .replace(/[’‘`´]/g, "'")  // smart → straight apostrophe
+    .replace(/[·•⋅]/g, '·')   // bullets → middle dot
+    .replace(/\s+/g, ' ')     // collapse spaces
+    .trim();
+
+  function drawFromInput() {
+    const input = document.getElementById('logicExpr');
+    const mount = document.getElementById('logicccMount');
+    const err   = document.getElementById('err');
+    const expr  = normalizeExpr(input.value);
+
+    err.textContent = '';
+    mount.innerHTML = '';
+
+    if (!expr) {
+      err.textContent = 'Please enter a Boolean expression.';
+      return;
+    }
+    try {
+      // renderNoBend comes from boolean-nobend.js
+      renderNoBend(expr, mount);
+    } catch (e) {
+      console.error(e);
+      err.textContent = 'Invalid expression. Use + (OR), ·/*/& (AND), apostrophe (\' ) or ~ / NOT (NOT), and parentheses.';
+    }
+  }
+
+  // Wire up
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('drawBtn');
+    const input = document.getElementById('logicExpr');
+
+    btn.addEventListener('click', drawFromInput);
+
+    // Press Enter to draw
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        drawFromInput();
+      }
+    });
+
+    // Optional: initial demo value
+    input.value = "A + B'C";
+    drawFromInput();
+  });
+</script>
+
+  
+  
+</body>
+</html>
