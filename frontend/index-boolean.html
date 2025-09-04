@@ -495,6 +495,7 @@ function renderSimpleCircuitSVG(net, caption = "") {
 <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
 
 
+
 <script>
 const gateStroke = '#9ecbff';
 const wireColor  = '#e9edf3';
@@ -502,7 +503,6 @@ const fillPanel  = '#1e2024';
 const bg         = '#0b0f13';
 const font       = 'Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial';
 
-/* ---- gate SVG sources (plain strings) ---- */
 const NOT_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="34">
   <path d="M6 4 L6 30 L40 17 Z" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
@@ -521,90 +521,61 @@ const OR_SVG = `
         transform="translate(0,-8)" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
 </svg>`;
 
-/* ---- DOT: HTML-like labels with ports; images referenced by filename ---- */
+// We use image= on nodes (supported by viz.js "images" option), and separate point ports.
 const dot = `
 digraph G {
   graph [rankdir=LR, bgcolor="${bg}", splines=ortho, nodesep="0.6", ranksep="0.9"];
-  node  [shape=plaintext, fontname="${font}", color="${gateStroke}"];
   edge  [color="${wireColor}", penwidth=2, arrowhead=none];
+  node  [fontname="${font}", color="${gateStroke}", fontcolor="${gateStroke}"];
 
-  // Inputs/Output (simple circle-like labels)
-  A [label=<
-    <TABLE BORDER="0" CELLBORDER="1" COLOR="${gateStroke}" CELLPADDING="6"><TR>
-      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>A</B></FONT></TD>
-    </TR></TABLE>
-  >];
+  // inputs/outputs
+  A [shape=circle, label="A", fontcolor="${wireColor}"];
+  B [shape=circle, label="B", fontcolor="${wireColor}"];
+  C [shape=circle, label="C", fontcolor="${wireColor}"];
+  Y [shape=circle, label="Y", fontcolor="${wireColor}"];
 
-  B [label=<
-    <TABLE BORDER="0" CELLBORDER="1" COLOR="${gateStroke}" CELLPADDING="6"><TR>
-      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>B</B></FONT></TD>
-    </TR></TABLE>
-  >];
+  // --- NOT gate group (image + ports) ---
+  NOT_img  [shape=none, label="", image="not.svg", imagescale=true, fixedsize=true, width=0.9, height=0.5];
+  NOT_in   [shape=point, label="", width=0.02];
+  NOT_out  [shape=point, label="", width=0.02];
+  // keep them in a row
+  {rank=same; NOT_in -> NOT_img [style=invis, weight=100, arrowhead=none];
+              NOT_img -> NOT_out [style=invis, weight=100, arrowhead=none];}
 
-  C [label=<
-    <TABLE BORDER="0" CELLBORDER="1" COLOR="${gateStroke}" CELLPADDING="6"><TR>
-      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>C</B></FONT></TD>
-    </TR></TABLE>
-  >];
+  // --- AND gate group ---
+  AND_img  [shape=none, label="", image="and.svg", imagescale=true, fixedsize=true, width=1.0, height=0.55];
+  AND_in1  [shape=point, label="", width=0.02];
+  AND_in2  [shape=point, label="", width=0.02];
+  AND_out  [shape=point, label="", width=0.02];
+  {rank=same; AND_in1 -> AND_img [style=invis, weight=100, arrowhead=none];
+              AND_img -> AND_out [style=invis, weight=100, arrowhead=none];}
+  // put AND_in2 under AND_in1: use same x via an invisible edge with constraint=false
+  AND_in2 -> AND_in1 [style=invis, constraint=false];
 
-  Y [label=<
-    <TABLE BORDER="0" CELLPADDING="6" CELLBORDER="1" COLOR="${gateStroke}"><TR>
-      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>Y</B></FONT></TD>
-    </TR></TABLE>
-  >];
+  // --- OR gate group ---
+  OR_img   [shape=none, label="", image="or.svg", imagescale=true, fixedsize=true, width=1.05, height=0.75];
+  OR_in1   [shape=point, label="", width=0.02];
+  OR_in2   [shape=point, label="", width=0.02];
+  OR_out   [shape=point, label="", width=0.02];
+  {rank=same; OR_in1 -> OR_img [style=invis, weight=100, arrowhead=none];
+              OR_img -> OR_out [style=invis, weight=100, arrowhead=none];}
+  OR_in2 -> OR_in1 [style=invis, constraint=false];
 
-  // NOT with ports in/out
-  NOT [label=<
-    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
-      <TR>
-        <TD PORT="in"  WIDTH="8"></TD>
-        <TD PORT="img" FIXEDSIZE="TRUE" WIDTH="64" HEIGHT="34"><IMG SRC="not.svg" SCALE="TRUE"/></TD>
-        <TD PORT="out" WIDTH="8"></TD>
-      </TR>
-      <TR><TD></TD><TD><FONT COLOR="${gateStroke}" POINT-SIZE="12">NOT</FONT></TD><TD></TD></TR>
-    </TABLE>
-  >];
+  // column ranks
+  {rank=same; A; B; C}
+  {rank=same; NOT_in; NOT_img; NOT_out; AND_in1; AND_img; AND_out}
+  {rank=same; OR_in1; OR_img; OR_out; Y}
 
-  // AND with two inputs (in1,in2) and out
-  AND [label=<
-    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
-      <TR>
-        <TD PORT="in1" WIDTH="8"></TD>
-        <TD PORT="img"  FIXEDSIZE="TRUE" WIDTH="90" HEIGHT="44"><IMG SRC="and.svg" SCALE="TRUE"/></TD>
-        <TD PORT="out"  WIDTH="8"></TD>
-      </TR>
-      <TR><TD></TD><TD><FONT COLOR="${gateStroke}" POINT-SIZE="12">AND</FONT></TD><TD></TD></TR>
-      <TR><TD PORT="in2" HEIGHT="0"></TD><TD></TD><TD></TD></TR>
-    </TABLE>
-  >];
+  // wires (all orthogonal)
+  B -> NOT_in;
+  NOT_out -> AND_in1;
+  C -> AND_in2;
+  AND_out -> OR_in2;
+  A -> OR_in1;
+  OR_out -> Y;
+}
+`;
 
-  // OR with two inputs and out
-  OR [label=<
-    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
-      <TR>
-        <TD PORT="in1" WIDTH="8"></TD>
-        <TD PORT="img"  FIXEDSIZE="TRUE" WIDTH="96" HEIGHT="60"><IMG SRC="or.svg" SCALE="TRUE"/></TD>
-        <TD PORT="out"  WIDTH="8"></TD>
-      </TR>
-      <TR><TD></TD><TD><FONT COLOR="${gateStroke}" POINT-SIZE="12">OR</FONT></TD><TD></TD></TR>
-      <TR><TD PORT="in2" HEIGHT="0"></TD><TD></TD><TD></TD></TR>
-    </TABLE>
-  >];
-
-  { rank=same; A; B; C }
-  { rank=same; NOT; AND }
-  { rank=same; OR; Y }
-
-  // Orthogonal, straight wiring (port→port)
-  B      -> NOT:in   [tailport=e, headport=w];
-  NOT:out-> AND:in1  [tailport=e, headport=w];
-  C      -> AND:in2  [tailport=e, headport=w];
-  AND:out-> OR:in2   [tailport=e, headport=w];
-  A      -> OR:in1   [tailport=e, headport=w];
-  OR:out -> Y        [tailport=e, headport=w];
-}`;
-
-/* ---- Render with images injected ---- */
 const viz = new Viz();
 viz.renderSVGElement(dot, {
   images: [
@@ -613,13 +584,11 @@ viz.renderSVGElement(dot, {
     { path: 'or.svg',  data: OR_SVG,  width: 96, height: 60 }
   ]
 }).then(svg => {
-  const mount = document.getElementById('gvMount');
-  mount.innerHTML = '';
-  svg.style.maxWidth = '100%';
-  mount.appendChild(svg);
+  const m = document.getElementById('gvMount');
+  m.innerHTML = ''; svg.style.maxWidth = '100%'; m.appendChild(svg);
 }).catch(err => {
-  document.getElementById('gvMount').textContent = 'Graphviz render error: ' + err.message;
   console.error(err);
+  document.getElementById('gvMount').textContent = 'Graphviz render error: ' + err.message;
 });
 </script>
 
