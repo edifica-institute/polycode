@@ -82,7 +82,8 @@ HELLO ->
         </div>
         
       </section>
-
+      HERE BOSS
+<div id="logicMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
       <aside class="card">
         <h2>Result</h2>
         <div id="result" class="mono"></div>
@@ -98,6 +99,18 @@ HELLO ->
 
 
 
+<!-- In boolean.html -->
+
+
+<script src="./js/boolean-nobend.js" defer></script>
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    // Examples:
+    renderNoBend("A + B'C", "#logicMount");          // Y = A + (B' · C)
+    // renderNoBend("(A + B') · C", "#logicMount");   // Y = (A + B') · C
+    // renderNoBend("NOT A + B*C", "#logicMount");
+  });
+</script>
 
 
 
