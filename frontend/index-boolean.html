@@ -35,15 +35,7 @@
   </style>
 
 
-    <script src="./js/boolean-logic-svg.js"></script>
-
- <script>
-  window.addEventListener('DOMContentLoaded', () => {
-    drawLogic("A + B'C", "#logicMount");
-  });
-</script>
-
-</head>
+    </head>
 <body>
   <header>
     <div class="brand"><img src="./assets/logo.png" alt="polycode"/><div>PolyCode — Boolean Algebra</div></div>
@@ -78,10 +70,10 @@
 
           <h1>Boolean Logic Visualizer</h1>
 
-  <input id="expr" placeholder="Enter Boolean: e.g., A + B'C" />
-  <button onclick="drawLogic(document.getElementById('expr').value, '#logicMount')">
-    Render
-  </button>
+ <input id="logicExpr" placeholder="A + B'C" />
+<button id="renderBtn" type="button">Render</button>
+<div id="logicMount"></div>
+
 
   <div id="logicMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
 
@@ -102,6 +94,58 @@
       <div id="tt"></div>
     </section>
   </main>
+
+
+
+
+
+
+
+
+
+  
+<script src="./js/boolean-logic-svg.js" defer></script>
+<script>
+  // OPTIONAL: if you kept normalizeExpr from earlier patches
+  const normalizeExpr = (s) => String(s||'')
+    .replace(/[’‘`´]/g, "'")
+    .replace(/[·•⋅]/g, '·')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const input  = document.getElementById('logicExpr');
+    const mount  = document.getElementById('logicMount');
+    const button = document.getElementById('renderBtn');
+
+    const render = () => {
+      // If you ever switch to a <textarea> or contenteditable, this still works
+      const val = ('value' in input ? input.value : input.textContent) || '';
+      const expr = normalizeExpr ? normalizeExpr(val) : val.trim();
+
+      console.log('draw expr =', JSON.stringify(expr)); // debug
+      drawLogic(expr, mount); // pass the DOM node (removes selector ambiguity)
+    };
+
+    button.addEventListener('click', (e) => { e.preventDefault(); render(); });
+  });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
   
