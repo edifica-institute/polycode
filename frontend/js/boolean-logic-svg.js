@@ -322,17 +322,47 @@
   function parse(expr){
     return astFromPostfix(toPostfix(tokenize(expr)));
   }
-
-  function drawLogic(expr, mount, opts){
-    const el = typeof mount==='string' ? document.querySelector(mount) : mount;
-    if (!el) throw new Error('Mount element not found');
-    // parse & render
-    const ast = parse(expr);
-    const svg = renderSVG(ast, opts||{});
-    el.innerHTML='';
-    el.appendChild(svg);
-    return svg;
+function resolveMount(mount){
+  if (!mount) return null;
+  if (mount instanceof Element) return mount;
+  // Allow "logicMount" (id) or "#logicMount" (selector)
+  if (typeof mount === 'string') {
+    const sel = mount.startsWith('#') ? mount : `#${mount}`;
+    return document.querySelector(sel);
   }
+  return null;
+}
+
+function normalizeExpr(expr){
+  if (!expr) return '';
+  return String(expr)
+    // Normalize common unicode lookalikes
+    .replace(/[’‘`´]/g, "'")      // smart quotes to straight
+    .replace(/[·•⋅]/g, '·')       // dots to middle-dot
+    .replace(/[×x]/g, '*')        // multiply to *
+    .replace(/\s+/g, ' ')         // collapse spaces
+    .trim();
+}
+
+function drawLogic(expr, mount, opts){
+  const el = resolveMount(mount);
+  if (!el) throw new Error('Mount element not found');
+
+  const clean = normalizeExpr(expr);
+  if (!clean) {
+    el.innerHTML = '<div style="color:#ff8b8b;font:14px system-ui">Enter a Boolean expression…</div>';
+    return;
+  }
+
+  // parse & render
+  const ast = parse(clean);   // your existing parse()
+  const svg = renderSVG(ast, opts||{});
+  el.innerHTML='';
+  el.appendChild(svg);
+  return svg;
+}
+window.drawLogic = drawLogic;
+
 
   // expose
   window.drawLogic = drawLogic;
