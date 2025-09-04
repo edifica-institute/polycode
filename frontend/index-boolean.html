@@ -102,15 +102,7 @@ HELLO ->
 <!-- In boolean.html -->
 
 
-<script src="./js/boolean-nobend.js" defer></script>
-<script>
-  window.addEventListener('DOMContentLoaded', () => {
-    // Examples:
-    renderNoBend("A + B'C", "#logicMount");          // Y = A + (B' · C)
-    // renderNoBend("(A + B') · C", "#logicMount");   // Y = (A + B') · C
-    // renderNoBend("NOT A + B*C", "#logicMount");
-  });
-</script>
+
 
 
 
@@ -604,7 +596,15 @@ function renderSimpleCircuitSVG(net, caption = "") {
 
 
 
-
+<script src="./js/boolean-nobend.js" defer></script>
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    // Examples:
+    renderNoBend("A + B'C", "#logicMount");          // Y = A + (B' · C)
+    // renderNoBend("(A + B') · C", "#logicMount");   // Y = (A + B') · C
+    // renderNoBend("NOT A + B*C", "#logicMount");
+  });
+</script>
 
   
   
