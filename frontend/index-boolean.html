@@ -481,6 +481,16 @@ function renderSimpleCircuitSVG(net, caption = "") {
   });
 </script>
 
+
+
+
+
+
+
+
+
+
+<!-- Viz.js (client Graphviz) -->
 <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
 
@@ -492,126 +502,117 @@ const fillPanel  = '#1e2024';
 const bg         = '#0b0f13';
 const font       = 'Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial';
 
-function svgDataUrl(svg){
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
-}
-
-// --- Gate SVGs (compact, crisp) ---
-const SVG_NOT = svgDataUrl(`
+/* ---- gate SVG sources (plain strings) ---- */
+const NOT_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="34">
   <path d="M6 4 L6 30 L40 17 Z" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
   <circle cx="48" cy="17" r="5.5" fill="${bg}" stroke="${gateStroke}" stroke-width="2"/>
-</svg>`);
+</svg>`;
 
-const SVG_AND = svgDataUrl(`
+const AND_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="90" height="44">
   <path d="M6 4 H46 C78 4,78 40,46 40 H6 Z" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
-</svg>`);
+</svg>`;
 
-const SVG_OR = svgDataUrl(`
+const OR_SVG = `
 <svg xmlns="http://www.w3.org/2000/svg" width="96" height="60">
   <path d="M10 4 C30 4,58 4,76 16 C92 28,92 44,76 56 C58 68,30 68,10 68
            C28 52,28 20,10 4 Z"
         transform="translate(0,-8)" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
-</svg>`);
+</svg>`;
 
-// --- DOT with HTML-like labels exposing ports and embedded SVG images ---
+/* ---- DOT: HTML-like labels with ports; images referenced by filename ---- */
 const dot = `
 digraph G {
-  graph [
-    rankdir=LR,
-    bgcolor="${bg}",
-    splines=ortho,
-    nodesep="0.6",
-    ranksep="0.9"
-  ];
+  graph [rankdir=LR, bgcolor="${bg}", splines=ortho, nodesep="0.6", ranksep="0.9"];
   node  [shape=plaintext, fontname="${font}", color="${gateStroke}"];
   edge  [color="${wireColor}", penwidth=2, arrowhead=none];
 
-  // Inputs & output (pins as circles via HTML label)
+  // Inputs/Output (simple circle-like labels)
   A [label=<
-    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
-      <TR><TD FIXEDSIZE="TRUE" WIDTH="28" HEIGHT="28" BGCOLOR="${bg}">
-        <FONT COLOR="${wireColor}"><B>A</B></FONT></TD></TR>
-    </TABLE>
+    <TABLE BORDER="0" CELLBORDER="1" COLOR="${gateStroke}" CELLPADDING="6"><TR>
+      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>A</B></FONT></TD>
+    </TR></TABLE>
   >];
+
   B [label=<
-    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
-      <TR><TD FIXEDSIZE="TRUE" WIDTH="28" HEIGHT="28" BGCOLOR="${bg}">
-        <FONT COLOR="${wireColor}"><B>B</B></FONT></TD></TR>
-    </TABLE>
+    <TABLE BORDER="0" CELLBORDER="1" COLOR="${gateStroke}" CELLPADDING="6"><TR>
+      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>B</B></FONT></TD>
+    </TR></TABLE>
   >];
+
   C [label=<
-    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
-      <TR><TD FIXEDSIZE="TRUE" WIDTH="28" HEIGHT="28" BGCOLOR="${bg}">
-        <FONT COLOR="${wireColor}"><B>C</B></FONT></TD></TR>
-    </TABLE>
+    <TABLE BORDER="0" CELLBORDER="1" COLOR="${gateStroke}" CELLPADDING="6"><TR>
+      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>C</B></FONT></TD>
+    </TR></TABLE>
   >];
 
   Y [label=<
-    <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
-      <TR><TD FIXEDSIZE="TRUE" WIDTH="28" HEIGHT="28" BGCOLOR="${bg}">
-        <FONT COLOR="${wireColor}"><B>Y</B></FONT></TD></TR>
-    </TABLE>
+    <TABLE BORDER="0" CELLPADDING="6" CELLBORDER="1" COLOR="${gateStroke}"><TR>
+      <TD BGCOLOR="${bg}"><FONT COLOR="${wireColor}"><B>Y</B></FONT></TD>
+    </TR></TABLE>
   >];
 
-  // Gates with ports: left ports in1/in2, right port out
+  // NOT with ports in/out
   NOT [label=<
     <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
       <TR>
-        <TD PORT="in"  FIXEDSIZE="TRUE" WIDTH="8"></TD>
-        <TD PORT="img" FIXEDSIZE="TRUE" WIDTH="64" HEIGHT="34"><IMG SRC="${SVG_NOT}"/></TD>
-        <TD PORT="out" FIXEDSIZE="TRUE" WIDTH="8"></TD>
+        <TD PORT="in"  WIDTH="8"></TD>
+        <TD PORT="img" FIXEDSIZE="TRUE" WIDTH="64" HEIGHT="34"><IMG SRC="not.svg" SCALE="TRUE"/></TD>
+        <TD PORT="out" WIDTH="8"></TD>
       </TR>
       <TR><TD></TD><TD><FONT COLOR="${gateStroke}" POINT-SIZE="12">NOT</FONT></TD><TD></TD></TR>
     </TABLE>
   >];
 
+  // AND with two inputs (in1,in2) and out
   AND [label=<
     <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
       <TR>
-        <TD PORT="in1" FIXEDSIZE="TRUE" WIDTH="8"></TD>
-        <TD PORT="img"  FIXEDSIZE="TRUE" WIDTH="90" HEIGHT="44"><IMG SRC="${SVG_AND}"/></TD>
-        <TD PORT="out"  FIXEDSIZE="TRUE" WIDTH="8"></TD>
+        <TD PORT="in1" WIDTH="8"></TD>
+        <TD PORT="img"  FIXEDSIZE="TRUE" WIDTH="90" HEIGHT="44"><IMG SRC="and.svg" SCALE="TRUE"/></TD>
+        <TD PORT="out"  WIDTH="8"></TD>
       </TR>
       <TR><TD></TD><TD><FONT COLOR="${gateStroke}" POINT-SIZE="12">AND</FONT></TD><TD></TD></TR>
-      <TR>
-        <TD PORT="in2" FIXEDSIZE="TRUE" HEIGHT="0"></TD><TD></TD><TD></TD>
-      </TR>
+      <TR><TD PORT="in2" HEIGHT="0"></TD><TD></TD><TD></TD></TR>
     </TABLE>
   >];
 
+  // OR with two inputs and out
   OR [label=<
     <TABLE BORDER="0" CELLBORDER="0" CELLPADDING="0">
       <TR>
-        <TD PORT="in1" FIXEDSIZE="TRUE" WIDTH="8"></TD>
-        <TD PORT="img"  FIXEDSIZE="TRUE" WIDTH="96" HEIGHT="60"><IMG SRC="${SVG_OR}"/></TD>
-        <TD PORT="out"  FIXEDSIZE="TRUE" WIDTH="8"></TD>
+        <TD PORT="in1" WIDTH="8"></TD>
+        <TD PORT="img"  FIXEDSIZE="TRUE" WIDTH="96" HEIGHT="60"><IMG SRC="or.svg" SCALE="TRUE"/></TD>
+        <TD PORT="out"  WIDTH="8"></TD>
       </TR>
       <TR><TD></TD><TD><FONT COLOR="${gateStroke}" POINT-SIZE="12">OR</FONT></TD><TD></TD></TR>
-      <TR>
-        <TD PORT="in2" FIXEDSIZE="TRUE" HEIGHT="0"></TD><TD></TD><TD></TD>
-      </TR>
+      <TR><TD PORT="in2" HEIGHT="0"></TD><TD></TD><TD></TD></TR>
     </TABLE>
   >];
 
-  // Horizontal layering
   { rank=same; A; B; C }
   { rank=same; NOT; AND }
   { rank=same; OR; Y }
 
-  // Orthogonal wiring: connect specific ports; use compass points to keep 90° lines
-  B   -> NOT:in   [tailport=e, headport=w];
-  NOT:out -> AND:in1 [tailport=e, headport=w];
-  C   -> AND:in2 [tailport=e, headport=w];
-  AND:out -> OR:in2 [tailport=e, headport=w];
-  A   -> OR:in1  [tailport=e, headport=w];
-  OR:out -> Y    [tailport=e, headport=w];
-}
-`;
+  // Orthogonal, straight wiring (port→port)
+  B      -> NOT:in   [tailport=e, headport=w];
+  NOT:out-> AND:in1  [tailport=e, headport=w];
+  C      -> AND:in2  [tailport=e, headport=w];
+  AND:out-> OR:in2   [tailport=e, headport=w];
+  A      -> OR:in1   [tailport=e, headport=w];
+  OR:out -> Y        [tailport=e, headport=w];
+}`;
 
+/* ---- Render with images injected ---- */
 const viz = new Viz();
-viz.renderSVGElement(dot).then(svg => {
+viz.renderSVGElement(dot, {
+  images: [
+    { path: 'not.svg', data: NOT_SVG, width: 64, height: 34 },
+    { path: 'and.svg', data: AND_SVG, width: 90, height: 44 },
+    { path: 'or.svg',  data: OR_SVG,  width: 96, height: 60 }
+  ]
+}).then(svg => {
   const mount = document.getElementById('gvMount');
   mount.innerHTML = '';
   svg.style.maxWidth = '100%';
@@ -621,6 +622,15 @@ viz.renderSVGElement(dot).then(svg => {
   console.error(err);
 });
 </script>
+
+
+
+
+
+
+
+
+  
   
 </body>
 </html>
