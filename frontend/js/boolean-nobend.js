@@ -1,6 +1,11 @@
-/* boolean-nobend.js — draw logic gate diagrams with straight wires (2-bend detours only when needed)
-   Ops: + (OR), ·/*/& (AND), postfix ' or prefix ~ / NOT, parentheses, implicit AND (AB == A·B)
-   Exact structure (NO algebraic simplification). AND/OR flattened to n-ary gates for neat multi-input shapes.
+/* boolean-nobend.js — draw logic gate diagrams with straight wires
+   Ops supported:
+     +   (OR)
+     ·,* ,& (AND)   // middle dot, asterisk, or ampersand
+     '   (postfix NOT)  — e.g., A'
+     ~   (prefix  NOT)  — e.g., ~A or NOT A
+   Parentheses and implicit AND (AB == A·B) supported.
+   Exact structure (NO algebraic simplification). AND/OR flattened to n-ary gates.
 */
 (() => {
   // ---------------- Parser ----------------
@@ -31,7 +36,7 @@
         if (U==='NOT'){ t.push({t:TOK.NOTP}); i=j; continue; }
         for (const ch of w){
           t.push({t:TOK.VAR, v:ch.toUpperCase()});
-          // swallow postfix apostrophes for this variable (e.g., A'' => NOT NOT A)
+          // swallow postfix apostrophes for this variable (A'' => NOT NOT A)
           let k=j; while (k<s.length && s[k]==="'"){ t.push({t:TOK.SNOT}); k++; }
           j=k;
         }
@@ -299,7 +304,7 @@
            L ${n.x+20} ${top}
            C ${n.x+65} ${top}, ${n.x+65} ${bot}, ${n.x+20} ${bot}
            L ${n.x-22} ${bot} Z`);
-      }else{ // OR with flat left wall at xL and nose to the right
+      }else{ // OR with flat left wall
         const xL = n.x - 12;
         path.setAttribute('d',
           `M ${xL} ${top}
@@ -365,6 +370,6 @@
     return svg;
   }
 
-  // expose
-  window.renderNoBend = renderNoBend;
+  // expose (avoid clobber)
+  if (!window.renderNoBend) window.renderNoBend = renderNoBend;
 })();
