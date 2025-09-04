@@ -496,101 +496,91 @@ function renderSimpleCircuitSVG(net, caption = "") {
 
 
 
-<script>
-const gateStroke = '#9ecbff';
-const wireColor  = '#e9edf3';
-const fillPanel  = '#1e2024';
-const bg         = '#0b0f13';
-const font       = 'Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial';
+<!-- Logic Diagram (no bends): Y = A + (B' · C) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 260"
+     style="width:100%;height:260px;background:#0b0f13;border-radius:12px">
+  <style>
+    .gate{ fill:#1e2024; stroke:#9ecbff; stroke-width:2 }
+    .wire{ stroke:#e9edf3; stroke-width:2 }
+    .node{ fill:#e9edf3 }
+    .pin { fill:#9ecbff; font:600 14px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif }
+    .label{ fill:#b8c1cd; font:12px system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif }
+  </style>
 
-const NOT_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="34">
-  <path d="M6 4 L6 30 L40 17 Z" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
-  <circle cx="48" cy="17" r="5.5" fill="${bg}" stroke="${gateStroke}" stroke-width="2"/>
-</svg>`;
+  <!-- Row layout chosen so ALL wires are horizontal (no bends) -->
+  <!-- y-rows: A=110, B=150, C=190, AND.out=170, OR.in1=110, OR.in2=170, Y=170 -->
 
-const AND_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="90" height="44">
-  <path d="M6 4 H46 C78 4,78 40,46 40 H6 Z" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
-</svg>`;
+  <!-- Input labels + pins -->
+  <text x="18" y="114" class="pin">A</text> <circle cx="40" cy="110" r="3" class="node"/>
+  <text x="18" y="154" class="pin">B</text> <circle cx="40" cy="150" r="3" class="node"/>
+  <text x="18" y="194" class="pin">C</text> <circle cx="40" cy="190" r="3" class="node"/>
 
-const OR_SVG = `
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="60">
-  <path d="M10 4 C30 4,58 4,76 16 C92 28,92 44,76 56 C58 68,30 68,10 68
-           C28 52,28 20,10 4 Z"
-        transform="translate(0,-8)" fill="${fillPanel}" stroke="${gateStroke}" stroke-width="2"/>
-</svg>`;
+  <!-- ===== Wires (all single straight horizontal lines) ===== -->
+  <!-- A -> OR.in1 -->
+  <line class="wire" x1="50" y1="110" x2="600" y2="110"/>
 
-// We use image= on nodes (supported by viz.js "images" option), and separate point ports.
-const dot = `
-digraph G {
-  graph [rankdir=LR, bgcolor="${bg}", splines=ortho, nodesep="0.6", ranksep="0.9"];
-  edge  [color="${wireColor}", penwidth=2, arrowhead=none];
-  node  [fontname="${font}", color="${gateStroke}", fontcolor="${gateStroke}"];
+  <!-- B -> NOT.in -->
+  <line class="wire" x1="50" y1="150" x2="180" y2="150"/>
 
-  // inputs/outputs
-  A [shape=circle, label="A", fontcolor="${wireColor}"];
-  B [shape=circle, label="B", fontcolor="${wireColor}"];
-  C [shape=circle, label="C", fontcolor="${wireColor}"];
-  Y [shape=circle, label="Y", fontcolor="${wireColor}"];
+  <!-- NOT.out -> AND.in1 -->
+  <line class="wire" x1="242" y1="150" x2="360" y2="150"/>
 
-  // --- NOT gate group (image + ports) ---
-  NOT_img  [shape=none, label="", image="not.svg", imagescale=true, fixedsize=true, width=0.9, height=0.5];
-  NOT_in   [shape=point, label="", width=0.02];
-  NOT_out  [shape=point, label="", width=0.02];
-  // keep them in a row
-  {rank=same; NOT_in -> NOT_img [style=invis, weight=100, arrowhead=none];
-              NOT_img -> NOT_out [style=invis, weight=100, arrowhead=none];}
+  <!-- C -> AND.in2 -->
+  <line class="wire" x1="50" y1="190" x2="360" y2="190"/>
 
-  // --- AND gate group ---
-  AND_img  [shape=none, label="", image="and.svg", imagescale=true, fixedsize=true, width=1.0, height=0.55];
-  AND_in1  [shape=point, label="", width=0.02];
-  AND_in2  [shape=point, label="", width=0.02];
-  AND_out  [shape=point, label="", width=0.02];
-  {rank=same; AND_in1 -> AND_img [style=invis, weight=100, arrowhead=none];
-              AND_img -> AND_out [style=invis, weight=100, arrowhead=none];}
-  // put AND_in2 under AND_in1: use same x via an invisible edge with constraint=false
-  AND_in2 -> AND_in1 [style=invis, constraint=false];
+  <!-- AND.out -> OR.in2 -->
+  <line class="wire" x1="480" y1="170" x2="600" y2="170"/>
 
-  // --- OR gate group ---
-  OR_img   [shape=none, label="", image="or.svg", imagescale=true, fixedsize=true, width=1.05, height=0.75];
-  OR_in1   [shape=point, label="", width=0.02];
-  OR_in2   [shape=point, label="", width=0.02];
-  OR_out   [shape=point, label="", width=0.02];
-  {rank=same; OR_in1 -> OR_img [style=invis, weight=100, arrowhead=none];
-              OR_img -> OR_out [style=invis, weight=100, arrowhead=none];}
-  OR_in2 -> OR_in1 [style=invis, constraint=false];
+  <!-- OR.out -> Y -->
+  <line class="wire" x1="720" y1="170" x2="760" y2="170"/>
 
-  // column ranks
-  {rank=same; A; B; C}
-  {rank=same; NOT_in; NOT_img; NOT_out; AND_in1; AND_img; AND_out}
-  {rank=same; OR_in1; OR_img; OR_out; Y}
+  <!-- Output pin + label -->
+  <circle cx="760" cy="170" r="3" class="node"/>
+  <text x="770" y="174" class="pin">Y</text>
 
-  // wires (all orthogonal)
-  B -> NOT_in;
-  NOT_out -> AND_in1;
-  C -> AND_in2;
-  AND_out -> OR_in2;
-  A -> OR_in1;
-  OR_out -> Y;
-}
-`;
+  <!-- ===== Gates (aligned so their ports sit on the same y rows as wires) ===== -->
 
-const viz = new Viz();
-viz.renderSVGElement(dot, {
-  images: [
-    { path: 'not.svg', data: NOT_SVG, width: 64, height: 34 },
-    { path: 'and.svg', data: AND_SVG, width: 90, height: 44 },
-    { path: 'or.svg',  data: OR_SVG,  width: 96, height: 60 }
-  ]
-}).then(svg => {
-  const m = document.getElementById('gvMount');
-  m.innerHTML = ''; svg.style.maxWidth = '100%'; m.appendChild(svg);
-}).catch(err => {
-  console.error(err);
-  document.getElementById('gvMount').textContent = 'Graphviz render error: ' + err.message;
-});
-</script>
+  <!-- NOT gate centered on y=150 (input at x=180, output at x≈242) -->
+  <g>
+    <!-- triangle -->
+    <path class="gate" d="M180 130 L180 170 L218 150 Z"/>
+    <!-- bubble (inversion) centered at (236,150); output at ~242 -->
+    <circle cx="236" cy="150" r="6" class="gate" fill="#0b0f13"/>
+    <text x="188" y="124" class="label">NOT</text>
+  </g>
+
+  <!-- AND gate: inputs at y=150 & y=190, output at y=170 -->
+  <!-- body from x=360..480, top=130, bottom=210 -->
+  <g>
+    <path class="gate" d="
+      M360 130
+      L400 130
+      C445 130, 445 210, 400 210
+      L360 210 Z"/>
+    <text x="390" y="124" class="label">AND</text>
+    <!-- port nodes (purely visual) -->
+    <circle cx="360" cy="150" r="2.6" class="node"/>
+    <circle cx="360" cy="190" r="2.6" class="node"/>
+    <circle cx="480" cy="170" r="2.6" class="node"/>
+  </g>
+
+  <!-- OR gate: inputs at y=110 & y=170, output at y=170 -->
+  <!-- body roughly x=600..720, vertical span 120..220 -->
+  <g>
+    <path class="gate" d="
+      M610 120
+      C635 120, 665 120, 690 135
+      C710 150, 710 190, 690 205
+      C665 220, 635 220, 610 220
+      C635 190, 635 150, 610 120 Z"/>
+    <text x="640" y="114" class="label">OR</text>
+    <!-- port nodes (visual) -->
+    <circle cx="600" cy="110" r="2.6" class="node"/>
+    <circle cx="600" cy="170" r="2.6" class="node"/>
+    <circle cx="720" cy="170" r="2.6" class="node"/>
+  </g>
+</svg>
+
 
 
 
