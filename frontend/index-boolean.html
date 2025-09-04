@@ -100,46 +100,7 @@ HELLO ->
 
 
 
-<script>
-  // A + B'C graph using Graphviz DOT
-  const dot = `
-    digraph LogicDiagram {
-      rankdir=LR;
-      bgcolor="#0b0f13";
-      node [shape=circle, color="#9ecbff", fontcolor="#b8c1cd", fontname="Inter"];
-      edge [color="#e9edf3"];
 
-      A [label="A"];  B [label="B"];  C [label="C"];
-      Y [label="Y"];
-
-      // Gates as boxes (simple & clear)
-      NOT_B [label="NOT", shape=box];
-      AND   [label="AND", shape=box];
-      OR    [label="OR",  shape=box];
-
-      // Wires
-      B -> NOT_B;
-      NOT_B -> AND;
-      C -> AND;
-      AND -> OR;
-      A -> OR;
-      OR -> Y;
-
-      // Keep nice ranks (optional)
-      {rank=same; A; B; C}
-      {rank=same; NOT_B; AND}
-      {rank=same; OR; Y}
-    }`;
-
-  const viz = new Viz();
-  viz.renderSVGElement(dot).then(svg => {
-    document.getElementById('gvMount').innerHTML = "";
-    document.getElementById('gvMount').appendChild(svg);
-  }).catch(err => {
-    console.error(err);
-    document.getElementById('gvMount').textContent = "Graphviz render error: " + err.message;
-  });
-</script>
 
 
   
@@ -522,5 +483,48 @@ function renderSimpleCircuitSVG(net, caption = "") {
 
 <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/viz.js@2.1.2/full.render.js"></script>
+
+
+  <script>
+  // A + B'C graph using Graphviz DOT
+  const dot = `
+    digraph LogicDiagram {
+      rankdir=LR;
+      bgcolor="#0b0f13";
+      node [shape=circle, color="#9ecbff", fontcolor="#b8c1cd", fontname="Inter"];
+      edge [color="#e9edf3"];
+
+      A [label="A"];  B [label="B"];  C [label="C"];
+      Y [label="Y"];
+
+      // Gates as boxes (simple & clear)
+      NOT_B [label="NOT", shape=box];
+      AND   [label="AND", shape=box];
+      OR    [label="OR",  shape=box];
+
+      // Wires
+      B -> NOT_B;
+      NOT_B -> AND;
+      C -> AND;
+      AND -> OR;
+      A -> OR;
+      OR -> Y;
+
+      // Keep nice ranks (optional)
+      {rank=same; A; B; C}
+      {rank=same; NOT_B; AND}
+      {rank=same; OR; Y}
+    }`;
+
+  const viz = new Viz();
+  viz.renderSVGElement(dot).then(svg => {
+    document.getElementById('gvMount').innerHTML = "";
+    document.getElementById('gvMount').appendChild(svg);
+  }).catch(err => {
+    console.error(err);
+    document.getElementById('gvMount').textContent = "Graphviz render error: " + err.message;
+  });
+</script>
+  
 </body>
 </html>
