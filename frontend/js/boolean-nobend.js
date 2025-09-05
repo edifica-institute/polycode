@@ -105,23 +105,35 @@
   }
 
   // Flatten associative AND/OR to n-ary nodes (no algebraic simplification).
-  function assocify(node){
-    if (!node) return node;
-    if (node.type==='VAR') return node;
-    if (node.type==='NOT'){ node.a = assocify(node.a); return node; }
-    if (node.type==='AND' || node.type==='OR'){
-      const kind=node.type, inputs=[];
-      (function collect(n){
-        n = assocify(n);
-        if (n.type===kind){
-          const kids = n.inputs || [n.a, n.b];
-          kids.forEach(collect);
-        } else { inputs.push(n); }
-      })(node);
-      return { type:kind, inputs };
-    }
-    return node;
+// Flatten associative AND/OR into n-ary nodes (no algebraic simplification).
+function assocify(n) {
+  if (!n) return n;
+  if (n.type === 'VAR') return n;
+  if (n.type === 'NOT') {
+    n.a = assocify(n.a);
+    return n;
   }
+  if (n.type === 'AND' || n.type === 'OR') {
+    // 1) normalize children first
+    const kidsRaw = (n.inputs ? n.inputs : [n.a, n.b]).map(assocify);
+
+    // 2) flatten only one level: pull up children of the same kind
+    const flat = [];
+    for (const k of kidsRaw) {
+      if (k.type === n.type) {
+        // k might already be n-ary or binary; expand accordingly
+        if (k.inputs && Array.isArray(k.inputs)) flat.push(...k.inputs);
+        else flat.push(k.a, k.b);
+      } else {
+        flat.push(k);
+      }
+    }
+
+    return { type: n.type, inputs: flat };
+  }
+  return n;
+}
+
 
   function parse(expr){
     const t1 = tokenizeExpr(norm(expr));
