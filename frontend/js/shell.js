@@ -1181,7 +1181,7 @@ try {
   window.PolyShell.setRawOutputs('', '');
   setStatus('Reset','ok');
   unfreezeUI(); // sets center:ready, right:waiting
-  setTimeout(() => { try { window.focusEditorAfterReset?.(); } catch {} }, 0);
+  setTimeout(() => { try { window.forceFocusEditorAfterReset?.(); } catch {} }, 0);
 });
 
 
@@ -1194,6 +1194,62 @@ try {
 
 
 // --- run/reset focus helpers ---
+
+// --- Strong focus back to the code editor after Reset -----------------------
+window.forceFocusEditorAfterReset = function(){
+  const host = document.getElementById('editor');
+  if (!host) return;
+
+  // offset if you use a sticky header/top bar
+  const header = document.querySelector('header, .app-header, .topbar, .top');
+  const offset = header?.offsetHeight || 0;
+
+  // Make the editor container programmatically focusable (harmless if already)
+  try { host.tabIndex = host.tabIndex || -1; } catch {}
+
+  const scrollNow = () => {
+    const top = host.getBoundingClientRect().top + window.scrollY - offset - 8;
+    // use an immediate jump; smooth scrolling can get interrupted by other code
+    window.scrollTo({ top, behavior: 'auto' });
+  };
+
+  const focusNow = () => {
+    // place caret in a visible spot and focus Monaco
+    if (window.editor) {
+      const pos = window.editor.getPosition() || { lineNumber: 1, column: 1 };
+      window.editor.setPosition(pos);
+      // bring the line near the top so it's clearly visible
+      window.editor.revealLineNearTop(pos.lineNumber, 0);
+      window.editor.focus();
+    } else {
+      host.focus();
+    }
+  };
+
+  // Try several times as layout/cleanup settles:
+  let tries = 0;
+  const attempt = () => {
+    tries++;
+    scrollNow();
+    focusNow();
+    // re-try a few times to beat late animations/resizes/async handlers
+    if (tries < 5) setTimeout(attempt, tries === 1 ? 60 : 120);
+  };
+
+  // Kick off after the current frame has painted
+  requestAnimationFrame(() => requestAnimationFrame(attempt));
+};
+
+
+
+
+
+
+
+
+
+
+
 
 
 // Make editor visible + focused, compensating for sticky header
@@ -3397,6 +3453,7 @@ class PCWebSocket {
     try { setStatus?.('Reset','ok'); } catch {}
     try { setFootStatus?.('rightFoot','waiting'); } catch {}
     try { unfreezeUI?.(); } catch {}
+         try { window.forceFocusEditorAfterReset?.(); } catch {}
     PC.__userAbort = false;
   }
 
