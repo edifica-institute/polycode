@@ -44,6 +44,26 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 
 
 
+// --- mobile viewport height fix (sets --app-vh) ---
+(function installMobileVH(){
+  if (window.__pc_vh_installed) return; window.__pc_vh_installed = true;
+  const apply = () => {
+    const vh = (window.visualViewport?.height || window.innerHeight) / 100;
+    document.documentElement.style.setProperty('--app-vh', vh + 'px');
+    // Keep Monaco sized right too
+    if (window.editor?.layout) {
+      const el = document.getElementById('editor');
+      if (el) requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
+    }
+  };
+  apply();
+  window.visualViewport?.addEventListener('resize', apply, { passive:true });
+  window.visualViewport?.addEventListener('scroll', apply, { passive:true });
+  window.addEventListener('orientationchange', () => setTimeout(apply, 0), { passive:true });
+})();
+
+
+
 // Keep the last raw outputs here so the explainer doesn't depend on DOM text
 window.PolyRun = window.PolyRun || { stdout: '', stderr: '' };
 
