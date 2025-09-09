@@ -1131,6 +1131,26 @@ window.PolyShell.setRawOutputs(stdout, stderr);
     unfreezeUI(); // will set animated 'ready' + 'waiting'
   });*/
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
 rstBtn?.addEventListener('click', () => {
   try { PC?.cancelCurrentSession?.('user'); } catch {}   // <-- add this line
 
@@ -1161,6 +1181,7 @@ try {
   window.PolyShell.setRawOutputs('', '');
   setStatus('Reset','ok');
   unfreezeUI(); // sets center:ready, right:waiting
+  setTimeout(() => { try { window.focusEditorAfterReset?.(); } catch {} }, 0);
 });
 
 
@@ -1173,6 +1194,27 @@ try {
 
 
 // --- run/reset focus helpers ---
+
+
+// Make editor visible + focused, compensating for sticky header
+window.focusEditorAfterReset = function(){
+  const host = document.getElementById('editor');
+  if (!host) return;
+
+  const header = document.querySelector('header, .app-header, .topbar, .top');
+  const offset = header?.offsetHeight || 0;
+  const top = host.getBoundingClientRect().top + window.scrollY - offset - 8;
+
+  // Wait a tick so layout from unfreeze/reset has settled, then scroll+focus
+  requestAnimationFrame(() => {
+    window.scrollTo({ top, behavior: 'smooth' });
+    // Focus Monaco (brings up the keyboard on mobile, desired after Reset)
+    window.editor?.focus?.();
+  });
+};
+
+
+
 (function(){
   const focusOutput = () => {
     const out = document.getElementById('output');
@@ -1193,9 +1235,9 @@ try {
   });
 
   // When user clicks Reset, return them to the editor
-  document.getElementById('btnReset')?.addEventListener('click', () => {
-    setTimeout(focusEditor, 60);
-  });
+  //document.getElementById('btnReset')?.addEventListener('click', () => {
+    //setTimeout(focusEditor, 60);
+  //});
 })();
 
 
