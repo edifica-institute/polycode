@@ -1495,3 +1495,37 @@ body[data-boot] .right.panel{
 .drag-handle, .resizer, .gutter, [data-resizer]{
   touch-action: none;   /* allow horizontal dragging without triggering scroll */
 }
+
+
+
+
+
+
+/* ---- Mobile viewport + scroll safety (PolyCode) ------------------- */
+:root { --app-vh: 1vh; }
+
+/* Use dynamic viewport height so the editor won't jump to full screen */
+.stage, .app {
+  height: 100dvh;                               /* modern, keyboard-aware */
+  height: calc(var(--app-vh, 1vh) * 100);       /* fallback via JS var */
+}
+
+/* Flex hygiene so scrollable children don't force parents to unscrollable sizes */
+.app, .panel, .pane-scroll { min-height: 0; }
+
+/* Let page scroll vertically even when the finger is over Monaco */
+.monaco-editor,
+.monaco-editor .overflow-guard,
+.monaco-scrollable-element {
+  touch-action: pan-y !important;
+}
+
+/* On small screens, cap editor column height so output is always reachable */
+@media (max-width: 900px) {
+  /* If your Monaco wrapper differs, swap #centerPanel .pane-scroll for your selector */
+  #centerPanel .pane-scroll {
+    max-height: min(75dvh, calc(var(--app-vh, 1vh) * 75));
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
