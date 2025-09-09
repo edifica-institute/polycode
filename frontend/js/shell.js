@@ -428,9 +428,33 @@ function initMonaco({ value, language }) {
           automaticLayout: true,
           minimap: { enabled: false },
           padding: { top: 20, bottom: 12 },
-          scrollBeyondLastLine: false
+          scrollBeyondLastLine: false,
+          scrollbar: { alwaysConsumeMouseWheel: false }
         });
         installSelectAllAction(window.editor);
+
+
+        // -- lightweight autosave/restore tied to this language page --
+try {
+  const KEY = 'polycode_autosave_c';
+  const saved = localStorage.getItem(KEY);
+  if (saved && !window.editor.getValue()) window.editor.setValue(saved);
+
+  let t = null;
+  window.editor.onDidChangeModelContent(() => {
+    clearTimeout(t);
+    t = setTimeout(() => {
+      try { localStorage.setItem(KEY, window.editor.getValue()); } catch {}
+    }, 400);
+  });
+
+  window.addEventListener('beforeunload', () => {
+    try { localStorage.setItem(KEY, window.editor.getValue()); } catch {}
+  }, { once:true });
+} catch {}
+
+
+        
         resolve();
       });
     });
@@ -1148,6 +1172,35 @@ try {
 
 
 
+// --- run/reset focus helpers ---
+(function(){
+  const focusOutput = () => {
+    const out = document.getElementById('output');
+    out?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // put real focus on the console so screen-readers/users can continue
+    document.getElementById('jconsole')?.focus?.();
+  };
+  const focusEditor = () => {
+    const edEl = document.getElementById('editor');
+    edEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (window.editor?.focus) window.editor.focus();
+  };
+
+  // When user clicks Run, move attention to output shortly after
+  document.getElementById('btnRun')?.addEventListener('click', () => {
+    // give your run handler a tick to update UI, then focus
+    setTimeout(focusOutput, 60);
+  });
+
+  // When user clicks Reset, return them to the editor
+  document.getElementById('btnReset')?.addEventListener('click', () => {
+    setTimeout(focusEditor, 60);
+  });
+})();
+
+
+
+
 /* ===========================
    load left content helper
 =========================== */
@@ -1274,6 +1327,19 @@ function fmtDuration(ms){
 
 
 
+// Also relayout on visualViewport changes (IME open/close on mobile)
+(function(){
+  const onVV = () => {
+    if (window.editor?.layout) {
+      const el = document.getElementById('editor');
+      if (el) requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
+    }
+  };
+  if (window.visualViewport) {
+    visualViewport.addEventListener('resize', onVV, { passive:true });
+    visualViewport.addEventListener('scroll', onVV, { passive:true });
+  }
+})();
 
 
 
