@@ -512,6 +512,14 @@ function renderSimpleCircuitSVG(net, caption = "") {
   $("#btnKmapGroups").addEventListener("click", () => {
     ttCard.style.display="none"; ttEl.innerHTML="";
     resEl.textContent = "Analyzing K-map… (renderer simplified for teaching)";
+
+     const expr = exprEl.value.trim();
+  const parsed = parseKmapCommand(expr);
+  if (!parsed) {
+    resEl.innerHTML = `<span class="muted">Invalid K-map command. Example: kmap A,B,C : Σm(1,3,5)</span>`;
+    return;
+  }
+  resEl.innerHTML = renderKmap(parsed.vars, parsed.minterms, parsed.maxterms, parsed.dontCares);
   });
 </script>
 
