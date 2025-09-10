@@ -3,360 +3,588 @@
 <head>
   <meta charset="utf-8" />
   <title>polycode | Boolean Algebra</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-  <link rel="icon" href="./assets/logo.png" />
-  <!-- Same site chrome/theme as C.html -->
-  <link rel="stylesheet" href="./css/shell.css" />
-
-  <!-- Your boolean engines (plug your real files here) -->
-  <script src="./js/boolean-nobend.js" defer></script>
-  <!-- <script src="./js/boolean-truthtable.js" defer></script>
-  <script src="./js/boolean-minimize.js" defer></script>
-  <script src="./js/boolean-kmap.js" defer></script> -->
-
+ 
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-</head>
-<body class="page-fade">
-  <!-- Header (same as C.html) -->
-  <header class="site-header">
-    <div class="brand-wrap">
-      <div class="brand-grid">
-        <img src="./assets/PC-Logo.png" alt="polycode" class="brand-logo" loading="lazy" decoding="async" />
-        <div class="brand-title2">polycode</div>
-        <div class="brand-tagline2">learn<span class="dot">.</span>code<span class="dot">.</span>execute</div>
-      </div>
-    </div>
-    <nav class="site-nav">
-      <a href="./index.html">Home</a>
-      <a href="./about.html">About</a>
-      <a href="./contact.html">Contact</a>
-    </nav>
+  <link rel="icon" href="./assets/logo.png" />
+  <style>
+    :root{ --bg:#0b0f13; --bg2:#141922; --panel:#1e2024; --text:#e9edf3; --muted:#aeb5bd; --link:#9ecbff; --brand:#2e5bea; --border:#2b2f34; }
+    *{ box-sizing:border-box }
+    body{ margin:0; background:linear-gradient(180deg,var(--bg),var(--bg2)); color:var(--text); font-family:system-ui,Roboto,Ubuntu,sans-serif; }
+    a{ color:var(--link); text-decoration:none } a:hover{ text-decoration:underline }
+    header{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:#1a1c1f; border-bottom:1px solid var(--border) }
+    .brand{ display:flex; align-items:center; gap:10px; font-weight:700 }
+    .brand img{ width:26px; height:26px; border-radius:6px }
+    main{ max-width:1100px; margin:0 auto; padding:18px }
+    .grid{ display:grid; gap:16px; grid-template-columns:1fr; }
+    @media (min-width:980px){ .grid{ grid-template-columns:1.1fr .9fr; } }
+    .card{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; box-shadow:0 16px 50px rgba(0,0,0,.28) }
+    .card h2{ margin:0 0 10px; font-size:20px }
+    textarea{ width:100%; min-height:90px; background:#141922; color:var(--text); border:1px solid var(--border); border-radius:10px; padding:10px; outline:none }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:10px 0 }
+    .btn{ padding:10px 14px; border-radius:10px; border:1px solid var(--border); background:var(--brand); color:#fff; font-weight:600; cursor:pointer }
+    .btn.secondary{ background:#24272d; color:#d5dbe4 }
+    .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; }
+    table{ width:auto; border-collapse:collapse; font-size:14px }
+    th,td{ border:1px solid var(--border); padding:6px 8px; text-align:center }
+    th{ background:#1a1c1f }
+    .muted{ color:#aeb5bd }
+    .grid > .card.wide { grid-column: 1 / -1; }
+    #result svg { max-height: none !important; width: 100%; height: auto; }
+    aside.card.wide { padding-block: 24px; }
+  </style>
+
+
+    </head>
+<body>
+  <header>
+    <div class="brand"><img src="./assets/logo.png" alt="polycode"/><div>PolyCode — Boolean Algebra</div></div>
+    <nav><a href="./index.html">Home</a></nav>
   </header>
 
-  <!-- App -->
-  <main class="stage" role="main">
-    <div class="app" id="appRoot">
-      <!-- LEFT: tool switcher + inputs -->
-      <section class="panel left" id="leftPanel">
-        <div class="pane-head">
-          <!-- Dropdown to switch Boolean tools -->
-          <select id="toolSelect" class="select" aria-label="Choose Boolean Function">
-            <option value="tt">Generate Truth Table</option>
-            <option value="min">Minimize Expression</option>
-            <option value="min_tt">Minimize with Truth Table</option>
-            <option value="logic_generic" selected>Create Logic Diagram - Generic</option>
-            <option value="logic_nand">Create Logic Diagram - NAND</option>
-            <option value="logic_nor">Create Logic Diagram - NOR</option>
-            <option value="sop_pos">Find SOP & POS</option>
-            <option value="kmap">Generate KMap</option>
-          </select>
-          <div class="right-controls">
-            <button class="btn expander" onclick="toggleExpand('left', this)" aria-pressed="false" title="Expand Left panel">⤢</button>
-          </div>
-        </div>
+  <main>
+    <div class="grid">
+      <section class="card">
+        <h2>Expression</h2>
+        <p class="muted mono">
+          Ops: + (OR), ·/*/& (AND), ~(NOT), ^ (XOR), parentheses.
+          Implicit AND allowed, e.g., <b>AB + A~C</b>.
+          K-map commands: <b>kmap A,B,C : Σm(1,3,5)</b>, <b>kmap A,B : ΠM(0,2)</b>, or <b>kmap A,B,C : AB + A'C</b>.
+        </p>
+        <textarea id="expr" placeholder="Example: A·B + ¬A·C"></textarea>
+        <div class="row">
+          <label class="muted"><input type="checkbox" id="includeTable"> Show truth table</label>
+          <span class="muted">Vars (optional, comma):</span>
+          <input id="vars" placeholder="A,B,C" style="padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:#141922;color:var(--text)">
+          <button class="btn" id="btnSimplify">Simplify</button>
+          <!-- NEW: teaching-safe buttons -->
+          <button class="btn secondary" id="btnSimplifyDraw">Simplify &amp; Draw</button>
+          <button class="btn secondary" id="btnSimplyDraw">Simply Draw</button>
+          <!-- legacy circuit modes kept for now -->
+          <button class="btn secondary" id="btnCircuitNAND">NAND-only</button>
+          <button class="btn secondary" id="btnCircuitNOR">NOR-only</button>
+          <button class="btn secondary" id="btnKmapGroups">K-map Pairings &amp; Solution</button>
+          <button class="btn secondary" id="btnClear">Clear</button>
 
-        <div class="pane-scroll">
-          <div class="pane-body" id="leftContent">
-            <!-- Dynamic form area (changes with dropdown) -->
-            <div id="formHost" class="wrap" style="padding:8px 2px;"></div>
-          </div>
-          <div class="pane-foot"><span class="msg" id="leftFoot">Boolean Tools</span></div>
+
+
+          <h1>Boolean Logic Visualizer</h1>
+
+ <input id="logicExpr" placeholder="A + B'C" />
+<button id="renderBtn" type="button">Render</button>
+<div id="logicMount"></div>
+
+
+  <div id="logicMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
+
+HELLO ->
+          <div id="gvMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
         </div>
+        
       </section>
 
-      <!-- Center: output/preview area -->
-      <section class="panel center" id="centerPanel">
-        <div class="pane-head">
-          <button id="btnToggleLeft"  class="btn btn-toggle" aria-pressed="false"  title="Show/Hide Left Panel">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <rect x="3" y="4" width="6" height="16" rx="1" />
-              <rect x="10" y="4" width="11" height="16" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
-            </svg>
-          </button>
 
-          <button id="themeToggle" class="btn theme-btn" title="Toggle theme" aria-label="Toggle theme">
-            <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-          </button>
 
-          <div class="right-controls" style="margin-left:auto; display:flex; gap:8px; align-items:center;">
-            <button id="btnDownload" class="btn" title="Download Result" aria-label="Download">
-              <svg viewBox="0 0 24 24"><path d="M5 20h14v-2H5v2zM7 9h4V3h2v6h4l-5 5-5-5z" fill="currentColor"/></svg>
-            </button>
-            <button id="btnRun" class="btn primary attn" title="Run" aria-label="Run">
-              <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-            </button>
-          </div>
-        </div>
+      
+      HERE BOSS
+<div style="max-width:980px;margin:16px auto;padding:12px;border:1px solid #263040;border-radius:12px;background:#0b0f13">
+  <label for="logicExpr" style="display:block;margin-bottom:8px;color:#9ecbff;font-weight:600">
+    Enter Boolean expression
+  </label>
+  <div style="display:flex;gap:8px;align-items:center">
+    <input id="logicExpr"
+           type="text"
+           placeholder="Examples:  A + B'C   |   (A + B') · C   |   NOT A + B*C"
+           style="flex:1; padding:10px 12px; border-radius:10px; border:1px solid #2a3442; background:#111722; color:#e9edf3; font:14px system-ui" />
+    <button id="drawBtn"
+            type="button"
+            style="padding:10px 16px; border-radius:10px; border:1px solid #2a3442; background:#182233; color:#e9edf3; font:14px system-ui; cursor:pointer">
+      Draw
+    </button>
+  </div>
+  <div id="err" style="color:#ff8b8b;margin-top:8px;min-height:18px;font:13px system-ui"></div>
+</div>
 
-        <div class="pane-scroll">
-          <!-- Output host: we render everything here -->
-          <div id="resultHost" style="padding:12px;">
-            <div id="logicMount" style="width:100%;max-width:1100px;margin:0 auto;"></div>
-            <div id="tableMount" style="margin-top:12px;"></div>
-            <div id="textMount" class="mono" style="margin-top:12px;white-space:pre-wrap;"></div>
-          </div>
-          <div class="pane-foot"><span class="msg" id="centerFoot">Ready</span></div>
-        </div>
-      </section>
+<!-- Diagram mount -->
+<div id="logicccMount" style="width:100%;max-width:980px;margin:12px auto;"></div>
 
-      <!-- RIGHT: console / messages (optional) -->
-      <section class="panel right" id="rightPanel">
-        <div class="pane-head">
-          <div class="right-controls" style="margin-left:auto; display:flex; align-items:center;">
-            <button class="btn expander" onclick="toggleExpand('right', this)" aria-pressed="false" title="Expand Output">⤢</button>
-            <button id="btnReset" class="btn" title="Reset" aria-label="Reset">
-              <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3C7.58 4 4 7.58 4 12s3.58 8 8 8a8 8 0 007.39-4.91l-1.85-.77A6 6 0 1112 6z"/></svg>
-            </button>
-          </div>
-        </div>
-        <div class="pane-scroll">
-          <div id="output" class="screen-dim" style="padding:12px;">
-            <pre id="jconsole" class="console" style="margin:0;"></pre>
-          </div>
-          <div class="pane-foot"><span class="msg" id="rightFoot">Waiting</span></div>
-        </div>
-      </section>
+
+
+
+
+      
+      <aside class="card">
+        <h2>Result</h2>
+        <div id="result" class="mono"></div>
+      </aside>
     </div>
+
+    <section class="card" id="ttCard" style="display:none">
+      <h2>Truth Table</h2>
+      <div id="tt"></div>
+    </section>
   </main>
 
-  <!-- Footer (same pattern as C.html) -->
-  <footer class="site-footer">
-    <div class="footer-grid">
-      <div class="footer-left">
-        <img src="./assets/logo.png" alt="Edifica" class="footer-logo" />
-        <div class="txt">
-          <span class="powered">powered by edifica</span>
-          <span class="subline">
-            education<span class="dot">.</span>consultation<span class="dot">.</span>assistance
-          </span>
-          <div class="siteurl">
-            <a href="https://www.edifica.in" target="_blank" rel="noopener">www.edifica.in</a>
-          </div>
-        </div>
-      </div>
-      <div class="footer-center">
-        <span class="label">Follow us</span>
-        <a class="social" href="https://facebook.com/edifica.facebook" target="_blank" rel="noopener" aria-label="Facebook" title="Facebook">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M22 12.07C22 6.48 17.52 2 11.93 2S2 6.48 2 12.07c0 5.01 3.66 9.16 8.44 9.93v-7.03H7.9v-2.9h2.54V9.41c0-2.5 1.49-3.89 3.77-3.89 1.09 0 2.24.2 2.24.2v2.47h-1.26c-1.24 0-1.63.77-1.63 1.56v1.88h2.78l-.44 2.9h-2.34v7.03C18.34 21.23 22 17.08 22 12.07z"/></svg>
-        </a>
-        <a class="social" href="https://instagram.com/edifica.ig" target="_blank" rel="noopener" aria-label="Instagram" title="Instagram">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm5 5a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm6.5-.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM12 9.5A2.5 2.5 0 1 1 9.5 12 2.5 2.5 0 0 1 12 9.5z"/></svg>
-        </a>
-        <a class="social" href="https://youtube.com/@edifica.youtube" target="_blank" rel="noopener" aria-label="YouTube" title="YouTube">
-          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.4 3.5 12 3.5 12 3.5s-7.4 0-9.4.6A3 3 0 0 0 .5 6.2 31.7 31.7 0 0 0 0 12a31.7 31.7 0 0 0 .6 5.8 3 3 0 0 0 2.1 2.1c2 .6 9.3.6 9.3.6s7.4 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.6-3.9.6-5.8 0-1.9-.2-3.9-.6-5.8zM9.6 15.5V8.5L16 12l-6.4 3.5z"/></svg>
-        </a>
-      </div>
-      <div class="footer-right">
-        <a href="./privacy.html">Privacy Policy</a>
-        <a href="./terms.html">Terms &amp; Conditions</a>
-        <a href="./legal.html">Legal Information</a>
-      </div>
-    </div>
-  </footer>
 
-  <!-- Page script -->
-  <script>
-    // Panel expand buttons (matches C.html behavior)
-    function toggleExpand(which, btn){
-      const app = document.getElementById('appRoot');
-      if (which === 'left'){
-        const on = !app.classList.contains('collapsed-left');
-        app.classList.toggle('collapsed-left', on);
-        btn?.setAttribute('aria-pressed', String(on));
-      } else {
-        const on = !app.classList.contains('collapsed-right');
-        app.classList.toggle('collapsed-right', on);
-        btn?.setAttribute('aria-pressed', String(on));
-      }
-    }
 
-    // --- Tool forms (rendered into #formHost) ---
-    const forms = {
-      tt: () => `
-        <h3 class="title">Generate Truth Table</h3>
-        <div class="stack">
-          <label>Variables (comma separated)</label>
-          <input id="vars" type="text" placeholder="A,B,C" />
-          <label>Expression</label>
-          <input id="expr" type="text" placeholder="A + B'C" />
-          <button class="btn primary" id="doRun">Run</button>
-        </div>
-      `,
-      min: () => `
-        <h3 class="title">Minimize Expression</h3>
-        <div class="stack">
-          <label>Expression</label>
-          <input id="expr" type="text" placeholder="A + AB + ABC" />
-          <button class="btn primary" id="doRun">Run</button>
-        </div>
-      `,
-      min_tt: () => `
-        <h3 class="title">Minimize with Truth Table</h3>
-        <div class="stack">
-          <label>Variables (comma separated)</label>
-          <input id="vars" type="text" placeholder="A,B,C,D" />
-          <label>On-set minterms (Σm)</label>
-          <input id="mins" type="text" placeholder="0,1,2,5,7" />
-          <label>Don't cares (optional)</label>
-          <input id="dcs" type="text" placeholder="-" />
-          <button class="btn primary" id="doRun">Run</button>
-        </div>
-      `,
-      logic_generic: () => `
-        <h3 class="title">Create Logic Diagram — Generic</h3>
-        <div class="stack">
-          <label>Expression</label>
-          <input id="expr" type="text" placeholder="(A + B') · C" />
-          <button class="btn primary" id="doRun">Draw</button>
-        </div>
-      `,
-      logic_nand: () => `
-        <h3 class="title">Create Logic Diagram — NAND</h3>
-        <div class="stack">
-          <label>Expression</label>
-          <input id="expr" type="text" placeholder="A + B'C" />
-          <button class="btn primary" id="doRun">Draw</button>
-        </div>
-      `,
-      logic_nor: () => `
-        <h3 class="title">Create Logic Diagram — NOR</h3>
-        <div class="stack">
-          <label>Expression</label>
-          <input id="expr" type="text" placeholder="A + B'C" />
-          <button class="btn primary" id="doRun">Draw</button>
-        </div>
-      `,
-      sop_pos: () => `
-        <h3 class="title">Find SOP &amp; POS</h3>
-        <div class="stack">
-          <label>Expression</label>
-          <input id="expr" type="text" placeholder="A + B'C" />
-          <button class="btn primary" id="doRun">Compute</button>
-        </div>
-      `,
-      kmap: () => `
-        <h3 class="title">Generate KMap</h3>
-        <div class="stack">
-          <label>Command</label>
-          <input id="cmd" type="text" placeholder="kmap A,B,C : Σm(1,3,5) d(0,7)" />
-          <button class="btn primary" id="doRun">Plot</button>
-        </div>
-      `
+
+<!-- In boolean.html -->
+
+
+
+
+
+
+
+
+  
+<script src="./js/boolean-logic-svg.js" defer></script>
+<!--<script>
+  // OPTIONAL: if you kept normalizeExpr from earlier patches
+  const normalizeExpr = (s) => String(s||'')
+    .replace(/[’‘`´]/g, "'")
+    .replace(/[·•⋅]/g, '·')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  window.addEventListener('DOMContentLoaded', () => {
+    const input  = document.getElementById('logicExpr');
+    const mount  = document.getElementById('logicMount');
+    const button = document.getElementById('renderBtn');
+
+    const render = () => {
+      // If you ever switch to a <textarea> or contenteditable, this still works
+      const val = ('value' in input ? input.value : input.textContent) || '';
+      const expr = normalizeExpr ? normalizeExpr(val) : val.trim();
+
+      console.log('draw expr =', JSON.stringify(expr)); // debug
+      drawLogic(expr, mount); // pass the DOM node (removes selector ambiguity)
     };
 
-    const formHost = document.getElementById('formHost');
-    const toolSelect = document.getElementById('toolSelect');
-    const logicMount = document.getElementById('logicMount');
-    const tableMount = document.getElementById('tableMount');
-    const textMount  = document.getElementById('textMount');
-    const leftFoot   = document.getElementById('leftFoot');
-    const centerFoot = document.getElementById('centerFoot');
-    const rightFoot  = document.getElementById('rightFoot');
+    button.addEventListener('click', (e) => { e.preventDefault(); render(); });
+  });
+</script>-->
 
-    function setStatus(where, txt, cls){
-      const el = where === 'left' ? leftFoot : where === 'center' ? centerFoot : rightFoot;
-      if (!el) return;
-      el.textContent = txt || '';
-      if (cls) el.className = 'msg ' + cls;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+<script type="module">
+  const API = "https://polycode-ba.onrender.com";
+  const $ = s => document.querySelector(s);
+  const exprEl = $("#expr"), varsEl = $("#vars"), resEl = $("#result");
+  const includeTableEl = $("#includeTable"), ttCard = $("#ttCard"), ttEl = $("#tt");
+  const gray = n => n ^ (n >> 1);
+
+  $("#btnClear").addEventListener("click", () => {
+    exprEl.value = ""; varsEl.value = "";
+    resEl.innerHTML = ""; ttCard.style.display = "none"; ttEl.innerHTML = "";
+  });
+
+  /* ---------- KMAP parsing (unchanged) ---------- */
+  function parseKmapCommand(s){
+    const mHdr = /^kmap\s+([A-Za-z0-9_]+(?:\s*,\s*[A-Za-z0-9_]+){1,3})\s*[:=]\s*(.+)$/i.exec(s.trim());
+    if (!mHdr) return null;
+    const vars = mHdr[1].split(",").map(x=>x.trim());
+    let rhs = mHdr[2].trim();
+
+    let dontCares = [];
+    const mDC = /(?:[,;]\s*d\s*\(\s*([0-9,\s]+)\s*\)\s*)$/i.exec(rhs);
+    if (mDC) { dontCares = mDC[1].split(",").map(x=>+x.trim()).filter(Number.isFinite); rhs = rhs.slice(0, mDC.index).trim(); }
+
+    const parseList = str => str.split(",").map(x=>+x.trim()).filter(Number.isFinite);
+    const reSigma = /^(?:Σ|sigma|s)\s*m?\s*\(\s*([0-9,\s]+)\s*\)$/i;
+    const rePi    = /^(?:Π|pi|prod|p)\s*m?\s*\(\s*([0-9,\s]+)\s*\)$/i;
+
+    if (reSigma.test(rhs)) {
+      const mm = reSigma.exec(rhs);
+      const minterms = parseList(mm[1]);
+      return { vars, mode:"ones", minterms, dontCares };
+    }
+    if (rePi.test(rhs)) {
+      const mm = rePi.exec(rhs);
+      const maxterms = parseList(mm[1]);
+      const n = vars.length, U = Array.from({length:1<<n},(_,i)=>i);
+      const bad = new Set([...maxterms, ...dontCares]);
+      const minterms = U.filter(i => !bad.has(i));
+      return { vars, mode:"zeros", maxterms, minterms, dontCares };
+    }
+    if (/^[0-9,\s]+$/.test(rhs)) {
+      const minterms = parseList(rhs);
+      return { vars, mode:"ones", minterms, dontCares };
+    }
+    return { vars, expr: rhs, dontCares };
+  }
+
+  /* ---------- Teaching-safe simple circuit renderer ---------- */
+  // Layout: strict columns, fixed spacing, straight wires into gate faces.
+/* ---------- Teaching-safe simple circuit renderer (no crossings, 90° only) ---------- */
+function renderSimpleCircuitSVG(net, caption = "") {
+  const GW=64, GH=40, PIN=10, XSTEP=140, YSTEP=70, PAD=24;
+  const textSize = 14;
+
+  // Build nodes/graph
+  const nodes = new Map(), succ = new Map(), pred = new Map();
+  const addNode = n => { nodes.set(n.id, n); succ.has(n.id)||succ.set(n.id,[]); pred.has(n.id)||pred.set(n.id,[]); };
+  net.gates.forEach(g => addNode({...g}));
+  net.inputs.forEach(i => addNode({ id:i.id, type:"IN", ins:[], label:i.label }));
+  // OUT node present for topology but we'll not draw its incoming wire
+  addNode({ id: net.output, type:"OUT", ins: nodes.get(net.output)?.ins || [] });
+  nodes.forEach(n => (n.ins||[]).forEach(p => { if(!nodes.has(p)) addNode({id:p,type:"WIRE",ins:[]}); succ.get(p).push(n.id); pred.get(n.id).push(p); }));
+
+  // Longest-path levels
+  const level = new Map();
+  const lev = id => level.has(id) ? level.get(id)
+    : level.set(id, (["IN","VCC","GND"].includes(nodes.get(id)?.type)) ? 0
+      : Math.max(0,...(pred.get(id)||[]).map(lev))+1).get(id);
+  nodes.forEach((_,id)=>lev(id));
+
+  // Pack per level
+  const layers=[]; level.forEach((v,id)=> (layers[v]||(layers[v]=[])).push(id));
+  const abs = new Map();
+  layers.forEach((ids, lx) => ids.forEach((id, ly) => {
+    abs.set(id, { x: PAD + lx*XSTEP, y: PAD + ly*YSTEP });
+  }));
+
+  const width  = (layers.length+1)*XSTEP + 2*PAD;
+  const height = Math.max(1,...layers.map(a=>a.length))*YSTEP + 2*PAD + (caption?28:0);
+  const pinY = (y,n,k)=> y + GH*((k+1)/(Math.max(1,n)+1));
+
+  // Gate glyphs (classic)
+  const bubble = (x,y,r=6)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="none" stroke="currentColor"/>`;
+  const gAND = (x,y)=>`<path d="M${x},${y} H${x+GW/2} A${GH/2},${GH/2} 0 0 1 ${x+GW/2},${y+GH} H${x} Z" fill="none" stroke="currentColor"/>`;
+  const gOR  = (x,y)=>`
+    <path d="M${x+10},${y}
+             C ${x+GW*0.55},${y} ${x+GW*0.78},${y+GH/2} ${x+GW-10},${y+GH/2}
+             C ${x+GW*0.78},${y+GH/2} ${x+GW*0.55},${y+GH} ${x+10},${y+GH}
+             C ${x+4},${y+GH-10} ${x+4},${y+10} ${x+10},${y}"
+          fill="none" stroke="currentColor"/>`;
+  const gXOR = (x,y)=> gOR(x,y) + `<path d="M${x+4},${y} C ${x+GW*0.32},${y} ${x+GW*0.38},${y+GH/2} ${x+4},${y+GH}"
+                                   fill="none" stroke="currentColor"/>`;
+  const gNOT = (x,y)=>`<path d="M${x},${y} L${x},${y+GH} L${x+GW-14},${y+GH/2} Z" fill="none" stroke="currentColor"/>` + bubble(x+GW-6, y+GH/2, 6);
+  const gNAND= (x,y)=> gAND(x,y) + bubble(x+GW, y+GH/2, 6);
+  const gNOR = (x,y)=> gOR(x,y)  + bubble(x+GW, y+GH/2, 6);
+  const gXNOR= (x,y)=> gXOR(x,y) + bubble(x+GW, y+GH/2, 6);
+
+  function drawGate(n){
+    if (n.type==="WIRE" || n.type==="OUT") return "";
+    const p = abs.get(n.id);
+    const nIns=(n.ins||[]).length||1;
+    const pins = Array.from({length:nIns},(_,k)=>{
+      const py = pinY(p.y, nIns, k);
+      return `<line x1="${p.x-10}" y1="${py}" x2="${p.x}" y2="${py}" stroke="currentColor"/>`;
+    }).join("");
+
+    if (n.type === "IN") {
+      const r=9, cx=p.x+r, cy=p.y+r;
+      return `<g class="gate IN">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="currentColor"/>
+        <line x1="${cx+r}" y1="${cy}" x2="${cx+r+PIN}" y2="${cy}" stroke="currentColor"/>
+        <text x="${p.x-8}" y="${cy+5}" text-anchor="end" class="mono" font-size="${textSize}" fill="currentColor">${n.label||n.id}</text>
+      </g>`;
     }
 
-    function renderForm(kind){
-      formHost.innerHTML = forms[kind]();
-      // wire the "Run/Draw" button per tool
-      const doRun = document.getElementById('doRun');
-      if (!doRun) return;
+    const body = {
+      "AND": gAND(p.x,p.y), "OR": gOR(p.x,p.y), "XOR": gXOR(p.x,p.y), "NOT": gNOT(p.x,p.y),
+      "NAND": gNAND(p.x,p.y), "NOR": gNOR(p.x,p.y), "XNOR": gXNOR(p.x,p.y)
+    }[n.type] || `<rect x="${p.x}" y="${p.y}" width="${GW}" height="${GH}" rx="10" fill="none" stroke="currentColor"/>`;
 
-      doRun.onclick = () => {
-        const v = id => document.getElementById(id)?.value?.trim() || '';
-        // clear outputs every run
-        logicMount.innerHTML = '';
-        tableMount.innerHTML = '';
-        textMount.textContent = '';
+    return `<g class="gate ${n.type}">${pins}${body}</g>`;
+  }
 
-        try {
-          switch(kind){
-            case 'logic_generic': {
-              const expr = v('expr');
-              if (!expr) { setStatus('center','Enter an expression','error'); return; }
-              // uses your existing boolean-nobend.js (generic gates)
-              window.renderNoBend(expr, '#logicMount');
-              setStatus('center','Diagram OK','success');
-              break;
-            }
-            case 'logic_nand': {
-              const expr = v('expr');
-              // TODO: call your NAND-only renderer here
-              textMount.textContent = 'NAND diagram (todo) for: ' + expr;
-              setStatus('center','NAND mode (stub)','ready');
-              break;
-            }
-            case 'logic_nor': {
-              const expr = v('expr');
-              // TODO: call your NOR-only renderer here
-              textMount.textContent = 'NOR diagram (todo) for: ' + expr;
-              setStatus('center','NOR mode (stub)','ready');
-              break;
-            }
-            case 'tt': {
-              const vars = v('vars');
-              const expr = v('expr');
-              // TODO: call your truth-table generator; render table into tableMount
-              textMount.textContent = `Truth table (todo)\nVars: ${vars}\nExpr: ${expr}`;
-              setStatus('center','Truth table (stub)','ready');
-              break;
-            }
-            case 'min': {
-              const expr = v('expr');
-              // TODO: call your minimizer
-              textMount.textContent = 'Minimized (todo) for: ' + expr;
-              setStatus('center','Minimize (stub)','ready');
-              break;
-            }
-            case 'min_tt': {
-              const vars = v('vars'), mins = v('mins'), dcs = v('dcs');
-              // TODO: run with on-set + dont cares
-              textMount.textContent = `Minimize with TT (todo)\nVars: ${vars}\nΣm: ${mins}\nd( ): ${dcs}`;
-              setStatus('center','Minimize w/ TT (stub)','ready');
-              break;
-            }
-            case 'sop_pos': {
-              const expr = v('expr');
-              // TODO: compute SOP/POS forms
-              textMount.textContent = 'SOP & POS (todo) for: ' + expr;
-              setStatus('center','SOP/POS (stub)','ready');
-              break;
-            }
-            case 'kmap': {
-              const cmd = v('cmd');
-              // TODO: parse and draw KMap (you already have parsing patterns in your existing page)
-              textMount.textContent = 'KMap (todo): ' + cmd;
-              setStatus('center','KMap (stub)','ready');
-              break;
-            }
-          }
-        } catch (e){
-          console.error(e);
-          setStatus('center','Error: ' + (e?.message || e), 'error');
+  const outX = id => {
+    const t = nodes.get(id)?.type || "WIRE";
+    const p = abs.get(id);
+    if (t === "IN"){ const r = 9; return p.x + r + r + PIN; }
+    return p.x + GW;
+  };
+
+  // H-only (same row) OR H–V–H via a spine left of the destination gate column.
+  function wiresTo(tid){
+    const t   = nodes.get(tid);
+    const dst = abs.get(tid);
+    const xGateLeft = dst.x;          // gate’s left face
+    const SPINE = xGateLeft - 28;     // routing spine (guaranteed left of body)
+    const ins = (t.ins || []);
+
+    return ins.map((sid, k) => {
+      const sp = abs.get(sid);
+      const y1 = (nodes.get(sid)?.type === "IN") ? sp.y + 9 : sp.y + GH/2;
+      const y2 = pinY(dst.y, ins.length || 1, k);
+      const x1 = outX(sid);
+
+      if (Math.abs(y1 - y2) < 1e-6) {
+        // same row: straight into pin (no unnecessary bends)
+        return `M${x1},${y1} H${xGateLeft}`;
+      }
+      // Route outside symbols: H to spine, V to target row, H into pin
+      return `M${x1},${y1} H${SPINE} V${y2} H${xGateLeft}`;
+    }).join(" ");
+  }
+
+  const gatesSVG = Array.from(nodes.values()).map(drawGate).join("");
+  // Draw all wires EXCEPT into the OUT node (we’ll make one final output line)
+  const wiresSVG = Array.from(nodes.values())
+    .filter(n => (n.ins||[]).length && n.id !== net.output)
+    .map(n=>`<path d="${wiresTo(n.id)}" stroke="currentColor" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`)
+    .join("");
+
+  // Single clean output line to the lamp
+  const lastSrc = (pred.get(net.output) || [])[0];
+  const lastSrcPos = abs.get(lastSrc) || { x: width-80, y: height/2 };
+  const yOut = (nodes.get(lastSrc)?.type === "IN") ? lastSrcPos.y + 9 : lastSrcPos.y + GH/2;
+  const xOutStart = outX(lastSrc);
+  const lampX = (abs.get(net.output)?.x || (PAD + (layers.length)*XSTEP)) + GW + 50;
+  const lampY = (abs.get(net.output)?.y || (height/2)) + GH/2;
+
+  const outputLine = `<path d="M${xOutStart},${yOut} H${lampX-36}" stroke="currentColor" fill="none" stroke-width="2.6" stroke-linecap="round" />`;
+  const lamp = `
+    <g transform="translate(${lampX-36}, ${lampY-18})" stroke="currentColor" fill="none">
+      <path d="M0,18 C0,8 8,0 18,0 C28,0 36,8 36,18 C36,26 31,31 27,34 L24,42 H12 L9,34 C5,31 0,26 0,18 Z" />
+      <circle cx="18" cy="18" r="12" />
+    </g>`;
+
+  const style = `
+    <style>
+      .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+      text { font-size: ${textSize}px; }
+    </style>`;
+
+  const captionSVG = caption ? `<text x="${PAD}" y="${height-8}" class="mono" fill="currentColor">F = ${caption}</text>` : "";
+
+  return `<svg viewBox="0 0 ${width+160} ${height}" width="100%" preserveAspectRatio="xMinYMin meet">
+    ${style}
+    <g>${gatesSVG}</g>
+    <g>${wiresSVG}${outputLine}</g>
+    ${lamp}
+    ${captionSVG}
+  </svg>`;
+}
+
+
+  /* ---------- Existing: Simplify / K-map / TT ---------- */
+  $("#btnSimplify").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    if (!text) { alert("Enter an expression or a kmap command"); return; }
+
+    // K-map command?
+    const km = parseKmapCommand(text);
+    if (km) {
+      ttCard.style.display = "none"; ttEl.innerHTML = "";
+      resEl.textContent = "Building K-map…";
+      try {
+        let displayMins = km.minterms;
+        if (km.expr) {
+          const r1 = await fetch(API + "/api/ba/simplify", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ expr: km.expr, vars: km.vars, includeTable: false })
+          });
+          const j1 = await r1.json();
+          if (!j1.ok) throw new Error(j1.error || "simplify error");
+          displayMins = j1.minterms;
         }
-      };
+        const body = km.mode === "zeros"
+          ? { vars: km.vars, mode: "zeros", maxterms: km.maxterms, full: true }
+          : { vars: km.vars, mode: "ones",  minterms: displayMins, full: true };
+
+        const r = await fetch(API + "/api/ba/kmap", {
+          method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body)
+        });
+        const j = await r.json(); if (!j.ok) throw new Error(j.error || "kmap error");
+
+        resEl.innerHTML = `
+          <div class="mono" style="margin-bottom:6px">${j.mode==="zeros" ? `Solution (POS): ${j.simplified}` : `Solution (SOP): ${j.simplified}`}</div>
+          <!-- K-map SVG could be injected here (omitted to keep focus on circuit clarity) -->
+        `;
+      } catch (e) { resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+      return;
     }
 
-    // Initialize
-    toolSelect.addEventListener('change', () => renderForm(toolSelect.value));
-    renderForm(toolSelect.value);
+    // Otherwise, normal simplify flow
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()).filter(Boolean) : undefined;
+    resEl.textContent = "Working…";
+    try{
+      const r = await fetch(API + "/api/ba/simplify", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ expr: text, vars, includeTable: includeTableEl.checked })
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error||"error");
+      const { vars:V, minterms, maxterms, sop, pos, simplifiedSOP } = j;
+      resEl.innerHTML = `
+        <div>Vars: ${V.join(", ")}</div>
+        <div>Σ m: ${sop}</div>
+        <div>Π M: ${pos}</div>
+        <div>Simplified (SOP): <b>${simplifiedSOP}</b></div>
+        <div class="muted">Minterms: [${minterms.join(", ")}] — Maxterms: [${maxterms.join(", ")}]</div>
+      `;
+      if (includeTableEl.checked && j.table){
+        const rows = j.table;
+        const cols = V.map(v=>`<th>${v}</th>`).join("") + "<th>f</th>";
+        const trs = rows.map(r=>{
+          const tds = V.map(v=>`<td>${r.env[v]?1:0}</td>`).join("") + `<td>${r.out}</td>`;
+          return `<tr>${tds}</tr>`;
+        }).join("");
+        ttEl.innerHTML = `<table><thead><tr>${cols}</tr></thead><tbody>${trs}</tbody></table>`;
+        ttCard.style.display="";
+      } else { ttCard.style.display="none"; ttEl.innerHTML=""; }
+    }catch(e){
+      resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`;
+      ttCard.style.display="none"; ttEl.innerHTML="";
+    }
+  });
 
-    // Optional: theme toggle hook (if you have it elsewhere)
-    document.getElementById('themeToggle')?.addEventListener('click', () => {
-      document.body.classList.toggle('light');
+  /* ---------- NEW buttons: Simplify & Draw / Simply Draw ---------- */
+  async function fetchNetlist(expr, vars, style="mixed") {
+    const r = await fetch(API + "/api/ba/netlist", {
+      method:"POST", headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ expr, vars, style })
+    });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || "netlist error");
+    return j;
+  }
+
+  $("#btnSimplifyDraw").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) { alert("Enter an expression"); return; }
+    resEl.textContent = "Simplifying…";
+    try {
+      const r1 = await fetch(API + "/api/ba/simplify", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ expr: text, vars, includeTable: false })
+      });
+      const j1 = await r1.json(); if (!j1.ok) throw new Error(j1.error || "simplify error");
+      const net = await fetchNetlist(j1.simplifiedSOP || j1.simplified || text, vars, "mixed");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, j1.simplifiedSOP || j1.simplified || text);
+    } catch (e) { resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+
+  $("#btnSimplyDraw").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) { alert("Enter an expression"); return; }
+    resEl.textContent = "Drawing…";
+    try {
+      const net = await fetchNetlist(text, vars, "mixed");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, text);
+    } catch (e) { resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+
+  // Keep NAND/NOR buttons for parity (they’ll also use the simple renderer)
+  $("#btnCircuitNAND").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) return alert("Enter an expression");
+    resEl.textContent = "Drawing (NAND)…";
+    try {
+      const net = await fetchNetlist(text, vars, "nand");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, text + "  (NAND)");
+    } catch(e){ resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+  $("#btnCircuitNOR").addEventListener("click", async () => {
+    const text = exprEl.value.trim();
+    const vars = varsEl.value.trim() ? varsEl.value.split(",").map(s=>s.trim()) : undefined;
+    if (!text) return alert("Enter an expression");
+    resEl.textContent = "Drawing (NOR)…";
+    try {
+      const net = await fetchNetlist(text, vars, "nor");
+      resEl.innerHTML = renderSimpleCircuitSVG(net, text + "  (NOR)");
+    } catch(e){ resEl.innerHTML = `<span class="muted">Error: ${String(e.message||e)}</span>`; }
+  });
+
+  /* ---------- (Optional) K-map groups button stays wired to your API ---------- */
+  $("#btnKmapGroups").addEventListener("click", () => {
+    ttCard.style.display="none"; ttEl.innerHTML="";
+    resEl.textContent = "Analyzing K-map… (renderer simplified for teaching)";
+  });
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script src="./js/boolean-nobend.js" defer></script>
+<script>
+  // Optional: normalize common “smart” characters so users can paste from docs
+  const normalizeExpr = (s) => String(s||'')
+    .replace(/[’‘`´]/g, "'")  // smart → straight apostrophe
+    .replace(/[·•⋅]/g, '·')   // bullets → middle dot
+    .replace(/\s+/g, ' ')     // collapse spaces
+    .trim();
+
+  function drawFromInput() {
+    const input = document.getElementById('logicExpr');
+    const mount = document.getElementById('logicccMount');
+    const err   = document.getElementById('err');
+    const expr  = normalizeExpr(input.value);
+
+    err.textContent = '';
+    mount.innerHTML = '';
+
+    if (!expr) {
+      err.textContent = 'Please enter a Boolean expression.';
+      return;
+    }
+    try {
+      // renderNoBend comes from boolean-nobend.js
+      renderNoBend(expr, mount);
+    } catch (e) {
+      console.error(e);
+      err.textContent = 'Invalid expression. Use + (OR), ·/*/& (AND), apostrophe (\' ) or ~ / NOT (NOT), and parentheses.';
+    }
+  }
+
+  // Wire up
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('drawBtn');
+    const input = document.getElementById('logicExpr');
+
+    btn.addEventListener('click', drawFromInput);
+
+    // Press Enter to draw
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        drawFromInput();
+      }
     });
 
-    // Reset clears outputs
-    document.getElementById('btnReset')?.addEventListener('click', () => {
-      document.getElementById('logicMount').innerHTML = '';
-      document.getElementById('tableMount').innerHTML = '';
-      document.getElementById('textMount').textContent = '';
-      setStatus('center','Cleared','ready');
-    });
-  </script>
+    // Optional: initial demo value
+    input.value = "A + B'C";
+    drawFromInput();
+  });
+</script>
+
+  
+  
 </body>
 </html>
