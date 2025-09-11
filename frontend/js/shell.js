@@ -84,6 +84,33 @@ async function ensurePyodideReady() {
     return window.pyodide;
   }
 
+
+  // After ensurePyodideReady is defined (anywhere in shell.js top-level)
+(function warmupSeabornAfterIdle(){
+  setTimeout(async () => {
+    try {
+      const py = await ensurePyodideReady();
+      py.loadedPackages = py.loadedPackages || {};
+      if (!py.loadedPackages.seaborn) {
+        if (!py.loadedPackages.micropip) {
+          await py.loadPackage('micropip');
+          py.loadedPackages.micropip = true;
+        }
+        await py.runPythonAsync(`
+import micropip
+await micropip.install("seaborn==0.13.2")
+`);
+        py.loadedPackages.seaborn = true;
+        console.log('[Polycode] Seaborn warmed up');
+      }
+    } catch (e) {
+      console.debug('[Polycode] Seaborn warmup skipped:', e);
+    }
+  }, 2000); // small idle delay after load
+})();
+
+  
+
   // Lazy-load the loader if the HTML didn’t include it
   await ensurePyodideScriptLoaded(indexURL);
 
