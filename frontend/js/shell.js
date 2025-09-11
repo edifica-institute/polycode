@@ -4104,6 +4104,16 @@ send(data) {
           window.__stdinHistory.push(line);
         }
 
+
+        const codeNow  = window.editor?.getValue?.() || '';
+        const exitish  = /^\s*(0|exit|quit|q)\s*$/i.test(line);
+        const willPlot = codeLooksLikePlot(codeNow) && !exitish;
+        if (!willPlot) {
+          // Skip anchors/progress and live plotting for exits or non-plot code
+          this._real.send(data);
+          return;
+        }
+
         // create anchor & progress (unchanged) ...
         const anchor = splitConsoleForInlineImage();
         let progressChunk = null;
@@ -4127,7 +4137,8 @@ send(data) {
         if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
         window.__pc_livePlotTimer = setTimeout(() => {
           try {
-            const code = window.editor?.getValue?.() || '';
+            //const code = window.editor?.getValue?.() || '';
+            const code = codeNow;
             let replay = (window.__stdinHistory || []).slice();
 
             // --- NEW: only the delta for this input
@@ -4650,30 +4661,25 @@ function hideCompileFailNotice() {
     if (typeof fn !== 'function') { setTimeout(tryWrap, 100); return; }
 
     const orig = fn;
-window.runLang = async function (...args) {
-  const code = window.editor?.getValue?.() || '';
+    window.runLang = async function (...args) {
+      const codeArg = (args && typeof args[0] === 'string') ? args[0] : null;
+      const code = codeArg ?? (window.editor?.getValue?.() || '');
 
-  // how many inputs existed before this run (so we only replay new ones)
-  const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-    ? window.__stdinHistory.length
-    : 0;
+      const startIdx = (Array.isArray(window.__stdinHistory) ? window.__stdinHistory.length : 0);
+      const rv = await orig.apply(this, args);
+      const inputs = (Array.isArray(window.__stdinHistory) ? window.__stdinHistory.slice(startIdx) : []);
+      const last = inputs[inputs.length - 1] || '';
+      const interactive = inputs.length > 0;
+      const exitish = /^\s*(0|exit|quit|q)\s*$/i.test(last);
 
-  const rv = await orig.apply(this, args);   // backend run (stdout/input etc.)
-
-  // inputs typed during THIS run
-  const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-    ? window.__stdinHistory.slice(startIdx)
-    : [];
-
-  // Final capture: append so previously shown charts are not cleared.
-  await renderInlinePlotsIfAny(code, replay, { append: true });
-
-  return rv;
-};
-
+      if (!codeLooksLikePlot(code) || interactive || exitish) return rv;
+      await renderInlinePlotsIfAny(code, [], { append: true });
+      return rv;
+    };
   };
   tryWrap();
 })();
+
 
 
 
