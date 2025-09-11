@@ -48,34 +48,6 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 // ---- Pyodide (version-safe) + auto package loader -------------------------
 
 
-// Split console so plots can land exactly after the just-entered input line.
-function splitConsoleForInlineImage() {
-  const out = document.getElementById('output');
-  if (!out) return null;
-
-  // Your console stream usually lands in #jconsole (a <pre>).
-  const pre = document.getElementById('jconsole') || out.querySelector('pre');
-  if (!pre || !pre.parentNode) return null;
-
-  // Move current text into an archived <pre> placed BEFORE the live pre.
-  const archive = document.createElement('pre');
-  archive.className = (pre.className || '') + ' pc-console-archive';
-  archive.style.margin = '0';
-  archive.textContent = pre.textContent || '';
-  pre.parentNode.insertBefore(archive, pre);
-
-  // Anchor goes between archive and the live pre.
-  const anchor = document.createElement('div');
-  anchor.className = 'pc-live-plot-anchor';
-  anchor.style.cssText = 'height:0; margin:0; padding:0;';
-  pre.parentNode.insertBefore(anchor, pre);
-
-  // Clear the live pre so subsequent backend prints appear AFTER the anchor.
-  pre.textContent = '';
-
-  return anchor;
-}
-
 
 
 
@@ -229,10 +201,8 @@ async function renderInlinePlotsIfAny(userCode, replayInputs = [], opts = { appe
       py.globals.set('STDIN_REPLAY', py.toPy([]));
     }
 
-    // ---- run user code and capture figures (captures at every plt.show) ----
     const pyResult = await py.runPythonAsync(`
 import sys, io, base64, builtins
-# --- input() replay with safe fallback ---
 try:
     _buf = list(STDIN_REPLAY)
 except NameError:
@@ -244,7 +214,6 @@ def _input(prompt=''):
     return '0'
 builtins.input = _input
 
-# --- headless matplotlib ---
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -273,9 +242,9 @@ def __pc_show(*args, **kwargs):
     __pc_emit_all()
 plt.show = __pc_show
 
-# ====== USER CODE ======
+# ===== USER CODE =====
 ${userCode}
-# =======================
+# =====================
 
 __pc_emit_all()
 
@@ -292,13 +261,10 @@ _payload
       ? pyResult.toJs({ create_proxies: false })
       : pyResult;
     try { pyResult && pyResult.destroy && pyResult.destroy(); } catch {}
-
     if (!Array.isArray(imgs) || !imgs.length) return;
 
-    // stable target under #output (so SS/PDF include them)
+    // holder under #output
     const out = document.getElementById('output') || document.body;
-
-    // main holder (created once)
     let holder = document.getElementById('pc-inline-plot-area');
     if (!holder) {
       holder = document.createElement('div');
@@ -309,39 +275,45 @@ _payload
       out.appendChild(holder);
     }
 
-    // Decide where to insert: replace anchor (if provided) OR use holder
+    // insertion target + salt
     let target = holder;
-    // SALT: per-input when appending at an anchor; otherwise per-run
-    let salt = String(window.__pc_runSeq || 0);
+    let salt = String(window.__pc_runSeq || 0);   // per-run
     if (opts.append && opts.anchor && opts.anchor.parentNode) {
-      const chunk = document.createElement('div');
-      chunk.className = 'pc-inline-plot-chunk';
-      chunk.style.margin = '0';
-      salt = String(opts.anchor.dataset?.seq || salt);  // <-- key part
-      opts.anchor.replaceWith(chunk);                   // place exactly where user hit Enter
-      target = chunk;
+      if (opts.anchor.classList.contains('pc-inline-plot-chunk')) {
+        target = opts.anchor;                     // progress chunk already in place
+        salt = String(opts.anchor.dataset?.seq || salt);
+      } else {
+        const chunk = document.createElement('div');
+        chunk.className = 'pc-inline-plot-chunk';
+        chunk.style.margin = '0';
+        salt = String(opts.anchor.dataset?.seq || salt); // per-input
+        opts.anchor.replaceWith(chunk);
+        target = chunk;
+      }
     }
 
-    // Clear only on full refresh AND when we actually have new images
-    if (!opts.append && imgs.length) {
-      holder.innerHTML = '';
-    }
+    // full refresh only if we actually have images
+    if (!opts.append && imgs.length) holder.innerHTML = '';
 
-    // salted de-dup (global set, but salt prevents collisions across inputs/runs)
+    // de-dup ONLY per input/run
     window.__pc_plotHashes = window.__pc_plotHashes || new Set();
     const seen = window.__pc_plotHashes;
 
-    // Optional divider once per full refresh
+    // remove progress (if any) inside target
+    const progressBox = target.querySelector('.pc-plot-progress');
+    if (progressBox) progressBox.remove();
+
+    // optional divider on full refresh
     if (!opts.append) {
       const divider = document.createElement('div');
       divider.style.cssText = 'margin:4px 0 8px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
-      divider.textContent = ''; // e.g., '── plots ──'
+      divider.textContent = '';
       target.appendChild(divider);
     }
 
-    // Append only new images (salt ensures you can repeat same menu option)
+    // append images
     imgs.forEach((b64) => {
-      const key = salt + '|' + b64.slice(0, 60); // salted key
+      const key = salt + '|' + b64.slice(0, 80);
       if (seen.has(key)) return;
       seen.add(key);
 
@@ -358,6 +330,7 @@ _payload
     console.warn('[Polycode] inline plot render failed:', e);
   }
 }
+
 
 
 
@@ -3573,6 +3546,39 @@ async function buildCodeImageDataURL() {
 
 
 
+(function ensurePlotProgressStyles(){
+  if (document.getElementById('pc-plot-progress-styles')) return;
+  const css = `
+  .pc-plot-progress { margin:6px 0 8px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; background:#fafafa; font:12px/1.3 ui-monospace,Menlo,Consolas,monospace; color:#444; }
+  .pc-plot-progress .row { display:flex; align-items:center; gap:8px; }
+  .pc-plot-progress .label { opacity:.8; }
+  .pc-plot-progress .bar { flex:1; height:6px; background:#eee; border-radius:4px; overflow:hidden; }
+  .pc-plot-progress .fill { height:100%; width:35%; background:linear-gradient(90deg,#93c5fd,#60a5fa,#3b82f6); animation:pcPulse 1.2s ease-in-out infinite; }
+  @keyframes pcPulse { 0%{transform:translateX(-60%);} 50%{transform:translateX(0%);} 100%{transform:translateX(60%);} }
+  `;
+  const style = document.createElement('style');
+  style.id = 'pc-plot-progress-styles';
+  style.textContent = css;
+  document.head.appendChild(style);
+})();
+function makePlotProgressChunk(text = 'Generating chart…') {
+  const wrap = document.createElement('div');
+  wrap.className = 'pc-inline-plot-chunk';
+  const box = document.createElement('div');
+  box.className = 'pc-plot-progress';
+  const row = document.createElement('div');
+  row.className = 'row';
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.textContent = text;
+  const bar = document.createElement('div');
+  bar.className = 'bar';
+  const fill = document.createElement('div');
+  fill.className = 'fill';
+  bar.appendChild(fill); row.appendChild(label); row.appendChild(bar);
+  box.appendChild(row); wrap.appendChild(box);
+  return wrap;
+}
 
 
 
@@ -3584,28 +3590,24 @@ async function buildCodeImageDataURL() {
 function splitConsoleForInlineImage() {
   const out = document.getElementById('output');
   if (!out) return null;
-
   const pre = document.getElementById('jconsole') || out.querySelector('pre');
   if (!pre || !pre.parentNode) return null;
 
-  // Move current text into an archived <pre>, placed BEFORE the live pre
   const archive = document.createElement('pre');
   archive.className = (pre.className || '') + ' pc-console-archive';
   archive.style.margin = '0';
   archive.textContent = pre.textContent || '';
   pre.parentNode.insertBefore(archive, pre);
 
-  // Insert anchor between old text and the live pre
   const anchor = document.createElement('div');
   anchor.className = 'pc-live-plot-anchor';
   anchor.style.cssText = 'height:0; margin:0; padding:0;';
   pre.parentNode.insertBefore(anchor, pre);
 
-  // Clear live pre so subsequent prints appear AFTER the anchor
   pre.textContent = '';
-
   return anchor;
 }
+
 
 
 
@@ -3953,35 +3955,50 @@ send(data) {
         this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
 
         // Record the line for replay
-        const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
-        if (line) {
-          window.__stdinHistory = window.__stdinHistory || [];
-          window.__stdinHistory.push(line);
-        }
+        // Record line for replay
+const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
+if (line) {
+  window.__stdinHistory = window.__stdinHistory || [];
+  window.__stdinHistory.push(line);
+}
 
-        // Create an anchor exactly at this moment in the output stream
-        const anchor = splitConsoleForInlineImage();
-        if (anchor) {
-          // Unique sequence per user submission (for salted de-dup)
-          window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1;
-          anchor.dataset.seq = String(window.__pc_inputSeq);
-        }
+// Create anchor at this point in the output and assign a unique seq
+const anchor = splitConsoleForInlineImage();
+let progressChunk = null;
+if (anchor) {
+  window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1;
+  anchor.dataset.seq = String(window.__pc_inputSeq);
 
-        // Debounced live inline-plot render using inputs so far
-        if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
-        window.__pc_livePlotTimer = setTimeout(async () => {
-          if (window.__pc_livePlotBusy) return;
-          window.__pc_livePlotBusy = true;
-          try {
-            const code   = window.editor?.getValue?.() || '';
-            const replay = (window.__stdinHistory || []).slice();
-            await renderInlinePlotsIfAny(code, replay, { append: true, anchor });
-          } catch (e) {
-            console.debug('[Polycode] live plot skipped:', e);
-          } finally {
-            window.__pc_livePlotBusy = false;
-          }
-        }, 150);
+  // checkpoint: how many inputs exist up to this choice
+  window.__pc_replayCheckpoints = window.__pc_replayCheckpoints || {};
+  window.__pc_replayCheckpoints[anchor.dataset.seq] = window.__stdinHistory.length;
+
+  // progress UI right away
+  progressChunk = makePlotProgressChunk('Generating chart…');
+  anchor.replaceWith(progressChunk);
+}
+
+// Debounced live render after stdin
+if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
+window.__pc_livePlotTimer = setTimeout(async () => {
+  if (window.__pc_livePlotBusy) return;
+  window.__pc_livePlotBusy = true;
+  try {
+    const code = window.editor?.getValue?.() || '';
+    // use inputs only up to this decision point
+    let replay = (window.__stdinHistory || []).slice();
+    if (anchor?.dataset?.seq && window.__pc_replayCheckpoints) {
+      const upto = window.__pc_replayCheckpoints[anchor.dataset.seq] ?? replay.length;
+      replay = replay.slice(0, upto);
+    }
+    await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk || anchor });
+  } catch (e) {
+    console.debug('[Polycode] live plot skipped:', e);
+  } finally {
+    window.__pc_livePlotBusy = false;
+  }
+}, 150);
+
       }
     }
   } catch {}
@@ -4473,17 +4490,20 @@ function hideCompileFailNotice() {
 
 // put near your other helpers
 function clearInlinePlotArea(hard = false) {
-  // remove the whole holder so screenshots/PDFs don’t see ghosts
   const holder = document.getElementById('pc-inline-plot-area');
   if (holder && holder.parentNode) holder.parentNode.removeChild(holder);
+  document.querySelectorAll('.pc-inline-plot-chunk,.pc-live-plot-anchor,.pc-console-archive,.pc-plot-progress')
+    .forEach(n => n.remove());
 
-  // reset de-dupe + live state
   window.__pc_plotHashes = new Set();
   if (hard) {
     window.__stdinHistory = [];
     window.__pc_inputSeq = 0;
+    window.__pc_runSeq = 0;
+    window.__pc_replayCheckpoints = {};
   }
 }
+
 
 
 // Install inline plot hook (safe to include only once)
@@ -4548,26 +4568,94 @@ window.runLang = async function (...args) {
 
 // run once after DOM ready
 (function hookResetForPlots(){
-  // 1) button in the UI
   const btn =
     document.getElementById('btnReset') ||
-    document.querySelector('#rightPanel .btn-reset, [data-action="reset"]');
-  if (btn) {
+    document.querySelector('#rightPanel .btn-reset, [data-action="reset"], button[aria-label="Reset"]');
+  if (btn && !btn.__pc_plotResetBound) {
+    btn.__pc_plotResetBound = true;
     btn.addEventListener('click', () => clearInlinePlotArea(true), { capture: true });
   }
-
-  // 2) programmatic reset (if your app exposes one)
   const candidates = ['resetProgram','resetConsole','resetAll','doReset'];
   for (const name of candidates) {
     const fn = window[name];
-    if (typeof fn === 'function') {
+    if (typeof fn === 'function' && !fn.__pc_wrapped) {
       const orig = fn;
-      window[name] = function(...args){
+      const wrapped = function(...args){
         try { clearInlinePlotArea(true); } catch {}
         return orig.apply(this, args);
       };
+      wrapped.__pc_wrapped = true;
+      window[name] = wrapped;
       break;
     }
   }
+  const out = document.getElementById('output');
+  if (out && !out.__pc_resetObserver) {
+    const obs = new MutationObserver(() => {
+      if (!out.firstElementChild) clearInlinePlotArea(true);
+    });
+    obs.observe(out, { childList: true });
+    out.__pc_resetObserver = obs;
+  }
 })();
+
+
+
+(function installRunWrapperWithPlotProgress(){
+  if (window.__pc_runWrapperWithProgressInstalled) return;
+  window.__pc_runWrapperWithProgressInstalled = true;
+
+  const tryWrap = () => {
+    const fn = window.runLang;
+    if (typeof fn !== 'function') { setTimeout(tryWrap, 100); return; }
+
+    const orig = fn;
+    window.runLang = async function(...args){
+      const code = window.editor?.getValue?.() || '';
+
+      const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.length : 0;
+
+      // if it looks like plotting code, show a progress chunk immediately
+      let progressChunk = null;
+      if (codeLooksLikePlot(code)) {
+        const out = document.getElementById('output') || document.body;
+        let holder = document.getElementById('pc-inline-plot-area');
+        if (!holder) {
+          holder = document.createElement('div');
+          holder.id = 'pc-inline-plot-area';
+          holder.style.marginTop = '8px';
+          out.appendChild(holder);
+        } else if (holder.parentElement !== out) {
+          out.appendChild(holder);
+        }
+        progressChunk = makePlotProgressChunk('Generating chart…');
+        holder.appendChild(progressChunk);
+      }
+
+      const rv = await orig.apply(this, args);
+
+      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.slice(startIdx) : [];
+
+      window.__pc_runSeq = (window.__pc_runSeq || 0) + 1;
+
+      try {
+        if (progressChunk) {
+          await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk });
+          const pb = progressChunk.querySelector?.('.pc-plot-progress');
+          if (pb) progressChunk.remove();
+        } else {
+          await renderInlinePlotsIfAny(code, replay, { append: true });
+        }
+      } catch (e) {
+        if (progressChunk && progressChunk.isConnected) progressChunk.remove();
+        console.debug('[Polycode] final plot pass skipped:', e);
+      }
+      return rv;
+    };
+  };
+  tryWrap();
+})();
+
 
