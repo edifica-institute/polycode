@@ -177,7 +177,8 @@ async function renderInlinePlotsIfAny(userCode, replayInputs = []) {
       py.globals.set('STDIN_REPLAY', py.toPy([]));
     }
 
-    const imgs = await py.runPythonAsync(`
+    // ---- run user code and capture figures ----
+    const pyResult = await py.runPythonAsync(`
 import sys, io, base64, builtins
 # --- input() replay ---
 try:
@@ -227,10 +228,15 @@ finally:
 _payload
     `);
 
+    // ---- convert PyProxy -> plain JS array ----
+    const imgs = (pyResult && typeof pyResult.toJs === 'function')
+      ? pyResult.toJs({ create_proxies: false })
+      : pyResult;
+    try { pyResult && pyResult.destroy && pyResult.destroy(); } catch {}
+
     if (!Array.isArray(imgs) || !imgs.length) return;
 
     // ---------- robust host selection ----------
-    // Prefer the scrollable body of the right panel.
     let host =
       document.querySelector('#rightPanel .pane-body') ||
       document.getElementById('output') ||
@@ -240,7 +246,7 @@ _payload
       document.querySelector('#rightPanel') ||
       document.body;
 
-    // Dedicated plot area (create once)
+    // Dedicated plot area (create once) and clear previous run’s plots
     let holder = document.getElementById('pc-inline-plot-area');
     if (!holder) {
       holder = document.createElement('div');
@@ -250,8 +256,6 @@ _payload
     } else if (holder.parentElement !== host) {
       host.appendChild(holder);
     }
-
-    // Clear previous run’s plots
     holder.innerHTML = '';
 
     // Divider
