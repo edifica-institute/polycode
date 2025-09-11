@@ -3822,7 +3822,7 @@ class PCWebSocket {
   }
 
   // ---- SEND (notice when stdin is being sent) ----
-  send(data) {
+ /* send(data) {
     try {
       const s = (typeof data === 'string') ? data : '';
       if (s && s[0] === '{') {
@@ -3835,7 +3835,32 @@ class PCWebSocket {
       }
     } catch {}
     this._real.send(data);
-  }
+  }*/
+
+
+  // ---- SEND (notice when stdin is being sent) ----
+send(data) {
+  try {
+    const s = (typeof data === 'string') ? data : '';
+    if (s && s[0] === '{') {
+      const m = JSON.parse(s);
+      if (m?.type === 'stdin') {
+        if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
+        this.__pc_lastSentWasInput = true;
+        this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
+
+        // NEW: record the line for replay (used by inline plot capture)
+        const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
+        if (line) {
+          window.__stdinHistory = window.__stdinHistory || [];
+          window.__stdinHistory.push(line);
+        }
+      }
+    }
+  } catch {}
+  this._real.send(data);
+}
+
 
   close(code, reason) { this._real.close(code, reason); }
 
@@ -4337,15 +4362,26 @@ function clearInlinePlotArea(removeNode = false) {
     const orig = fn;
     window.runLang = async function(...args){
       const code = window.editor?.getValue?.() || '';
-      clearInlinePlotArea(true);    
-      const rv = await orig.apply(this, args);  // real backend run (stdout/input etc.)
-      // After run finishes, render plots inline in the Output panel
-      renderInlinePlotsIfAny(code);
+
+      // NEW: remember how many inputs we had before this run
+      const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.length : 0;
+
+      clearInlinePlotArea(true);
+      const rv = await orig.apply(this, args);  // backend run (stdout/input etc.)
+
+      // NEW: just the inputs typed during THIS run
+      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.slice(startIdx) : [];
+
+      // After run finishes, render plots inline in the Output panel (with inputs)
+      renderInlinePlotsIfAny(code, replay);
       return rv;
     };
   };
   tryWrap();
 })();
+
 
 
 (function installPlotResetHook(){
