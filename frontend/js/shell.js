@@ -162,6 +162,7 @@ function codeLooksLikePlot(s){
 }
 
 // DROP-IN REPLACEMENT
+// DROP-IN: inline plots go under #output (so PDF/SS capture them)
 async function renderInlinePlotsIfAny(userCode, replayInputs = []) {
   try {
     if (!codeLooksLikePlot(userCode)) return;
@@ -236,32 +237,27 @@ _payload
 
     if (!Array.isArray(imgs) || !imgs.length) return;
 
-    // ---------- robust host selection ----------
-    let host =
-      document.querySelector('#rightPanel .pane-body') ||
-      document.getElementById('output') ||
-      document.getElementById('outputBody') ||
-      (document.getElementById('jconsole') ? document.getElementById('jconsole').parentElement : null) ||
-      document.getElementById('console') ||
-      document.querySelector('#rightPanel') ||
-      document.body;
+    // ---------- stable target: inside #output so PDF/SS capture them ----------
+    const out = document.getElementById('output') || document.body;
 
-    // Dedicated plot area (create once) and clear previous run’s plots
+    // Dedicated plot area (create once) under #output
     let holder = document.getElementById('pc-inline-plot-area');
     if (!holder) {
       holder = document.createElement('div');
       holder.id = 'pc-inline-plot-area';
       holder.style.marginTop = '8px';
-      host.appendChild(holder);
-    } else if (holder.parentElement !== host) {
-      host.appendChild(holder);
+      out.appendChild(holder);
+    } else if (holder.parentElement !== out) {
+      out.appendChild(holder);
     }
+
+    // Clear previous run’s plots
     holder.innerHTML = '';
 
-    // Divider
+    // Optional divider (empty per your last version)
     const divider = document.createElement('div');
     divider.style.cssText = 'margin:4px 0 8px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
-    divider.textContent = '── plots ─────────────────────────────────';
+    divider.textContent = ''; // '── plots ─────────────────────────────────';
     holder.appendChild(divider);
 
     // Images
@@ -279,6 +275,7 @@ _payload
     console.warn('[Polycode] inline plot render failed:', e);
   }
 }
+
 
 
 
@@ -4241,9 +4238,12 @@ function hideCompileFailNotice() {
 
 
 
-
-
-
+function clearInlinePlotArea(removeNode = false) {
+  const holder = document.getElementById('pc-inline-plot-area');
+  if (!holder) return;
+  if (removeNode) holder.remove();
+  else holder.innerHTML = '';
+}
 
 // Install inline plot hook (safe to include only once)
 (function installInlinePlotHook(){
@@ -4257,6 +4257,7 @@ function hideCompileFailNotice() {
     const orig = fn;
     window.runLang = async function(...args){
       const code = window.editor?.getValue?.() || '';
+      clearInlinePlotArea(true);    
       const rv = await orig.apply(this, args);  // real backend run (stdout/input etc.)
       // After run finishes, render plots inline in the Output panel
       renderInlinePlotsIfAny(code);
@@ -4266,3 +4267,24 @@ function hideCompileFailNotice() {
   tryWrap();
 })();
 
+
+(function installPlotResetHook(){
+  const bind = () => {
+    // Try common selectors; adjust if your reset button has a specific id
+    const btn =
+      document.getElementById('btnReset') ||
+      document.querySelector('#rightPanel [title="Reset"]') ||
+      document.querySelector('button[aria-label="Reset"]') ||
+      document.querySelector('button.reset') ||
+      document.querySelector('.pane-head .reset'); // fallback
+
+    if (!btn) { setTimeout(bind, 200); return; }
+
+    btn.addEventListener('click', () => {
+      clearInlinePlotArea(true); // remove the holder on reset
+      // also clear recorded stdin for good measure
+      window.__stdinHistory = [];
+    }, { capture: true });
+  };
+  bind();
+})();
