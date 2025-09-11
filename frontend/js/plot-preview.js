@@ -210,14 +210,20 @@
 
   
    function detectPkgs(userCode) {
-    const s = String(userCode || "");
-    const needsMpl = /\b(from\s+matplotlib|import\s+matplotlib|plt\s*\.)/.test(s);
-    const needsPandas = /\bimport\s+pandas\b|pandas\./.test(s);
-    const pkgs = [];
-    if (needsMpl) pkgs.push("matplotlib");
-    if (needsPandas) pkgs.push("pandas");
-    return pkgs;
-  }
+  const s = String(userCode || "");
+
+  const needsMpl     = /\b(from\s+matplotlib|import\s+matplotlib|plt\s*\.)/.test(s);
+  const needsPandas  = /\bimport\s+pandas\b|pandas\./.test(s);
+  const needsSeaborn = /\bimport\s+seaborn\b|\bsns\./.test(s);
+
+  const pkgs = [];
+  if (needsMpl) pkgs.push("matplotlib");
+  if (needsPandas) pkgs.push("pandas");
+  if (needsSeaborn) pkgs.push("seaborn");
+
+  return pkgs;
+}
+
 
   async function renderPlotsFromCode(userCode) {
     const py = await ensurePyodide();
