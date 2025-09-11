@@ -161,16 +161,25 @@ function codeLooksLikePlot(s){
          /\.plot\s*\(/.test(t); // pandas .plot()
 }
 
-async function renderInlinePlotsIfAny(userCode){
-  try{
+// DROP-IN REPLACEMENT
+async function renderInlinePlotsIfAny(userCode, replayInputs = []) {
+  try {
     if (!codeLooksLikePlot(userCode)) return;
 
     const py = await ensurePyodideReady();
-    await ensurePyPkgsFor(userCode); // your existing autoloader (mpl/pandas + seaborn via micropip)
+    await ensurePyPkgsFor(userCode);
+
+    // seed the same inputs the student typed (if provided)
+    try {
+      const pyList = py.toPy((replayInputs || []).slice());
+      py.globals.set('STDIN_REPLAY', pyList);
+    } catch {
+      py.globals.set('STDIN_REPLAY', py.toPy([]));
+    }
 
     const imgs = await py.runPythonAsync(`
 import sys, io, base64, builtins
-# seed input replay
+# --- input() replay ---
 try:
     _buf = list(STDIN_REPLAY)
 except NameError:
@@ -179,15 +188,14 @@ def _input(prompt=''):
     return _buf.pop(0) if _buf else ''
 builtins.input = _input
 
-# headless matplotlib
+# --- headless matplotlib ---
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-# start from a clean slate and silence GUI show()
+# start clean & silence GUI show()
 plt.close('all')
 def __pc_show(*args, **kwargs):
-    # do nothing; we'll capture figures explicitly after the user code
     pass
 try:
     _orig_show = plt.show
@@ -195,22 +203,20 @@ except Exception:
     _orig_show = None
 plt.show = __pc_show
 
-# ==== USER CODE ====
+# ====== USER CODE ======
 ${userCode}
-# ===================
+# =======================
 
 # collect all open figures as base64 PNGs
-_payload=[]
+_payload = []
 try:
-    fns = list(getattr(plt, 'get_fignums', lambda: [])())
-    for n in fns:
+    for n in list(getattr(plt, 'get_fignums', lambda: [])()):
         fig = plt.figure(n)
         buf = io.BytesIO()
         fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
         _payload.append(base64.b64encode(buf.getvalue()).decode('ascii'))
         buf.close()
 finally:
-    # restore and close
     try:
         if _orig_show is not None:
             plt.show = _orig_show
@@ -219,55 +225,57 @@ finally:
     plt.close('all')
 
 _payload
-`);
-
+    `);
 
     if (!Array.isArray(imgs) || !imgs.length) return;
 
-    //const host = document.getElementById('output') || document.getElementById('jconsole')?.parentElement;
-    // Find a reliable container in the right/output pane
-let host =
-  document.querySelector('#rightPanel .pane-body') ||     // preferred
-  document.getElementById('output') ||
-  document.getElementById('outputBody') ||
-  (document.getElementById('jconsole') ? document.getElementById('jconsole').parentElement : null) ||
-  document.getElementById('console') ||
-  document.querySelector('#rightPanel') ||
-  document.body;
+    // ---------- robust host selection ----------
+    // Prefer the scrollable body of the right panel.
+    let host =
+      document.querySelector('#rightPanel .pane-body') ||
+      document.getElementById('output') ||
+      document.getElementById('outputBody') ||
+      (document.getElementById('jconsole') ? document.getElementById('jconsole').parentElement : null) ||
+      document.getElementById('console') ||
+      document.querySelector('#rightPanel') ||
+      document.body;
 
-// As a last resort, create a dedicated plot area after the console once
-if (host && !document.getElementById('pc-inline-plot-area')) {
-  const holder = document.createElement('div');
-  holder.id = 'pc-inline-plot-area';
-  holder.style.marginTop = '8px';
-  host.appendChild(holder);
-  host = holder;
-} else if (document.getElementById('pc-inline-plot-area')) {
-  host = document.getElementById('pc-inline-plot-area');
-}
+    // Dedicated plot area (create once)
+    let holder = document.getElementById('pc-inline-plot-area');
+    if (!holder) {
+      holder = document.createElement('div');
+      holder.id = 'pc-inline-plot-area';
+      holder.style.marginTop = '8px';
+      host.appendChild(holder);
+    } else if (holder.parentElement !== host) {
+      host.appendChild(holder);
+    }
 
-    if (!host) return;
+    // Clear previous run’s plots
+    holder.innerHTML = '';
 
-    // Insert a little divider then the images
+    // Divider
     const divider = document.createElement('div');
-    divider.style.cssText = 'margin:8px 0 6px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
+    divider.style.cssText = 'margin:4px 0 8px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
     divider.textContent = '── plots ─────────────────────────────────';
-    host.appendChild(divider);
+    holder.appendChild(divider);
 
-    imgs.forEach((b64,i) => {
+    // Images
+    imgs.forEach((b64, i) => {
       const img = document.createElement('img');
       img.src = 'data:image/png;base64,' + b64;
-      img.alt = 'Figure ' + (i+1);
+      img.alt = 'Figure ' + (i + 1);
       img.style.maxWidth = '100%';
-      img.style.display  = 'block';
-      img.style.margin   = '8px 0';
-      host.appendChild(img);
+      img.style.display = 'block';
+      img.style.margin = '8px 0';
+      holder.appendChild(img);
     });
 
-  } catch(e){
+  } catch (e) {
     console.warn('[Polycode] inline plot render failed:', e);
   }
 }
+
 
 
 
