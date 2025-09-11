@@ -1459,9 +1459,19 @@ window.PolyShell.setRawOutputs(stdout, stderr);
       const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
         ? window.__stdinHistory.length : 0;
 
-      // If plotting code, pre-insert a progress chunk into #output
+      // 👇 NO pre-inserted progress here anymore
+
+      const rv = await orig.apply(this, args);
+
+      // Inputs typed during THIS run
+      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.slice(startIdx) : [];
+
+      window.__pc_runSeq = (window.__pc_runSeq || 0) + 1;
+
+      // If code looks like plotting BUT there was no stdin (menu), show a short progress
       let progressChunk = null;
-      if (codeLooksLikePlot(code)) {
+      if (codeLooksLikePlot(code) && (!replay || replay.length === 0)) {
         const out = document.getElementById('output') || document.body;
         let holder = document.getElementById('pc-inline-plot-area');
         if (!holder) {
@@ -1476,31 +1486,18 @@ window.PolyShell.setRawOutputs(stdout, stderr);
         holder.appendChild(progressChunk);
       }
 
-      const rv = await orig.apply(this, args);
-
-      // Only the inputs typed during THIS run (good for menus)
-      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-        ? window.__stdinHistory.slice(startIdx) : [];
-
-      window.__pc_runSeq = (window.__pc_runSeq || 0) + 1;
-
       try {
-        if (progressChunk) {
-          await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk });
-          // If the renderer didn’t remove it (e.g., no images), ensure it’s gone
-          if (progressChunk.isConnected) progressChunk.remove();
-        } else {
-          await renderInlinePlotsIfAny(code, replay, { append: true });
-        }
-      } catch (e) {
+        await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk || null });
+      } finally {
         if (progressChunk && progressChunk.isConnected) progressChunk.remove();
-        console.debug('[Polycode] final plot pass skipped:', e);
       }
+
       return rv;
     };
   };
   tryWrap();
 })();
+
 
 
 
