@@ -201,11 +201,10 @@ try:
     _buf = list(STDIN_REPLAY)
 except NameError:
     _buf = []
-
 def _input(prompt=''):
-    if _buf:                    # use recorded inputs first
+    if _buf:
         return _buf.pop(0)
-    p = (prompt or '').lower()  # defensive default if empty
+    p = (prompt or '').lower()
     if any(k in p for k in ('how many', 'count', 'number', 'size', 'n=')):
         return '1'
     return '0'
@@ -216,38 +215,51 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-# start clean & silence GUI show()
+# global payload of ALL figures emitted during the run
+_payload = []
+
+def __pc_emit_all(format='png', dpi=150):
+    """Save ALL open figures into _payload and close them."""
+    fnums = list(getattr(plt, 'get_fignums', lambda: [])())
+    for n in fnums:
+        fig = plt.figure(n)
+        buf = io.BytesIO()
+        if format == 'svg':
+            fig.savefig(buf, format='svg', bbox_inches='tight')
+        else:
+            fig.savefig(buf, format='png', dpi=dpi, bbox_inches='tight')
+        _payload.append(base64.b64encode(buf.getvalue()).decode('ascii'))
+        buf.close()
+    if fnums:
+        plt.close('all')
+
+# start clean & replace GUI show() with emitter
 plt.close('all')
-def __pc_show(*args, **kwargs):
-    pass
 try:
     _orig_show = plt.show
 except Exception:
     _orig_show = None
+def __pc_show(*args, **kwargs):
+    # whenever user code calls plt.show(), capture all figures made so far
+    __pc_emit_all()
 plt.show = __pc_show
 
 # ====== USER CODE ======
 ${userCode}
 # =======================
 
-# collect all open figures as base64 PNGs
-_payload = []
+# In case user forgot to call show() for a final figure:
+__pc_emit_all()
+
+# restore original show (not strictly necessary here)
 try:
-    for n in list(getattr(plt, 'get_fignums', lambda: [])()):
-        fig = plt.figure(n)
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-        _payload.append(base64.b64encode(buf.getvalue()).decode('ascii'))
-        buf.close()
-finally:
-    try:
-        if _orig_show is not None:
-            plt.show = _orig_show
-    except Exception:
-        pass
-    plt.close('all')
+    if _orig_show is not None:
+        plt.show = _orig_show
+except Exception:
+    pass
 
 _payload
+
     `);
 
     // ---- convert PyProxy -> plain JS array ----
