@@ -4417,12 +4417,20 @@ function hideCompileFailNotice() {
 
 
 
-function clearInlinePlotArea(removeNode = false) {
+// put near your other helpers
+function clearInlinePlotArea(hard = false) {
+  // remove the whole holder so screenshots/PDFs don’t see ghosts
   const holder = document.getElementById('pc-inline-plot-area');
-  if (!holder) return;
-  if (removeNode) holder.remove();
-  else holder.innerHTML = '';
+  if (holder && holder.parentNode) holder.parentNode.removeChild(holder);
+
+  // reset de-dupe + live state
+  window.__pc_plotHashes = new Set();
+  if (hard) {
+    window.__stdinHistory = [];
+    window.__pc_inputSeq = 0;
+  }
 }
+
 
 // Install inline plot hook (safe to include only once)
 (function installInlinePlotHook(){
@@ -4481,3 +4489,31 @@ window.runLang = async function (...args) {
   };
   bind();
 })();
+
+
+
+// run once after DOM ready
+(function hookResetForPlots(){
+  // 1) button in the UI
+  const btn =
+    document.getElementById('btnReset') ||
+    document.querySelector('#rightPanel .btn-reset, [data-action="reset"]');
+  if (btn) {
+    btn.addEventListener('click', () => clearInlinePlotArea(true), { capture: true });
+  }
+
+  // 2) programmatic reset (if your app exposes one)
+  const candidates = ['resetProgram','resetConsole','resetAll','doReset'];
+  for (const name of candidates) {
+    const fn = window[name];
+    if (typeof fn === 'function') {
+      const orig = fn;
+      window[name] = function(...args){
+        try { clearInlinePlotArea(true); } catch {}
+        return orig.apply(this, args);
+      };
+      break;
+    }
+  }
+})();
+
