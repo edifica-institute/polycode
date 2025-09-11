@@ -3717,6 +3717,7 @@ function splitConsoleForInlineImage() {
 
 
 // Simple last-job runner for live plot renders
+// Simple last-job runner for live plot renders
 async function __pc_kickLivePlot() {
   if (window.__pc_livePlotRunning) return;
   const job = window.__pc_livePlotPending;
@@ -3729,10 +3730,17 @@ async function __pc_kickLivePlot() {
   } catch (e) {
     console.debug('[Polycode] live plot render failed:', e);
   } finally {
+    // 🔒 ALWAYS clear the progress box, even if nothing was rendered
+    try {
+      const target = job.anchor || document.querySelector('.pc-inline-plot-chunk');
+      const box = target && target.querySelector?.('.pc-plot-progress');
+      if (box) box.remove();
+    } catch {}
     window.__pc_livePlotRunning = false;
-    if (window.__pc_livePlotPending) __pc_kickLivePlot(); // drain the latest pending job
+    if (window.__pc_livePlotPending) __pc_kickLivePlot(); // drain latest pending job
   }
 }
+
 
 
 
@@ -4085,38 +4093,40 @@ class PCWebSocket {
 // ---- SEND (notice when stdin is being sent) ----
 
   // ---- SEND (notice when stdin is being sent) ----
+// ── drop-in for: class PCWebSocket { … send(data) { … } … }
 send(data) {
   try {
     const s = (typeof data === 'string') ? data : '';
     if (s && s[0] === '{') {
       const m = JSON.parse(s);
       if (m?.type === 'stdin') {
-        // mark last-sent-was-input (unchanged)
-        if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
-        this.__pc_lastSentWasInput = true;
-        this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
+        // mark that the last thing we sent was input
+        try {
+          if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
+          this.__pc_lastSentWasInput = true;
+          this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
+        } catch {}
 
-        // --- NEW: record history length before pushing current line
+        // record stdin history BEFORE/AFTER this line (for replay)
         const beforeLen = (window.__stdinHistory?.length || 0);
-
-        // push the line
         const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
         if (line) {
           window.__stdinHistory = window.__stdinHistory || [];
           window.__stdinHistory.push(line);
         }
+        const afterLen = (window.__stdinHistory?.length || beforeLen);
 
-
+        // decide if this input should even try to produce a plot
         const codeNow  = window.editor?.getValue?.() || '';
         const exitish  = /^\s*(0|exit|quit|q)\s*$/i.test(line);
         const willPlot = codeLooksLikePlot(codeNow) && !exitish;
         if (!willPlot) {
-          // Skip anchors/progress and live plotting for exits or non-plot code
+          // just forward the message; no progress UI
           this._real.send(data);
           return;
         }
 
-        // create anchor & progress (unchanged) ...
+        // make an inline anchor and show a lightweight progress bar
         const anchor = splitConsoleForInlineImage();
         let progressChunk = null;
         if (anchor) {
@@ -4125,43 +4135,43 @@ send(data) {
           progressChunk = makePlotProgressChunk('Generating chart…');
           progressChunk.dataset.seq = anchor.dataset.seq;
           anchor.replaceWith(progressChunk);
+
+          // 🐶 watchdog: if no image arrives, remove the spinner after 3s
+          progressChunk.__pc_watchdog = setTimeout(() => {
+            try {
+              const box = progressChunk.querySelector('.pc-plot-progress');
+              if (box && box.isConnected) box.remove();
+            } catch {}
+          }, 3000);
         }
 
-        // --- NEW: store a from..to checkpoint for THIS input
-        const seq = (progressChunk?.dataset?.seq);
+        // mark replay window for THIS input (so only the delta is replayed)
+        const seq = progressChunk?.dataset?.seq || String(window.__pc_inputSeq || 0);
         window.__pc_replayCheckpoints = window.__pc_replayCheckpoints || {};
-        window.__pc_replayCheckpoints[seq] = {
-          from: beforeLen,
-          to: (window.__stdinHistory?.length || beforeLen)
-        };
+        window.__pc_replayCheckpoints[seq] = { from: beforeLen, to: afterLen };
 
-        // schedule live render (next snippet updates replay logic) ...
-        if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
+        // schedule a live render (debounced)
+        try { if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer); } catch {}
         window.__pc_livePlotTimer = setTimeout(() => {
           try {
-            //const code = window.editor?.getValue?.() || '';
-            const code = codeNow;
-            let replay = (window.__stdinHistory || []).slice();
-
-            // --- NEW: only the delta for this input
             const mark = window.__pc_replayCheckpoints?.[seq];
-            if (mark) {
-              replay = (window.__stdinHistory || []).slice(mark.from, mark.to);
-            } else {
-              // fallback: just the last line
-              replay = [(window.__stdinHistory || []).slice(-1)[0]].filter(Boolean);
-            }
+            let replay = (window.__stdinHistory || []).slice();
+            if (mark) replay = replay.slice(mark.from, mark.to);      // only the new line(s)
+            else      replay = [ (window.__stdinHistory || []).slice(-1)[0] ].filter(Boolean);
 
-            window.__pc_livePlotPending = { code, replay, anchor: (progressChunk || null) };
-            __pc_kickLivePlot();
+            window.__pc_livePlotPending = { code: codeNow, replay, anchor: (progressChunk || null) };
+            __pc_kickLivePlot(); // will also clear spinner if a figure is produced
           } catch (e) {
             console.debug('[Polycode] live plot schedule failed:', e);
           }
         }, 120);
       }
     }
-  } catch (_) { /* ignore */ }
+  } catch (_) {
+    // ignore parse errors; just send raw
+  }
 
+  // always forward on the real socket
   this._real.send(data);
 }
 
