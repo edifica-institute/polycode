@@ -4322,8 +4322,7 @@ function toggleLeftPanel() {
 }
 
 // hook up the button
-document.getElementById("btnToggleLeft")
-  ?.addEventListener("click", toggleLeftPanel);
+document.getElementById("btnToggleLeft")?.addEventListener("click", toggleLeftPanel);
 
 // on load: collapse left panel + sync button state
 document.addEventListener("DOMContentLoaded", () => {
