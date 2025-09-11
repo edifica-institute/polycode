@@ -197,7 +197,28 @@ _payload
 
     if (!Array.isArray(imgs) || !imgs.length) return;
 
-    const host = document.getElementById('output') || document.getElementById('jconsole')?.parentElement;
+    //const host = document.getElementById('output') || document.getElementById('jconsole')?.parentElement;
+    // Find a reliable container in the right/output pane
+let host =
+  document.querySelector('#rightPanel .pane-body') ||     // preferred
+  document.getElementById('output') ||
+  document.getElementById('outputBody') ||
+  (document.getElementById('jconsole') ? document.getElementById('jconsole').parentElement : null) ||
+  document.getElementById('console') ||
+  document.querySelector('#rightPanel') ||
+  document.body;
+
+// As a last resort, create a dedicated plot area after the console once
+if (host && !document.getElementById('pc-inline-plot-area')) {
+  const holder = document.createElement('div');
+  holder.id = 'pc-inline-plot-area';
+  holder.style.marginTop = '8px';
+  host.appendChild(holder);
+  host = holder;
+} else if (document.getElementById('pc-inline-plot-area')) {
+  host = document.getElementById('pc-inline-plot-area');
+}
+
     if (!host) return;
 
     // Insert a little divider then the images
