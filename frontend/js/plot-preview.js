@@ -170,7 +170,7 @@
       const code = ed ? ed.getValue() : "";
       const hasPlot = codeLooksLikeMatplotlib(code);
       plotBtn.disabled = !hasPlot;
-      if (runBtn) runBtn.disabled = hasPlot;
+      //if (runBtn) runBtn.disabled = hasPlot;
     };
 
     if (ed && m) {
