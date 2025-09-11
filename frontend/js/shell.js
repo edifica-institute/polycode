@@ -3581,7 +3581,31 @@ async function buildCodeImageDataURL() {
 
 
 
+function splitConsoleForInlineImage() {
+  const out = document.getElementById('output');
+  if (!out) return null;
 
+  const pre = document.getElementById('jconsole') || out.querySelector('pre');
+  if (!pre || !pre.parentNode) return null;
+
+  // Move current text into an archived <pre>, placed BEFORE the live pre
+  const archive = document.createElement('pre');
+  archive.className = (pre.className || '') + ' pc-console-archive';
+  archive.style.margin = '0';
+  archive.textContent = pre.textContent || '';
+  pre.parentNode.insertBefore(archive, pre);
+
+  // Insert anchor between old text and the live pre
+  const anchor = document.createElement('div');
+  anchor.className = 'pc-live-plot-anchor';
+  anchor.style.cssText = 'height:0; margin:0; padding:0;';
+  pre.parentNode.insertBefore(anchor, pre);
+
+  // Clear live pre so subsequent prints appear AFTER the anchor
+  pre.textContent = '';
+
+  return anchor;
+}
 
 
 
@@ -3906,31 +3930,7 @@ class PCWebSocket {
 /* >>> INSERT THIS EXACTLY HERE — just before your WebSocket send(data) patch <<< */
 
 // Split console so plots land exactly after the user's input line.
-function splitConsoleForInlineImage() {
-  const out = document.getElementById('output');
-  if (!out) return null;
 
-  const pre = document.getElementById('jconsole') || out.querySelector('pre');
-  if (!pre || !pre.parentNode) return null;
-
-  // Move current text into an archived <pre>, placed BEFORE the live pre
-  const archive = document.createElement('pre');
-  archive.className = (pre.className || '') + ' pc-console-archive';
-  archive.style.margin = '0';
-  archive.textContent = pre.textContent || '';
-  pre.parentNode.insertBefore(archive, pre);
-
-  // Insert anchor between old text and the live pre
-  const anchor = document.createElement('div');
-  anchor.className = 'pc-live-plot-anchor';
-  anchor.style.cssText = 'height:0; margin:0; padding:0;';
-  pre.parentNode.insertBefore(anchor, pre);
-
-  // Clear live pre so subsequent prints appear AFTER the anchor
-  pre.textContent = '';
-
-  return anchor;
-}
 
 /* ===== your WebSocket send(data) patch starts below ===== */
 
