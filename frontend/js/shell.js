@@ -169,7 +169,6 @@ async function renderInlinePlotsIfAny(userCode){
     await ensurePyPkgsFor(userCode); // your existing autoloader (mpl/pandas + seaborn via micropip)
 
     const imgs = await py.runPythonAsync(`
-const imgs = await py.runPythonAsync(`
 import sys, io, base64, builtins
 # seed input replay
 try:
