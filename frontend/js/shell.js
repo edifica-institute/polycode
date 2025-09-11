@@ -2844,6 +2844,60 @@ function isSameOriginIframe(ifr){
   } catch { return false; }
 }
 
+
+// Render an element at its FULL scroll size by cloning it off-screen
+async function snapshotElementFull(el, html2canvas, {
+  scale = 2,
+  backgroundColor = null
+} = {}) {
+  const clone = el.cloneNode(true);
+  // make it render full height/width without scrollbars
+  Object.assign(clone.style, {
+    position: 'fixed',
+    left: '-100000px',
+    top: '0',
+    width: el.scrollWidth + 'px',
+    height: el.scrollHeight + 'px',
+    maxHeight: 'none',
+    overflow: 'visible',
+    contain: 'paint'
+  });
+  document.body.appendChild(clone);
+
+  try {
+    const canvas = await html2canvas(clone, {
+      backgroundColor,
+      scale,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      // ensure html2canvas considers the full box
+      width: clone.scrollWidth,
+      height: clone.scrollHeight,
+      windowWidth: clone.scrollWidth,
+      windowHeight: clone.scrollHeight
+    });
+    return canvas;
+  } finally {
+    document.body.removeChild(clone);
+  }
+}
+
+// Compute offset of a descendant element relative to an ancestor
+function offsetWithin(ancestor, el) {
+  let x = 0, y = 0, n = el;
+  while (n && n !== ancestor && n instanceof HTMLElement) {
+    x += n.offsetLeft || 0;
+    y += n.offsetTop  || 0;
+    n = n.offsetParent;
+  }
+  return { x, y };
+}
+
+
+  
+  
+
 // Screenshot the preview area (iframe if same-origin; else fall back to #output)
 async function screenshotOutputForPdf() {
   const html2canvas = await ensureHtml2Canvas();
@@ -2869,16 +2923,13 @@ async function screenshotOutputForPdf() {
   }
 
   // Fallback: capture host #output (should rarely run now)
-  const out = document.getElementById('output');
-  if (!out) return null;
-  const canvas = await html2canvas(out, {
-    backgroundColor: null,
-    scale: 2,
-    useCORS: true,
-    allowTaint: false,
-    logging: false
-  });
-  return canvas.toDataURL('image/png');
+const out = document.getElementById('output');
+if (!out) return null;
+const canvas = await snapshotElementFull(out, html2canvas, {
+  scale: 2,
+  backgroundColor: null
+});
+return canvas.toDataURL('image/png');
 }
 
 
@@ -2895,49 +2946,57 @@ async function captureOutputPanelAsPNG() {
 
   const scale = Math.min(2, window.devicePixelRatio || 1.5);
 
-  // 1) Host panel without the iframe
-  const hostCanvas = await html2canvas(out, {
+  // Helper: offset of el relative to ancestor
+  function offsetWithin(ancestor, el) {
+    let x = 0, y = 0, n = el;
+    while (n && n !== ancestor && n instanceof HTMLElement) {
+      x += n.offsetLeft || 0;
+      y += n.offsetTop  || 0;
+      n = n.offsetParent;
+    }
+    return { x, y };
+  }
+
+  // 1) Host panel at FULL height (no cropping)
+  const hostCanvas = await snapshotElementFull(out, html2canvas, {
+    scale,
+    backgroundColor: '#ffffff'
+  });
+
+  // 2) If there is a same-origin iframe, capture it at FULL height too
+  const ifr = out.querySelector('#preview, iframe');
+  const canSeeIframe = !!(ifr && ifr.contentDocument);
+  if (!canSeeIframe) {
+    return hostCanvas.toDataURL('image/png');
+  }
+
+  const frameDocEl = ifr.contentDocument.documentElement;
+  const frameCanvas = await html2canvas(frameDocEl, {
     backgroundColor: '#ffffff',
     scale,
     useCORS: true,
     allowTaint: false,
-    ignoreElements: (el) => el.tagName === 'IFRAME'
+    // render the whole iframe document, not just viewport
+    windowWidth:  frameDocEl.scrollWidth,
+    windowHeight: frameDocEl.scrollHeight
   });
 
-  // 2) If the iframe is same-origin, screenshot it too
-  const ifr = out.querySelector('#preview, iframe');
-  const canSeeIframe = !!(ifr && ifr.contentDocument);
-  if (!canSeeIframe) {
-    return hostCanvas.toDataURL('image/png'); // nothing else we can add
-  }
-
-  const frameCanvas = await html2canvas(ifr.contentDocument.documentElement, {
-    backgroundColor: '#ffffff',
-    scale,
-    useCORS: true,
-    allowTaint: false
-  });
-
-  // 3) Composite: draw host first, then the iframe at its exact position
-  const outRect = out.getBoundingClientRect();
-  const iRect   = ifr.getBoundingClientRect();
-  const ox = (iRect.left - outRect.left) * scale;
-  const oy = (iRect.top  - outRect.top)  * scale;
+  // 3) Composite: draw host first, then iframe at its position within #output
+  const { x: relX, y: relY } = offsetWithin(out, ifr); // relative to #output
+  const ox = Math.round(relX * scale);
+  const oy = Math.round(relY * scale);
 
   const comp = document.createElement('canvas');
   comp.width  = hostCanvas.width;
   comp.height = hostCanvas.height;
   const ctx = comp.getContext('2d');
+
   ctx.drawImage(hostCanvas, 0, 0);
-  ctx.drawImage(
-    frameCanvas,
-    Math.round(ox),
-    Math.round(oy),
-    Math.round(ifr.clientWidth  * scale),
-    Math.round(ifr.clientHeight * scale)
-  );
+  ctx.drawImage(frameCanvas, ox, oy);
+
   return comp.toDataURL('image/png');
 }
+
 
 
 
