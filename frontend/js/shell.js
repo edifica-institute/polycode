@@ -3858,19 +3858,29 @@ send(data) {
     if (s && s[0] === '{') {
       const m = JSON.parse(s);
       if (m?.type === 'stdin') {
-        if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
-        this.__pc_lastSentWasInput = true;
-        this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
-
-        // NEW: record the line for replay (used by inline plot capture)
-
-const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
+  // (you already have this recorder)
+  const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
   if (line) {
     window.__stdinHistory = window.__stdinHistory || [];
     window.__stdinHistory.push(line);
   }
 
-  // NEW: schedule a live inline-plot render using inputs so far
+  // NEW: insert an anchor at the *current* end of #output
+  try {
+    const out = document.getElementById('output');
+    if (out) {
+      const anchor = document.createElement('div');
+      anchor.className = 'pc-live-plot-anchor';
+      anchor.dataset.seq = String((window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1));
+      // visually nothing; just a marker
+      anchor.style.cssText = 'height:0; margin:0; padding:0;';
+      out.appendChild(anchor);
+      window.__pc_anchorQueue = window.__pc_anchorQueue || [];
+      window.__pc_anchorQueue.push(anchor);
+    }
+  } catch {}
+
+  // NEW: schedule a live inline-plot render with inputs-so-far
   if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
   window.__pc_livePlotTimer = setTimeout(async () => {
     if (window.__pc_livePlotBusy) return;
@@ -3878,20 +3888,21 @@ const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
     try {
       const code = window.editor?.getValue?.() || '';
       const replay = (window.__stdinHistory || []).slice();
-      await renderInlinePlotsIfAny(code, replay, { append: true });
+
+      // grab the *oldest* unmatched anchor so ordering is preserved
+      const anchor = (window.__pc_anchorQueue && window.__pc_anchorQueue.length)
+        ? window.__pc_anchorQueue.shift()
+        : null;
+
+      await renderInlinePlotsIfAny(code, replay, { append: true, anchor });
     } catch (e) {
       console.debug('[Polycode] live plot skipped:', e);
     } finally {
       window.__pc_livePlotBusy = false;
     }
-  }, 150); // small debounce so backend consumes stdin first
+  }, 150); // small debounce
+}
 
-
-
-
-
-        
-      }
     }
   } catch {}
   this._real.send(data);
