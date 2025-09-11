@@ -109,18 +109,23 @@ async function ensurePyodideReady() {
 
 async function ensurePyPkgsFor(code) {
   const needsPandas = /\bimport\s+pandas\b|pandas\./.test(code);
-  const needsMpl    = /\bfrom\s+matplotlib\b|\bimport\s+matplotlib\b/.test(code);
-  if (!needsPandas && !needsMpl) return;
+  const needsMpl    = /\bfrom\s+matplotlib\b|\bimport\s+matplotlib\b|\bplt\s*\./.test(code);
+  const needsSeaborn = /\bimport\s+seaborn\b|\bsns\./.test(code);
+
+  if (!needsPandas && !needsMpl && !needsSeaborn) return;
 
   const py = await ensurePyodideReady();
   const toLoad = [];
   if (needsMpl && !py.loadedPackages?.matplotlib) toLoad.push("matplotlib");
   if (needsPandas && !py.loadedPackages?.pandas)   toLoad.push("pandas");
+  if (needsSeaborn && !py.loadedPackages?.seaborn) toLoad.push("seaborn");
+
   for (const pkg of toLoad) {
     console.log("[Polycode] loading Pyodide package:", pkg);
     await py.loadPackage(pkg);
   }
 }
+
 
 
 
