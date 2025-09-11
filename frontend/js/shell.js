@@ -45,26 +45,73 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 
 
 // ---- Pyodide + package autoloader for Python preview ----
+// ---- Pyodide (version-safe) + auto package loader -------------------------
+function getPyodideIndexURL() {
+  // Pick from HTML if set, else default to the newest you want to support
+  const url = self.pyodideIndexURL || "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/";
+  // Expose the parsed version so other scripts (e.g., plot preview) can read it
+  const m = /pyodide\/v(\d+\.\d+\.\d+)\//.exec(url);
+  window.__pyodideExpectedVersion = m ? m[1] : null;
+  return url;
+}
+
+async function ensurePyodideScriptLoaded(indexURL) {
+  if (typeof loadPyodide === "function") return;
+  await new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = indexURL.replace(/\/+$/, "/") + "pyodide.js";
+    s.defer = true;
+    s.onload = res;
+    s.onerror = () => rej(new Error("Failed to load Pyodide loader script"));
+    document.head.appendChild(s);
+  });
+}
+
 async function ensurePyodideReady() {
-  if (window.pyodide) return window.pyodide;
-  // loadPyodide global is provided by the Pyodide loader you already include with the preview
-  window.pyodide = await loadPyodide({ indexURL: self.pyodideIndexURL || undefined });
+  const indexURL = getPyodideIndexURL();
+
+  // If already present, just sanity-check version
+  if (window.pyodide) {
+    try {
+      const have = String(window.pyodide.version || "").trim();
+      const want = window.__pyodideExpectedVersion;
+      if (want && have && have !== want) {
+        console.warn(`[Polycode] Pyodide version mismatch: have ${have}, want ${want}.` +
+                     " This usually means the page cached an older runtime. " +
+                     "Hard refresh (Ctrl/Cmd+Shift+R) to reload the correct version.");
+      }
+    } catch {}
+    return window.pyodide;
+  }
+
+  // Lazy-load the loader if the HTML didn’t include it
+  await ensurePyodideScriptLoaded(indexURL);
+
+  // Boot the runtime using the exact indexURL from HTML
+  window.pyodide = await loadPyodide({ indexURL });
+
+  // One more check after load
+  try {
+    const have = String(window.pyodide.version || "").trim();
+    const want = window.__pyodideExpectedVersion;
+    if (want && have && have !== want) {
+      console.warn(`[Polycode] Pyodide loaded ${have} but HTML pointed to ${want}.`);
+    }
+  } catch {}
   return window.pyodide;
 }
 
 async function ensurePyPkgsFor(code) {
-  // Only bother if the code uses these libs
-  const needsPandas = /(^|\n)\s*import\s+pandas\b|pandas\./.test(code);
-  const needsMpl    = /(^|\n)\s*(from\s+matplotlib\b|import\s+matplotlib\b)/.test(code);
-
+  const needsPandas = /\bimport\s+pandas\b|pandas\./.test(code);
+  const needsMpl    = /\bfrom\s+matplotlib\b|\bimport\s+matplotlib\b/.test(code);
   if (!needsPandas && !needsMpl) return;
 
   const py = await ensurePyodideReady();
   const toLoad = [];
-  if (needsMpl && !py.loadedPackages?.matplotlib) toLoad.push('matplotlib');
-  if (needsPandas && !py.loadedPackages?.pandas)   toLoad.push('pandas');
+  if (needsMpl && !py.loadedPackages?.matplotlib) toLoad.push("matplotlib");
+  if (needsPandas && !py.loadedPackages?.pandas)   toLoad.push("pandas");
   for (const pkg of toLoad) {
-    console.log('[Polycode] loading Pyodide package:', pkg);
+    console.log("[Polycode] loading Pyodide package:", pkg);
     await py.loadPackage(pkg);
   }
 }
@@ -1068,7 +1115,7 @@ if (window.PC) window.PC.__suppressRunErrorUntil = 0;
    // await window.runLang();
 
 
-const langId = window.editor?.getModel?.()?.getLanguageId?.() || '';
+/*const langId = window.editor?.getModel?.()?.getLanguageId?.() || '';
  const selectionForSql = getSelectedCodeOrNullFor(langId);
  if (selectionForSql) {
    setStatus('Running Selection…');                 // nice UX
@@ -1078,7 +1125,33 @@ const langId = window.editor?.getModel?.()?.getLanguageId?.() || '';
   const codeToRun = selectionForSql || window.editor.getValue(); // selectionForSql is null for Python
   try { await ensurePyPkgsFor(codeToRun); } catch (e) { console.warn('Pyodide preload failed', e); }
 }
- await window.runLang(selectionForSql || null);
+ await window.runLang(selectionForSql || null);*/
+
+
+    const langId = window.editor?.getModel?.()?.getLanguageId?.() || '';
+const selectionForSql = getSelectedCodeOrNullFor(langId);
+
+if (selectionForSql) {
+  setStatus('Running Selection…');                 
+  setFootStatus('rightFoot','running',{ detail:'Selection' });
+}
+
+let codeToRun = selectionForSql || window.editor.getValue();
+
+if (langId === 'python') {
+  try {
+    await ensurePyPkgsFor(codeToRun);  // preload matplotlib/pandas if imported
+  } catch (e) {
+    console.warn('Pyodide preload failed', e);
+  }
+}
+
+// Use the correct code string for the runner
+await window.runLang(codeToRun);
+
+
+
+    
     
     
     
