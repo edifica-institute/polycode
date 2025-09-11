@@ -91,28 +91,7 @@ async function ensurePyodideReady() {
 
 
   // After ensurePyodideReady is defined (anywhere in shell.js top-level)
-(function warmupSeabornAfterIdle(){
-  setTimeout(async () => {
-    try {
-      const py = await ensurePyodideReady();
-      py.loadedPackages = py.loadedPackages || {};
-      if (!py.loadedPackages.seaborn) {
-        if (!py.loadedPackages.micropip) {
-          await py.loadPackage('micropip');
-          py.loadedPackages.micropip = true;
-        }
-        await py.runPythonAsync(`
-import micropip
-await micropip.install("seaborn==0.13.2")
-`);
-        py.loadedPackages.seaborn = true;
-        console.log('[Polycode] Seaborn warmed up');
-      }
-    } catch (e) {
-      console.debug('[Polycode] Seaborn warmup skipped:', e);
-    }
-  }, 2000); // small idle delay after load
-})();
+
 
   
 
@@ -138,6 +117,33 @@ await micropip.install("seaborn==0.13.2")
   } catch {}
   return window.pyodide;
 }
+
+
+
+(function warmupSeabornAfterIdle(){
+  setTimeout(async () => {
+    try {
+      const py = await ensurePyodideReady();
+      py.loadedPackages = py.loadedPackages || {};
+      if (!py.loadedPackages.seaborn) {
+        if (!py.loadedPackages.micropip) {
+          await py.loadPackage('micropip');
+          py.loadedPackages.micropip = true;
+        }
+        await py.runPythonAsync(`
+import micropip
+await micropip.install("seaborn==0.13.2")
+`);
+        py.loadedPackages.seaborn = true;
+        console.log('[Polycode] Seaborn warmed up');
+      }
+    } catch (e) {
+      console.debug('[Polycode] Seaborn warmup skipped:', e);
+    }
+  }, 2000); // small idle delay after load
+})();
+
+
 
 // DROP-IN: robust autoloader for numpy/pandas/matplotlib/seaborn
 async function ensurePyPkgsFor(code) {
@@ -2548,9 +2554,9 @@ async function captureOutputImageDataURL(){
     }
 
     // 2b. Ask the iframe to self-capture via postMessage
-    try {
-      const url = await askPreviewForScreenshot(ifr, 3000);
-      if (url) return url;
+     try {
+      const snap = await askPreviewForScreenshot(3000); // uses #preview internally
+      if (snap?.url) return snap.url;
     } catch (_) {
       /* fall back */
     }
