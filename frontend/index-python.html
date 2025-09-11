@@ -235,6 +235,20 @@
   </footer>
 
   <!-- Scripts -->
+  <script>
+  // If you set window.require before loader.min.js, Monaco will pick it up as config
+  window.require = window.require || {};
+  window.require.paths = Object.assign({}, window.require.paths, {
+    vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs',
+    stackframe: 'https://cdn.jsdelivr.net/npm/stackframe@1.3.4/dist/stackframe.min'
+  });
+  // Optional shim in case something expects a global export
+  window.require.shim = Object.assign({}, window.require.shim, {
+    stackframe: { exports: 'StackFrame' }
+  });
+</script>
+
+  
   <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.min.js" defer></script>
   <!-- Pyodide runtime (needed for Matplotlib preview in the browser) -->
 <script>
