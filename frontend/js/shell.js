@@ -1451,7 +1451,8 @@ window.PolyShell.setRawOutputs(stdout, stderr);
 
 
 
-(function installRunWrapperWithPlotProgress(){
+// --- DROP-IN: replaces your existing installRunWrapperWithPlotProgress ---
+(function installRunWrapperWithPlotProgress() {
   if (window.__pc_runWrapperWithProgressInstalled) return;
   window.__pc_runWrapperWithProgressInstalled = true;
 
@@ -1460,24 +1461,39 @@ window.PolyShell.setRawOutputs(stdout, stderr);
     if (typeof fn !== 'function') { setTimeout(tryWrap, 100); return; }
 
     const orig = fn;
-    window.runLang = async function(...args){
+    window.runLang = async function (...args) {
       const code = window.editor?.getValue?.() || '';
+
+      // Where stdin history stood when this run started
       const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-        ? window.__stdinHistory.length : 0;
+        ? window.__stdinHistory.length
+        : 0;
 
-      // 👇 NO pre-inserted progress here anymore
-
+      // Run the original executor
       const rv = await orig.apply(this, args);
 
       // Inputs typed during THIS run
-      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-        ? window.__stdinHistory.slice(startIdx) : [];
+      const inputsThisRun = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.slice(startIdx)
+        : [];
 
       window.__pc_runSeq = (window.__pc_runSeq || 0) + 1;
 
-      // If code looks like plotting BUT there was no stdin (menu), show a short progress
+      // --- Decide if a post-run render should happen ---
+      // 1) Only for plotting code
+      // 2) Only for non-interactive runs (no stdin)
+      // 3) Guard: if last input looks like exit (0/exit/quit/q), skip as well
+      const interactive = inputsThisRun.length > 0;
+      const last = interactive ? (inputsThisRun[inputsThisRun.length - 1] || '') : '';
+      const looksExit = /^\s*(0|exit|quit|q)\s*$/i.test(last);
+
+      if (!codeLooksLikePlot(code) || interactive || looksExit) {
+        return rv; // ✅ no post-run replay for menu-based runs / exits
+      }
+
+      // --- Non-interactive plot code: do a single post-run render with progress ---
       let progressChunk = null;
-      if (codeLooksLikePlot(code) && (!replay || replay.length === 0)) {
+      try {
         const out = document.getElementById('output') || document.body;
         let holder = document.getElementById('pc-inline-plot-area');
         if (!holder) {
@@ -1485,15 +1501,12 @@ window.PolyShell.setRawOutputs(stdout, stderr);
           holder.id = 'pc-inline-plot-area';
           holder.style.marginTop = '8px';
           out.appendChild(holder);
-        } else if (holder.parentElement !== out) {
-          out.appendChild(holder);
         }
+
         progressChunk = makePlotProgressChunk('Generating chart…');
         holder.appendChild(progressChunk);
-      }
 
-      try {
-        await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk || null });
+        await renderInlinePlotsIfAny(code, [], { append: true, anchor: progressChunk });
       } finally {
         if (progressChunk && progressChunk.isConnected) progressChunk.remove();
       }
@@ -1501,8 +1514,10 @@ window.PolyShell.setRawOutputs(stdout, stderr);
       return rv;
     };
   };
+
   tryWrap();
 })();
+
 
 
 
