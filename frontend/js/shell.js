@@ -108,23 +108,49 @@ async function ensurePyodideReady() {
 }
 
 async function ensurePyPkgsFor(code) {
-  const needsPandas = /\bimport\s+pandas\b|pandas\./.test(code);
-  const needsMpl    = /\bfrom\s+matplotlib\b|\bimport\s+matplotlib\b|\bplt\s*\./.test(code);
-  const needsSeaborn = /\bimport\s+seaborn\b|\bsns\./.test(code);
+  const s = String(code || '');
 
-  if (!needsPandas && !needsMpl && !needsSeaborn) return;
+  const needsMpl     = /\b(from\s+matplotlib|import\s+matplotlib|plt\s*\.)/.test(s);
+  const needsPandas  = /\bimport\s+pandas\b|pandas\./.test(s);
+  const needsSeaborn = /\bimport\s+seaborn\b|\bsns\./.test(s);
+
+  if (!needsMpl && !needsPandas && !needsSeaborn) return;
 
   const py = await ensurePyodideReady();
-  const toLoad = [];
-  if (needsMpl && !py.loadedPackages?.matplotlib) toLoad.push("matplotlib");
-  if (needsPandas && !py.loadedPackages?.pandas)   toLoad.push("pandas");
-  if (needsSeaborn && !py.loadedPackages?.seaborn) toLoad.push("seaborn");
 
-  for (const pkg of toLoad) {
-    console.log("[Polycode] loading Pyodide package:", pkg);
-    await py.loadPackage(pkg);
+  // First try built-in pyodide packages
+  const want = [];
+  if (needsMpl && !py.loadedPackages?.matplotlib) want.push('matplotlib');
+  if (needsPandas && !py.loadedPackages?.pandas)   want.push('pandas');
+  for (const p of want) {
+    try {
+      await py.loadPackage(p);
+    } catch (e) {
+      console.warn(`[Polycode] loadPackage(${p}) failed`, e);
+    }
+  }
+
+  // Seaborn is not in the standard bundle → install via micropip (once per session)
+  if (needsSeaborn && !py.loadedPackages?.seaborn) {
+    try {
+      if (!py.loadedPackages?.micropip) {
+        await py.loadPackage('micropip');
+      }
+      // Pin to a stable version that works with mpl/pandas in pyodide 0.25.x
+      await py.runPythonAsync(`
+import micropip
+await micropip.install("seaborn==0.13.2")
+`);
+      // Mark as "loaded" so we don't reinstall on every run
+      py.loadedPackages = py.loadedPackages || {};
+      py.loadedPackages.seaborn = true;
+    } catch (e) {
+      console.error('[Polycode] seaborn install failed via micropip', e);
+      throw e;
+    }
   }
 }
+
 
 
 
