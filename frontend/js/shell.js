@@ -1442,6 +1442,70 @@ window.PolyShell.setRawOutputs(stdout, stderr);
   }
 });
 
+
+
+
+(function installRunWrapperWithPlotProgress(){
+  if (window.__pc_runWrapperWithProgressInstalled) return;
+  window.__pc_runWrapperWithProgressInstalled = true;
+
+  const tryWrap = () => {
+    const fn = window.runLang;
+    if (typeof fn !== 'function') { setTimeout(tryWrap, 100); return; }
+
+    const orig = fn;
+    window.runLang = async function(...args){
+      const code = window.editor?.getValue?.() || '';
+      const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.length : 0;
+
+      // If plotting code, pre-insert a progress chunk into #output
+      let progressChunk = null;
+      if (codeLooksLikePlot(code)) {
+        const out = document.getElementById('output') || document.body;
+        let holder = document.getElementById('pc-inline-plot-area');
+        if (!holder) {
+          holder = document.createElement('div');
+          holder.id = 'pc-inline-plot-area';
+          holder.style.marginTop = '8px';
+          out.appendChild(holder);
+        } else if (holder.parentElement !== out) {
+          out.appendChild(holder);
+        }
+        progressChunk = makePlotProgressChunk('Generating chart…');
+        holder.appendChild(progressChunk);
+      }
+
+      const rv = await orig.apply(this, args);
+
+      // Only the inputs typed during THIS run (good for menus)
+      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+        ? window.__stdinHistory.slice(startIdx) : [];
+
+      window.__pc_runSeq = (window.__pc_runSeq || 0) + 1;
+
+      try {
+        if (progressChunk) {
+          await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk });
+          // If the renderer didn’t remove it (e.g., no images), ensure it’s gone
+          if (progressChunk.isConnected) progressChunk.remove();
+        } else {
+          await renderInlinePlotsIfAny(code, replay, { append: true });
+        }
+      } catch (e) {
+        if (progressChunk && progressChunk.isConnected) progressChunk.remove();
+        console.debug('[Polycode] final plot pass skipped:', e);
+      }
+      return rv;
+    };
+  };
+  tryWrap();
+})();
+
+
+
+  
+
   (function observeStderr() {
   const host = document.getElementById('stderrText');
   if (!host || !('MutationObserver' in window)) return;
@@ -1499,7 +1563,8 @@ try { window.__sqlReader?.cancel?.(); } catch {}
   resetRunInternals();
   hideCompileFailNotice(); 
    try { window.hardClearOutput?.({ preservePreview:true }); } catch {}
-  
+    try { clearInlinePlotArea(true); } catch {}
+
   try { window.PolyShell?.reapplyTheme?.(); } catch {}
 
  // Clear the friendly explanation block and our markers on reset
@@ -3581,6 +3646,21 @@ function makePlotProgressChunk(text = 'Generating chart…') {
 }
 
 
+// put near your other helpers
+function clearInlinePlotArea(hard = false) {
+  const holder = document.getElementById('pc-inline-plot-area');
+  if (holder && holder.parentNode) holder.parentNode.removeChild(holder);
+  document.querySelectorAll('.pc-inline-plot-chunk,.pc-live-plot-anchor,.pc-console-archive,.pc-plot-progress')
+    .forEach(n => n.remove());
+
+  window.__pc_plotHashes = new Set();
+  if (hard) {
+    window.__stdinHistory = [];
+    window.__pc_inputSeq = 0;
+    window.__pc_runSeq = 0;
+    window.__pc_replayCheckpoints = {};
+  }
+}
 
 
 
@@ -3900,7 +3980,10 @@ class PCWebSocket {
     try { window.hardClearOutput?.({ preservePreview:true }); } catch {}   // <-- add this
     try { setStatus?.('Reset','ok'); } catch {}
     try { setFootStatus?.('rightFoot','waiting'); } catch {}
+           try { clearInlinePlotArea(true); } catch {}
+
     try { unfreezeUI?.(); } catch {}
+         
          try { window.forceFocusEditorAfterReset?.(); } catch {}
     PC.__userAbort = false;
   }
@@ -4488,21 +4571,6 @@ function hideCompileFailNotice() {
 
 
 
-// put near your other helpers
-function clearInlinePlotArea(hard = false) {
-  const holder = document.getElementById('pc-inline-plot-area');
-  if (holder && holder.parentNode) holder.parentNode.removeChild(holder);
-  document.querySelectorAll('.pc-inline-plot-chunk,.pc-live-plot-anchor,.pc-console-archive,.pc-plot-progress')
-    .forEach(n => n.remove());
-
-  window.__pc_plotHashes = new Set();
-  if (hard) {
-    window.__stdinHistory = [];
-    window.__pc_inputSeq = 0;
-    window.__pc_runSeq = 0;
-    window.__pc_replayCheckpoints = {};
-  }
-}
 
 
 
@@ -4601,61 +4669,5 @@ window.runLang = async function (...args) {
 
 
 
-(function installRunWrapperWithPlotProgress(){
-  if (window.__pc_runWrapperWithProgressInstalled) return;
-  window.__pc_runWrapperWithProgressInstalled = true;
-
-  const tryWrap = () => {
-    const fn = window.runLang;
-    if (typeof fn !== 'function') { setTimeout(tryWrap, 100); return; }
-
-    const orig = fn;
-    window.runLang = async function(...args){
-      const code = window.editor?.getValue?.() || '';
-
-      const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-        ? window.__stdinHistory.length : 0;
-
-      // if it looks like plotting code, show a progress chunk immediately
-      let progressChunk = null;
-      if (codeLooksLikePlot(code)) {
-        const out = document.getElementById('output') || document.body;
-        let holder = document.getElementById('pc-inline-plot-area');
-        if (!holder) {
-          holder = document.createElement('div');
-          holder.id = 'pc-inline-plot-area';
-          holder.style.marginTop = '8px';
-          out.appendChild(holder);
-        } else if (holder.parentElement !== out) {
-          out.appendChild(holder);
-        }
-        progressChunk = makePlotProgressChunk('Generating chart…');
-        holder.appendChild(progressChunk);
-      }
-
-      const rv = await orig.apply(this, args);
-
-      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-        ? window.__stdinHistory.slice(startIdx) : [];
-
-      window.__pc_runSeq = (window.__pc_runSeq || 0) + 1;
-
-      try {
-        if (progressChunk) {
-          await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk });
-          const pb = progressChunk.querySelector?.('.pc-plot-progress');
-          if (pb) progressChunk.remove();
-        } else {
-          await renderInlinePlotsIfAny(code, replay, { append: true });
-        }
-      } catch (e) {
-        if (progressChunk && progressChunk.isConnected) progressChunk.remove();
-        console.debug('[Polycode] final plot pass skipped:', e);
-      }
-      return rv;
-    };
-  };
-  tryWrap();
-})();
 
 
