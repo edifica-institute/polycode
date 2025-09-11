@@ -178,14 +178,15 @@ function codeLooksLikePlot(s){
 
 // DROP-IN REPLACEMENT
 // DROP-IN: inline plots go under #output (so PDF/SS capture them)
-async function renderInlinePlotsIfAny(userCode, replayInputs = []) {
+// DROP-IN: allow append mode and prevent duplicate images
+async function renderInlinePlotsIfAny(userCode, replayInputs = [], opts = { append: false }) {
   try {
     if (!codeLooksLikePlot(userCode)) return;
 
     const py = await ensurePyodideReady();
     await ensurePyPkgsFor(userCode);
 
-    // seed the same inputs the student typed (if provided)
+    // seed inputs
     try {
       const pyList = py.toPy((replayInputs || []).slice());
       py.globals.set('STDIN_REPLAY', pyList);
@@ -193,20 +194,18 @@ async function renderInlinePlotsIfAny(userCode, replayInputs = []) {
       py.globals.set('STDIN_REPLAY', py.toPy([]));
     }
 
-    // ---- run user code and capture figures ----
+    // ---- run user code and capture figures (captures at every plt.show) ----
     const pyResult = await py.runPythonAsync(`
 import sys, io, base64, builtins
-# --- input() replay ---
+# --- input() replay with safe fallback ---
 try:
     _buf = list(STDIN_REPLAY)
 except NameError:
     _buf = []
 def _input(prompt=''):
-    if _buf:
-        return _buf.pop(0)
+    if _buf: return _buf.pop(0)
     p = (prompt or '').lower()
-    if any(k in p for k in ('how many', 'count', 'number', 'size', 'n=')):
-        return '1'
+    if any(k in p for k in ('how many','count','number','size','n=')): return '1'
     return '0'
 builtins.input = _input
 
@@ -215,11 +214,9 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
-# global payload of ALL figures emitted during the run
 _payload = []
 
 def __pc_emit_all(format='png', dpi=150):
-    """Save ALL open figures into _payload and close them."""
     fnums = list(getattr(plt, 'get_fignums', lambda: [])())
     for n in fnums:
         fig = plt.figure(n)
@@ -233,14 +230,12 @@ def __pc_emit_all(format='png', dpi=150):
     if fnums:
         plt.close('all')
 
-# start clean & replace GUI show() with emitter
 plt.close('all')
 try:
     _orig_show = plt.show
 except Exception:
     _orig_show = None
 def __pc_show(*args, **kwargs):
-    # whenever user code calls plt.show(), capture all figures made so far
     __pc_emit_all()
 plt.show = __pc_show
 
@@ -248,10 +243,9 @@ plt.show = __pc_show
 ${userCode}
 # =======================
 
-# In case user forgot to call show() for a final figure:
+# capture remaining figures if any
 __pc_emit_all()
 
-# restore original show (not strictly necessary here)
 try:
     if _orig_show is not None:
         plt.show = _orig_show
@@ -259,10 +253,8 @@ except Exception:
     pass
 
 _payload
-
     `);
 
-    // ---- convert PyProxy -> plain JS array ----
     const imgs = (pyResult && typeof pyResult.toJs === 'function')
       ? pyResult.toJs({ create_proxies: false })
       : pyResult;
@@ -270,10 +262,9 @@ _payload
 
     if (!Array.isArray(imgs) || !imgs.length) return;
 
-    // ---------- stable target: inside #output so PDF/SS capture them ----------
+    // stable target under #output (so SS/PDF include them)
     const out = document.getElementById('output') || document.body;
 
-    // Dedicated plot area (create once) under #output
     let holder = document.getElementById('pc-inline-plot-area');
     if (!holder) {
       holder = document.createElement('div');
@@ -284,20 +275,30 @@ _payload
       out.appendChild(holder);
     }
 
-    // Clear previous run’s plots
-    holder.innerHTML = '';
+    // Only clear if we're not appending (end-of-run case)
+    if (!opts.append) holder.innerHTML = '';
 
-    // Optional divider (empty per your last version)
-    const divider = document.createElement('div');
-    divider.style.cssText = 'margin:4px 0 8px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
-    divider.textContent = ''; // '── plots ─────────────────────────────────';
-    holder.appendChild(divider);
+    // simple de-duplication so we don't re-add the same plot each time
+    window.__pc_plotHashes = window.__pc_plotHashes || new Set();
+    const seen = window.__pc_plotHashes;
 
-    // Images
+    // Optional divider once per refresh
+    if (!opts.append) {
+      const divider = document.createElement('div');
+      divider.style.cssText = 'margin:4px 0 8px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
+      divider.textContent = ''; // e.g., '── plots ──'
+      holder.appendChild(divider);
+    }
+
+    // Append only new images
     imgs.forEach((b64, i) => {
+      const key = b64.slice(0, 60); // cheap hash key
+      if (seen.has(key)) return;
+      seen.add(key);
+
       const img = document.createElement('img');
       img.src = 'data:image/png;base64,' + b64;
-      img.alt = 'Figure ' + (i + 1);
+      img.alt = 'Figure';
       img.style.maxWidth = '100%';
       img.style.display = 'block';
       img.style.margin = '8px 0';
@@ -3862,11 +3863,34 @@ send(data) {
         this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
 
         // NEW: record the line for replay (used by inline plot capture)
-        const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
-        if (line) {
-          window.__stdinHistory = window.__stdinHistory || [];
-          window.__stdinHistory.push(line);
-        }
+
+const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
+  if (line) {
+    window.__stdinHistory = window.__stdinHistory || [];
+    window.__stdinHistory.push(line);
+  }
+
+  // NEW: schedule a live inline-plot render using inputs so far
+  if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
+  window.__pc_livePlotTimer = setTimeout(async () => {
+    if (window.__pc_livePlotBusy) return;
+    window.__pc_livePlotBusy = true;
+    try {
+      const code = window.editor?.getValue?.() || '';
+      const replay = (window.__stdinHistory || []).slice();
+      await renderInlinePlotsIfAny(code, replay, { append: true });
+    } catch (e) {
+      console.debug('[Polycode] live plot skipped:', e);
+    } finally {
+      window.__pc_livePlotBusy = false;
+    }
+  }, 150); // small debounce so backend consumes stdin first
+
+
+
+
+
+        
       }
     }
   } catch {}
