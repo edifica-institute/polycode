@@ -1,6 +1,7 @@
 // /js/plot-preview.js
 (() => {
-  const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js";
+  const BASE = (self.pyodideIndexURL || "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/"); // fallback
+  const PYODIDE_URL = BASE.replace(/\/+$/, "/") + "pyodide.js";
   let __pyodidePromise = null;
 
   // ---------- Utilities ----------
@@ -186,29 +187,49 @@
   }
 
   // ---------- Pyodide ----------
-  async function ensurePyodide() {
+ async function ensurePyodide() {
     if (__pyodidePromise) return __pyodidePromise;
     __pyodidePromise = new Promise(async (resolve, reject) => {
       try {
         if (!window.loadPyodide) {
           await new Promise((res, rej) => {
-            const s = create("script", { src: PYODIDE_URL, defer: true });
+            const s = document.createElement("script");
+            s.src = PYODIDE_URL; s.defer = true;
             s.onload = res; s.onerror = () => rej(new Error("Pyodide loader failed"));
             document.head.appendChild(s);
           });
         }
-        const py = await window.loadPyodide({ indexURL: "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/" });
-        await py.loadPackage(["numpy", "matplotlib"]);
+        const py = await window.loadPyodide({ indexURL: BASE });
         resolve(py);
-      } catch (e) {
-        reject(e);
-      }
+      } catch (e) { reject(e); }
     });
     return __pyodidePromise;
   }
 
+
+
+  
+   function detectPkgs(userCode) {
+    const s = String(userCode || "");
+    const needsMpl = /\b(from\s+matplotlib|import\s+matplotlib|plt\s*\.)/.test(s);
+    const needsPandas = /\bimport\s+pandas\b|pandas\./.test(s);
+    const pkgs = [];
+    if (needsMpl) pkgs.push("matplotlib");
+    if (needsPandas) pkgs.push("pandas");
+    return pkgs;
+  }
+
   async function renderPlotsFromCode(userCode) {
     const py = await ensurePyodide();
+
+    // ⬇️ make sure required packages are present
+    const pkgs = detectPkgs(userCode);
+    for (const p of pkgs) {
+      if (!py.loadedPackages?.[p]) {
+        await py.loadPackage(p);
+      }
+    }
+
     const code = `
 import sys, io, base64, builtins
 builtins.input = lambda prompt='': ''
@@ -216,11 +237,9 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 plt.close('all')
-
 # ==== USER CODE ====
 ${userCode}
 # ===================
-
 imgs=[]
 try:
     fns = getattr(plt, 'get_fignums', lambda: [])()
@@ -237,6 +256,9 @@ imgs
 `;
     return py.runPythonAsync(code);
   }
+
+
+  
 
   // ---------- Click handler ----------
   async function onPlotClick() {
