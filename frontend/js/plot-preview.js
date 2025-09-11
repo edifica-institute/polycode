@@ -153,9 +153,13 @@
 
   // ---------- Editor detection & toggle ----------
   function codeLooksLikeMatplotlib(s) {
-    const t = String(s || "");
-    return /\bmatplotlib\b/.test(t) || /\bplt\s*\./.test(t) || /\bfrom\s+matplotlib\b/.test(t);
-  }
+  const t = String(s || "");
+  return /\bmatplotlib\b/.test(t)
+      || /\bplt\s*\./.test(t)
+      || /\bfrom\s+matplotlib\b/.test(t)
+      || /\bimport\s+seaborn\b|\bsns\s*\./.test(t);  // NEW: seaborn
+}
+
 
   function enablePlotBtnWhenRelevant() {
     const plotBtn = ensureButton();
@@ -209,9 +213,8 @@
 
 
   
-   function detectPkgs(userCode) {
+  function detectPkgs(userCode) {
   const s = String(userCode || "");
-
   const needsMpl     = /\b(from\s+matplotlib|import\s+matplotlib|plt\s*\.)/.test(s);
   const needsPandas  = /\bimport\s+pandas\b|pandas\./.test(s);
   const needsSeaborn = /\bimport\s+seaborn\b|\bsns\./.test(s);
@@ -219,22 +222,48 @@
   const pkgs = [];
   if (needsMpl) pkgs.push("matplotlib");
   if (needsPandas) pkgs.push("pandas");
-  if (needsSeaborn) pkgs.push("seaborn");
-
+  if (needsSeaborn) pkgs.push("seaborn");  // will be handled by micropip fallback
   return pkgs;
 }
+
 
 
   async function renderPlotsFromCode(userCode) {
     const py = await ensurePyodide();
 
     // ⬇️ make sure required packages are present
-    const pkgs = detectPkgs(userCode);
-    for (const p of pkgs) {
-      if (!py.loadedPackages?.[p]) {
-        await py.loadPackage(p);
+const pkgs = detectPkgs(userCode);
+for (const p of pkgs) {
+  if (py.loadedPackages?.[p]) continue;
+
+  try {
+    // First try the built-in Pyodide package (works for matplotlib/pandas)
+    await py.loadPackage(p);
+  } catch (e) {
+    // Seaborn is not shipped as a built-in package → install from PyPI
+    const msg = String(e && e.message || e || '');
+    if (p === 'seaborn' && /No known package/i.test(msg)) {
+      if (!py.loadedPackages?.micropip) {
+        await py.loadPackage('micropip');
       }
+      await py.runPythonAsync(`
+import micropip
+await micropip.install("seaborn==0.13.2")
+`);
+      // mark as loaded so we don’t reinstall this session
+      py.loadedPackages = py.loadedPackages || {};
+      py.loadedPackages.seaborn = true;
+    } else {
+      throw e; // bubble other errors
     }
+  }
+}
+
+
+
+
+
+    
 
     const code = `
 import sys, io, base64, builtins
