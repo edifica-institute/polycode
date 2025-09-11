@@ -107,49 +107,37 @@ async function ensurePyodideReady() {
   return window.pyodide;
 }
 
+// DROP-IN: robust autoloader for numpy/pandas/matplotlib/seaborn
 async function ensurePyPkgsFor(code) {
   const s = String(code || '');
 
-  const needsMpl     = /\b(from\s+matplotlib|import\s+matplotlib|plt\s*\.)/.test(s);
-  const needsPandas  = /\bimport\s+pandas\b|pandas\./.test(s);
-  const needsSeaborn = /\bimport\s+seaborn\b|\bsns\./.test(s);
-
-  if (!needsMpl && !needsPandas && !needsSeaborn) return;
+  const needs =
+    { numpy:      /\bnumpy\b|\bnp\./.test(s) || /\.plot\s*\(/.test(s) || /\bmatplotlib\b|\bplt\s*\./.test(s),
+      pandas:     /\bimport\s+pandas\b|pandas\./.test(s) || /\.plot\s*\(/.test(s),
+      matplotlib: /\bfrom\s+matplotlib\b|\bimport\s+matplotlib\b|\bplt\s*\./.test(s) || /\.plot\s*\(/.test(s),
+      seaborn:    /\bimport\s+seaborn\b|\bsns\s*\./.test(s)
+    };
 
   const py = await ensurePyodideReady();
+  py.loadedPackages = py.loadedPackages || {};
 
-  // First try built-in pyodide packages
-  const want = [];
-  if (needsMpl && !py.loadedPackages?.matplotlib) want.push('matplotlib');
-  if (needsPandas && !py.loadedPackages?.pandas)   want.push('pandas');
-  for (const p of want) {
-    try {
-      await py.loadPackage(p);
-    } catch (e) {
-      console.warn(`[Polycode] loadPackage(${p}) failed`, e);
-    }
-  }
+  // Load built-ins first (order: numpy -> pandas -> matplotlib)
+  if (needs.numpy && !py.loadedPackages.numpy)      { await py.loadPackage('numpy');      py.loadedPackages.numpy = true; }
+  if (needs.pandas && !py.loadedPackages.pandas)    { await py.loadPackage('pandas');     py.loadedPackages.pandas = true; }
+  if (needs.matplotlib && !py.loadedPackages.matplotlib) { await py.loadPackage('matplotlib'); py.loadedPackages.matplotlib = true; }
 
-  // Seaborn is not in the standard bundle → install via micropip (once per session)
-  if (needsSeaborn && !py.loadedPackages?.seaborn) {
-    try {
-      if (!py.loadedPackages?.micropip) {
-        await py.loadPackage('micropip');
-      }
-      // Pin to a stable version that works with mpl/pandas in pyodide 0.25.x
-      await py.runPythonAsync(`
+  // Seaborn via micropip (not bundled)
+  if (needs.seaborn && !py.loadedPackages.seaborn) {
+    if (!py.loadedPackages.micropip) { await py.loadPackage('micropip'); py.loadedPackages.micropip = true; }
+    await py.runPythonAsync(`
 import micropip
+# pin known-good with Pyodide 0.25.x
 await micropip.install("seaborn==0.13.2")
 `);
-      // Mark as "loaded" so we don't reinstall on every run
-      py.loadedPackages = py.loadedPackages || {};
-      py.loadedPackages.seaborn = true;
-    } catch (e) {
-      console.error('[Polycode] seaborn install failed via micropip', e);
-      throw e;
-    }
+    py.loadedPackages.seaborn = true;
   }
 }
+
 
 
 // --- Inline plot renderer for the Output panel (front-end only)
