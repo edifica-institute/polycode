@@ -1512,7 +1512,7 @@ window.PolyShell.setRawOutputs(stdout, stderr);
           const box = progressChunk.querySelector('.pc-plot-progress');
           if (box) box.remove();
       }
-
+      }
       return rv;
     };
   };
