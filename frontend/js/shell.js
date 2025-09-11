@@ -44,6 +44,35 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 
 
 
+// ---- Pyodide + package autoloader for Python preview ----
+async function ensurePyodideReady() {
+  if (window.pyodide) return window.pyodide;
+  // loadPyodide global is provided by the Pyodide loader you already include with the preview
+  window.pyodide = await loadPyodide({ indexURL: self.pyodideIndexURL || undefined });
+  return window.pyodide;
+}
+
+async function ensurePyPkgsFor(code) {
+  // Only bother if the code uses these libs
+  const needsPandas = /(^|\n)\s*import\s+pandas\b|pandas\./.test(code);
+  const needsMpl    = /(^|\n)\s*(from\s+matplotlib\b|import\s+matplotlib\b)/.test(code);
+
+  if (!needsPandas && !needsMpl) return;
+
+  const py = await ensurePyodideReady();
+  const toLoad = [];
+  if (needsMpl && !py.loadedPackages?.matplotlib) toLoad.push('matplotlib');
+  if (needsPandas && !py.loadedPackages?.pandas)   toLoad.push('pandas');
+  for (const pkg of toLoad) {
+    console.log('[Polycode] loading Pyodide package:', pkg);
+    await py.loadPackage(pkg);
+  }
+}
+
+
+
+
+
 // --- mobile viewport height fix (sets --app-vh) ---
 (function installMobileVH(){
   if (window.__pc_vh_installed) return; window.__pc_vh_installed = true;
@@ -1045,6 +1074,10 @@ const langId = window.editor?.getModel?.()?.getLanguageId?.() || '';
    setStatus('Running Selection…');                 // nice UX
    setFootStatus('rightFoot','running',{ detail:'Selection' });
  }
+    if (langId === 'python') {
+  const codeToRun = selectionForSql || window.editor.getValue(); // selectionForSql is null for Python
+  try { await ensurePyPkgsFor(codeToRun); } catch (e) { console.warn('Pyodide preload failed', e); }
+}
  await window.runLang(selectionForSql || null);
     
     
