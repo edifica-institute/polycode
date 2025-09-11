@@ -152,6 +152,86 @@ await micropip.install("seaborn==0.13.2")
 }
 
 
+// --- Inline plot renderer for the Output panel (front-end only)
+function codeLooksLikePlot(s){
+  const t = String(s || '');
+  return /\bmatplotlib\b|\bplt\s*\./.test(t) ||
+         /\bfrom\s+matplotlib\b/.test(t) ||
+         /\bimport\s+seaborn\b|\bsns\s*\./.test(t) ||
+         /\.plot\s*\(/.test(t); // pandas .plot()
+}
+
+async function renderInlinePlotsIfAny(userCode){
+  try{
+    if (!codeLooksLikePlot(userCode)) return;
+
+    const py = await ensurePyodideReady();
+    await ensurePyPkgsFor(userCode); // your existing autoloader (mpl/pandas + seaborn via micropip)
+
+    const imgs = await py.runPythonAsync(`
+import sys, io, base64, builtins
+# do not block if code asks for input(); return empty string
+builtins.input = lambda prompt='': ''
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
+plt.close('all')
+
+# ==== USER CODE ====
+${userCode}
+# ===================
+
+_payload=[]
+try:
+    fns = list(getattr(plt, 'get_fignums', lambda: [])())
+    for n in fns:
+        fig = plt.figure(n)
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        _payload.append(base64.b64encode(buf.getvalue()).decode('ascii'))
+        buf.close()
+finally:
+    plt.close('all')
+_payload
+`);
+
+    if (!Array.isArray(imgs) || !imgs.length) return;
+
+    const host = document.getElementById('output') || document.getElementById('jconsole')?.parentElement;
+    if (!host) return;
+
+    // Insert a little divider then the images
+    const divider = document.createElement('div');
+    divider.style.cssText = 'margin:8px 0 6px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
+    divider.textContent = '── plots ─────────────────────────────────';
+    host.appendChild(divider);
+
+    imgs.forEach((b64,i) => {
+      const img = document.createElement('img');
+      img.src = 'data:image/png;base64,' + b64;
+      img.alt = 'Figure ' + (i+1);
+      img.style.maxWidth = '100%';
+      img.style.display  = 'block';
+      img.style.margin   = '8px 0';
+      host.appendChild(img);
+    });
+
+  } catch(e){
+    console.warn('[Polycode] inline plot render failed:', e);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4094,3 +4174,35 @@ function hideCompileFailNotice() {
   const n = document.getElementById('pcFailNote');
   if (n) n.remove();
 }
+
+
+
+
+
+
+
+
+
+
+
+// Install inline plot hook (safe to include only once)
+(function installInlinePlotHook(){
+  if (window.__pc_inlinePlotHookInstalled) return;
+  window.__pc_inlinePlotHookInstalled = true;
+
+  const tryWrap = () => {
+    const fn = window.runLang;
+    if (typeof fn !== 'function') { setTimeout(tryWrap, 100); return; }
+
+    const orig = fn;
+    window.runLang = async function(...args){
+      const code = window.editor?.getValue?.() || '';
+      const rv = await orig.apply(this, args);  // real backend run (stdout/input etc.)
+      // After run finishes, render plots inline in the Output panel
+      renderInlinePlotsIfAny(code);
+      return rv;
+    };
+  };
+  tryWrap();
+})();
+
