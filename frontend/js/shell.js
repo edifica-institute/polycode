@@ -213,6 +213,7 @@ function codeLooksLikePlot(s){
 // DROP-IN: inline plots go under #output (so PDF/SS capture them)
 // DROP-IN: allow append mode and prevent duplicate images
 // DROP-IN
+// DROP-IN: supports anchor insertion, append mode, and salted de-dup
 async function renderInlinePlotsIfAny(userCode, replayInputs = [], opts = { append: false, anchor: null }) {
   try {
     if (!codeLooksLikePlot(userCode)) return;
@@ -297,6 +298,7 @@ _payload
     // stable target under #output (so SS/PDF include them)
     const out = document.getElementById('output') || document.body;
 
+    // main holder (created once)
     let holder = document.getElementById('pc-inline-plot-area');
     if (!holder) {
       holder = document.createElement('div');
@@ -309,11 +311,14 @@ _payload
 
     // Decide where to insert: replace anchor (if provided) OR use holder
     let target = holder;
+    // SALT: per-input when appending at an anchor; otherwise per-run
+    let salt = String(window.__pc_runSeq || 0);
     if (opts.append && opts.anchor && opts.anchor.parentNode) {
       const chunk = document.createElement('div');
       chunk.className = 'pc-inline-plot-chunk';
       chunk.style.margin = '0';
-      opts.anchor.replaceWith(chunk);   // place exactly where the user hit Enter
+      salt = String(opts.anchor.dataset?.seq || salt);  // <-- key part
+      opts.anchor.replaceWith(chunk);                   // place exactly where user hit Enter
       target = chunk;
     }
 
@@ -322,7 +327,7 @@ _payload
       holder.innerHTML = '';
     }
 
-    // simple de-duplication so we don't re-add the same plot each time
+    // salted de-dup (global set, but salt prevents collisions across inputs/runs)
     window.__pc_plotHashes = window.__pc_plotHashes || new Set();
     const seen = window.__pc_plotHashes;
 
@@ -334,9 +339,9 @@ _payload
       target.appendChild(divider);
     }
 
-    // Append only new images
+    // Append only new images (salt ensures you can repeat same menu option)
     imgs.forEach((b64) => {
-      const key = b64.slice(0, 60); // cheap hash key
+      const key = salt + '|' + b64.slice(0, 60); // salted key
       if (seen.has(key)) return;
       seen.add(key);
 
@@ -3895,45 +3900,94 @@ class PCWebSocket {
   }*/
 
 
+
+  /* ===== helpers (existing)… e.g., snapshotElementFull, clearInlinePlotArea, etc. ===== */
+
+/* >>> INSERT THIS EXACTLY HERE — just before your WebSocket send(data) patch <<< */
+
+// Split console so plots land exactly after the user's input line.
+function splitConsoleForInlineImage() {
+  const out = document.getElementById('output');
+  if (!out) return null;
+
+  const pre = document.getElementById('jconsole') || out.querySelector('pre');
+  if (!pre || !pre.parentNode) return null;
+
+  // Move current text into an archived <pre>, placed BEFORE the live pre
+  const archive = document.createElement('pre');
+  archive.className = (pre.className || '') + ' pc-console-archive';
+  archive.style.margin = '0';
+  archive.textContent = pre.textContent || '';
+  pre.parentNode.insertBefore(archive, pre);
+
+  // Insert anchor between old text and the live pre
+  const anchor = document.createElement('div');
+  anchor.className = 'pc-live-plot-anchor';
+  anchor.style.cssText = 'height:0; margin:0; padding:0;';
+  pre.parentNode.insertBefore(anchor, pre);
+
+  // Clear live pre so subsequent prints appear AFTER the anchor
+  pre.textContent = '';
+
+  return anchor;
+}
+
+/* ===== your WebSocket send(data) patch starts below ===== */
+
+
+
+  
+
   // ---- SEND (notice when stdin is being sent) ----
+// ---- SEND (notice when stdin is being sent) ----
+
+  
 send(data) {
   try {
     const s = (typeof data === 'string') ? data : '';
     if (s && s[0] === '{') {
       const m = JSON.parse(s);
- if (m?.type === 'stdin') {
-  // (you already record the line)
-  const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
-  if (line) {
-    window.__stdinHistory = window.__stdinHistory || [];
-    window.__stdinHistory.push(line);
-  }
+      if (m?.type === 'stdin') {
+        if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
+        this.__pc_lastSentWasInput = true;
+        this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
 
-  // NEW: split the console right now and keep an anchor for this input
-  const anchor = splitConsoleForInlineImage();
+        // Record the line for replay
+        const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
+        if (line) {
+          window.__stdinHistory = window.__stdinHistory || [];
+          window.__stdinHistory.push(line);
+        }
 
-  // Debounced live render with inputs-so-far, inserting AT the anchor
-  if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
-  window.__pc_livePlotTimer = setTimeout(async () => {
-    if (window.__pc_livePlotBusy) return;
-    window.__pc_livePlotBusy = true;
-    try {
-      const code   = window.editor?.getValue?.() || '';
-      const replay = (window.__stdinHistory || []).slice();
-      await renderInlinePlotsIfAny(code, replay, { append: true, anchor });
-    } catch(e) {
-      console.debug('[Polycode] live plot skipped:', e);
-    } finally {
-      window.__pc_livePlotBusy = false;
-    }
-  }, 150);
-}
+        // Create an anchor exactly at this moment in the output stream
+        const anchor = splitConsoleForInlineImage();
+        if (anchor) {
+          // Unique sequence per user submission (for salted de-dup)
+          window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1;
+          anchor.dataset.seq = String(window.__pc_inputSeq);
+        }
 
-
+        // Debounced live inline-plot render using inputs so far
+        if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
+        window.__pc_livePlotTimer = setTimeout(async () => {
+          if (window.__pc_livePlotBusy) return;
+          window.__pc_livePlotBusy = true;
+          try {
+            const code   = window.editor?.getValue?.() || '';
+            const replay = (window.__stdinHistory || []).slice();
+            await renderInlinePlotsIfAny(code, replay, { append: true, anchor });
+          } catch (e) {
+            console.debug('[Polycode] live plot skipped:', e);
+          } finally {
+            window.__pc_livePlotBusy = false;
+          }
+        }, 150);
+      }
     }
   } catch {}
   this._real.send(data);
 }
+
 
 
   close(code, reason) { this._real.close(code, reason); }
