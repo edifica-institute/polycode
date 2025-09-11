@@ -46,6 +46,39 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 
 // ---- Pyodide + package autoloader for Python preview ----
 // ---- Pyodide (version-safe) + auto package loader -------------------------
+
+
+// Split console so plots can land exactly after the just-entered input line.
+function splitConsoleForInlineImage() {
+  const out = document.getElementById('output');
+  if (!out) return null;
+
+  // Your console stream usually lands in #jconsole (a <pre>).
+  const pre = document.getElementById('jconsole') || out.querySelector('pre');
+  if (!pre || !pre.parentNode) return null;
+
+  // Move current text into an archived <pre> placed BEFORE the live pre.
+  const archive = document.createElement('pre');
+  archive.className = (pre.className || '') + ' pc-console-archive';
+  archive.style.margin = '0';
+  archive.textContent = pre.textContent || '';
+  pre.parentNode.insertBefore(archive, pre);
+
+  // Anchor goes between archive and the live pre.
+  const anchor = document.createElement('div');
+  anchor.className = 'pc-live-plot-anchor';
+  anchor.style.cssText = 'height:0; margin:0; padding:0;';
+  pre.parentNode.insertBefore(anchor, pre);
+
+  // Clear the live pre so subsequent backend prints appear AFTER the anchor.
+  pre.textContent = '';
+
+  return anchor;
+}
+
+
+
+
 function getPyodideIndexURL() {
   // Pick from HTML if set, else default to the newest you want to support
   const url = self.pyodideIndexURL || "https://cdn.jsdelivr.net/pyodide/v0.25.1/full/";
@@ -179,7 +212,8 @@ function codeLooksLikePlot(s){
 // DROP-IN REPLACEMENT
 // DROP-IN: inline plots go under #output (so PDF/SS capture them)
 // DROP-IN: allow append mode and prevent duplicate images
-async function renderInlinePlotsIfAny(userCode, replayInputs = [], opts = { append: false }) {
+// DROP-IN
+async function renderInlinePlotsIfAny(userCode, replayInputs = [], opts = { append: false, anchor: null }) {
   try {
     if (!codeLooksLikePlot(userCode)) return;
 
@@ -215,7 +249,6 @@ matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
 _payload = []
-
 def __pc_emit_all(format='png', dpi=150):
     fnums = list(getattr(plt, 'get_fignums', lambda: [])())
     for n in fnums:
@@ -243,7 +276,6 @@ plt.show = __pc_show
 ${userCode}
 # =======================
 
-# capture remaining figures if any
 __pc_emit_all()
 
 try:
@@ -275,23 +307,35 @@ _payload
       out.appendChild(holder);
     }
 
-    // Only clear if we're not appending (end-of-run case)
-    if (!opts.append) holder.innerHTML = '';
+    // Decide where to insert: replace anchor (if provided) OR use holder
+    let target = holder;
+    if (opts.append && opts.anchor && opts.anchor.parentNode) {
+      const chunk = document.createElement('div');
+      chunk.className = 'pc-inline-plot-chunk';
+      chunk.style.margin = '0';
+      opts.anchor.replaceWith(chunk);   // place exactly where the user hit Enter
+      target = chunk;
+    }
+
+    // Clear only on full refresh AND when we actually have new images
+    if (!opts.append && imgs.length) {
+      holder.innerHTML = '';
+    }
 
     // simple de-duplication so we don't re-add the same plot each time
     window.__pc_plotHashes = window.__pc_plotHashes || new Set();
     const seen = window.__pc_plotHashes;
 
-    // Optional divider once per refresh
+    // Optional divider once per full refresh
     if (!opts.append) {
       const divider = document.createElement('div');
       divider.style.cssText = 'margin:4px 0 8px; opacity:.7; font:12px/1 ui-monospace,Menlo,Consolas,monospace;';
       divider.textContent = ''; // e.g., '── plots ──'
-      holder.appendChild(divider);
+      target.appendChild(divider);
     }
 
     // Append only new images
-    imgs.forEach((b64, i) => {
+    imgs.forEach((b64) => {
       const key = b64.slice(0, 60); // cheap hash key
       if (seen.has(key)) return;
       seen.add(key);
@@ -302,7 +346,7 @@ _payload
       img.style.maxWidth = '100%';
       img.style.display = 'block';
       img.style.margin = '8px 0';
-      holder.appendChild(img);
+      target.appendChild(img);
     });
 
   } catch (e) {
@@ -3857,51 +3901,34 @@ send(data) {
     const s = (typeof data === 'string') ? data : '';
     if (s && s[0] === '{') {
       const m = JSON.parse(s);
-      if (m?.type === 'stdin') {
-  // (you already have this recorder)
+ if (m?.type === 'stdin') {
+  // (you already record the line)
   const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
   if (line) {
     window.__stdinHistory = window.__stdinHistory || [];
     window.__stdinHistory.push(line);
   }
 
-  // NEW: insert an anchor at the *current* end of #output
-  try {
-    const out = document.getElementById('output');
-    if (out) {
-      const anchor = document.createElement('div');
-      anchor.className = 'pc-live-plot-anchor';
-      anchor.dataset.seq = String((window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1));
-      // visually nothing; just a marker
-      anchor.style.cssText = 'height:0; margin:0; padding:0;';
-      out.appendChild(anchor);
-      window.__pc_anchorQueue = window.__pc_anchorQueue || [];
-      window.__pc_anchorQueue.push(anchor);
-    }
-  } catch {}
+  // NEW: split the console right now and keep an anchor for this input
+  const anchor = splitConsoleForInlineImage();
 
-  // NEW: schedule a live inline-plot render with inputs-so-far
+  // Debounced live render with inputs-so-far, inserting AT the anchor
   if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
   window.__pc_livePlotTimer = setTimeout(async () => {
     if (window.__pc_livePlotBusy) return;
     window.__pc_livePlotBusy = true;
     try {
-      const code = window.editor?.getValue?.() || '';
+      const code   = window.editor?.getValue?.() || '';
       const replay = (window.__stdinHistory || []).slice();
-
-      // grab the *oldest* unmatched anchor so ordering is preserved
-      const anchor = (window.__pc_anchorQueue && window.__pc_anchorQueue.length)
-        ? window.__pc_anchorQueue.shift()
-        : null;
-
       await renderInlinePlotsIfAny(code, replay, { append: true, anchor });
-    } catch (e) {
+    } catch(e) {
       console.debug('[Polycode] live plot skipped:', e);
     } finally {
       window.__pc_livePlotBusy = false;
     }
-  }, 150); // small debounce
+  }, 150);
 }
+
 
     }
   } catch {}
@@ -4407,24 +4434,27 @@ function clearInlinePlotArea(removeNode = false) {
     if (typeof fn !== 'function') { setTimeout(tryWrap, 100); return; }
 
     const orig = fn;
-    window.runLang = async function(...args){
-      const code = window.editor?.getValue?.() || '';
+window.runLang = async function (...args) {
+  const code = window.editor?.getValue?.() || '';
 
-      // NEW: remember how many inputs we had before this run
-      const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-        ? window.__stdinHistory.length : 0;
+  // how many inputs existed before this run (so we only replay new ones)
+  const startIdx = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+    ? window.__stdinHistory.length
+    : 0;
 
-      clearInlinePlotArea(true);
-      const rv = await orig.apply(this, args);  // backend run (stdout/input etc.)
+  const rv = await orig.apply(this, args);   // backend run (stdout/input etc.)
 
-      // NEW: just the inputs typed during THIS run
-      const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
-        ? window.__stdinHistory.slice(startIdx) : [];
+  // inputs typed during THIS run
+  const replay = (window.__stdinHistory && Array.isArray(window.__stdinHistory))
+    ? window.__stdinHistory.slice(startIdx)
+    : [];
 
-      // After run finishes, render plots inline in the Output panel (with inputs)
-      renderInlinePlotsIfAny(code, replay);
-      return rv;
-    };
+  // Final capture: append so previously shown charts are not cleared.
+  await renderInlinePlotsIfAny(code, replay, { append: true });
+
+  return rv;
+};
+
   };
   tryWrap();
 })();
