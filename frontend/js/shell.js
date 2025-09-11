@@ -1508,7 +1508,9 @@ window.PolyShell.setRawOutputs(stdout, stderr);
 
         await renderInlinePlotsIfAny(code, [], { append: true, anchor: progressChunk });
       } finally {
-        if (progressChunk && progressChunk.isConnected) progressChunk.remove();
+       if (progressChunk && progressChunk.isConnected) {
+          const box = progressChunk.querySelector('.pc-plot-progress');
+          if (box) box.remove();
       }
 
       return rv;
