@@ -90,6 +90,12 @@ async function ensurePyodideReady() {
   // Boot the runtime using the exact indexURL from HTML
   window.pyodide = await loadPyodide({ indexURL });
 
+  const origRun = window.pyodide.runPythonAsync.bind(window.pyodide);
+  window.pyodide.runPythonAsync = async (code, ...rest) => {
+    try { await ensurePyPkgsFor(String(code || '')); } catch (e) { console.warn(e); }
+    return origRun(code, ...rest);
+  };
+
   // One more check after load
   try {
     const have = String(window.pyodide.version || "").trim();
