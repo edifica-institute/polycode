@@ -2441,6 +2441,87 @@ async function buildReportImageBlob() {
 
 //Entire PDF Section below
 
+
+
+  // Put this near your other PDF helpers
+async function addImagePaginated(pdf, dataURL, env, {
+  maxWidthPt = 420,        // ~5.8in wide (keeps images modest)
+  blockHeightPt = 260,     // each image block height per page (~3.6in)
+  gapPt = 8,               // gap after each image block
+  marginPt = 40
+} = {}) {
+  // Load to know pixel size
+  const img = new Image();
+  img.src = dataURL;
+  try { await img.decode(); } catch {}
+
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const availW = Math.min(maxWidthPt, pageW - marginPt * 2);
+
+  // Scale image to target width (keeps it “normal-sized”)
+  const scale = availW / img.width;
+  const scaledW = Math.round(img.width * scale);
+  const scaledH = Math.round(img.height * scale);
+
+  // We’ll slice the tall image into chunks of height = blockHeightPt
+  const sliceH = Math.max(40, Math.floor(blockHeightPt)); // safety floor
+
+  // Make an offscreen canvas for cropping
+  const crop = document.createElement('canvas');
+  crop.width = scaledW;
+  crop.height = sliceH;
+  const ctx = crop.getContext('2d');
+
+  // y position on current page (we’ll place “Output” title before calling this)
+  let y = pdf.__polycode_cursorY || marginPt;
+
+  // Iterate over vertical slices
+  let srcY = 0; // in scaled pixels
+  while (srcY < scaledH) {
+    // If no room for another block on this page, start a new page w/ header+watermark
+    const footerReserve = 26;
+    const room = (pageH - marginPt - footerReserve) - y;
+    if (room < sliceH) {
+      y = newPage(pdf, env); // your existing helper adds header & watermark
+    }
+
+    // how tall is this slice?
+    const slicePixH = Math.min(sliceH, scaledH - srcY);
+    crop.height = slicePixH;
+
+    // draw the scaled image portion
+    ctx.clearRect(0, 0, crop.width, crop.height);
+    // drawImage parameters: (img, sx,sy, sw,sh, dx,dy, dw,dh)
+    // we need to draw from the scaled space -> easiest route: draw full image scaled, then copy
+    // Simpler: draw from original, but map to target width; compute corresponding source rect:
+    const srcFromOrigY = srcY / scale;
+    const srcFromOrigH = slicePixH / scale;
+
+    ctx.drawImage(
+      img,
+      0, srcFromOrigY, img.width, srcFromOrigH, // source (original px)
+      0, 0, scaledW, slicePixH                  // dest (scaled slice)
+    );
+
+    const pieceURL = crop.toDataURL('image/png');
+
+    // center horizontally
+    const x = marginPt + Math.round((pageW - marginPt * 2 - scaledW) / 2);
+
+    pdf.addImage(pieceURL, 'PNG', x, y, scaledW, slicePixH, undefined, 'FAST');
+    y += slicePixH + gapPt;
+  }
+
+  // stash cursor for callers
+  pdf.__polycode_cursorY = y;
+  return y;
+}
+
+
+
+  
+
   document.addEventListener('DOMContentLoaded', () => {
   const ifr = document.getElementById('preview');
   if (ifr) {
@@ -3224,49 +3305,38 @@ async function buildPdfBlob(userTitle, logos = {}){
 
   
 // --- Output page (1 page, no blanks) ---
-const isDark = isDarkMode(); // helper below
+ const isDark = isDarkMode();
+  // start a new page for Output (keeps Code clean)
+  y = newPage(pdf, env, { theme: isDark ? 'dark' : 'light', fillPage: false });
 
-// start a *single* fresh page for Output
-y = newPage(pdf, env, { theme: isDark ? 'dark' : 'light', fillPage: isDark }); // draws dark bg only for this page
+  // Title
+  pdf.setFont('helvetica','bold');
+  pdf.setFontSize(12);
+  pdf.setTextColor(isDark ? 255 : 0);
+  pdf.text('Output', margin, y);
+  y += 14;
+  pdf.__polycode_cursorY = y; // hand cursor to helpers
 
-// title
-pdf.setFont('helvetica','bold'); 
-pdf.setFontSize(12);
-pdf.setTextColor(isDark ? 255 : 0);
-const titleH = 14;
-pdf.text('Output', margin, y); 
-y += titleH;
+  const outPNG = await screenshotOutputForPdf(); // your existing no-flash grab
 
-const iframePng = await screenshotOutputForPdf(); // no-Flash grab (see #3)
-if (iframePng) {
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const maxW  = pageW - margin * 2;
-  const footerReserve = 26;        // leave room for footer band
-  const gap = 8;                   // space after image
-
-  // compute available height *on this page* (no ensureSpace)
-  const maxH = pageH - margin - footerReserve - y - gap;
-
-  const props = pdf.getImageProperties(iframePng);
-  let w = maxW;
-  let h = props ? (props.height * w / props.width) : 0;
-
-  // fit image inside the leftover page area
-  if (h > maxH) {
-    const s = maxH / h;
-    w *= s; h *= s;
+  if (outPNG) {
+    // normal-sized images, paginated if long
+    y = await addImagePaginated(pdf, outPNG, env, {
+      maxWidthPt: 420,    // keep it moderate
+      blockHeightPt: 260, // ~3.6 inches tall blocks
+      gapPt: 8,
+      marginPt: margin
+    });
+  } else {
+    // fallback: print any available text output
+    const stdout = document.getElementById('stdoutText')?.textContent || '';
+    const stderr = document.getElementById('stderrText')?.textContent || '';
+    const text = (stdout || stderr || '(no output)').trim();
+    y = writeWrapped(pdf, y, text, { font:'courier', size:10, lh:12, env });
   }
 
-  pdf.addImage(iframePng, 'PNG', margin, y, w, h, undefined, 'FAST');
-  y += h + gap;
-} else {
-  // fallback text if somehow no image
-  y = writeWrapped(pdf, y, '(no output)', { font:'courier', size:10, lh:12, env });
-}
-
-// close page
-addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme: isDark ? 'dark' : 'light' });
+  // close with themed footer
+  addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme: isDark ? 'dark' : 'light' });
 
 
 
