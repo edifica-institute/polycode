@@ -1500,6 +1500,7 @@ window.PolyShell.setRawOutputs(stdout, stderr);
           holder = document.createElement('div');
           holder.id = 'pc-inline-plot-area';
           holder.style.marginTop = '8px';
+          holder.style.border = '0px'
           out.appendChild(holder);
         }
 
