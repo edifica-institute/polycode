@@ -3305,38 +3305,49 @@ async function buildPdfBlob(userTitle, logos = {}){
 
   
 // --- Output page (1 page, no blanks) ---
- const isDark = isDarkMode();
-  // start a new page for Output (keeps Code clean)
-  y = newPage(pdf, env, { theme: isDark ? 'dark' : 'light', fillPage: false });
+const isDark = isDarkMode(); // helper below
 
-  // Title
-  pdf.setFont('helvetica','bold');
-  pdf.setFontSize(12);
-  pdf.setTextColor(isDark ? 255 : 0);
-  pdf.text('Output', margin, y);
-  y += 14;
-  pdf.__polycode_cursorY = y; // hand cursor to helpers
+// start a *single* fresh page for Output
+y = newPage(pdf, env, { theme: isDark ? 'dark' : 'light', fillPage: isDark }); // draws dark bg only for this page
 
-  const outPNG = await screenshotOutputForPdf(); // your existing no-flash grab
+// title
+pdf.setFont('helvetica','bold'); 
+pdf.setFontSize(12);
+pdf.setTextColor(isDark ? 255 : 0);
+const titleH = 14;
+pdf.text('Output', margin, y); 
+y += titleH;
 
-  if (outPNG) {
-    // normal-sized images, paginated if long
-    y = await addImagePaginated(pdf, outPNG, env, {
-      maxWidthPt: 420,    // keep it moderate
-      blockHeightPt: 260, // ~3.6 inches tall blocks
-      gapPt: 8,
-      marginPt: margin
-    });
-  } else {
-    // fallback: print any available text output
-    const stdout = document.getElementById('stdoutText')?.textContent || '';
-    const stderr = document.getElementById('stderrText')?.textContent || '';
-    const text = (stdout || stderr || '(no output)').trim();
-    y = writeWrapped(pdf, y, text, { font:'courier', size:10, lh:12, env });
+const iframePng = await screenshotOutputForPdf(); // no-Flash grab (see #3)
+if (iframePng) {
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const maxW  = pageW - margin * 2;
+  const footerReserve = 26;        // leave room for footer band
+  const gap = 8;                   // space after image
+
+  // compute available height *on this page* (no ensureSpace)
+  const maxH = pageH - margin - footerReserve - y - gap;
+
+  const props = pdf.getImageProperties(iframePng);
+  let w = maxW;
+  let h = props ? (props.height * w / props.width) : 0;
+
+  // fit image inside the leftover page area
+  if (h > maxH) {
+    const s = maxH / h;
+    w *= s; h *= s;
   }
 
-  // close with themed footer
-  addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme: isDark ? 'dark' : 'light' });
+  pdf.addImage(iframePng, 'PNG', margin, y, w, h, undefined, 'FAST');
+  y += h + gap;
+} else {
+  // fallback text if somehow no image
+  y = writeWrapped(pdf, y, '(no output)', { font:'courier', size:10, lh:12, env });
+}
+
+// close page
+addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme: isDark ? 'dark' : 'light' });
 
 
 
@@ -3704,34 +3715,45 @@ async function buildCodeImageDataURL() {
 (function ensurePlotProgressStyles(){
   if (document.getElementById('pc-plot-progress-styles')) return;
   const css = `
-  .pc-plot-progress { margin:6px 0 8px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; background:#fafafa; font:12px/1.3 ui-monospace,Menlo,Consolas,monospace; color:#444; }
-  .pc-plot-progress .row { display:flex; align-items:center; gap:8px; }
-  .pc-plot-progress .label { opacity:.8; }
-  .pc-plot-progress .bar { flex:1; height:6px; background:#eee; border-radius:4px; overflow:hidden; }
-  .pc-plot-progress .fill { height:100%; width:35%; background:linear-gradient(90deg,#93c5fd,#60a5fa,#3b82f6); animation:pcPulse 1.2s ease-in-out infinite; }
-  @keyframes pcPulse { 0%{transform:translateX(-60%);} 50%{transform:translateX(0%);} 100%{transform:translateX(60%);} }
+  .pc-plot-progress {
+    margin:6px 0 8px; padding:10px 12px;
+    border:1px solid #e5e7eb; border-radius:10px;
+    background:#fafafa; color:#444;
+    font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;
+    display:flex; align-items:center; gap:10px;
+  }
+  .pc-plot-progress .spin {
+    width:16px; height:16px; border:2px solid #cfd8e3;
+    border-top-color:#3b82f6; border-radius:50%;
+    animation:pcSpin 0.8s linear infinite;
+    flex:0 0 auto;
+  }
+  .pc-plot-progress .label { opacity:.9; }
+  @keyframes pcSpin { to { transform: rotate(360deg); } }
   `;
   const style = document.createElement('style');
   style.id = 'pc-plot-progress-styles';
   style.textContent = css;
   document.head.appendChild(style);
 })();
+
 function makePlotProgressChunk(text = 'Generating chart…') {
   const wrap = document.createElement('div');
   wrap.className = 'pc-inline-plot-chunk';
+
   const box = document.createElement('div');
   box.className = 'pc-plot-progress';
-  const row = document.createElement('div');
-  row.className = 'row';
+
+  const spin = document.createElement('div');
+  spin.className = 'spin';
+
   const label = document.createElement('div');
   label.className = 'label';
   label.textContent = text;
-  const bar = document.createElement('div');
-  bar.className = 'bar';
-  const fill = document.createElement('div');
-  fill.className = 'fill';
-  bar.appendChild(fill); row.appendChild(label); row.appendChild(bar);
-  box.appendChild(row); wrap.appendChild(box);
+
+  box.appendChild(spin);
+  box.appendChild(label);
+  wrap.appendChild(box);
   return wrap;
 }
 
