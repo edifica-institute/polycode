@@ -125,7 +125,12 @@ wss.on('connection', (ws) => {
         // ---- run via launcher.jar (emits [[CTRL]]:stdin_req when blocked on input) ----
         const cpSep = process.platform === 'win32' ? ';' : ':';
         const runnerJar = path.join(process.cwd(), 'runner.jar');
-        const classpath = `${runnerJar}${cpSep}${workdir}`;
+
+        // NEW: include any JDBC jars we ship in /app/libs/*
+        const libsGlob  = path.join(process.cwd(), 'libs', '*');
+
+        // Ensure user workdir is last to win class resolution for their classes/resources
+        const classpath = `${runnerJar}${cpSep}${libsGlob}${cpSep}${workdir}`;
 
         const heapMb = Math.max(32, Math.min(Number(msg.heapMb || 128), 512));
         const jvmFlags = [
