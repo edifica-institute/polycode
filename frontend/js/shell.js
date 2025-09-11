@@ -201,8 +201,14 @@ try:
     _buf = list(STDIN_REPLAY)
 except NameError:
     _buf = []
+
 def _input(prompt=''):
-    return _buf.pop(0) if _buf else ''
+    if _buf:                    # use recorded inputs first
+        return _buf.pop(0)
+    p = (prompt or '').lower()  # defensive default if empty
+    if any(k in p for k in ('how many', 'count', 'number', 'size', 'n=')):
+        return '1'
+    return '0'
 builtins.input = _input
 
 # --- headless matplotlib ---
