@@ -169,18 +169,38 @@ async function renderInlinePlotsIfAny(userCode){
     await ensurePyPkgsFor(userCode); // your existing autoloader (mpl/pandas + seaborn via micropip)
 
     const imgs = await py.runPythonAsync(`
+const imgs = await py.runPythonAsync(`
 import sys, io, base64, builtins
-# do not block if code asks for input(); return empty string
-builtins.input = lambda prompt='': ''
+# seed input replay
+try:
+    _buf = list(STDIN_REPLAY)
+except NameError:
+    _buf = []
+def _input(prompt=''):
+    return _buf.pop(0) if _buf else ''
+builtins.input = _input
+
+# headless matplotlib
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
+
+# start from a clean slate and silence GUI show()
 plt.close('all')
+def __pc_show(*args, **kwargs):
+    # do nothing; we'll capture figures explicitly after the user code
+    pass
+try:
+    _orig_show = plt.show
+except Exception:
+    _orig_show = None
+plt.show = __pc_show
 
 # ==== USER CODE ====
 ${userCode}
 # ===================
 
+# collect all open figures as base64 PNGs
 _payload=[]
 try:
     fns = list(getattr(plt, 'get_fignums', lambda: [])())
@@ -191,9 +211,17 @@ try:
         _payload.append(base64.b64encode(buf.getvalue()).decode('ascii'))
         buf.close()
 finally:
+    # restore and close
+    try:
+        if _orig_show is not None:
+            plt.show = _orig_show
+    except Exception:
+        pass
     plt.close('all')
+
 _payload
 `);
+
 
     if (!Array.isArray(imgs) || !imgs.length) return;
 
