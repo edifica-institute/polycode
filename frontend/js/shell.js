@@ -3657,6 +3657,11 @@ function clearInlinePlotArea(hard = false) {
     window.__pc_runSeq = 0;
     window.__pc_replayCheckpoints = {};
   }
+  try { clearTimeout(window.__pc_livePlotTimer); } catch {}
+window.__pc_livePlotTimer = null;
+window.__pc_livePlotPending = null;
+window.__pc_livePlotRunning = false;
+
 }
 
 
@@ -3684,6 +3689,39 @@ function splitConsoleForInlineImage() {
   pre.textContent = '';
   return anchor;
 }
+
+
+
+
+// Simple last-job runner for live plot renders
+async function __pc_kickLivePlot() {
+  if (window.__pc_livePlotRunning) return;
+  const job = window.__pc_livePlotPending;
+  if (!job) return;
+
+  window.__pc_livePlotPending = null;
+  window.__pc_livePlotRunning = true;
+  try {
+    await renderInlinePlotsIfAny(job.code, job.replay, { append: true, anchor: job.anchor });
+  } catch (e) {
+    console.debug('[Polycode] live plot render failed:', e);
+  } finally {
+    window.__pc_livePlotRunning = false;
+    if (window.__pc_livePlotPending) __pc_kickLivePlot(); // drain the latest pending job
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -4029,61 +4067,81 @@ send(data) {
     const s = (typeof data === 'string') ? data : '';
     if (s && s[0] === '{') {
       const m = JSON.parse(s);
+
+      // We only care when the runner is sending stdin from the console
       if (m?.type === 'stdin') {
+        // Mark that the last thing sent was input (used by your prompt heuristics)
         if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
         this.__pc_lastSentWasInput = true;
-        this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
+        this.__pc_lastSentWasInputTimer = setTimeout(() => {
+          this.__pc_lastSentWasInput = false;
+        }, 50);
 
-        // Record the line for replay
-        // Record line for replay
-const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
-if (line) {
-  window.__stdinHistory = window.__stdinHistory || [];
-  window.__stdinHistory.push(line);
-}
+        // ----- record the line for replay -----
+        const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
+        if (line) {
+          window.__stdinHistory = window.__stdinHistory || [];
+          window.__stdinHistory.push(line);
+        }
 
-// Create anchor at this point in the output and assign a unique seq
-const anchor = splitConsoleForInlineImage();
-let progressChunk = null;
-if (anchor) {
-  window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1;
-  anchor.dataset.seq = String(window.__pc_inputSeq);
+        // ----- create an anchor right here in the Output and drop a progress box -----
+        const anchor = splitConsoleForInlineImage();
+        let progressChunk = null;
+        if (anchor) {
+          // unique sequence per input press
+          window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1;
+          anchor.dataset.seq = String(window.__pc_inputSeq);
 
-  // checkpoint: how many inputs exist up to this choice
-  window.__pc_replayCheckpoints = window.__pc_replayCheckpoints || {};
-  window.__pc_replayCheckpoints[anchor.dataset.seq] = window.__stdinHistory.length;
+          // checkpoint: how many inputs existed up to this point
+          window.__pc_replayCheckpoints = window.__pc_replayCheckpoints || {};
+          window.__pc_replayCheckpoints[anchor.dataset.seq] = window.__stdinHistory.length;
 
-  // progress UI right away
-  progressChunk = makePlotProgressChunk('Generating chart…');
-  anchor.replaceWith(progressChunk);
-}
+          // show per-input progress immediately
+          progressChunk = makePlotProgressChunk('Generating chart…');
 
-// Debounced live render after stdin
-if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
-window.__pc_livePlotTimer = setTimeout(async () => {
-  if (window.__pc_livePlotBusy) return;
-  window.__pc_livePlotBusy = true;
-  try {
-    const code = window.editor?.getValue?.() || '';
-    // use inputs only up to this decision point
-    let replay = (window.__stdinHistory || []).slice();
-    if (anchor?.dataset?.seq && window.__pc_replayCheckpoints) {
-      const upto = window.__pc_replayCheckpoints[anchor.dataset.seq] ?? replay.length;
-      replay = replay.slice(0, upto);
-    }
-    await renderInlinePlotsIfAny(code, replay, { append: true, anchor: progressChunk || anchor });
-  } catch (e) {
-    console.debug('[Polycode] live plot skipped:', e);
-  } finally {
-    window.__pc_livePlotBusy = false;
-  }
-}, 150);
+          // ✅ preserve the same seq on the progress chunk so de-dup salt stays unique
+          progressChunk.dataset.seq = anchor.dataset.seq;
 
+          // place the progress exactly where the user hit Enter
+          anchor.replaceWith(progressChunk);
+        }
+
+        // ----- schedule a live render (debounced) using a tiny queue/last-job runner -----
+        if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer);
+        window.__pc_livePlotTimer = setTimeout(() => {
+          try {
+            const code = window.editor?.getValue?.() || '';
+            let replay = (window.__stdinHistory || []).slice();
+
+            // Use inputs only up to this decision point
+            const seq = (progressChunk?.dataset?.seq || anchor?.dataset?.seq);
+            if (seq && window.__pc_replayCheckpoints) {
+              const upto = window.__pc_replayCheckpoints[seq] ?? replay.length;
+              replay = replay.slice(0, upto);
+            }
+
+            // Queue the latest job and kick the runner (defined once globally)
+            window.__pc_livePlotPending = {
+              code,
+              replay,
+              anchor: (progressChunk || anchor) || null
+            };
+            // This helper should exist once (see instructions): it consumes pending -> calls renderInlinePlotsIfAny
+            __pc_kickLivePlot();
+          } catch (e) {
+            console.debug('[Polycode] live plot schedule failed:', e);
+          }
+        }, 120);
       }
     }
-  } catch {}
+  } catch (_) {
+    // ignore parse errors; just send the data through
+  }
+
+  // Always forward the actual payload to the real socket
   this._real.send(data);
 }
+
 
 
 
