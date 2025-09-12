@@ -1,19 +1,21 @@
 # ---- Java + Node base ----
 FROM node:20-bullseye
 
-# Install a *headful* JDK (Swing/AWT), X server + VNC + noVNC + fonts
+# Headful JDK (Swing/AWT), X server + VNC + noVNC + fonts + WM + runtime libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk \
     xvfb x11vnc novnc \
+    openbox xauth \
     fonts-dejavu-core \
-    libxi6 libxtst6 libxrender1 \
+    libgtk-3-0 libasound2 libxi6 libxtst6 libxrender1 \
     curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# ---- Node deps (no lockfile assumed) ----
+# ---- Node deps ----
 COPY package.json ./
+ENV NODE_ENV=production
 RUN npm install --omit=dev
 
 # ---- App files ----
@@ -69,7 +71,7 @@ RUN set -eux; \
   curl -fSL --retry 5 -o /app/libs/commons-csv-1.11.0.jar \
     https://repo1.maven.org/maven2/org/apache/commons/commons-csv/1.11.0/commons-csv-1.11.0.jar
 
-# ---- 3) Optional: Javalin + deps (kept simple; no extra websocket artifacts) ----
+# ---- 3) Optional lightweight web stack (Javalin + Jetty) ----
 RUN set -eux; \
   curl -fSL --retry 5 -o /app/libs/kotlin-stdlib-1.9.24.jar \
     https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.24/kotlin-stdlib-1.9.24.jar; \
@@ -94,12 +96,12 @@ RUN set -eux; \
   curl -fSL --retry 5 -o /app/libs/javalin-6.1.6.jar \
     https://repo1.maven.org/maven2/io/javalin/javalin/6.1.6/javalin-6.1.6.jar
 
-# ---- 4) JUnit console (handy for tests) ----
+# ---- 4) JUnit console (optional) ----
 RUN set -eux; \
   curl -fSL --retry 5 -o /app/libs/junit-platform-console-standalone-1.10.2.jar \
     https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar
 
-# ---- Entrypoint that starts Xvfb + VNC + Node ----
+# ---- Entrypoint that starts Xvfb + WM + VNC + Node ----
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
@@ -107,7 +109,15 @@ RUN chmod +x /app/entrypoint.sh
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
     DISPLAY=:99 \
+    NO_AT_BRIDGE=1 \
+    _JAVA_AWT_WM_NONREPARENTING=1 \
     PORT=8081
 
 EXPOSE 8081
+# (5900 is used internally by x11vnc; expose if you want raw VNC access)
+# EXPOSE 5900
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s \
+  CMD curl -fsS http://127.0.0.1:${PORT}/health || exit 1
+
 CMD ["/app/entrypoint.sh"]
