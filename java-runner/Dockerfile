@@ -25,7 +25,13 @@ RUN mkdir -p /app/libs && \
     curl -fSL -o /app/libs/mysql-connector-j-8.4.0.jar \
       https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.4.0/mysql-connector-j-8.4.0.jar && \
     curl -fSL -o /app/libs/Java-WebSocket-1.5.6.jar \
-      https://repo1.maven.org/maven2/org/java-websocket/Java-WebSocket/1.5.6/Java-WebSocket-1.5.6.jar
+      https://repo1.maven.org/maven2/org/java-websocket/Java-WebSocket/1.5.6/Java-WebSocket-1.5.6.jar && \
+    curl -fSL -o /app/libs/slf4j-api-2.0.12.jar \
+      https://repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.12/slf4j-api-2.0.12.jar && \
+    curl -fSL -o /app/libs/slf4j-simple-2.0.12.jar \
+      https://repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.12/slf4j-simple-2.0.12.jar
+
+      
 
 # ---- Runtime env ----
 ENV LANG=C.UTF-8
