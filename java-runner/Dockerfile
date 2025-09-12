@@ -1,9 +1,11 @@
 # ---- Java + Node base ----
 FROM node:20-bullseye
 
-# Install JDK for javac and curl for fetching jars
+# Install JDK, curl, and GUI bits (Xvfb + fonts) for Swing/AWT
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk-headless curl ca-certificates \
+    xvfb libxext6 libxrender1 libxtst6 libxi6 \
+    fontconfig fonts-dejavu \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -62,6 +64,8 @@ RUN set -eux; \
     https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.17.1/jackson-core-2.17.1.jar; \
   curl -fSL --retry 5 -o /app/libs/jackson-databind-2.17.1.jar \
     https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.17.1/jackson-databind-2.17.1.jar; \
+  curl -fSL --retry 5 -o /app/libs/jackson-datatype-jsr310-2.17.1.jar \
+    https://repo1.maven.org/maven2/com/fasterxml/jackson/datatype/jackson-datatype-jsr310/2.17.1/jackson-datatype-jsr310-2.17.1.jar; \
   curl -fSL --retry 5 -o /app/libs/commons-csv-1.11.0.jar \
     https://repo1.maven.org/maven2/org/apache/commons/commons-csv/1.11.0/commons-csv-1.11.0.jar
 
@@ -90,6 +94,15 @@ RUN set -eux; \
   curl -fSL --retry 5 -o /app/libs/javalin-6.1.6.jar \
     https://repo1.maven.org/maven2/io/javalin/javalin/6.1.6/javalin-6.1.6.jar
 
+# ---- 3b) Jetty WebSocket (for Javalin WS) ----
+RUN set -eux; \
+  curl -fSL --retry 5 -o /app/libs/websocket-core-common-11.0.24.jar \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/core/websocket-core-common/11.0.24/websocket-core-common-11.0.24.jar; \
+  curl -fSL --retry 5 -o /app/libs/websocket-core-server-11.0.24.jar \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/core/websocket-core-server/11.0.24/websocket-core-server-11.0.24.jar; \
+  curl -fSL --retry 5 -o /app/libs/websocket-jetty-server-11.0.24.jar \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/jetty/websocket-jetty-server/11.0.24/websocket-jetty-server-11.0.24.jar
+
 # ---- 4) Utilities: jOOQ, MyBatis, Liquibase, Mail, YAML, HTML, Excel ----
 RUN set -eux; \
   curl -fSL --retry 5 -o /app/libs/jooq-3.19.10.jar \
@@ -98,10 +111,12 @@ RUN set -eux; \
     https://repo1.maven.org/maven2/org/mybatis/mybatis/3.5.15/mybatis-3.5.15.jar; \
   curl -fSL --retry 5 -o /app/libs/liquibase-core-4.27.0.jar \
     https://repo1.maven.org/maven2/org/liquibase/liquibase-core/4.27.0/liquibase-core-4.27.0.jar; \
-  curl -fSL --retry 5 -o /app/libs/jakarta.mail-2.0.3.jar \
-    https://repo1.maven.org/maven2/com/sun/mail/jakarta.mail/2.0.3/jakarta.mail-2.0.3.jar; \
-  curl -fSL --retry 5 -o /app/libs/jakarta-activation-api-2.1.2.jar \
-    https://repo1.maven.org/maven2/jakarta/activation/jakarta.activation-api/2.1.2/jakarta.activation-api-2.1.2.jar; \
+  # Jakarta Mail (API + implementation via Eclipse Angus)
+  curl -fSL --retry 5 -o /app/libs/jakarta.mail-api-2.1.2.jar \
+    https://repo1.maven.org/maven2/jakarta/mail/jakarta.mail-api/2.1.2/jakarta.mail-api-2.1.2.jar; \
+  curl -fSL --retry 5 -o /app/libs/jakarta.mail-2.0.4.jar \
+    https://repo1.maven.org/maven2/org/eclipse/angus/jakarta.mail/2.0.4/jakarta.mail-2.0.4.jar; \
+  # YAML/HTML/Excel helpers
   curl -fSL --retry 5 -o /app/libs/snakeyaml-2.2.jar \
     https://repo1.maven.org/maven2/org/yaml/snakeyaml/2.2/snakeyaml-2.2.jar; \
   curl -fSL --retry 5 -o /app/libs/jsoup-1.18.1.jar \
@@ -126,10 +141,18 @@ RUN set -eux; \
   curl -fSL --retry 5 -o /app/libs/junit-platform-console-standalone-1.10.2.jar \
     https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/1.10.2/junit-platform-console-standalone-1.10.2.jar
 
+# ---- Xvfb wrapper so Swing runs without runner changes ----
+RUN printf '%s\n' \
+  '#!/usr/bin/env bash' \
+  'export DISPLAY=${DISPLAY:-:99}' \
+  'Xvfb "$DISPLAY" -screen 0 1280x800x24 -nolisten tcp -ac >/dev/null 2>&1 &' \
+  'exec "$@"' > /usr/local/bin/with-xvfb \
+  && chmod +x /usr/local/bin/with-xvfb
+
 # ---- Runtime env ----
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 ENV PORT=8081
 
 EXPOSE 8081
-CMD ["npm","start"]
+CMD ["with-xvfb","npm","start"]
