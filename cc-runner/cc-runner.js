@@ -93,17 +93,17 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
 }
 
 function compilerFor(lang, entry) {
-  //if (lang === "c")   return { cc: "gcc", std: "-std=c11" };
-  //if (lang === "cpp") return { cc: "g++", std: "-std=c++17" };
+  if (lang === "c")   return { cc: "gcc", std: "-std=c11" };
+  if (lang === "cpp") return { cc: "g++", std: "-std=c++17" };
 
-const stdFlag = requestedStd ? `-std=${requestedStd}` : null;
-  if (lang === "c")   return { cc: "gcc", std: stdFlag || "-std=c11" };
-if (lang === "cpp") return { cc: "g++", std: stdFlag || "-std=c++17" };
+//const stdFlag = requestedStd ? `-std=${requestedStd}` : null;
+  //if (lang === "c")   return { cc: "gcc", std: stdFlag || "-std=c11" };
+//if (lang === "cpp") return { cc: "g++", std: stdFlag || "-std=c++17" };
   
   const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entry || "");
-  //return isCpp ? { cc: "g++", std: "-std=c++17" } : { cc: "gcc", std: "-std=c11" };
+  return isCpp ? { cc: "g++", std: "-std=c++17" } : { cc: "gcc", std: "-std=c11" };
 
-  return isCpp ? { cc: "g++", std: stdFlag || "-std=c++17" } : { cc: "gcc", std: stdFlag || "-std=c11" };
+  //return isCpp ? { cc: "g++", std: stdFlag || "-std=c++17" } : { cc: "gcc", std: stdFlag || "-std=c11" };
 }
 
 // Make sure root exists
