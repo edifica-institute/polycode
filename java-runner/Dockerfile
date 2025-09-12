@@ -8,8 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# ---- Node deps ----
-# If you have package-lock.json, you can switch to: npm ci --omit=dev
+# ---- Node deps (no lockfile) ----
 COPY package.json ./
 RUN npm install --omit=dev
 
@@ -22,12 +21,12 @@ RUN javac -encoding UTF-8 -d out io/polycode/*.java \
  && jar --create --file runner.jar -C out .
 
 # ---- Libraries (JDBC + Local WebSocket support) ----
-# MySQL Connector/J and Tyrus jars go to /app/libs
+# Corrected URLs: use org.glassfish.tyrus.bundles for BOTH client and server.
 RUN mkdir -p /app/libs && \
     curl -fSL -o /app/libs/mysql-connector-j-8.4.0.jar \
       https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.4.0/mysql-connector-j-8.4.0.jar && \
-    curl -fSL -o /app/libs/tyrus-standalone-client-jdk-2.1.4.jar \
-      https://repo1.maven.org/maven2/org/glassfish/tyrus/tyrus-standalone-client-jdk/2.1.4/tyrus-standalone-client-jdk-2.1.4.jar && \
+    curl -fSL -o /app/libs/tyrus-standalone-client-2.1.4.jar \
+      https://repo1.maven.org/maven2/org/glassfish/tyrus/bundles/tyrus-standalone-client/2.1.4/tyrus-standalone-client-2.1.4.jar && \
     curl -fSL -o /app/libs/tyrus-standalone-server-2.1.4.jar \
       https://repo1.maven.org/maven2/org/glassfish/tyrus/bundles/tyrus-standalone-server/2.1.4/tyrus-standalone-server-2.1.4.jar
 
