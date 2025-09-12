@@ -4,14 +4,59 @@ import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import os from 'os';
 import path from 'path';
+import net from 'net';
+
+
+process.env.DISPLAY = process.env.DISPLAY || ':99';
 
 const app = express();
+
+app.use('/novnc', express.static('/usr/share/novnc'));
+app.get('/vnc', (req, res) => {
+  // Opens noVNC and points it at our WS proxy on /novnc/ws
+  res.redirect('/novnc/vnc.html?autoconnect=true&resize=scale&path=/novnc/ws');
+});
+
+
 app.get('/health', (_req, res) => res.send('ok'));
 
 const PORT = process.env.PORT || 8081; // Render sets this (often 10000)
 const server = app.listen(PORT, () => console.log('Java runner on :' + PORT));
 
 const wss = new WebSocketServer({ server, path: '/java' });
+
+
+const vncWss = new WebSocketServer({ server, path: '/novnc/ws' });
+
+vncWss.on('connection', (ws) => {
+  // connect to the local VNC server started by entrypoint.sh (x11vnc on :99 → port 5900)
+  const sock = net.connect(5900, '127.0.0.1');
+
+  // browser → VNC
+  ws.on('message', (data) => {
+    sock.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
+  });
+
+  // VNC → browser
+  sock.on('data', (chunk) => {
+    try { ws.send(chunk); } catch {}
+  });
+
+  // tidy up on either side closing/erroring
+  const cleanup = () => {
+    try { sock.destroy(); } catch {}
+    try { ws.close(); } catch {}
+  };
+  ws.on('close', cleanup);
+  ws.on('error', cleanup);
+  sock.on('close', cleanup);
+  sock.on('error', cleanup);
+});
+
+
+
+
+
 
 // ---- NEW: shared classpath pieces ----
 const CP_SEP = process.platform === 'win32' ? ';' : ':';
