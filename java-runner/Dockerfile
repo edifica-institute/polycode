@@ -81,23 +81,23 @@ curl -fSL -o /app/libs/junit-platform-console-standalone-1.10.2.jar \
 
 
 curl -fSL -o /app/libs/kotlin-stdlib-1.9.24.jar \
-    https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.24/kotlin-stdlib-1.9.24.jar; && \
+    https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.24/kotlin-stdlib-1.9.24.jar && \
   curl -fSL -o /app/libs/kotlin-stdlib-jdk8-1.9.24.jar \
-    https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.24/kotlin-stdlib-jdk8-1.9.24.jar; && \
+    https://repo1.maven.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.24/kotlin-stdlib-jdk8-1.9.24.jar && \
   curl -fSL -o /app/libs/jetty-server-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-server/11.0.24/jetty-server-11.0.24.jar; && \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-server/11.0.24/jetty-server-11.0.24.jar && \
   curl -fSL -o /app/libs/jetty-http-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-http/11.0.24/jetty-http-11.0.24.jar; && \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-http/11.0.24/jetty-http-11.0.24.jar && \
   curl -fSL -o /app/libs/jetty-io-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-io/11.0.24/jetty-io-11.0.24.jar; && \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-io/11.0.24/jetty-io-11.0.24.jar && \
   curl -fSL -o /app/libs/jetty-util-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-util/11.0.24/jetty-util-11.0.24.jar; && \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-util/11.0.24/jetty-util-11.0.24.jar && \
   curl -fSL -o /app/libs/jetty-security-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-security/11.0.24/jetty-security-11.0.24.jar; && \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-security/11.0.24/jetty-security-11.0.24.jar && \
   curl -fSL -o /app/libs/jetty-servlet-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-servlet/11.0.24/jetty-servlet-11.0.24.jar; && \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-servlet/11.0.24/jetty-servlet-11.0.24.jar && \
   curl -fSL -o /app/libs/jetty-webapp-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-webapp/11.0.24/jetty-webapp-11.0.24.jar; && \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-webapp/11.0.24/jetty-webapp-11.0.24.jar && \
   curl -fSL -o /app/libs/jakarta.servlet-api-5.0.0.jar \
     https://repo1.maven.org/maven2/jakarta/servlet/jakarta.servlet-api/5.0.0/jakarta.servlet-api-5.0.0.jar
 
