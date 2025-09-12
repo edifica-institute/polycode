@@ -1,27 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export DISPLAY="${DISPLAY:-:99}"
-# 1280x800 is a good default; adjust if you like
-XVFB_W=${XVFB_W:-1280}
-XVFB_H=${XVFB_H:-800}
-XVFB_D=${XVFB_D:-24}
+# Start virtual X server for Swing
+Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -noreset &
+sleep 0.5
 
-# 1) Start a virtual X server
-Xvfb "$DISPLAY" -screen 0 "${XVFB_W}x${XVFB_H}x${XVFB_D}" -nolisten tcp -ac &
-XVFB_PID=$!
+# VNC server on :99 (passwordless for lab/demo)
+x11vnc -display :99 -forever -shared -nopw -rfbport 5900 -quiet &
+sleep 0.5
 
-# 2) Start a minimal window manager so Swing has decorations/placement
-openbox &
+# Websockify + noVNC on the SAME PORT as your app using a subpath:
+# We'll just let Node serve the app on $PORT and run websockify on 5901,
+# but we don't expose it publicly; we'll reverse-proxy via Node or use the built-in noVNC URL.
+# Easiest: noVNC static is at /usr/share/novnc; we'll reference it via Node routes you already added.
+# (If you prefer zero JS changes, see note below.)
+websockify --web=/usr/share/novnc 5901 127.0.0.1:5900 >/dev/null 2>&1 &
 
-# 3) Expose the X display over VNC (no password; for lab/demo use)
-x11vnc -display "$DISPLAY" -forever -shared -nopw -rfbport 5900 -quiet &
-VNC_PID=$!
-
-# 4) Start Node server (serves /novnc assets and WS proxy)
-node /app/java-runner.js &
-NODE_PID=$!
-
-# 5) Reap and shut down cleanly
-trap 'kill $NODE_PID $VNC_PID $XVFB_PID 2>/dev/null || true' INT TERM
-wait -n $NODE_PID $VNC_PID $XVFB_PID
+# Finally start your Node server
+exec npm start
