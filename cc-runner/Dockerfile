@@ -1,10 +1,11 @@
 FROM node:20-bullseye
 
 # Toolchains for C/C++
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc g++ make \
-    ca-certificates bash coreutils procps \
- && rm -rf /var/lib/apt/lists/*
+ RUN apt-get update && apt-get install -y \
+     build-essential g++ make cmake \
+     libgmp-dev \
+     libboost-all-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
