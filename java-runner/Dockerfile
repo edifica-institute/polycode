@@ -31,20 +31,48 @@ RUN mkdir -p /app/libs && \
     curl -fSL -o /app/libs/slf4j-simple-2.0.12.jar \
       https://repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.12/slf4j-simple-2.0.12.jar && \
       # PostgreSQL
-curl -fSL -o /app/libs/postgresql-42.7.3.jar \
-  https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.3/postgresql-42.7.3.jar && \
-# SQLite
-curl -fSL -o /app/libs/sqlite-jdbc-3.46.0.0.jar \
-  https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.46.0.0/sqlite-jdbc-3.46.0.0.jar && \
-# H2
-curl -fSL -o /app/libs/h2-2.2.224.jar \
-  https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar && \
-# SQL Server
-curl -fSL -o /app/libs/mssql-jdbc-12.6.1.jre11.jar \
-  https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.6.1.jre11/mssql-jdbc-12.6.1.jre11.jar && \
-# MariaDB
-curl -fSL -o /app/libs/mariadb-java-client-3.4.1.jar \
-  https://repo1.maven.org/maven2/org/mariadb/jdbc/mariadb-java-client/3.4.1/mariadb-java-client-3.4.1.jar
+    curl -fSL -o /app/libs/postgresql-42.7.3.jar \
+      https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.3/postgresql-42.7.3.jar && \
+    # SQLite
+    curl -fSL -o /app/libs/sqlite-jdbc-3.46.0.0.jar \
+      https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.46.0.0/sqlite-jdbc-3.46.0.0.jar && \
+    # H2
+    curl -fSL -o /app/libs/h2-2.2.224.jar \
+      https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar && \
+    # SQL Server
+    curl -fSL -o /app/libs/mssql-jdbc-12.6.1.jre11.jar \
+      https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.6.1.jre11/mssql-jdbc-12.6.1.jre11.jar && \
+    # MariaDB
+    curl -fSL -o /app/libs/mariadb-java-client-3.4.1.jar \
+      https://repo1.maven.org/maven2/org/mariadb/jdbc/mariadb-java-client/3.4.1/mariadb-java-client-3.4.1.jar && \
+
+
+
+      # Connection pool
+    curl -fSL -o /app/libs/HikariCP-5.1.0.jar \
+      https://repo1.maven.org/maven2/com/zaxxer/HikariCP/5.1.0/HikariCP-5.1.0.jar && \
+    # Jdbi (core + SQL object)
+    curl -fSL -o /app/libs/jdbi3-core-3.45.1.jar \
+      https://repo1.maven.org/maven2/org/jdbi/jdbi3-core/3.45.1/jdbi3-core-3.45.1.jar && \
+    curl -fSL -o /app/libs/jdbi3-sqlobject-3.45.1.jar \
+      https://repo1.maven.org/maven2/org/jdbi/jdbi3-sqlobject/3.45.1/jdbi3-sqlobject-3.45.1.jar && \
+    # Flyway (JDBC-agnostic)
+    curl -fSL -o /app/libs/flyway-core-10.17.0.jar \
+      https://repo1.maven.org/maven2/org/flywaydb/flyway-core/10.17.0/flyway-core-10.17.0.jar && \
+    # Jackson (JSON)
+    curl -fSL -o /app/libs/jackson-annotations-2.17.1.jar \
+      https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-annotations/2.17.1/jackson-annotations-2.17.1.jar && \
+    curl -fSL -o /app/libs/jackson-core-2.17.1.jar \
+      https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-core/2.17.1/jackson-core-2.17.1.jar && \
+    curl -fSL -o /app/libs/jackson-databind-2.17.1.jar \
+      https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/2.17.1/jackson-databind-2.17.1.jar && \
+    # Javalin (tiny web framework)
+    curl -fSL -o /app/libs/javalin-6.1.6.jar \
+      https://repo1.maven.org/maven2/io/javalin/javalin/6.1.6/javalin-6.1.6.jar && \
+    # Commons CSV
+    curl -fSL -o /app/libs/commons-csv-1.11.0.jar \
+      https://repo1.maven.org/maven2/org/apache/commons/commons-csv/1.11.0/commons-csv-1.11.0.jar
+
 
 
       
