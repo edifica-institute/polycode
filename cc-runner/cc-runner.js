@@ -93,10 +93,17 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
 }
 
 function compilerFor(lang, entry) {
-  if (lang === "c")   return { cc: "gcc", std: "-std=c11" };
-  if (lang === "cpp") return { cc: "g++", std: "-std=c++17" };
+  //if (lang === "c")   return { cc: "gcc", std: "-std=c11" };
+  //if (lang === "cpp") return { cc: "g++", std: "-std=c++17" };
+
+const stdFlag = requestedStd ? `-std=${requestedStd}` : null;
+  if (lang === "c")   return { cc: "gcc", std: stdFlag || "-std=c11" };
+if (lang === "cpp") return { cc: "g++", std: stdFlag || "-std=c++17" };
+  
   const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entry || "");
-  return isCpp ? { cc: "g++", std: "-std=c++17" } : { cc: "gcc", std: "-std=c11" };
+  //return isCpp ? { cc: "g++", std: "-std=c++17" } : { cc: "gcc", std: "-std=c11" };
+
+  return isCpp ? { cc: "g++", std: stdFlag || "-std=c++17" } : { cc: "gcc", std: stdFlag || "-std=c11" };
 }
 
 // Make sure root exists
@@ -137,7 +144,7 @@ app.post("/api/cc/prepare", async (req, res) => {
     const exePath = safeJoin(dir, output);
 
     // Compile with limits; add -O2 and -lm (harmless for both C/C++)
-    const args = [...srcs, std, "-O2", "-o", exePath, "-lm"];
+    const args = [...srcs, std, "-O2", "-pthread", "-o", exePath, "-lm"];
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
     let out = "", err = "";
