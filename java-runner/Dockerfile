@@ -29,7 +29,23 @@ RUN mkdir -p /app/libs && \
     curl -fSL -o /app/libs/slf4j-api-2.0.12.jar \
       https://repo1.maven.org/maven2/org/slf4j/slf4j-api/2.0.12/slf4j-api-2.0.12.jar && \
     curl -fSL -o /app/libs/slf4j-simple-2.0.12.jar \
-      https://repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.12/slf4j-simple-2.0.12.jar
+      https://repo1.maven.org/maven2/org/slf4j/slf4j-simple/2.0.12/slf4j-simple-2.0.12.jar && \
+      # PostgreSQL
+curl -fSL -o /app/libs/postgresql-42.7.3.jar \
+  https://repo1.maven.org/maven2/org/postgresql/postgresql/42.7.3/postgresql-42.7.3.jar && \
+# SQLite
+curl -fSL -o /app/libs/sqlite-jdbc-3.46.0.0.jar \
+  https://repo1.maven.org/maven2/org/xerial/sqlite-jdbc/3.46.0.0/sqlite-jdbc-3.46.0.0.jar && \
+# H2
+curl -fSL -o /app/libs/h2-2.2.224.jar \
+  https://repo1.maven.org/maven2/com/h2database/h2/2.2.224/h2-2.2.224.jar && \
+# SQL Server
+curl -fSL -o /app/libs/mssql-jdbc-12.6.1.jre11.jar \
+  https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/12.6.1.jre11/mssql-jdbc-12.6.1.jre11.jar && \
+# MariaDB
+curl -fSL -o /app/libs/mariadb-java-client-3.4.1.jar \
+  https://repo1.maven.org/maven2/org/mariadb/jdbc/mariadb-java-client/3.4.1/mariadb-java-client-3.4.1.jar
+
 
       
 
