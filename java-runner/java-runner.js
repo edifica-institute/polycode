@@ -13,6 +13,11 @@ const server = app.listen(PORT, () => console.log('Java runner on :' + PORT));
 
 const wss = new WebSocketServer({ server, path: '/java' });
 
+// ---- NEW: shared classpath pieces ----
+const CP_SEP = process.platform === 'win32' ? ';' : ':';
+const RUNNER_JAR = path.join(process.cwd(), 'runner.jar');
+const LIBS_GLOB  = path.join(process.cwd(), 'libs', '*');
+
 wss.on('connection', (ws) => {
   // Per-connection mutable state
   let proc = null;
@@ -100,10 +105,11 @@ wss.on('connection', (ws) => {
 
       t0 = Date.now();
 
-      // ---- compile ----
+      // ---- compile (NOW with libs on classpath) ----
       const javac = spawn('javac', [
         '-J-Xms16m','-J-Xmx128m',
         '-proc:none','-g:none','-encoding','UTF-8',
+        '-cp', `${LIBS_GLOB}${CP_SEP}${workdir}`,     // <<< important
         path.basename(file)
       ], { cwd: workdir });
 
@@ -123,14 +129,7 @@ wss.on('connection', (ws) => {
         }
 
         // ---- run via launcher.jar (emits [[CTRL]]:stdin_req when blocked on input) ----
-        const cpSep = process.platform === 'win32' ? ';' : ':';
-        const runnerJar = path.join(process.cwd(), 'runner.jar');
-
-        // NEW: include any JDBC jars we ship in /app/libs/*
-        const libsGlob  = path.join(process.cwd(), 'libs', '*');
-
-        // Ensure user workdir is last to win class resolution for their classes/resources
-        const classpath = `${runnerJar}${cpSep}${libsGlob}${cpSep}${workdir}`;
+        const classpath = `${RUNNER_JAR}${CP_SEP}${LIBS_GLOB}${CP_SEP}${workdir}`;
 
         const heapMb = Math.max(32, Math.min(Number(msg.heapMb || 128), 512));
         const jvmFlags = [
