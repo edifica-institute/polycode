@@ -95,13 +95,14 @@ RUN set -eux; \
     https://repo1.maven.org/maven2/io/javalin/javalin/6.1.6/javalin-6.1.6.jar
 
 # ---- 3b) Jetty WebSocket (for Javalin WS) ----
+# ---- 3b) Jetty WebSocket (for Javalin WS) ----
 RUN set -eux; \
-  curl -fSL --retry 5 -o /app/libs/websocket-core-common-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/core/websocket-core-common/11.0.24/websocket-core-common-11.0.24.jar; \
-  curl -fSL --retry 5 -o /app/libs/websocket-core-server-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/core/websocket-core-server/11.0.24/websocket-core-server-11.0.24.jar; \
-  curl -fSL --retry 5 -o /app/libs/websocket-jetty-server-11.0.24.jar \
-    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/jetty/websocket-jetty-server/11.0.24/websocket-jetty-server-11.0.24.jar
+  curl -fSL --retry 5 -o /app/libs/jetty-websocket-core-common-11.0.24.jar \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/jetty-websocket-core-common/11.0.24/jetty-websocket-core-common-11.0.24.jar; \
+  curl -fSL --retry 5 -o /app/libs/jetty-websocket-core-server-11.0.24.jar \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/jetty-websocket-core-server/11.0.24/jetty-websocket-core-server-11.0.24.jar; \
+  curl -fSL --retry 5 -o /app/libs/jetty-websocket-jetty-server-11.0.24.jar \
+    https://repo1.maven.org/maven2/org/eclipse/jetty/websocket/jetty-websocket-jetty-server/11.0.24/jetty-websocket-jetty-server-11.0.24.jar
 
 # ---- 4) Utilities: jOOQ, MyBatis, Liquibase, Mail, YAML, HTML, Excel ----
 RUN set -eux; \
