@@ -21,14 +21,18 @@ RUN javac -encoding UTF-8 -d out io/polycode/*.java \
  && jar --create --file runner.jar -C out .
 
 # ---- Libraries (JDBC + Local WebSocket support) ----
-# Corrected URLs: use org.glassfish.tyrus.bundles for BOTH client and server.
 RUN mkdir -p /app/libs && \
+    # MySQL JDBC
     curl -fSL -o /app/libs/mysql-connector-j-8.4.0.jar \
       https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.4.0/mysql-connector-j-8.4.0.jar && \
+    # Tyrus client bundle (works with JDK HttpClient or Tyrus client)
     curl -fSL -o /app/libs/tyrus-standalone-client-2.1.4.jar \
       https://repo1.maven.org/maven2/org/glassfish/tyrus/bundles/tyrus-standalone-client/2.1.4/tyrus-standalone-client-2.1.4.jar && \
-    curl -fSL -o /app/libs/tyrus-standalone-server-2.1.4.jar \
-      https://repo1.maven.org/maven2/org/glassfish/tyrus/bundles/tyrus-standalone-server/2.1.4/tyrus-standalone-server-2.1.4.jar
+    # Tyrus server + Grizzly server container (for local WS server)
+    curl -fSL -o /app/libs/tyrus-server-2.2.0.jar \
+      https://repo1.maven.org/maven2/org/glassfish/tyrus/tyrus-server/2.2.0/tyrus-server-2.2.0.jar && \
+    curl -fSL -o /app/libs/tyrus-container-grizzly-server-2.2.0.jar \
+      https://repo1.maven.org/maven2/org/glassfish/tyrus/tyrus-container-grizzly-server/2.2.0/tyrus-container-grizzly-server-2.2.0.jar
 
 # ---- Runtime env ----
 ENV LANG=C.UTF-8
