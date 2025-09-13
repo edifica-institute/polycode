@@ -1348,6 +1348,14 @@ window.refreshStderrExplanation = refreshStderrExplanation;
 }
 
 
+
+  // ---- Safe no-ops so RUN never dies if a page didn't provide these ----
+window.resetRunInternals ||= function(){};
+window.hideCompileFailNotice ||= function(){};
+window.hardClearOutput ||= function(){};
+window.clearRunUI ||= function(){};
+window.killRunner ||= function(){};
+
   
 
 runBtn?.addEventListener('click', async () => {
