@@ -603,7 +603,7 @@ function drawPixels(canvas, width, height, maxval, pixels){
     const C_API_BASE = 'https://polycode-cc.onrender.com';
     const C_WS_BASE  = 'wss://polycode-cc.onrender.com/cc';
 
-    async function prepare(){
+    /*async function prepare(){
       const code = window.editor ? window.editor.getValue() : '';
       const files = [{ path:'main.c', content:code }];
       const res = await fetch(C_API_BASE + '/api/cc/prepare', {
@@ -612,7 +612,36 @@ function drawPixels(canvas, width, height, maxval, pixels){
       });
       if (!res.ok) throw new Error('Prepare failed: ' + res.status);
       return res.json();
+    }*/
+
+
+    let __GRAPHICS_H_TEXT = null;
+
+  async function prepare(){
+    const code = window.editor ? window.editor.getValue() : '';
+
+    if (!__GRAPHICS_H_TEXT) {
+      const res = await fetch('./assets/headerfiles/graphics.h', { cache:'no-store' });
+      if (!res.ok) throw new Error('Could not load graphics.h (' + res.status + ')');
+      __GRAPHICS_H_TEXT = await res.text();
     }
+
+    const files = [
+      { path: 'main.c',      content: code },
+      { path: 'graphics.h',  content: __GRAPHICS_H_TEXT }   // 👈 ship the header
+    ];
+
+    const res = await fetch(C_API_BASE + '/api/cc/prepare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
+    });
+    if (!res.ok) throw new Error('Prepare failed: ' + res.status);
+    return res.json();
+  }
+
+
+    
 
     // Parse gcc/clang error line
     function parseCCompileErrorLine(text){
