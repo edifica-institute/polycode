@@ -312,11 +312,20 @@ int main(){
 /* --- Image preview helpers (PNG/BMP/PPM) --- */
 function showImages(urls) {
   if (!urls || !urls.length) return;
+
+  // 👇 normalize to absolute runner URLs
+  const norm = urls.map(u => {
+    const s = String(u || "");
+    if (/^https?:\/\//i.test(s)) return s;
+    if (s.startsWith("/")) return C_API_BASE + s;   // e.g. "/artifacts/..." -> "https://polycode-cc.onrender.com/artifacts/..."
+    return s;
+  });
+
   const out = document.getElementById('output') || document.body;
   const strip = document.createElement('div');
   strip.className = 'img-strip';
 
-  urls.forEach(u => {
+  norm.forEach(u => {
     if (u.toLowerCase().endsWith('.ppm')) {
       const wrap = document.createElement('div');
       wrap.className = 'ppm-wrap';
@@ -340,6 +349,7 @@ function showImages(urls) {
 
   out.appendChild(strip);
 }
+
 
 async function renderPPMToCanvas(url, canvas) {
   const magic = await sniffMagic(url);
