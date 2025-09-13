@@ -621,22 +621,51 @@ const C_API_BASE = 'https://polycode-cc.onrender.com';
   // cache after first load
   let __GRAPHICS_H_TEXT = null;
 
-async function prepare(){
+const GRAPHICS_H_FALLBACK = `
+#ifndef POLY_GRAPHICS_H
+#define POLY_GRAPHICS_H
+#ifdef __cplusplus
+extern "C" {
+#endif
+#include <stdint.h>
+/* --- VERY SMALL BGI-style shim (PNG output) --- */
+/* ... keep your working header content here (the one we tested) ... */
+#ifdef __cplusplus
+}
+#endif
+#endif
+  `.trim();
+
+  // 2) Load the real header from assets, with a safe fallback.
+  async function loadGraphicsHeader(){
+    try{
+      const res = await fetch('/assets/headerfiles/graphics.h?v=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const txt = await res.text();
+      return (txt && txt.trim()) ? txt : GRAPHICS_H_FALLBACK;
+    }catch(e){
+      console.warn('graphics.h fetch failed, using fallback:', e);
+      return GRAPHICS_H_FALLBACK;
+    }
+  }
+
+  // 3) Prepare() – attach both main.c and graphics.h
+  async function prepare(){
     const code = window.editor ? window.editor.getValue() : '';
+    const gfxh = await loadGraphicsHeader();
 
-    // 1) Load the header from your assets folder
-    const gfx = await fetch('./assets/headerfiles/graphics.h').then(r => r.text());
-
-    // 2) Send both main.c and graphics.h to the runner
     const files = [
-      { path: 'main.c',      content: code },
-      { path: 'graphics.h',  content: gfx }   // 👈 make header available to compiler
+      { path: 'main.c',     content: code },
+      { path: 'graphics.h', content: gfxh }  // 👈 make the header visible to the compiler
     ];
+
+    // optional: sanity check in DevTools
+    console.log('Preparing files payload:', files.map(f => f.path));
 
     const res = await fetch(C_API_BASE + '/api/cc/prepare', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lang: 'c', files, entry: 'main.c', output: 'a.out' })
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
     });
     if (!res.ok) throw new Error('Prepare failed: ' + res.status);
     return res.json();
