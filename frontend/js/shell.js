@@ -25,6 +25,17 @@
   window.enableReloadConfirm();
 })();*/
 
+(function(){
+    if (typeof require === 'undefined' || !require.config) return;
+    require.config({
+      // point to real CDN files (no “.js” suffix for AMD path)
+      paths: {
+        stackframe: 'https://cdn.jsdelivr.net/npm/stackframe@1.3.4/dist/stackframe.min',
+        'error-stack-parser': 'https://cdn.jsdelivr.net/npm/error-stack-parser@2.1.4/dist/error-stack-parser.min'
+      }
+    });
+  })();
+
 
 // Chrome/Edge: catch toolbar Reload without prompting on tab close
 if ('navigation' in window && typeof navigation.addEventListener === 'function') {
