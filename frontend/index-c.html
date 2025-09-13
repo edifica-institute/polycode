@@ -45,6 +45,23 @@
     #output{ overflow:auto }
     .pane-foot{ display:flex; align-items:center; height:28px; padding:0 10px; border-top:1px solid var(--border,#2b2f34) }
     .pane-foot .msg{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+
+
+    /* --- image preview (non-breaking) --- */
+.img-strip{ display:flex; flex-wrap:wrap; gap:12px; margin-top:8px }
+.thumb,.ppm-canvas{
+  max-height:160px; border-radius:8px;
+  box-shadow:0 1px 6px rgba(0,0,0,.2);
+  background:#fff; object-fit:contain;
+}
+.ppm-wrap{ display:flex; flex-direction:column; align-items:center; gap:6px }
+.ppm-caption{ font-size:12px; opacity:.7 }
+@media (prefers-color-scheme: dark){
+  .thumb,.ppm-canvas{ background:#111 }
+}
+
+
+    
   </style>
 </head>
 <body class="page-fade">
@@ -286,6 +303,152 @@ int main(){
       const ss = String(s%60).padStart(2,'0');
       return ` — ${mm}:${ss}`;
     }
+
+
+
+
+
+
+/* --- Image preview helpers (PNG/BMP/PPM) --- */
+function showImages(urls) {
+  if (!urls || !urls.length) return;
+  const out = document.getElementById('output') || document.body;
+  const strip = document.createElement('div');
+  strip.className = 'img-strip';
+
+  urls.forEach(u => {
+    if (u.toLowerCase().endsWith('.ppm')) {
+      const wrap = document.createElement('div');
+      wrap.className = 'ppm-wrap';
+      const canvas = document.createElement('canvas');
+      canvas.className = 'ppm-canvas';
+      const cap = document.createElement('div');
+      cap.className = 'ppm-caption';
+      cap.textContent = u.split('/').pop();
+      wrap.appendChild(canvas); wrap.appendChild(cap);
+      strip.appendChild(wrap);
+      renderPPMToCanvas(u, canvas).catch(err => { cap.textContent = 'PPM render failed: ' + err; });
+    } else {
+      const a = document.createElement('a');
+      a.href = u; a.target = '_blank'; a.rel = 'noopener';
+      const img = document.createElement('img');
+      img.src = u; img.className = 'thumb';
+      a.appendChild(img);
+      strip.appendChild(a);
+    }
+  });
+
+  out.appendChild(strip);
+}
+
+async function renderPPMToCanvas(url, canvas) {
+  const magic = await sniffMagic(url);
+  if (magic === 'P3') {
+    const txt = await fetch(url, { mode:'cors' }).then(r=>r.text());
+    const { width, height, maxval, pixels } = parsePPM_P3(txt);
+    drawPixels(canvas, width, height, maxval, pixels);
+  } else {
+    const buf = await fetch(url, { mode:'cors' }).then(r=>r.arrayBuffer());
+    const { width, height, maxval, pixels } = parsePPM_P6(buf);
+    drawPixels(canvas, width, height, maxval, pixels);
+  }
+}
+
+async function sniffMagic(url){
+  const res = await fetch(url, { mode:'cors' });
+  const reader = res.body.getReader();
+  const { value } = await reader.read();
+  reader.releaseLock();
+  const head = new TextDecoder().decode(value || new Uint8Array());
+  const m = /^\s*(P[36])/.exec(head);
+  return m ? m[1] : 'P6';
+}
+
+function parsePPM_P3(text){
+  const tokens = [];
+  text.split(/\r?\n/).forEach(line=>{
+    const s = line.replace(/#.*$/, '');
+    if (s.trim()) tokens.push(...s.trim().split(/\s+/));
+  });
+  if (tokens[0] !== 'P3') throw new Error('Not P3');
+  let i = 1;
+  const width  = parseInt(tokens[i++],10);
+  const height = parseInt(tokens[i++],10);
+  const maxval = parseInt(tokens[i++],10);
+  const need = width * height * 3;
+  if (tokens.length - i < need) throw new Error('Truncated data');
+  const pixels = new Uint32Array(need);
+  for (let k=0; k<need; k++) pixels[k] = parseInt(tokens[i++],10);
+  return { width, height, maxval, pixels };
+}
+
+function parsePPM_P6(buf){
+  const b = new Uint8Array(buf);
+  let i=0;
+  const readTok=()=>{
+    while(i<b.length){
+      const c=b[i];
+      if(c===35){ while(i<b.length && b[i++]!==10){} continue; } // '#'
+      if(/\s/.test(String.fromCharCode(c))){ i++; continue; }
+      break;
+    }
+    let s=''; while(i<b.length && !/\s/.test(String.fromCharCode(b[i]))){ s+=String.fromCharCode(b[i++]); }
+    return s;
+  };
+  if(readTok()!=='P6') throw new Error('Not P6');
+  const width  = parseInt(readTok(),10);
+  const height = parseInt(readTok(),10);
+  const maxval = parseInt(readTok(),10);
+  while(i<b.length && /\s/.test(String.fromCharCode(b[i]))) i++;
+  const need = width*height*3;
+  if (b.length - i < need) throw new Error('Truncated data');
+  const pixels = new Uint8Array(b.buffer, i, need);
+  return { width, height, maxval, pixels };
+}
+
+function drawPixels(canvas, width, height, maxval, pixels){
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(width, height);
+  const scale = maxval === 255 ? 1 : (255 / maxval);
+  const N = width * height;
+
+  if (pixels instanceof Uint32Array) {
+    for (let p=0,q=0; p<N; p++, q+=4){
+      img.data[q]   = (pixels[p*3]   * scale) | 0;
+      img.data[q+1] = (pixels[p*3+1] * scale) | 0;
+      img.data[q+2] = (pixels[p*3+2] * scale) | 0;
+      img.data[q+3] = 255;
+    }
+  } else {
+    for (let p=0,q=0; p<N; p++, q+=4){
+      img.data[q]   = (pixels[p*3]   * scale) | 0;
+      img.data[q+1] = (pixels[p*3+1] * scale) | 0;
+      img.data[q+2] = (pixels[p*3+2] * scale) | 0;
+      img.data[q+3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
     function startInputCountdown(ms){
       stopInputCountdown();
       __inputDeadline = Date.now() + Math.max(0, Number(ms) || 0);
@@ -600,29 +763,49 @@ if (!prep || !prep.ok || !prep.token) {
         }
       });
 
-      ws.addEventListener('message', (ev)=>{
-        const data = String(ev.data || '');
-        termWrite(data);
+     ws.addEventListener('message', (ev)=>{
+  const raw = ev.data;
+  const text = typeof raw === 'string' ? raw : String(raw || '');
 
-        // Try to read structured signals
-        try{
-          const msg = JSON.parse(data);
-          if (msg.type === 'stdin_req'){
-            showInputRow(true);
-            window.PolyShell?.setRunnerPhase?.('waiting_input');
-            window.PolyShell?.setStatus('Waiting for User Input…','busy');
-            __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
-            startInputCountdown(5*60*1000);
-            window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-          } else if (msg.type === 'exit'){
-            runState.exitCode = Number(msg.code);
-          }
-        }catch{}
+  // 1) JSON image payload from runner
+  if (text.trim().startsWith('{')) {
+    try {
+      const msg = JSON.parse(text);
+      if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
+        showImages(msg.urls);      // NEW
+        return;                    // don't print JSON to console
+      }
+    } catch {}
+  }
 
-        // Also catch textual exit code
-        const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
-        if (m) runState.exitCode = parseInt(m[1],10);
-      });
+  // 2) Plain-text fallback marker from runner (still supported)
+  if (text.startsWith('[image] ')) {
+    const url = text.substring(8).trim();
+    if (url) { showImages([url]); return; }   // NEW
+  }
+
+  // 3) Original behavior (unchanged)
+  termWrite(text);
+
+  // 4) Your existing structured messages
+  try{
+    const msg = JSON.parse(text);
+    if (msg.type === 'stdin_req'){
+      showInputRow(true);
+      window.PolyShell?.setRunnerPhase?.('waiting_input');
+      window.PolyShell?.setStatus('Waiting for User Input…','busy');
+      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+      startInputCountdown(5*60*1000);
+      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+    } else if (msg.type === 'exit'){
+      runState.exitCode = Number(msg.code);
+    }
+  }catch{}
+
+  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
+  if (m) runState.exitCode = parseInt(m[1],10);
+});
+
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
 
