@@ -764,38 +764,64 @@ if (!prep || !prep.ok || !prep.token) {
             }
           });
 
-          ws.addEventListener('message', (ev)=>{
-            const data = String(ev.data || '');
-            termWrite(data);
+        ws.addEventListener('message', (ev) => {
+  const raw  = ev.data;
+  const text = typeof raw === 'string' ? raw : String(raw || '');
 
-            try{
-    if (!isInputRowVisible()){
-      const tail = latestConsoleTail();
-      if (PROMPT_RE.test(tail)) {
-        showInputRow(true);
+  // --- A) Structured image JSON (and variants) ---
+  try {
+    const trimmed = text.trim();
+    if (trimmed.startsWith('{')) {
+      const msg = JSON.parse(trimmed);
+      if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
+        showImages(msg.urls);
+        return; // do not echo JSON to console
       }
+    }
+  } catch {}
+
+  // --- B) If JSON was mixed with other text, strip it out and keep the rest ---
+  const cleaned = text.replace(/\s*\{[\s\S]*?"type"\s*:\s*"images"[\s\S]*?\}\s*/g, '');
+
+  // --- C) Legacy "[image] URL" hint ---
+  if (cleaned.startsWith('[image] ')) {
+    const url = cleaned.substring(8).trim();
+    if (url) showImages([url]);
+    return;
+  }
+
+  // --- D) Normal console echo ---
+  if (cleaned.trim() !== '') termWrite(cleaned);
+
+  // show input row if it *looks* like a prompt
+  try {
+    if (!isInputRowVisible() && PROMPT_RE.test(latestConsoleTail())) {
+      showInputRow(true);
+    }
+  } catch {}
+
+  // optional: idle probe (helps stdin that prints no prompt)
+  scheduleIdleProbe?.();
+
+  // --- E) structured control messages you already support ---
+  try{
+    const msg = JSON.parse(text);
+    if (msg.type === 'stdin_req'){
+      showInputRow(true);
+      window.PolyShell?.setRunnerPhase?.('waiting_input');
+      window.PolyShell?.setStatus('Waiting for User Input…','busy');
+      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+      startInputCountdown(5*60*1000);
+      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+    } else if (msg.type === 'exit'){
+      runState.exitCode = Number(msg.code);
     }
   }catch{}
 
-  scheduleIdleProbe();
+  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
+  if (m) runState.exitCode = parseInt(m[1],10);
+});
 
-            try{
-              const msg = JSON.parse(data);
-              if (msg.type === 'stdin_req'){
-                showInputRow(true);
-                window.PolyShell?.setRunnerPhase?.('waiting_input');
-                window.PolyShell?.setStatus('Waiting for User Input…','busy');
-                __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
-                startInputCountdown(5*60*1000);
-                window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-              } else if (msg.type === 'exit'){
-                runState.exitCode = Number(msg.code);
-              }
-            }catch{}
-
-            const m = data.match(/\[process exited with code\s+(-?\d+)\]/i);
-            if (m) runState.exitCode = parseInt(m[1],10);
-          });
 
           ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
           ws.addEventListener('close', ()=>{ const ok = (runState.exitCode === 0); finish(ok); }, { once:true });
