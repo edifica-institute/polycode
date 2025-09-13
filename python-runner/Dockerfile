@@ -46,7 +46,7 @@ RUN python3 -m venv /opt/venv && \
 WORKDIR /app
 
 # Make the Aiven CA available at a fixed location and set default env
-COPY certs/aiven-ca.pem /etc/ssl/certs/aiven-ca.pem
+COPY ./aiven-ca.pem /etc/ssl/certs/aiven-ca.pem
 ENV MYSQL_SSL_CA=/etc/ssl/certs/aiven-ca.pem
 
 
