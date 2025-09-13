@@ -621,31 +621,22 @@ const C_API_BASE = 'https://polycode-cc.onrender.com';
   // cache after first load
   let __GRAPHICS_H_TEXT = null;
 
-  async function prepare(){
+async function prepare(){
     const code = window.editor ? window.editor.getValue() : '';
 
-    // 1) load graphics.h from: /frontend/assets/headerfiles/graphics.h
-    if (!__GRAPHICS_H_TEXT) {
-      const res = await fetch('./assets/headerfiles/graphics.h', { cache:'no-store' });
-      if (!res.ok) {
-        // surface a helpful message in the console if fetch fails
-        const msg = `Failed to load graphics.h (${res.status}). Check path ./assets/headerfiles/graphics.h`;
-        console.error(msg);
-        throw new Error(msg);
-      }
-      __GRAPHICS_H_TEXT = await res.text();
-    }
+    // 1) Load the header from your assets folder
+    const gfx = await fetch('./assets/headerfiles/graphics.h').then(r => r.text());
 
-    // 2) ship BOTH files to the runner
+    // 2) Send both main.c and graphics.h to the runner
     const files = [
-      { path: 'main.c',     content: code },
-      { path: 'graphics.h', content: __GRAPHICS_H_TEXT }  // 👈 important
+      { path: 'main.c',      content: code },
+      { path: 'graphics.h',  content: gfx }   // 👈 make header available to compiler
     ];
 
     const res = await fetch(C_API_BASE + '/api/cc/prepare', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang: 'c', files, entry: 'main.c', output: 'a.out' })
     });
     if (!res.ok) throw new Error('Prepare failed: ' + res.status);
     return res.json();
