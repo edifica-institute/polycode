@@ -1,4 +1,3 @@
-# python-runner/Dockerfile
 FROM node:18-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -45,10 +44,20 @@ RUN python3 -m venv /opt/venv && \
 
 WORKDIR /app
 
-# Make the Aiven CA available at a fixed location and set default env
-COPY ./aiven-ca.pem /etc/ssl/certs/aiven-ca.pem
-ENV MYSQL_SSL_CA=/etc/ssl/certs/aiven-ca.pem
+# ── CERTS: bake Aiven CA and register into system trust store ────────────────
+# 1) put the PEM into the OS trust location (must end with .crt), then update
+COPY aiven-ca.pem /usr/local/share/ca-certificates/aiven-ca.crt
+RUN update-ca-certificates
 
+# 2) keep a direct copy too (backward compatibility with code using ssl_ca=)
+COPY aiven-ca.pem /etc/ssl/certs/aiven-ca.pem
+
+# 3) make sure all common clients & OpenSSL see the system bundle
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_DIR=/etc/ssl/certs \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    MYSQL_SSL_CA=/etc/ssl/certs/aiven-ca.pem
 
 # Node deps for runner
 COPY package.json ./
