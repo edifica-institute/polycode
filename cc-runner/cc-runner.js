@@ -326,18 +326,47 @@ wss.on("connection", (ws, req) => {
   child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
   child.stderr.on("data", d => { try { ws.send(d.toString()); } catch {} });
 
-  child.on("close", code => {
+  // ⬇⬇⬇ ASYNC CLOSE HANDLER (publishes images, then calls cleanup()) ⬇⬇⬇
+  child.on("close", async (code) => {
     try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
+
+    // Collect and publish artifacts (optional; safe if none found)
+    try {
+      const found = await collectImagesFrom(dir); // <- helper you added earlier
+      if (found.length) {
+        const tokenDir = crypto.randomUUID();
+        const outDir = path.join(PUBLIC_ROOT, tokenDir);
+        try { fssync.mkdirSync(outDir, { recursive: true }); } catch {}
+
+        const urls = [];
+        for (const f of found) {
+          const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const dest = path.join(outDir, safeName);
+          await fs.copyFile(f.full, dest); // fs = node:fs/promises (already imported)
+          urls.push(`/artifacts/${tokenDir}/${safeName}`);
+        }
+
+        // New JSON payload (frontend can handle); harmless if ignored
+        try { ws.send(JSON.stringify({ type: "images", urls })); } catch {}
+
+        // Plain-text fallback (old UIs just show lines)
+        for (const u of urls) { try { ws.send(`[image] ${u}\n`); } catch {} }
+
+        // Auto-expire this token directory after 5 minutes
+        setTimeout(() => { try { fssync.rmSync(outDir, { recursive: true, force: true }); } catch {} }, 5 * 60 * 1000);
+      }
+    } catch (e) { console.error("artifact publish error:", e); }
+
     try { ws.close(); } catch {}
-    cleanup();
+    cleanup(); // <— now in scope
   });
+  // ⬆⬆⬆ END ASYNC CLOSE HANDLER ⬆⬆⬆
 
   ws.on("message", m => {
     // Expecting {"type":"stdin","data":"..."} from the client
     try {
       const msg = JSON.parse(m.toString());
       if (msg?.type === "stdin") {
-        // write exactly what we got; client includes newline as needed
         child.stdin.write(String(msg.data));
       }
     } catch {
@@ -348,8 +377,10 @@ wss.on("connection", (ws, req) => {
   ws.on("close", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
   ws.on("error", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
 
+  // >>> keep this function EXACTLY HERE (inside the same scope) <<<
   function cleanup() {
     try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
     SESSIONS.delete(token);
   }
 });
+
