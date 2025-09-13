@@ -93,15 +93,12 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
 }
 
 function compilerFor(lang, entry) {
-  if (lang === "c")   return { cc: "gcc", std: "-std=c11" };
+  if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
   if (lang === "cpp") return { cc: "g++", std: "-std=c++20" };
 
-//const stdFlag = requestedStd ? `-std=${requestedStd}` : null;
-  //if (lang === "c")   return { cc: "gcc", std: stdFlag || "-std=c11" };
-//if (lang === "cpp") return { cc: "g++", std: stdFlag || "-std=c++20" };
-  
+
   const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entry || "");
-  return isCpp ? { cc: "g++", std: "-std=c++20" } : { cc: "gcc", std: "-std=c11" };
+  return isCpp ? { cc: "g++", std: "-std=c++20" } : { cc: "gcc", std: "-std=c17" };
 
   //return isCpp ? { cc: "g++", std: stdFlag || "-std=c++17" } : { cc: "gcc", std: stdFlag || "-std=c11" };
 }
@@ -145,11 +142,18 @@ app.post("/api/cc/prepare", async (req, res) => {
 
     // Compile with limits; add -O2 and -lm (harmless for both C/C++)
     //const args = [...srcs, std, "-O2", "-pthread", "-o", exePath, "-lm"];
-const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
+    
+ const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
+ const isC   = /\.c$/i.test(entryFile) || (lang === "c");
+    
     const args = [
       ...srcs,
      std, "-O2",
+      "-D_POSIX_C_SOURCE=200809L",
+      "-Wall", "-Wextra", "-Wpedantic",
+      "-Wshadow", "-Wvla", "-Wconversion",
      ...(isCpp ? ["-pthread", "-fcoroutines"] : []),
+      ...(isC   ? ["-pthread"] : []),
       "-o", exePath,
      "-lm",
       ...(isCpp ? ["-lgmp", "-lgmpxx"] : [])
