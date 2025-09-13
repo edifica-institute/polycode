@@ -13,7 +13,7 @@ app.get('/', (_req, res) => res.status(200).send('ok'));
 app.get('/health', (_req, res) => res.status(200).send('ok'));
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
-// Be explicit about 0.0.0.0 binding for Render
+// Be explicit about 0.0.0.0 binding for Render/containers
 const PORT = Number(process.env.PORT) || 8082;
 const HOST = '0.0.0.0';
 
@@ -33,12 +33,22 @@ function armTimer(ms, fn) {
   }, ms);
 }
 
+// Helper: kill a process tree (process group on Linux)
+function killTree(p) {
+  if (!p || !p.pid) return;
+  try {
+    // Negative PID kills the entire process group (requires detached:true)
+    process.kill(-p.pid, 'SIGKILL');
+  } catch {
+    try { p.kill('SIGKILL'); } catch {}
+  }
+}
+
 wss.on('connection', (ws, req) => {
   console.log('WS connect', { ip: req.socket?.remoteAddress, ua: req.headers['user-agent'] });
 
   let proc = null;
   let workdir = null;
-  let closed = false;
 
   let hardTimer = null;
   let inputTimer = null;
@@ -46,9 +56,9 @@ wss.on('connection', (ws, req) => {
   let inputWaitMs = Math.min(Number(process.env.INPUT_WAIT_MS || 300000), 3600000); // cap at 60 min
 
   async function cleanup() {
-    if (hardTimer) clearTimeout(hardTimer), hardTimer = null;
-    if (inputTimer) clearTimeout(inputTimer), inputTimer = null;
-    try { proc?.kill('SIGKILL'); } catch {}
+    if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; }
+    if (inputTimer) { clearTimeout(inputTimer); inputTimer = null; }
+    try { killTree(proc); } catch {}
     proc = null;
     if (workdir) {
       try { await fs.remove(workdir); } catch {}
@@ -66,23 +76,25 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    // external kill request
     if (msg.type === 'kill') {
-      try { proc?.kill('SIGKILL'); } catch {}
+      try { killTree(proc); } catch {}
       return;
     }
 
+    // stdin data from UI
     if (msg.type === 'stdin') {
-  if (proc?.stdin?.writable) {
-    try { proc.stdin.write(String(msg.data ?? '')); } catch {}
-  }
-  // User provided input → pause "input wait" timer, re-arm hard timer
-  try { if (inputTimer) { clearTimeout(inputTimer); inputTimer = null; } } catch {}
-  try { if (hardTimer) { clearTimeout(hardTimer); } } catch {}
-  hardTimer = armTimer(hardLimitMs, () => { try { proc?.kill('SIGKILL'); } catch {} });
-  return;
-}
+      if (proc?.stdin?.writable) {
+        try { proc.stdin.write(String(msg.data ?? '')); } catch {}
+      }
+      // User provided input → pause "input wait" timer, re-arm hard timer
+      try { if (inputTimer) { clearTimeout(inputTimer); inputTimer = null; } } catch {}
+      try { if (hardTimer) { clearTimeout(hardTimer); } } catch {}
+      hardTimer = armTimer(hardLimitMs, () => { try { killTree(proc); } catch {} });
+      return;
+    }
 
-
+    // main run
     if (msg.type === 'run') {
       await cleanup();
 
@@ -121,8 +133,12 @@ runpy.run_path('main.py', run_name='__main__')
 
       const t0 = Date.now();
       try {
-        // -u: unbuffered stdio so prompts show immediately
-        proc = spawn('python3', ['-u', runnerFile, ...args], { cwd: workdir });
+        // detached:true → new process group; needed for group kill
+        proc = spawn('python3', ['-u', runnerFile, ...args], {
+          cwd: workdir,
+          detached: true,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
       } catch (e) {
         try { ws.send(JSON.stringify({ type: 'stderr', data: `spawn error: ${e?.message || e}\n` })); } catch {}
         try { ws.send(JSON.stringify({ type: 'exit', code: 1, metrics: { execMs: 0, totalMs: 0 } })); } catch {}
@@ -132,11 +148,12 @@ runpy.run_path('main.py', run_name='__main__')
 
       // Timers
       if (hardTimer) clearTimeout(hardTimer);
-      hardTimer = armTimer(hardLimitMs, () => { try { proc?.kill('SIGKILL'); } catch {} });
+      hardTimer = armTimer(hardLimitMs, () => { try { killTree(proc); } catch {} });
+
       if (inputTimer) clearTimeout(inputTimer);
       inputTimer = armTimer(inputWaitMs, () => {
         try { ws.send(JSON.stringify({ type: 'stderr', data: 'Input wait timed out.\n' })); } catch {}
-        try { proc?.kill('SIGKILL'); } catch {}
+        try { killTree(proc); } catch {}
       });
 
       // Streams
@@ -151,17 +168,18 @@ runpy.run_path('main.py', run_name='__main__')
         const lines = s.split(/\r?\n/);
         for (const line of lines) {
           if (!line) continue;
-        if (/\[\[CTRL\]\]:stdin_req/.test(line)) {
-  // Blocked on input → pause hard timer, arm input-wait timer
-  try { if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; } } catch {}
-  try { if (inputTimer) { clearTimeout(inputTimer); } } catch {}
-  inputTimer = armTimer(inputWaitMs, () => {
-    try { ws.send(JSON.stringify({ type: 'stderr', data: 'Input wait timed out.\n' })); } catch {}
-    try { proc?.kill('SIGKILL'); } catch {}
-  });
-  try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
-  continue;
-}
+
+          // our control channel for input()
+          if (/\[\[CTRL\]\]:stdin_req/.test(line)) {
+            try { if (hardTimer) { clearTimeout(hardTimer); hardTimer = null; } } catch {}
+            try { if (inputTimer) { clearTimeout(inputTimer); } } catch {}
+            inputTimer = armTimer(inputWaitMs, () => {
+              try { ws.send(JSON.stringify({ type: 'stderr', data: 'Input wait timed out.\n' })); } catch {}
+              try { killTree(proc); } catch {}
+            });
+            try { ws.send(JSON.stringify({ type: 'stdin_req' })); } catch {}
+            continue;
+          }
 
           try { ws.send(JSON.stringify({ type: 'stderr', data: line + '\n' })); } catch {}
         }
@@ -183,13 +201,6 @@ runpy.run_path('main.py', run_name='__main__')
     }
   });
 
-  ws.on('close', async () => {
-    closed = true;
-    await cleanup();
-    console.log('WS close');
-  });
-
-  ws.on('error', (e) => {
-    console.warn('WS error', e?.message || e);
-  });
+  ws.on('close', async () => { await cleanup(); });
+  ws.on('error', (_e) => {});
 });
