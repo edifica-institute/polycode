@@ -944,6 +944,24 @@ function setAttention({run=false, reset=false}={}){
 }
 
 
+// ---- Artifact image housekeeping (PPM/PNG/BMP previews) ----
+function clearArtifactImages() {
+  const out = document.getElementById('output');
+  if (!out) return;
+
+  // 1) remove any image strips/blocks we added before
+  out.querySelectorAll('.img-strip,[data-pc-artifact]').forEach(n => n.remove());
+
+  // 2) remove loose <img> tags that came from /artifacts/*
+  out.querySelectorAll('img').forEach(img => {
+    const s = String(img.src || '');
+    if (/\/artifacts\//.test(s)) img.remove();
+  });
+
+  // 3) clear any tracking sets we might have used for de-dupe
+  try { window.__shownImages && window.__shownImages.clear(); } catch {}
+  try { window.__pc_images && window.__pc_images.clear(); } catch {}
+}
 
 
 /*function setFootStatus(id, state){
@@ -1585,7 +1603,7 @@ try { window.__sqlReader?.cancel?.(); } catch {}
   hideCompileFailNotice(); 
    try { window.hardClearOutput?.({ preservePreview:true }); } catch {}
     try { clearInlinePlotArea(true); } catch {}
-
+try { clearArtifactImages(); } catch {}
   try { window.PolyShell?.reapplyTheme?.(); } catch {}
 
  // Clear the friendly explanation block and our markers on reset
@@ -4140,7 +4158,7 @@ class PCWebSocket {
     try { setStatus?.('Reset','ok'); } catch {}
     try { setFootStatus?.('rightFoot','waiting'); } catch {}
            try { clearInlinePlotArea(true); } catch {}
-
+try { clearArtifactImages(); } catch {}
     try { unfreezeUI?.(); } catch {}
          
          try { window.forceFocusEditorAfterReset?.(); } catch {}
