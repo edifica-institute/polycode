@@ -62,6 +62,32 @@ app.options("*", cors(corsOptions)); // preflight with same options
 
 app.use(express.json({ limit: "1mb" }));
 
+
+
+
+// --- Artifacts (images) static route with CORS ---
+// Folder to hold short-lived artifacts copied after a run
+const PUBLIC_ROOT = "/tmp/polycode-artifacts";
+try { fssync.mkdirSync(PUBLIC_ROOT, { recursive: true }); } catch {}
+
+// Serve artifacts with Access-Control-Allow-Origin so the frontend can fetch PPM/PNG
+app.use(
+  "/artifacts",
+  (req, res, next) => {
+    const o = req.headers.origin;
+    // Reuse your allowlist: if origin is allowed (or not present), set ACAO
+    if (!o || ALLOW_ORIGINS.includes(o)) {
+      res.setHeader("Access-Control-Allow-Origin", o || "*");
+    }
+    next();
+  },
+  express.static(PUBLIC_ROOT, { maxAge: "5m", fallthrough: true })
+);
+// --- end artifacts route ---
+
+
+
+
 // ---- Health check ----
 app.get("/health", (_, res) => res.json({ ok: true }));
 
