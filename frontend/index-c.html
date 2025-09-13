@@ -635,25 +635,20 @@ const GRAPHICS_H_FALLBACK = `/* your working graphics.h content */`;
     }
   }
 
-  async function prepare(){
-    const code = window.editor ? window.editor.getValue() : '';
-    const gfxh = await loadGraphicsHeader();
+async function prepare(){
+  const code  = window.editor ? window.editor.getValue() : '';
+  const files = [{ path:'main.c', content: code }];
+  const headers = await loadHeaders(['graphics.h']);
+  files.push(...headers);
 
-    const files = [
-      { path:'main.c',     content: code  },
-      { path:'graphics.h', content: gfxh }   // 👈 this is the key
-    ];
+  const res = await fetch(C_API_BASE + '/api/cc/prepare', {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
+  });
+  if (!res.ok) throw new Error('Prepare failed: ' + res.status);
+  return res.json();
+}
 
-    // optional: verify in DevTools console
-    console.log('prepare files:', files.map(f=>f.path));
-
-    const res = await fetch(C_API_BASE + '/api/cc/prepare', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
-    });
-    if (!res.ok) throw new Error('Prepare failed: ' + res.status);
-    return res.json();
-  }
 
 
 
