@@ -296,7 +296,10 @@ function showImages(urls) {
   const norm = urls.map(u => {
     const s = String(u || "");
     if (/^https?:\/\//i.test(s)) return s;
-    if (s.startsWith("/")) return C_API_BASE + s;   // e.g. "/artifacts/..." -> "https://polycode-cc.onrender.com/artifacts/..."
+    const BASE = (typeof CPP_API_BASE !== 'undefined' && CPP_API_BASE) ||
+             (typeof C_API_BASE   !== 'undefined' && C_API_BASE)   ||
+             location.origin;
+if (s.startsWith("/")) return BASE + s;
     return s;
   });
 
