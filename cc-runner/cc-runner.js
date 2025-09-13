@@ -212,7 +212,7 @@ app.post("/api/cc/prepare", async (req, res) => {
       ...(isC   ? ["-pthread"] : []),
       "-o", exePath,
      "-lm",
-      ...(isCpp ? ["-lgmp", "-lgmpxx"] : [])
+      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"])
      // If you ever hit old libstdc++ filesystem link errors, append: "-lstdc++fs"
     ];
 
