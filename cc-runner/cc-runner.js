@@ -28,11 +28,6 @@ const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000); //
 const app = express();
 
 
-const PUBLIC_ROOT = "/tmp/polycode-artifacts";
-try { fssync.mkdirSync(PUBLIC_ROOT, { recursive: true }); } catch {}
-
-// Serve artifacts (5 min cache); purely static, read-only
-app.use("/artifacts", express.static(PUBLIC_ROOT, { maxAge: "5m", fallthrough: true }));
 
 
 
@@ -67,7 +62,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // --- Artifacts (images) static route with CORS ---
 // Folder to hold short-lived artifacts copied after a run
-//const PUBLIC_ROOT = "/tmp/polycode-artifacts";
+const PUBLIC_ROOT = "/tmp/polycode-artifacts";
 try { fssync.mkdirSync(PUBLIC_ROOT, { recursive: true }); } catch {}
 
 // Serve artifacts with Access-Control-Allow-Origin so the frontend can fetch PPM/PNG
@@ -148,53 +143,10 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   `;
   const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
-child.on("close", async (code) => {
-  try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
-
-  // --- NEW: collect and publish artifacts (optional, non-breaking) ---
-  try {
-    const found = await collectImagesFrom(dir);
-    if (found.length) {
-      const token = crypto.randomUUID();
-      const outDir = path.join(PUBLIC_ROOT, token);
-      try { fssync.mkdirSync(outDir, { recursive: true }); } catch {}
-
-      const urls = [];e
-      for (const f of found) {
-        const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const dest = path.join(outDir, safeName);
-        await fs.copyFile(f.full, dest);
-        urls.push(`/artifacts/${token}/${safeName}`);
-      }
-
-      // 1) JSON message (new UIs can use it)
-      try { ws.send(JSON.stringify({ type: "images", urls })); } catch {}
-
-      // 2) Plain-text fallback (old UIs just show the lines)
-      for (const u of urls) {
-        try { ws.send(`[image] ${u}\n`); } catch {}
-      }
-
-      // Auto-expire this token dir after 5 minutes
-      setTimeout(() => { try { fssync.rmSync(outDir, { recursive: true, force: true }); } catch {} }, 5 * 60 * 1000);
-    }
-  } catch (e) {
-    console.error("artifact publish error:", e);
-  }
-  // --- END NEW ---
-
-  try { ws.close(); } catch {}
-  cleanup();
-});
-
-
-
-
-
-
-  
+  child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
+
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
