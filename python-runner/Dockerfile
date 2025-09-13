@@ -44,6 +44,22 @@ RUN python3 -m venv /opt/venv && \
 
 WORKDIR /app
 
+
+# --- Register Aiven CA into OS trust store ---
+COPY aiven-ca.pem /usr/local/share/ca-certificates/aiven-ca.crt
+RUN update-ca-certificates
+
+# (optional, also keep a direct copy if you like)
+COPY aiven-ca.pem /etc/ssl/certs/aiven-ca.pem
+
+# --- Make OpenSSL + common clients see the bundle ---
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    SSL_CERT_DIR=/etc/ssl/certs \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+
+
 # ── CERTS: bake Aiven CA and register into system trust store ────────────────
 # 1) put the PEM into the OS trust location (must end with .crt), then update
 COPY aiven-ca.pem /usr/local/share/ca-certificates/aiven-ca.crt
