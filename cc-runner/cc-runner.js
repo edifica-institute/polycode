@@ -94,7 +94,7 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c11" };
-  if (lang === "cpp") return { cc: "g++", std: "-std=c++17" };
+  if (lang === "cpp") return { cc: "g++", std: "-std=c++20" };
 
 //const stdFlag = requestedStd ? `-std=${requestedStd}` : null;
   //if (lang === "c")   return { cc: "gcc", std: stdFlag || "-std=c11" };
@@ -144,7 +144,19 @@ app.post("/api/cc/prepare", async (req, res) => {
     const exePath = safeJoin(dir, output);
 
     // Compile with limits; add -O2 and -lm (harmless for both C/C++)
-    const args = [...srcs, std, "-O2", "-pthread", "-o", exePath, "-lm"];
+    //const args = [...srcs, std, "-O2", "-pthread", "-o", exePath, "-lm"];
+const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
+    const args = [
+      ...srcs,
+     std, "-O2",
+     ...(isCpp ? ["-pthread", "-fcoroutines"] : []),
+      "-o", exePath,
+     "-lm",
+      ...(isCpp ? ["-lgmp", "-lgmpxx"] : [])
+     // If you ever hit old libstdc++ filesystem link errors, append: "-lstdc++fs"
+    ];
+
+    
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
     let out = "", err = "";
