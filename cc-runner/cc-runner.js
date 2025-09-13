@@ -67,7 +67,7 @@ app.use(express.json({ limit: "1mb" }));
 
 // --- Artifacts (images) static route with CORS ---
 // Folder to hold short-lived artifacts copied after a run
-const PUBLIC_ROOT = "/tmp/polycode-artifacts";
+//const PUBLIC_ROOT = "/tmp/polycode-artifacts";
 try { fssync.mkdirSync(PUBLIC_ROOT, { recursive: true }); } catch {}
 
 // Serve artifacts with Access-Control-Allow-Origin so the frontend can fetch PPM/PNG
@@ -159,7 +159,7 @@ child.on("close", async (code) => {
       const outDir = path.join(PUBLIC_ROOT, token);
       try { fssync.mkdirSync(outDir, { recursive: true }); } catch {}
 
-      const urls = [];
+      const urls = [];e
       for (const f of found) {
         const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
         const dest = path.join(outDir, safeName);
