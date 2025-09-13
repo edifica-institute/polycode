@@ -621,25 +621,11 @@ const C_API_BASE = 'https://polycode-cc.onrender.com';
   // cache after first load
   let __GRAPHICS_H_TEXT = null;
 
-const GRAPHICS_H_FALLBACK = `
-#ifndef POLY_GRAPHICS_H
-#define POLY_GRAPHICS_H
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include <stdint.h>
-/* --- VERY SMALL BGI-style shim (PNG output) --- */
-/* ... keep your working header content here (the one we tested) ... */
-#ifdef __cplusplus
-}
-#endif
-#endif
-  `.trim();
+const GRAPHICS_H_FALLBACK = `/* your working graphics.h content */`;
 
-  // 2) Load the real header from assets, with a safe fallback.
   async function loadGraphicsHeader(){
     try{
-      const res = await fetch('/assets/headerfiles/graphics.h?v=' + Date.now(), { cache: 'no-store' });
+      const res = await fetch('/assets/headerfiles/graphics.h?v=' + Date.now(), { cache:'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const txt = await res.text();
       return (txt && txt.trim()) ? txt : GRAPHICS_H_FALLBACK;
@@ -649,27 +635,40 @@ extern "C" {
     }
   }
 
-  // 3) Prepare() – attach both main.c and graphics.h
   async function prepare(){
     const code = window.editor ? window.editor.getValue() : '';
     const gfxh = await loadGraphicsHeader();
 
     const files = [
-      { path: 'main.c',     content: code },
-      { path: 'graphics.h', content: gfxh }  // 👈 make the header visible to the compiler
+      { path:'main.c',     content: code  },
+      { path:'graphics.h', content: gfxh }   // 👈 this is the key
     ];
 
-    // optional: sanity check in DevTools
-    console.log('Preparing files payload:', files.map(f => f.path));
+    // optional: verify in DevTools console
+    console.log('prepare files:', files.map(f=>f.path));
 
     const res = await fetch(C_API_BASE + '/api/cc/prepare', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
     });
     if (!res.ok) throw new Error('Prepare failed: ' + res.status);
     return res.json();
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
 
 
     
