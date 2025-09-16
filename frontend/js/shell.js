@@ -405,16 +405,8 @@ window.PolyRun = window.PolyRun || { stdout: '', stderr: '' };
 // Call this whenever you render new raw output
 window.PolyShell = window.PolyShell || {};
 window.PolyShell.setRawOutputs = function setRawOutputs(stdout, stderr) {
-  const dedupe = (s) => {
-    const lines = String(s || '').replace(/\r\n/g, '\n').split('\n');
-    const out = [];
-    for (let i = 0; i < lines.length; i++) {
-      if (i === 0 || lines[i] !== lines[i - 1]) out.push(lines[i]);
-    }
-    return out.join('\n');
-  };
-  window.PolyRun.stdout = dedupe(stdout);
-  window.PolyRun.stderr = dedupe(stderr);
+  window.PolyRun.stdout = String(stdout || '');
+  window.PolyRun.stderr = String(stderr || '');
 };
 
 
@@ -1279,34 +1271,18 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   }
 
   // Render Polycode Analysis (or say we couldn't interpret)
-  // Render Polycode Analysis (or say we couldn't interpret)
   if (explainEl) {
     if (hints.length) {
-      const isRuntime = /^runtime error/i.test(hints[0]?.title || '');
-      if (isRuntime) {
-        // Special, compact runtime rendering: one red header + one message
-        const runtimeMsg = (hints[0]?.detail || hints[0]?.title || '').replace(/\n/g,'<br>');
-        explainEl.innerHTML = `
-          <h3 style="margin:8px 0 6px;color:#e53935;">Runtime Error/Exception</h3>
-          <div class="eh-wrap">
-            <div class="eh-runtime" style="border-left:4px solid #e53935;padding:8px 10px;">
-              ${runtimeMsg}
-            </div>
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
+        <div class="eh-wrap">
+          <div class="eh-head">
+            <strong>Error Explanation</strong>
+            <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
           </div>
-        `;
-      } else {
-        // Default multi-hint rendering
-        explainEl.innerHTML = `
-          <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
-          <div class="eh-wrap">
-            <div class="eh-head">
-              <strong>Error Explanation</strong>
-              <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
-            </div>
-            ${hints.map(h => renderHintHTML(h)).join('')}
-          </div>
-        `;
-      }
+          ${hints.map(h => renderHintHTML(h)).join('')}
+        </div>
+      `;
     } else {
       explainEl.innerHTML = `
         <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
@@ -1316,7 +1292,6 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
       `;
     }
   }
-
 
   // Monaco markers – tolerate missing editor
   try {
