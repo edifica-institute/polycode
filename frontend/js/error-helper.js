@@ -475,7 +475,11 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
 
   function parsePython(err, src) {
     // IndentationError/File "stdin", line X
-    const ind = /File ".*", line (\d+)\n\s*([^\n]*)\n\s*^(IndentationError: .+)$/ims.exec(err);
+    //const ind = /File ".*", line (\d+)\n\s*([^\n]*)\n\s*^(IndentationError: .+)$/ims.exec(err);
+     // Take the LAST Python frame before an IndentationError line
+const indAll = [...(err || '').matchAll(/File "([^"]+)", line (\d+)\n\s*([^\n]*)\n\s*(IndentationError:[^\n]+)/g)];
+const ind = indAll.length ? indAll[indAll.length - 1] : null;
+
     if (ind) {
       const [, line, codeLine, msg] = ind;
       push('Indentation error', msg, 'error', toNum(line), 1, [
@@ -505,7 +509,12 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
     }
 
     // SyntaxError with caret
-    const syn = /File ".*", line (\d+)[\s\S]*?^\s*\^\s*$[\r\n]+(SyntaxError:[^\n]+)/m.exec(err);
+    //const syn = /File ".*", line (\d+)[\s\S]*?^\s*\^\s*$[\r\n]+(SyntaxError:[^\n]+)/m.exec(err);
+
+     // Take the LAST Python frame before the caret + SyntaxError line
+const synAll = [...(err || '').matchAll(/File "([^"]+)", line (\d+)\n([^\n]*)\n\s*\^\s*\n(SyntaxError:[^\n]+)/g)];
+const syn = synAll.length ? synAll[synAll.length - 1] : null;
+
     if (syn) {
       const [, line, msg] = syn;
       push('SyntaxError', msg, 'error', toNum(line), 1, []);
