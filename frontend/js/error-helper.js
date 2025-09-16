@@ -512,14 +512,26 @@ const ind = indAll.length ? indAll[indAll.length - 1] : null;
     //const syn = /File ".*", line (\d+)[\s\S]*?^\s*\^\s*$[\r\n]+(SyntaxError:[^\n]+)/m.exec(err);
 
      // Take the LAST Python frame before the caret + SyntaxError line
-const synAll = [...(err || '').matchAll(/File "([^"]+)", line (\d+)\n([^\n]*)\n\s*\^\s*\n(SyntaxError:[^\n]+)/g)];
+// SyntaxError with caret — take the LAST frame
+// ---- SyntaxError with caret (take the LAST user frame) ----
+const synAll = [...(err || '').matchAll(
+  /File "([^"]+)", line (\d+)[\s\S]*?\n([^\n]*)\n\s*\^\s*\n(SyntaxError:[^\n]+)/g
+)];
 const syn = synAll.length ? synAll[synAll.length - 1] : null;
 
-    if (syn) {
-      const [, line, msg] = syn;
-      push('SyntaxError', msg, 'error', toNum(line), 1, []);
-      return;
-    }
+if (syn) {
+  const [, file, line, codeLine, msg] = syn;
+  push('SyntaxError', msg, 'error', toNum(line), 1, pythonQuickFixesFromMessage(msg));
+  return;
+}
+
+// ---- Fallback: generic SyntaxError line picker (no caret variant) ----
+const synLine = /File "([^"]+)", line (\d+)[\s\S]*?\n(SyntaxError:[^\n]+)/m.exec(err);
+if (synLine) {
+  const [, file, line, msg] = synLine;
+  push('SyntaxError', msg, 'error', toNum(line), 1, pythonQuickFixesFromMessage(msg));
+  return;
+}
 
     if (err.trim()) push('Python error', firstLine(err));
   }
@@ -646,6 +658,26 @@ CREATE TABLE ${t} (id INTEGER PRIMARY KEY, name TEXT);
 `;
       return code + stub;
     }
+
+       case 'insertAtLineEnd': {
+  const tok = fix.meta?.token ?? '';
+  // If a line is supplied in meta, use it (1-based). Otherwise append to last non-empty line.
+  const lines = code.split(/\r?\n/);
+  if (!lines.length) return tok; // empty buffer → just insert token
+  let idx = (fix.meta && Number.isInteger(fix.meta.line)) ? Math.max(0, fix.meta.line - 1) : -1;
+  if (idx < 0) {
+    // find last non-empty; fall back to last line
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (/\S/.test(lines[i])) { idx = i; break; }
+    }
+    if (idx < 0) idx = lines.length - 1;
+  }
+  lines[idx] = (lines[idx] || '') + tok;
+  return lines.join('\n');
+}
+
+
+        
     default:
       return code;
   }
@@ -893,6 +925,27 @@ GROUP BY dept;`)
 
 
 
+
+function pythonQuickFixesFromMessage(msg='') {
+  const fixes = [];
+  const m = String(msg);
+
+  // “was never closed” → propose likely closers
+  if (/was never closed/i.test(m)) {
+    if (m.includes('(')) fixes.push({ label: 'Add a closing “)”', apply: 'insertAtLineEnd', meta: { token: ')' } });
+    if (m.includes('[')) fixes.push({ label: 'Add a closing “]”', apply: 'insertAtLineEnd', meta: { token: ']' } });
+    if (m.includes('{')) fixes.push({ label: 'Add a closing “}”', apply: 'insertAtLineEnd', meta: { token: '}' } });
+    if (m.includes('"')) fixes.push({ label: 'Close the double quote', apply: 'insertAtLineEnd', meta: { token: '"' } });
+    if (m.includes("'")) fixes.push({ label: 'Close the single quote', apply: 'insertAtLineEnd', meta: { token: "'" } });
+  }
+
+  // “expected ':'”
+  if (/expected\s*[:]/i.test(m)) {
+    fixes.push({ label: 'Add “:” at end of line', apply: 'insertAtLineEnd', meta: { token: ':' } });
+  }
+
+  return fixes;
+}
 
 
 
