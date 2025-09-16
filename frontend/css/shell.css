@@ -1499,4 +1499,10 @@ body[data-boot] .right.panel{
 
 
 
+.eh-hint { border-radius: 8px; padding: 12px; margin: 10px 0; border: 1px solid transparent; }
+.eh-hdr { display:flex; justify-content:space-between; font-weight:600; margin-bottom:6px; }
+.eh-hint.error   { background:#ffecec; border-color:#f5b5b5; }
+.eh-hint.warning { background:#fff7e6; border-color:#f3d08a; }
+.eh-hint.note    { background:#eef6ff; border-color:#b7d3f6; }
+.eh-meta { color:#6b7280; font-weight:400; font-size:12px; }
 
