@@ -1309,6 +1309,73 @@ window.refreshStderrExplanation = refreshStderrExplanation;
 
 
 
+// --- Diagnostics: parse + mark + Quick Fix (lazy-loads the parser module) ---
+let __pcQuickFixBound = false;
+async function applyDiagnosticsNow({ lang, stdout, stderr, code }) {
+  try {
+    const { parseCompilerOutput, applyQuickFix } = await import('./js/error-helper/parseCompilerOutput.js'); // adjust path if needed
+    const { issues } = parseCompilerOutput({ lang, stdout, stderr, code });
+
+    // Push Monaco markers
+    if (window.monaco && window.editor) {
+      const model = window.editor.getModel?.();
+      const markers = issues.map(i => ({
+        message: i.message,
+        startLineNumber: i.line || 1,
+        startColumn: i.col || 1,
+        endLineNumber: i.line || 1,
+        endColumn: (i.col || 1) + 1,
+        severity: /warn/i.test(i.severity) ? monaco.MarkerSeverity.Warning : monaco.MarkerSeverity.Error,
+        source: i.title || 'polycode'
+      }));
+      monaco.editor.setModelMarkers(model, 'polycode', markers);
+
+      // One-time Quick Fix action (Ctrl/Cmd + .) on current line
+      if (!__pcQuickFixBound) {
+        __pcQuickFixBound = true;
+        window.editor.addAction({
+          id: 'polycode.quickFix',
+          label: 'Quick Fix…',
+          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Period],
+          contextMenuGroupId: 'navigation',
+          contextMenuOrder: 0.1,
+          run: (ed) => {
+            const pos = ed.getPosition();
+            const issue = issues.find(i => (i.line || 0) === pos.lineNumber && i.quickFixes?.length);
+            if (!issue) return;
+            // pick the first fix (you can replace with a chooser)
+            const fix = issue.quickFixes[0];
+            const newCode = applyQuickFix(ed.getValue(), fix);
+            if (newCode && newCode !== ed.getValue()) ed.setValue(newCode);
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.debug('[Polycode] diagnostics skipped:', e);
+  }
+}
+
+// Helper to resolve the current language id → parser lang key
+function __pcLangId() {
+  // Prefer Monaco id
+  const monacoId = window.editor?.getModel?.()?.getLanguageId?.();
+  if (monacoId) {
+    const m = monacoId.toLowerCase();
+    if (m === 'cpp' || m === 'c++') return 'cpp';
+    if (m === 'py') return 'python';
+    if (m === 'mysql' || m === 'sqlite') return 'sql';
+    if (['html','css','javascript','typescript'].includes(m)) return 'web';
+    return m;
+  }
+  // Fallback to data-lang on <body>
+  const hinted = (document.body.getAttribute('data-lang') || '').toLowerCase();
+  return hinted || 'c';
+}
+
+
+
+
 
 
 
@@ -1435,11 +1502,26 @@ await window.runLang(codeToRun);
     setFootStatus('rightFoot','success', { detail: `Time: ${elapsed}` });
 hideCompileFailNotice();
 
-    const stdout = document.getElementById('stdoutText')?.textContent || '';
+
+
+const stdout = document.getElementById('stdoutText')?.textContent || '';
 const stderr = document.getElementById('stderrText')?.textContent || '';
 window.PolyShell.setRawOutputs(stdout, stderr);
 
-    try { await refreshStderrExplanation(); } catch {}
+// NEW: diagnostics (markers + quick-fix)
+await applyDiagnosticsNow({
+  lang: __pcLangId(),
+  stdout,
+  stderr,
+  code: window.editor?.getValue?.() || ''
+});
+
+try { await refreshStderrExplanation(); } catch {}
+
+
+
+
+    
 
   } catch (e) {
     // --- swallow user-abort / reset-in-progress rejections ---
@@ -1469,12 +1551,25 @@ window.PolyShell.setRawOutputs(stdout, stderr);
 
 
 
+
 await refreshStderrExplanation({ alsoAlert: false });
 
-    
-    const stdout = document.getElementById('stdoutText')?.textContent || '';
+const stdout = document.getElementById('stdoutText')?.textContent || '';
 const stderr = document.getElementById('stderrText')?.textContent || '';
 window.PolyShell.setRawOutputs(stdout, stderr);
+
+// NEW: diagnostics on failure too
+await applyDiagnosticsNow({
+  lang: __pcLangId(),
+  stdout,
+  stderr,
+  code: window.editor?.getValue?.() || ''
+});
+
+// Even on error, show friendly explanations under stderr
+
+
+    
     
 // Even on error, show friendly explanations under stderr
 
