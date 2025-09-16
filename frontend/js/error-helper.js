@@ -479,14 +479,13 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
      // Take the LAST Python frame before an IndentationError line
 const indAll = [...(err || '').matchAll(/File "([^"]+)", line (\d+)\n\s*([^\n]*)\n\s*(IndentationError:[^\n]+)/g)];
 const ind = indAll.length ? indAll[indAll.length - 1] : null;
-
-    if (ind) {
-      const [, line, codeLine, msg] = ind;
-      push('Indentation error', msg, 'error', toNum(line), 1, [
-        mkFix('Normalize indentation (4 spaces)', 'normalizeIndent', { line: toNum(line) })
-      ]);
-      return;
-    }
+if (ind) {
+  const [, file, line, codeLine, msg] = ind;  // include file, use real line #
+  push('Indentation error', msg, 'error', toNum(line), 1, [
+    mkFix('Normalize indentation (4 spaces)', 'normalizeIndent', { line: toNum(line) })
+  ]);
+  return;
+}
 
     // NameError: name 'x' is not defined
     const nameErr = /NameError:\s+name '([A-Za-z_][A-Za-z0-9_]*)' is not defined/.exec(err);
@@ -519,17 +518,26 @@ const synAll = [...(err || '').matchAll(
 )];
 const syn = synAll.length ? synAll[synAll.length - 1] : null;
 
+// With caret
 if (syn) {
   const [, file, line, codeLine, msg] = syn;
-  push('SyntaxError', msg, 'error', toNum(line), 1, pythonQuickFixesFromMessage(msg));
+  const fixes = pythonQuickFixesFromMessage(msg).map(f => ({
+    ...f,
+    meta: { ...(f.meta || {}), line: toNum(line) }
+  }));
+  push('SyntaxError', msg, 'error', toNum(line), 1, fixes);
   return;
 }
 
-// ---- Fallback: generic SyntaxError line picker (no caret variant) ----
+// Fallback (no caret variant)
 const synLine = /File "([^"]+)", line (\d+)[\s\S]*?\n(SyntaxError:[^\n]+)/m.exec(err);
 if (synLine) {
   const [, file, line, msg] = synLine;
-  push('SyntaxError', msg, 'error', toNum(line), 1, pythonQuickFixesFromMessage(msg));
+  const fixes = pythonQuickFixesFromMessage(msg).map(f => ({
+    ...f,
+    meta: { ...(f.meta || {}), line: toNum(line) }
+  }));
+  push('SyntaxError', msg, 'error', toNum(line), 1, fixes);
   return;
 }
 
