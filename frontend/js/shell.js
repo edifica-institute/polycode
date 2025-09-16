@@ -1251,12 +1251,20 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   //const code   = window.editor?.getValue?.() || '';
 
 
-    const domErr  = document.getElementById('stderrText')?.textContent || '';
+   // READ the panel text
+const domErr  = document.getElementById('stderrText')?.textContent || '';
 const domOut  = document.getElementById('stdoutText')?.textContent || '';
 
-const stderr  = __pc_dedupeDisplayStderr(String(cachedErr || domErr || '')); // CLEAN
+// CLEAN stderr for display (dedupe bash wrapper + single [process exited...] line)
+const stderr  = __pc_dedupeDisplayStderr(String(cachedErr || domErr || ''));
 const stdout  = String(cachedOut || domOut || '');
 const code    = window.editor?.getValue?.() || '';
+
+// WRITE BACK the cleaned stderr so the visible console shows it only once
+const stderrEl = document.getElementById('stderrText');
+if (stderrEl && stderrEl.textContent !== stderr) {
+  stderrEl.textContent = stderr;
+}
 
 
   
