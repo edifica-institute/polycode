@@ -1175,7 +1175,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     clearEditorErrors(); setStatus('Reset','ok'); unfreezeUI();
   });
-})(); // <-- ✅ this line was missing*/
+})(); // <-- ✅ this line was missing
 
 
 
