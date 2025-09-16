@@ -1175,7 +1175,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     clearEditorErrors(); setStatus('Reset','ok'); unfreezeUI();
   });
-})(); // <-- ✅ this line was missing
+})(); // <-- ✅ this line was missing*/
 
 
 
@@ -1309,73 +1309,6 @@ window.refreshStderrExplanation = refreshStderrExplanation;
 
 
 
-// --- Diagnostics: parse + mark + Quick Fix (lazy-loads the parser module) ---
-let __pcQuickFixBound = false;
-async function applyDiagnosticsNow({ lang, stdout, stderr, code }) {
-  try {
-    const { parseCompilerOutput, applyQuickFix } = await import('./js/error-helper/parseCompilerOutput.js'); // adjust path if needed
-    const { issues } = parseCompilerOutput({ lang, stdout, stderr, code });
-
-    // Push Monaco markers
-    if (window.monaco && window.editor) {
-      const model = window.editor.getModel?.();
-      const markers = issues.map(i => ({
-        message: i.message,
-        startLineNumber: i.line || 1,
-        startColumn: i.col || 1,
-        endLineNumber: i.line || 1,
-        endColumn: (i.col || 1) + 1,
-        severity: /warn/i.test(i.severity) ? monaco.MarkerSeverity.Warning : monaco.MarkerSeverity.Error,
-        source: i.title || 'polycode'
-      }));
-      monaco.editor.setModelMarkers(model, 'polycode', markers);
-
-      // One-time Quick Fix action (Ctrl/Cmd + .) on current line
-      if (!__pcQuickFixBound) {
-        __pcQuickFixBound = true;
-        window.editor.addAction({
-          id: 'polycode.quickFix',
-          label: 'Quick Fix…',
-          keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Period],
-          contextMenuGroupId: 'navigation',
-          contextMenuOrder: 0.1,
-          run: (ed) => {
-            const pos = ed.getPosition();
-            const issue = issues.find(i => (i.line || 0) === pos.lineNumber && i.quickFixes?.length);
-            if (!issue) return;
-            // pick the first fix (you can replace with a chooser)
-            const fix = issue.quickFixes[0];
-            const newCode = applyQuickFix(ed.getValue(), fix);
-            if (newCode && newCode !== ed.getValue()) ed.setValue(newCode);
-          }
-        });
-      }
-    }
-  } catch (e) {
-    console.debug('[Polycode] diagnostics skipped:', e);
-  }
-}
-
-// Helper to resolve the current language id → parser lang key
-function __pcLangId() {
-  // Prefer Monaco id
-  const monacoId = window.editor?.getModel?.()?.getLanguageId?.();
-  if (monacoId) {
-    const m = monacoId.toLowerCase();
-    if (m === 'cpp' || m === 'c++') return 'cpp';
-    if (m === 'py') return 'python';
-    if (m === 'mysql' || m === 'sqlite') return 'sql';
-    if (['html','css','javascript','typescript'].includes(m)) return 'web';
-    return m;
-  }
-  // Fallback to data-lang on <body>
-  const hinted = (document.body.getAttribute('data-lang') || '').toLowerCase();
-  return hinted || 'c';
-}
-
-
-
-
 
 
 
@@ -1449,12 +1382,6 @@ if (window.PC) window.PC.__suppressRunErrorUntil = 0;
     runBtn.classList.add('is-running');
     clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
 
-
-    bumpRunActivity();
-startRunWatchdog({ softWarnMs: 12000, hardKillMs: 45000 }); // tune thresholds as desired
-
-
-    
     t0 = performance.now();
     
     
@@ -1508,26 +1435,11 @@ await window.runLang(codeToRun);
     setFootStatus('rightFoot','success', { detail: `Time: ${elapsed}` });
 hideCompileFailNotice();
 
-
-
-const stdout = document.getElementById('stdoutText')?.textContent || '';
+    const stdout = document.getElementById('stdoutText')?.textContent || '';
 const stderr = document.getElementById('stderrText')?.textContent || '';
 window.PolyShell.setRawOutputs(stdout, stderr);
 
-// NEW: diagnostics (markers + quick-fix)
-await applyDiagnosticsNow({
-  lang: __pcLangId(),
-  stdout,
-  stderr,
-  code: window.editor?.getValue?.() || ''
-});
-
-try { await refreshStderrExplanation(); } catch {}
-
-
-
-
-    
+    try { await refreshStderrExplanation(); } catch {}
 
   } catch (e) {
     // --- swallow user-abort / reset-in-progress rejections ---
@@ -1557,35 +1469,20 @@ try { await refreshStderrExplanation(); } catch {}
 
 
 
-
 await refreshStderrExplanation({ alsoAlert: false });
 
-const stdout = document.getElementById('stdoutText')?.textContent || '';
+    
+    const stdout = document.getElementById('stdoutText')?.textContent || '';
 const stderr = document.getElementById('stderrText')?.textContent || '';
 window.PolyShell.setRawOutputs(stdout, stderr);
-
-// NEW: diagnostics on failure too
-await applyDiagnosticsNow({
-  lang: __pcLangId(),
-  stdout,
-  stderr,
-  code: window.editor?.getValue?.() || ''
-});
-
-// Even on error, show friendly explanations under stderr
-
-
-    
     
 // Even on error, show friendly explanations under stderr
 
 
- } finally {
-  clearRunWatchdog();
-  spin(false);
-  runBtn.classList.remove('is-running');
-}
-
+  } finally {
+    spin(false);
+    runBtn.classList.remove('is-running');
+  }
 });
 
 
@@ -1676,7 +1573,6 @@ await applyDiagnosticsNow({
       document.getElementById('stdoutText')?.textContent || '',
       document.getElementById('stderrText')?.textContent || ''
     );
-    bumpRunActivity();
     refreshStderrExplanation().catch(()=>{});
   });
   mo.observe(host, { childList: true, characterData: true, subtree: true });
@@ -1715,9 +1611,6 @@ await applyDiagnosticsNow({
   
 rstBtn?.addEventListener('click', () => {
   try { PC?.cancelCurrentSession?.('user'); } catch {}   // <-- add this line
-  try { clearRunWatchdog(); } catch {}
-try { document.getElementById('pc-loop-banner')?.remove(); } catch {}
-
 
   try { window.killRunner?.(); } catch {}
  try { window.clearRunUI?.(); } catch {}
@@ -1740,7 +1633,6 @@ try {
 
 try {
   if (window.monaco && window.editor) {
-    monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode', []); 
     monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', []);
   }
 } catch {}
@@ -1754,7 +1646,7 @@ try {
 
 
   
-
+})();
 
 
 
@@ -1896,67 +1788,6 @@ function fmtDuration(ms){
   return `${s.toFixed(2)} second(s)`; 
 }
 
-// --- Run watchdog: soft-warn on silence, optional hard kill ---
-let __pc_watchdog = null, __pc_watchWarned = false;
-window.__pc_lastActivity = performance.now();
-
-function bumpRunActivity(){ window.__pc_lastActivity = performance.now(); }
-
-function startRunWatchdog({ softWarnMs = 12000, hardKillMs = 45000 } = {}) {
-  clearRunWatchdog();
-  __pc_watchWarned = false;
-  __pc_watchdog = setInterval(() => {
-    const delta = performance.now() - (window.__pc_lastActivity || 0);
-
-    if (!__pc_watchWarned && delta > softWarnMs) {
-      __pc_watchWarned = true;
-      try {
-        window.PolyShell?.setRunnerPhase?.('running', { detail: `No output for ${(delta/1000).toFixed(1)}s — possible infinite loop` });
-      } catch {}
-      try { showLoopBanner(); } catch {}
-    }
-    if (hardKillMs > 0 && delta > hardKillMs) {
-      try { window.PC?.cancelCurrentSession?.('watchdog'); } catch {}
-      clearRunWatchdog();
-    }
-  }, 1000);
-}
-
-function clearRunWatchdog(){
-  if (__pc_watchdog) { clearInterval(__pc_watchdog); __pc_watchdog = null; }
-}
-
-// Minimal, non-intrusive banner (closeable)
-function showLoopBanner() {
-  if (document.getElementById('pc-loop-banner')) return;
-  const div = document.createElement('div');
-  div.id = 'pc-loop-banner';
-  div.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:9999;padding:10px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#222;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;box-shadow:0 6px 18px rgba(0,0,0,.15)';
-  div.innerHTML = `
-    <div style="margin-bottom:6px"><strong>Program is taking long</strong><br/>It may be stuck in an infinite loop.</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
-      <button id="pc-loop-stop" class="btn" style="padding:6px 10px;cursor:pointer">Stop (F10)</button>
-      <button id="pc-loop-close" class="btn" style="padding:6px 10px;cursor:pointer">Dismiss</button>
-    </div>`;
-  document.body.appendChild(div);
-  div.querySelector('#pc-loop-stop')?.addEventListener('click', () => { try { window.PC?.cancelCurrentSession?.('user'); } catch {} });
-  div.querySelector('#pc-loop-close')?.addEventListener('click', () => div.remove());
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // 🔧 Ensure footer animations + Run glow start on first paint
 (function bootUIOnFirstPaint(){
@@ -2094,9 +1925,6 @@ try {
 
 // ===== Global hotkeys for Polycode ==================================
 (function initPolycodeHotkeys(){
-
-  if (window.__pc_hotkeys_bound) return;
-  window.__pc_hotkeys_bound = true;
   function click(id){ document.getElementById(id)?.click(); }
 
   // Global fallbacks (works even when focus isn't in Monaco)
@@ -2318,7 +2146,10 @@ async function captureCodeAndOutputImage() {
 }
 
 // Timestamp helper you already have
-
+function ts(){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
 
 // Click handler: share (if possible) and save
 async function onClickCaptureShare(e){
@@ -2380,7 +2211,7 @@ document.getElementById('btnSaveFile')?.addEventListener('click', onClickCapture
 
 
 // Hook the button (replace the old saveFile binding)
-//document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
+document.getElementById('btnSaveFile')?.addEventListener('click', onClickCaptureShare);
 
 // Optional: keep Ctrl/Cmd+S for original saveFile and use Ctrl/Cmd+Shift+S for screenshot
 document.addEventListener('keydown', (e) => {
@@ -2399,7 +2230,14 @@ document.addEventListener('keydown', (e) => {
 // - window.POLYCODE_HEADER_LOGO / POLYCODE_WATERMARK / EDIFICA_FOOTER_LOGO (base64 PNGs)
 // - ts() timestamp helper
 
-
+function loadImage(url){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 // --- helpers ---------------------------------------------------------------
 
@@ -2853,8 +2691,7 @@ async function captureOutputImageDataURL(){
 
     // 2b. Ask the iframe to self-capture via postMessage
      try {
-      const snap = await askPreviewForScreenshot(document.getElementById('preview'), 3000);
- // uses #preview internally
+      const snap = await askPreviewForScreenshot(3000); // uses #preview internally
       if (snap?.url) return snap.url;
     } catch (_) {
       /* fall back */
@@ -3217,7 +3054,30 @@ async function installPreviewSnapper(){
 }
 
 // Ask the iframe to screenshot itself and return {url,w,h}
+function askPreviewForScreenshot(timeoutMs = 3000){
+  return new Promise(async (resolve, reject) => {
+    const ifr = document.getElementById('preview');
+    if (!ifr || !ifr.contentWindow) return reject(new Error('preview iframe not found'));
 
+    const ok = await installPreviewSnapper();
+    if (!ok) return reject(new Error('failed to inject snapper (check sandbox: allow-scripts allow-same-origin)'));
+
+    const onMsg = (ev) => {
+      const d = ev.data;
+      if (!d || d.__polycode !== 'snap') return;
+      window.removeEventListener('message', onMsg);
+      if (d.ok && d.url) resolve({ url:d.url, w:d.w, h:d.h });
+      else reject(new Error(d?.error || 'snapshot failed'));
+    };
+
+    window.addEventListener('message', onMsg);
+    try { ifr.contentWindow.postMessage('__polycode_snap__', '*'); } catch(e){ /* ignore */ }
+    setTimeout(() => {
+      window.removeEventListener('message', onMsg);
+      reject(new Error('snapshot timeout'));
+    }, timeoutMs);
+  });
+}
 
 
 
@@ -3389,15 +3249,6 @@ async function captureOutputPanelAsPNG() {
 
 
 
-window.addEventListener('DOMContentLoaded', () => {
-  // ...your other bindings...
-  try { installPreviewSnapper(); } catch {}
-});
-
-// If preview is reloaded dynamically, you can re-install after load:
-document.getElementById('preview')?.addEventListener('load', () => {
-  try { installPreviewSnapper(); } catch {}
-});
 
 
 
@@ -3408,8 +3259,9 @@ document.getElementById('preview')?.addEventListener('load', () => {
   const s = document.createElement('style');
   s.id = 'pc-capture-style';
   s.textContent = `
-    /* During capture, disable transitions to avoid theme flash/jank */
+    /* During capture, kill transitions & hide page to avoid theme-flash */
     .pc-capturing, .pc-capturing * { transition: none !important; }
+    .pc-capturing body { opacity: 0 !important; } /* html2canvas/jsPDF still render */
   `;
   document.head.appendChild(s);
 })();
@@ -3539,7 +3391,7 @@ addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme: isDark ? 'dark' 
 
   // =========================================
 
-  //addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
+  addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
   return pdf.output('blob');
 }
 
@@ -3591,7 +3443,13 @@ async function urlToDataURL(url){
 
 
 // helper: pull the first-line Title: ... or fallback
-
+function extractTitle(code){
+  if (!code) return 'Sample Program';
+  const first = String(code).split('\n')[0].trim();
+  const m = /^\s*(?:\/\*+|<!--|\(\*|\/\/|--|#|;+|%|')\s*title\s*:\s*(.*?)\s*(?:\*\/|-->|\*\))?\s*$/i
+            .exec(first);
+  return (m?.[1]?.trim()) || 'Sample Program';
+}
 function sanitizeFilename(s){
   return (s || 'Untitled').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
 }
@@ -3786,6 +3644,70 @@ async function buildCodeImageDataURL() {
   
 
 
+async function buildCodeImageDataURL() {
+  const html2canvas = await ensureHtml2Canvas();
+  const code = (window.editor && typeof window.editor.getValue === 'function')
+    ? window.editor.getValue()
+    : (document.getElementById('code')?.textContent || ''); // fallback if no Monaco
+
+  // Offscreen iframe with styled <pre> (no Monaco, so no canvas taint)
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1200px;height:10px;visibility:hidden';
+  iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  iframe.srcdoc = `
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  :root{ color-scheme: light; }
+  html,body{ margin:0; background:#ffffff; }
+  .wrap{
+    padding:24px; box-sizing:border-box; width:1200px; 
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    color:#222;
+  }
+  .title{ font: 600 16px/1.2 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, sans-serif; margin-bottom: 10px; }
+  pre{
+    margin:0; white-space:pre; overflow:visible; 
+    tab-size:2; -moz-tab-size:2; -o-tab-size:2;
+  }
+  /* Optional: simple line numbers (not required) */
+  .code{ counter-reset: ln; }
+  .code > div{ counter-increment: ln; }
+  .code > div::before{
+    content: counter(ln);
+    display:inline-block; width:3ch; margin-right:12px; text-align:right; color:#888;
+  }
+</style>
+</head><body>
+  <div class="wrap">
+    <div class="title">Code</div>
+    <pre class="code">${
+      // Escape HTML safely and split into <div> lines for line numbers
+      (code || '(empty)')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .split('\n').map(l => `<div>${l || '&nbsp;'}</div>`).join('\n')
+    }</pre>
+  </div>
+</body></html>`;
+  document.body.appendChild(iframe);
+
+  await new Promise(r => iframe.onload = r);
+
+  // Expand iframe height to content for full capture
+  const b = iframe.contentDocument.body;
+  const contentHeight = Math.max(b.scrollHeight, b.offsetHeight);
+  iframe.style.height = contentHeight + 'px';
+
+  const canvas = await html2canvas(iframe.contentDocument.documentElement, {
+    backgroundColor:'#ffffff',
+    scale: 2,
+    useCORS: true,
+    allowTaint: false
+  });
+
+  const url = canvas.toDataURL('image/png');
+  document.body.removeChild(iframe);
+  return url;
+}
 
 
 
@@ -4114,37 +4036,43 @@ document.addEventListener('keydown', (ev) => {
   };
 
   // ---- Wrap WebSocket for runner channel; gate late output ----
-const _WS = window.WebSocket;
+  const _WS = window.WebSocket;
 class PCWebSocket {
   constructor(url, protocols) {
     this._real = new _WS(url, protocols);
     this._url  = String(url || '');
     this._sid  = (current ? current.id : null);
-    this._isRunner = WS_TOKEN_REGEX.test(this._url);
 
+    this._isRunner = WS_TOKEN_REGEX.test(this._url);
     if (this._isRunner && current && current.state === 'connecting') {
       current.ws = this._real;
     }
 
-    // prompt/input heuristic
-    let promptDebounce = null;
-    let waitingShown = false;
-    let seenAnyNewline = false;
+    // ---- prompt/input heuristic state ----
+    let promptDebounce   = null;
+    let waitingShown     = false;
+    let seenAnyNewline   = false;
 
     const cancelProbe = () => { try { clearTimeout(promptDebounce); } catch {} promptDebounce = null; };
+
+    const clearWaitUI = () => {
+      try { window.PolyShell?.stopInputTicker?.(); } catch {}
+      try { window.clearRunUI?.(); } catch {}
+      waitingShown = false;
+      cancelProbe();
+    };
 
     const showWaiting = () => {
       if (!this._isRunner || waitingShown) return;
       waitingShown = true;
-      bumpRunActivity();
       try { window.showInputRow?.(true, { preserveOutput: true, keepPartialLastLine: true }); } catch {}
       try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
     };
 
     const sawStdout = () => {
-      bumpRunActivity();
       waitingShown = false;
       cancelProbe();
+      // Only start quiet->waiting probe after we’ve seen at least one newline
       promptDebounce = setTimeout(() => {
         if (!this.__pc_lastSentWasInput &&
             this._real?.readyState === _WS.OPEN &&
@@ -4154,7 +4082,7 @@ class PCWebSocket {
       }, 250);
     };
 
-    // proxy props
+    // ---- proxy props ----
     Object.defineProperty(this, 'readyState', { get: () => this._real.readyState });
     Object.defineProperty(this, 'url',        { get: () => this._real.url });
     Object.defineProperty(this, 'binaryType', {
@@ -4162,12 +4090,13 @@ class PCWebSocket {
       set: v  => { this._real.binaryType = v; }
     });
 
-    // user handlers
+    // wrapped handlers
     this._onopen = null; this._onmessage = null; this._onerror = null; this._onclose = null;
 
-    // OPEN
+    // ---- OPEN ----
     this._real.addEventListener('open', (ev) => {
       if (this._isRunner) {
+        if (window.PC) { PC.__userAbort = false; }
         PC.__userAbort = false;
         if (!current || current.id !== this._sid || current.state === 'cancelled') {
           try { this._real.close(); } catch {}
@@ -4178,84 +4107,235 @@ class PCWebSocket {
         seenAnyNewline = false;
         this.__pc_lastSentWasInput = false;
         cancelProbe();
-        bumpRunActivity();
-        try { window.PolyShell?.setRunnerPhase?.('running'); } catch {}
       }
       this._onopen && this._onopen.call(this, ev);
     });
 
-    // MESSAGE
+    // ---- MESSAGE ----
     this._real.addEventListener('message', (ev) => {
       if (this._isRunner) {
         if (!current || current.id !== this._sid || current.state !== 'running') return;
+
         try {
           const d = ev.data;
-          if (typeof d === 'string') {
+
+          if (typeof d === 'string' && d.length && d[0] === '{') {
+            // JSON envelope (used by some runners)
+            const m = JSON.parse(d);
+
+            if (m?.type === 'stdin_req') {
+              waitingShown = false; cancelProbe(); showWaiting();
+            } else if (m?.type === 'stdout' && typeof m.data === 'string') {
+              const s = m.data;
+              if (s.includes('\n')) seenAnyNewline = true;
+              const endsLikePrompt = /[:?]\s$/.test(s) && !s.includes('\n');
+              if (endsLikePrompt && seenAnyNewline) { waitingShown = false; cancelProbe(); showWaiting(); }
+              else { sawStdout(); }
+            } else {
+              waitingShown = false; cancelProbe();
+            }
+          } else if (typeof d === 'string') {
+            // plain text
             if (d.includes('\n')) seenAnyNewline = true;
-            // stdout/stderr updates should bump activity
-            sawStdout();
+            const endsLikePrompt = /[:?]\s$/.test(d) && !d.includes('\n');
+            if (endsLikePrompt && seenAnyNewline) { waitingShown = false; cancelProbe(); showWaiting(); }
+            else { sawStdout(); }
           } else {
-            bumpRunActivity();
+            // blob/ArrayBuffer etc.
+            sawStdout();
           }
-        } catch {}
+        } catch {
+          sawStdout();
+        }
       }
+
       this._onmessage && this._onmessage.call(this, ev);
     });
 
-    // ERROR
+    // ---- ERROR ----
     this._real.addEventListener('error', (ev) => {
+      // If user aborted, do not leave “waiting for input” on screen
+      clearWaitUI();
       this._onerror && this._onerror.call(this, ev);
     });
 
-    // CLOSE
+    // ---- CLOSE ----
     this._real.addEventListener('close', (ev) => {
-      if (this._isRunner) {
-        cancelProbe();
-        waitingShown = false;
-        if (current && current.id === this._sid) {
-          current.state = (current.state === 'cancelled') ? 'cancelled' : 'stopped';
-          current.ws = null;
+  const userAbort = !!(this._isRunner && (this._sid === PC.__cancelledSid || PC.__userAbort));
+
+  if (this._isRunner && current && current.id === this._sid) {
+    current.state = 'stopped';
+    current = null;
+  }
+
+      // Always clear any waiting UI / probes
+      clearWaitUI();
+
+      // If this close was triggered by Reset: force the idle footer, not “error”
+       if (userAbort) {
+    try { window.hardClearOutput?.({ preservePreview:true }); } catch {}   // <-- add this
+    try { setStatus?.('Reset','ok'); } catch {}
+    try { setFootStatus?.('rightFoot','waiting'); } catch {}
+           try { clearInlinePlotArea(true); } catch {}
+try { clearArtifactImages(); } catch {}
+    try { unfreezeUI?.(); } catch {}
+         
+         try { window.forceFocusEditorAfterReset?.(); } catch {}
+    PC.__userAbort = false;
+  }
+
+  this._onclose && this._onclose.call(this, ev);
+});
+  }
+
+  // ---- SEND (notice when stdin is being sent) ----
+ /* send(data) {
+    try {
+      const s = (typeof data === 'string') ? data : '';
+      if (s && s[0] === '{') {
+        const m = JSON.parse(s);
+        if (m?.type === 'stdin') {
+          if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
+          this.__pc_lastSentWasInput = true;
+          this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
         }
       }
-      this._onclose && this._onclose.call(this, ev);
-    });
-  }
+    } catch {}
+    this._real.send(data);
+  }*/
 
-  send(data) {
-    if (this._isRunner) {
-      // if app is sending a line that looks like user input, mark & bump
-      this.__pc_lastSentWasInput = true;
-      bumpRunActivity();
-      setTimeout(() => { this.__pc_lastSentWasInput = false; }, 0);
-    }
-    return this._real.send(data);
-  }
 
-  close(code, reason) { try { this._real.close(code, reason); } catch {} }
 
-  // event handler props
-  get onopen()    { return this._onopen; }
-  set onopen(fn)  { this._onopen = fn; }
+  /* ===== helpers (existing)… e.g., snapshotElementFull, clearInlinePlotArea, etc. ===== */
 
-  get onmessage()   { return this._onmessage; }
-  set onmessage(fn) { this._onmessage = fn; }
+/* >>> INSERT THIS EXACTLY HERE — just before your WebSocket send(data) patch <<< */
 
-  get onerror()   { return this._onerror; }
-  set onerror(fn) { this._onerror = fn; }
+// Split console so plots land exactly after the user's input line.
 
-  get onclose()   { return this._onclose; }
-  set onclose(fn) { this._onclose = fn; }
 
-  // eventTarget passthrough
-  addEventListener(...a) { return this._real.addEventListener(...a); }
-  removeEventListener(...a) { return this._real.removeEventListener(...a); }
-  dispatchEvent(ev) { return this._real.dispatchEvent(ev); }
-}
-// install wrapper
-window.WebSocket = PCWebSocket;
+/* ===== your WebSocket send(data) patch starts below ===== */
 
-    window.WebSocket.__pcWrapped = true;
+
+
   
+
+  // ---- SEND (notice when stdin is being sent) ----
+// ---- SEND (notice when stdin is being sent) ----
+
+  // ---- SEND (notice when stdin is being sent) ----
+// ── drop-in for: class PCWebSocket { … send(data) { … } … }
+send(data) {
+  try {
+    const s = (typeof data === 'string') ? data : '';
+    if (s && s[0] === '{') {
+      const m = JSON.parse(s);
+      if (m?.type === 'stdin') {
+        // mark that the last thing we sent was input
+        try {
+          if (this.__pc_lastSentWasInputTimer) clearTimeout(this.__pc_lastSentWasInputTimer);
+          this.__pc_lastSentWasInput = true;
+          this.__pc_lastSentWasInputTimer = setTimeout(() => { this.__pc_lastSentWasInput = false; }, 50);
+        } catch {}
+
+        // record stdin history BEFORE/AFTER this line (for replay)
+        const beforeLen = (window.__stdinHistory?.length || 0);
+        const line = String(m.data ?? m.line ?? '').replace(/\r?\n$/, '');
+        if (line) {
+          window.__stdinHistory = window.__stdinHistory || [];
+          window.__stdinHistory.push(line);
+        }
+        const afterLen = (window.__stdinHistory?.length || beforeLen);
+
+        // decide if this input should even try to produce a plot
+        const codeNow  = window.editor?.getValue?.() || '';
+        const exitish  = /^\s*(0|exit|quit|q)\s*$/i.test(line);
+        const willPlot = codeLooksLikePlot(codeNow) && !exitish;
+        if (!willPlot) {
+          // just forward the message; no progress UI
+          this._real.send(data);
+          return;
+        }
+
+        // make an inline anchor and show a lightweight progress bar
+        const anchor = splitConsoleForInlineImage();
+        let progressChunk = null;
+        if (anchor) {
+          window.__pc_inputSeq = (window.__pc_inputSeq || 0) + 1;
+          anchor.dataset.seq = String(window.__pc_inputSeq);
+          progressChunk = makePlotProgressChunk('Generating chart…');
+          progressChunk.dataset.seq = anchor.dataset.seq;
+          anchor.replaceWith(progressChunk);
+
+          // 🐶 watchdog: if no image arrives, remove the spinner after 3s
+          progressChunk.__pc_watchdog = setTimeout(() => {
+            try {
+              const box = progressChunk.querySelector('.pc-plot-progress');
+              if (box && box.isConnected) box.remove();
+            } catch {}
+          }, 3000);
+        }
+
+        // mark replay window for THIS input (so only the delta is replayed)
+        const seq = progressChunk?.dataset?.seq || String(window.__pc_inputSeq || 0);
+        window.__pc_replayCheckpoints = window.__pc_replayCheckpoints || {};
+        window.__pc_replayCheckpoints[seq] = { from: beforeLen, to: afterLen };
+
+        // schedule a live render (debounced)
+        try { if (window.__pc_livePlotTimer) clearTimeout(window.__pc_livePlotTimer); } catch {}
+        window.__pc_livePlotTimer = setTimeout(() => {
+          try {
+            const mark = window.__pc_replayCheckpoints?.[seq];
+            let replay = (window.__stdinHistory || []).slice();
+            if (mark) replay = replay.slice(mark.from, mark.to);      // only the new line(s)
+            else      replay = [ (window.__stdinHistory || []).slice(-1)[0] ].filter(Boolean);
+
+            window.__pc_livePlotPending = { code: codeNow, replay, anchor: (progressChunk || null) };
+            __pc_kickLivePlot(); // will also clear spinner if a figure is produced
+          } catch (e) {
+            console.debug('[Polycode] live plot schedule failed:', e);
+          }
+        }, 120);
+      }
+    }
+  } catch (_) {
+    // ignore parse errors; just send raw
+  }
+
+  // always forward on the real socket
+  this._real.send(data);
+}
+
+
+
+
+
+
+  close(code, reason) { this._real.close(code, reason); }
+
+  get onopen()      { return this._onopen; }    set onopen(fn)   { this._onopen = fn; }
+  get onmessage()   { return this._onmessage; } set onmessage(fn){ this._onmessage = fn; }
+  get onerror()     { return this._onerror; }   set onerror(fn)  { this._onerror = fn; }
+  get onclose()     { return this._onclose; }   set onclose(fn)  { this._onclose = fn; }
+
+  addEventListener(...a){ return this._real.addEventListener(...a); }
+  removeEventListener(...a){ return this._real.removeEventListener(...a); }
+  dispatchEvent(...a){ return this._real.dispatchEvent(...a); }
+}
+
+
+
+
+  // Only patch once
+  if (!_WS.__pcWrapped) {
+    PC._NativeWebSocket = _WS;
+    PC.WebSocket = PCWebSocket;
+    PC.cancel = PC.cancelCurrentSession;
+
+    // Replace global WebSocket with our wrapper
+    PCWebSocket.prototype = _WS.prototype;
+    window.WebSocket = PCWebSocket;
+    window.WebSocket.__pcWrapped = true;
+  }
 })();
 
 
@@ -4800,95 +4880,3 @@ function hideCompileFailNotice() {
     out.__pc_resetObserver = obs;
   }
 })();
-
-
-
-
-
-
-
-
-// --- FINISH: left/right panel toggles + small hardening --------------------
-(function finalizeTogglesAndGuards(){
-  // Complete the truncated left-panel toggle and add a right one for parity.
-  function relayoutMonaco() {
-    if (window.editor?.layout) {
-      const el = document.getElementById('editor');
-      requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
-    }
-  }
-
-  window.toggleLeftPanel = function toggleLeftPanel(btn){
-    const app = document.querySelector('.app');
-    if (!app) return;
-
-    const ON = !app.classList.contains('collapsed-left');
-    // If currently on, collapse; else expand (and ensure not hidden).
-    app.classList.toggle('collapsed-left', ON);
-    app.classList.remove('hide-left');        // safety on mobile
-
-    // Sync all left expander buttons if provided
-    if (btn) {
-      document.querySelectorAll('.btn.expander.left').forEach(b => {
-        const active = !ON && b === btn;
-        b.setAttribute('aria-pressed', active ? 'true' : 'false');
-        b.classList.toggle('is-on', active);
-      });
-    }
-
-    relayoutMonaco();
-  };
-
-  window.toggleRightPanel = function toggleRightPanel(btn){
-    const app = document.querySelector('.app');
-    if (!app) return;
-
-    const ON = !app.classList.contains('collapsed-right');
-    app.classList.toggle('collapsed-right', ON);
-    app.classList.remove('hide-right');
-
-    if (btn) {
-      document.querySelectorAll('.btn.expander.right').forEach(b => {
-        const active = !ON && b === btn;
-        b.setAttribute('aria-pressed', active ? 'true' : 'false');
-        b.classList.toggle('is-on', active);
-      });
-    }
-
-    relayoutMonaco();
-  };
-
-  // Navigation API fallback: ask on close/reload when Navigation API is missing.
-  if (!('navigation' in window)) {
-    // Use a flag so calling code can disable when appropriate
-    let allowLeave = false;
-    window.PolyShell = window.PolyShell || {};
-    window.PolyShell.allowPageLeave = (v) => { allowLeave = !!v; };
-
-    window.addEventListener('beforeunload', (e) => {
-      // Mirror your "shouldAsk" semantics; make it easy to extend later.
-      const shouldAsk = !allowLeave; // plug in your own state checks if needed
-      if (!shouldAsk) return;
-      e.preventDefault();
-      e.returnValue = ''; // required to trigger prompt
-    }, { capture:true });
-  }
-
-  // Strengthen the F5 handler just a bit
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'F5') {
-      const ok = confirm('Are you sure you want to reload the page?');
-      if (!ok) { e.preventDefault(); e.stopImmediatePropagation(); }
-    }
-  }, { capture:true });
-
-  // Cleanly disconnect the stderr observer on unload to avoid leaks
-  window.addEventListener('beforeunload', () => {
-    try { window.__pc_stderrMO && window.__pc_stderrMO.disconnect(); } catch {}
-  });
-
-  // If you want, expose a tiny helper for pages that need a relayout on demand
-  window.PolyShell = window.PolyShell || {};
-  window.PolyShell.relayoutMonacoNow = relayoutMonaco;
-})();
-
