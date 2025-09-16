@@ -1,7 +1,7 @@
 // frontend/js/core/editor.js
 
 let monacoRef = null, editor = null, model = null;
-
+let ctxQuickFixBound = false;
 export async function initMonaco(sample='// Hello', lang='plaintext'){
   if (editor) return editor;
 
@@ -33,6 +33,17 @@ export async function initMonaco(sample='// Hello', lang='plaintext'){
         fontSize:14,
         minimap:{ enabled:false }
       });
+
+       if (!ctxQuickFixBound) {
+        ctxQuickFixBound = true;
+        editor.addAction({
+          id: 'polycode.quickFix.context',
+          label: 'Quick Fix…',
+          contextMenuGroupId: 'navigation',
+          contextMenuOrder: 0.1,
+          run: () => editor.getAction('polycode.quickFix')?.run()
+        });
+      }
 
       resolve(editor);
     });
@@ -93,3 +104,6 @@ export function addEditorAction(action){
   // action: { id, label, keybindings?, contextMenuGroupId?, run: (editor)=>any }
   editor?.addAction(action);
 }
+
+
+
