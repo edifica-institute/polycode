@@ -748,13 +748,30 @@ const annotations = issues.map(i => ({
   message: i.message || i.title || 'Issue'
 }));
 
+
+
+   const hints = issues.map(/* ...as you have... */);
+const annotations = issues.map(/* ...as you have... */);
+
+// NEW summary block here
+const counts = issues.reduce((a, i) => {
+  if (/warning/i.test(i.severity)) a.w++;
+  else if (/error/i.test(i.severity)) a.e++;
+  else if (/note/i.test(i.severity)) a.n++;
+  return a;
+}, { e: 0, w: 0, n: 0 });
+
+const summary = (counts.e || counts.w || counts.n)
+  ? `${counts.e} error(s), ${counts.w} warning(s)` + (counts.n ? `, ${counts.n} note(s)` : '')
+  : 'No issues';
+
 return {
   hints,
   annotations,
-  summary: issues.length ? `${issues.length} issue(s) detected` : 'No issues',
-  // keep `issues` too for the quick-fix pipeline used elsewhere
+  summary,
   issues
 };
+
 
 }
 
