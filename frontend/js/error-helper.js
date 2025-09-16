@@ -312,176 +312,6 @@ function langKey(lang) {
 
 /* ---------------------------- CORE ------------------------------ */
 
-// ===== PolyCode Error Runtime & SQL Rules — Add Once =====
-
-// Normalize language keys used by rules
-function __pc_langKey(lang) {
-  const L = (lang || '').toLowerCase();
-  if (/^(c\+\+|cpp|g\+\+)$/.test(L)) return 'cpp';
-  if (/^c$/.test(L)) return 'c';
-  if (/^java$/.test(L)) return 'java';
-  if (/^python$/.test(L)) return 'python';
-  if (/^sql$/.test(L)) return 'sql';
-  if (/^(html|css|js|javascript|web)$/.test(L)) return 'web';
-  return L || 'generic';
-}
-
-// Extract the most relevant (user) line from Java stack traces
-function __pc_javaTopUserFrameLine(text) {
-  // prefer frames with "(.java:NN)" and NOT from java./sun./jdk.internal
-  const frames = (text || '').match(/^(\s*at\s+.+\(.+?\:\d+\))/gm) || [];
-  for (const f of frames) {
-    if (/at\s+(java\.|sun\.|jdk\.internal\.|org\.junit\.|org\.testng\.)/i.test(f)) continue;
-    const m = /\(([^:]+)\:(\d+)\)/.exec(f);
-    if (m) return +m[2];
-  }
-  // fallback: first frame with file:line
-  const m2 = /\(([^:]+)\:(\d+)\)/.exec(frames[0] || '');
-  return m2 ? +m2[2] : null;
-}
-
-// Extract the error line from Python traceback
-function __pc_pythonTraceLine(text) {
-  // Look for the last 'File "X.py", line N' block
-  const matches = [...(text || '').matchAll(/File "([^"]+)", line (\d+)/g)];
-  if (!matches.length) return null;
-  const last = matches[matches.length - 1];
-  return +last[2] || null;
-}
-
-// A tiny helper to make concise hint objects
-function __pc_hint({ title, detail, fix, severity = 'error', line = null, col = null }) {
-  return { title, detail, fix, severity, line, col };
-}
-
-// Common fixes (short, student-friendly)
-const __pc_fix = {
-  ptrBounds: 'Check pointers/indices; avoid out-of-range access. Add bounds checks.',
-  divZero: 'Guard your division; ensure denominator is not zero.',
-  parseNum: 'Validate input before parsing; use try/catch and show a friendly message.',
-  indexRange: 'Check list/array length and index. Use len()/size() and guard clauses.',
-  keyMissing: 'Check if key/column exists before access. Use get()/in checks.',
-  attrMissing: 'Object may be null/undefined or lacks that attribute. Add guards.',
-  fileTable: 'Verify table/column names and create them if missing. Check schema.',
-  sqlSyntax: 'Fix SQL near the reported token. Check missing commas, quotes, or keywords.',
-  timeout: 'Your code likely hung or is too slow. Add limits, break conditions, or optimize.',
-  oom: 'Reduce memory usage (smaller data, chunking) or free resources promptly.',
-};
-
-// ---- RULES catalog (extendable) ----
-const __pc_RULES = {
-  c: [
-    { rx: /(Segmentation fault|SIGSEGV)/i, mk: (m, t) => __pc_hint({ title: 'Segmentation fault', detail: 'Dereferenced an invalid/null pointer or accessed out-of-bounds memory.', fix: __pc_fix.ptrBounds }) },
-    { rx: /(Floating point exception|SIGFPE)/i, mk: () => __pc_hint({ title: 'Floating point exception', detail: 'Invalid floating-point operation (often division by zero).', fix: __pc_fix.divZero }) },
-    { rx: /(Aborted|SIGABRT)/i, mk: () => __pc_hint({ title: 'Program aborted', detail: 'Process aborted (assert failed or memory/runtime error).', fix: 'Inspect recent changes; add checks around risky operations.' }) },
-    { rx: /(Bus error|SIGBUS)/i, mk: () => __pc_hint({ title: 'Bus error', detail: 'Unaligned memory access or invalid mapped memory.', fix: __pc_fix.ptrBounds }) },
-    { rx: /(Killed).*(out of memory|oom)/i, mk: () => __pc_hint({ title: 'Out of memory', detail: 'The process was killed due to memory limits.', fix: __pc_fix.oom }) },
-    { rx: /time( |-)out|time limit exceeded/i, mk: () => __pc_hint({ title: 'Execution timed out', detail: 'Your program exceeded the time limit (likely an infinite loop).', fix: __pc_fix.timeout }) },
-  ],
-  cpp: [
-    // Same set for C++
-    { rx: /(Segmentation fault|SIGSEGV)/i, mk: () => __pc_hint({ title: 'Segmentation fault', detail: 'Dereferenced invalid/null pointer or accessed out-of-bounds memory.', fix: __pc_fix.ptrBounds }) },
-    { rx: /(Floating point exception|SIGFPE)/i, mk: () => __pc_hint({ title: 'Floating point exception', detail: 'Invalid floating-point operation (division by zero?).', fix: __pc_fix.divZero }) },
-    { rx: /(Aborted|SIGABRT)/i, mk: () => __pc_hint({ title: 'Program aborted', detail: 'Process aborted (assert failed or memory/runtime error).', fix: 'Add checks; validate assumptions; use try/catch where applicable.' }) },
-    { rx: /(Bus error|SIGBUS)/i, mk: () => __pc_hint({ title: 'Bus error', detail: 'Unaligned memory access or invalid mapped memory.', fix: __pc_fix.ptrBounds }) },
-    { rx: /(Killed).*(out of memory|oom)/i, mk: () => __pc_hint({ title: 'Out of memory', detail: 'The process was killed due to memory limits.', fix: __pc_fix.oom }) },
-    { rx: /time( |-)out|time limit exceeded/i, mk: () => __pc_hint({ title: 'Execution timed out', detail: 'Your program exceeded the time limit (likely an infinite loop).', fix: __pc_fix.timeout }) },
-  ],
-  java: [
-    // Match "Exception in thread ..."
-    { rx: /Exception in thread ".*" (?:java\.lang\.)?([A-Za-z]+Exception)(?::\s*(.*))?/,
-      mk: (m, t) => {
-        const ex = m[1]; const msg = m[2] || '';
-        const line = __pc_javaTopUserFrameLine(t);
-        const fixes = {
-          NullPointerException: 'Ensure the object is created (new ...) before use; add null checks.',
-          ArrayIndexOutOfBoundsException: __pc_fix.indexRange,
-          StringIndexOutOfBoundsException: __pc_fix.indexRange,
-          NumberFormatException: __pc_fix.parseNum,
-          ArithmeticException: __pc_fix.divZero,
-          InputMismatchException: 'Scanner/parse failed: input type doesn’t match. Prompt and validate.',
-          ClassCastException: 'Check actual runtime type before casting (instanceof).',
-          IllegalArgumentException: 'Validate arguments; avoid passing null/invalid values.',
-        };
-        const fix = fixes[ex] || 'Read the exception message and validate inputs/objects before use.';
-        return __pc_hint({ title: ex, detail: msg || 'A runtime exception occurred.', fix, line });
-      }
-    },
-    // Timeout / OOM surfaced by runner
-    { rx: /time( |-)out|time limit exceeded/i, mk: () => __pc_hint({ title: 'Execution timed out', detail: 'Likely infinite loop or very slow algorithm.', fix: __pc_fix.timeout }) },
-    { rx: /(OutOfMemoryError)/, mk: () => __pc_hint({ title: 'Out of memory', detail: 'Your program used too much memory.', fix: __pc_fix.oom }) },
-  ],
-  python: [
-    // Final line like "ZeroDivisionError: division by zero"
-    { rx: /ZeroDivisionError\:\s*(.*)/, mk: (m,t) => __pc_hint({ title: 'ZeroDivisionError', detail: m[1] || 'Division by zero.', fix: __pc_fix.divZero, line: __pc_pythonTraceLine(t) }) },
-    { rx: /IndexError\:\s*(.*)/, mk: (m,t) => __pc_hint({ title: 'IndexError', detail: m[1] || 'Index out of range.', fix: __pc_fix.indexRange, line: __pc_pythonTraceLine(t) }) },
-    { rx: /KeyError\:\s*(.*)/, mk: (m,t) => __pc_hint({ title: 'KeyError', detail: m[1] || 'Missing key.', fix: __pc_fix.keyMissing, line: __pc_pythonTraceLine(t) }) },
-    { rx: /AttributeError\:\s*(.*)/, mk: (m,t) => __pc_hint({ title: 'AttributeError', detail: m[1] || 'Missing attribute / None object.', fix: __pc_fix.attrMissing, line: __pc_pythonTraceLine(t) }) },
-    { rx: /ValueError\:\s*(.*)/, mk: (m,t) => __pc_hint({ title: 'ValueError', detail: m[1] || 'Bad value / parse failure.', fix: __pc_fix.parseNum, line: __pc_pythonTraceLine(t) }) },
-    { rx: /RecursionError\:\s*(.*)/, mk: (m,t) => __pc_hint({ title: 'RecursionError', detail: m[1] || 'Maximum recursion depth exceeded.', fix: 'Add a base case or switch to iterative approach.', line: __pc_pythonTraceLine(t) }) },
-    // Timeouts/OOM
-    { rx: /time( |-)out|time limit exceeded/i, mk: () => __pc_hint({ title: 'Execution timed out', detail: 'Likely infinite loop or very slow algorithm.', fix: __pc_fix.timeout }) },
-    { rx: /(Killed).*(out of memory|oom)/i, mk: () => __pc_hint({ title: 'Out of memory', detail: 'The process was killed due to memory limits.', fix: __pc_fix.oom }) },
-  ],
-  sql: [
-    // Postgres
-    { rx: /syntax error at or near "([^"]+)"/i, mk: (m) => __pc_hint({ title: 'SQL syntax error', detail: `Problem near "${m[1]}".`, fix: __pc_fix.sqlSyntax }) },
-    { rx: /relation "([^"]+)" does not exist/i, mk: (m) => __pc_hint({ title: 'Missing table/relation', detail: `Relation "${m[1]}" not found.`, fix: __pc_fix.fileTable }) },
-    { rx: /column "([^"]+)" does not exist/i, mk: (m) => __pc_hint({ title: 'Missing column', detail: `Column "${m[1]}" not found.`, fix: __pc_fix.fileTable }) },
-    { rx: /duplicate key value violates unique constraint "([^"]+)"/i, mk: (m) => __pc_hint({ title: 'Duplicate key', detail: `Violates constraint "${m[1]}".`, fix: 'Change value or use ON CONFLICT/UPDATE as needed.' }) },
-    { rx: /permission denied for (?:table|relation) "?([^"]+)"?/i, mk: (m) => __pc_hint({ title: 'Permission denied', detail: `No access to "${m[1]}".`, fix: 'Ask admin for GRANTs or use an allowed schema/table.' }) },
-    // MySQL
-    { rx: /You have an error in your SQL syntax;.*near '(.+?)' at line (\d+)/i, mk: (m) => __pc_hint({ title: 'SQL syntax error', detail: `Problem near '${m[1]}' (line ${m[2]}).`, fix: __pc_fix.sqlSyntax }) },
-    { rx: /Unknown column '([^']+)' in '([^']+)'/i, mk: (m) => __pc_hint({ title: 'Unknown column', detail: `Column '${m[1]}' not found in ${m[2]}.`, fix: __pc_fix.fileTable }) },
-    { rx: /Table '([^']+)\.([^']+)' doesn't exist/i, mk: (m) => __pc_hint({ title: 'Missing table', detail: `Table '${m[1]}.${m[2]}' not found.`, fix: __pc_fix.fileTable }) },
-    { rx: /Duplicate entry '([^']+)' for key '([^']+)'/i, mk: (m) => __pc_hint({ title: 'Duplicate entry', detail: `Value '${m[1]}' violates key '${m[2]}'.`, fix: 'Use a unique value or UPSERT logic.' }) },
-    { rx: /Access denied for user/i, mk: () => __pc_hint({ title: 'Access denied', detail: 'Database credentials or privileges are insufficient.', fix: 'Check username/password and GRANT permissions.' }) },
-  ],
-  generic: [
-    { rx: /time( |-)out|time limit exceeded/i, mk: () => __pc_hint({ title: 'Execution timed out', detail: 'Program exceeded allowed time.', fix: __pc_fix.timeout }) },
-    { rx: /(Killed).*(out of memory|oom)/i, mk: () => __pc_hint({ title: 'Out of memory', detail: 'Process was killed by OOM.', fix: __pc_fix.oom }) },
-  ],
-};
-
-// Apply RULES for the given language/text and return an array of hints
-function __pc_applyRules({ lang, text }) {
-  const key = __pc_langKey(lang);
-  const lines = (text || '').split(/\r?\n/);
-  const rules = [...(__pc_RULES[key] || []), ...(__pc_RULES.generic || [])];
-  const out = [];
-  for (const rule of rules) {
-    // Try whole text
-    let m = rule.rx.exec(text);
-    if (m) { out.push(rule.mk(m, text)); continue; }
-    // Or per line (helps for terse runner messages)
-    for (const ln of lines) {
-      const mm = rule.rx.exec(ln);
-      if (mm) { out.push(rule.mk(mm, text)); break; }
-    }
-  }
-  // Deduplicate by (title + detail)
-  const seen = new Set();
-  return out.filter(h => {
-    const k = `${h.title}|${h.detail}`;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Parse and interpret compiler output.
  * @param {Object} params
@@ -504,15 +334,11 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
   const annotations = [];
 
   // ---------- small utilities ----------
-
- const push = (title, detail, line=null, fix=null, severity='error', column=null, confidence='medium') => {
-   hints.push({ title, detail, fix, line, column, severity, confidence });
-   const msg = `${title}${detail ? ': ' + detail : ''}`;
-  annotations.push({ line, column, message: msg, severity });
- };
-
-
-   
+  const push = (title, detail, line=null, fix=null, kind='error', column=null, confidence='medium') => {
+    hints.push({ title, detail, fix, line, column, kind, confidence });
+    const msg = `${title}${detail ? ': ' + detail : ''}`;
+    annotations.push({ line, column, message: msg, kind });
+  };
   const firstLine = (s) => (String(s||'').split('\n').find(Boolean) || '').trim();
   const asInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const L = (s) => String(s||'').toLowerCase();
@@ -871,30 +697,6 @@ case 'sql': {
 
   }
 
-
-     // ---------- apply runtime/SQL generic rules ----------
-  // Map rule severity -> your 'kind', and dedupe against existing hints
-  const seen = new Set(hints.map(h => `${h.title}|${h.detail}`));
-  //const extra = __pc_applyRules({ lang, text });
-    const extra = (lang?.toLowerCase() === 'sql' && hints.length)
-   ? [] // skip rules since the SQL branch already emitted hints
-   : __pc_applyRules({ lang, text });
-
-  for (const h of extra) {
-    const key = `${h.title}|${h.detail}`;
-    if (seen.has(key)) continue; // avoid duplicates if your switch already pushed one
-    seen.add(key);
-
-    const kind = (h.severity === 'warning') ? 'warning' : 'error';
-    const conf = (h.severity === 'warning') ? 'medium' : 'high';
-
-    // push(title, detail, line=null, fix=null, kind='error', column=null, confidence='medium')
-    push(h.title, h.detail, h.line ?? null, h.fix ?? null, kind, h.col ?? null, conf);
-  }
-
-
-
-   
   // ---------- generic fallback ----------
   if (!hints.length) {
     if (/error/i.test(text) || /exception/i.test(text) || /traceback/i.test(text)) {
