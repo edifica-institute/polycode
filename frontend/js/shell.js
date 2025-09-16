@@ -1349,11 +1349,25 @@ if (stderrEl && stderrEl.textContent !== stderr) {
     hints = []; summary = ''; annotations = []; isRuntime = false;
   }
 
+  // Detect a compile failure when it's NOT runtime
+const isCompileFail =
+  !isRuntime && (
+    // parser found error-severity issues
+    (hints.length > 0 && hints.some(h => (h.severity || 'error') === 'error')) ||
+    // or the raw stderr contains a typical compiler “error:” line
+    /(^|\n).*error:/i.test(stderr)
+  );
+
+
+  
   // Show a red heading for runtime; hide banner otherwise
   hideCompileFailNotice();
-  if (isRuntime) {
-    showCompileFailNotice('exec');
-  }
+if (isRuntime) {
+  showCompileFailNotice('exec');      // Runtime Error / Exception
+} else if (isCompileFail) {
+  showCompileFailNotice('compile');   // Compilation Failed
+}
+
 
 
   
