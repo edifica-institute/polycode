@@ -1306,7 +1306,7 @@ if (stderrEl && stderrEl.textContent !== stderr) {
   }
 
   // Parse safely; default to empty arrays/strings
-  let hints = [], summary = '', annotations = [];
+  /*let hints = [], summary = '', annotations = [];
   try {
     const res = parseCompilerOutput({ 
       lang: (() => {
@@ -1330,10 +1330,36 @@ if (stderrEl && stderrEl.textContent !== stderr) {
   } catch (e) {
     console.debug('[Polycode] parse failed:', e);
     hints = []; summary = ''; annotations = [];
+  }*/
+
+
+
+    let hints = [], summary = '', annotations = [], isRuntime = false;
+  try {
+    const res = parseCompilerOutput({ 
+      lang: (() => { /* unchanged */ })(),
+      stderr, stdout, code 
+    }) || {};
+    hints       = Array.isArray(res.hints) ? res.hints : [];
+    summary     = typeof res.summary === 'string' ? res.summary : '';
+    annotations = Array.isArray(res.annotations) ? res.annotations : [];
+    isRuntime   = !!res.runtime;                // <<< NEW
+  } catch (e) {
+    console.debug('[Polycode] parse failed:', e);
+    hints = []; summary = ''; annotations = []; isRuntime = false;
   }
 
+  // Show a red heading for runtime; hide banner otherwise
+  hideCompileFailNotice();
+  if (isRuntime) {
+    showCompileFailNotice('exec');
+  }
+
+
+  
+
   // Render Polycode Analysis (or say we couldn't interpret)
-  if (explainEl) {
+  /*if (explainEl) {
     if (hints.length) {
       explainEl.innerHTML = `
         <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
@@ -1354,8 +1380,49 @@ if (stderrEl && stderrEl.textContent !== stderr) {
       `;
     }
 
+  }*/
+
+
+  // Render Polycode Analysis (no duplicate runtime text)
+  if (explainEl) {
+    if (isRuntime) {
+      // For runtime: we already show the red banner + the raw stderr once above.
+      // Here we only show a concise header/summary, and DO NOT repeat the same message.
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
+        <div class="eh-wrap">
+          <div class="eh-head">
+            <strong>Runtime Error / Exception</strong>
+            <span class="eh-summary">${(summary || 'Program crashed at runtime. See the error above.').replace(/\n/g,'<br>')}</span>
+          </div>
+        </div>
+      `;
+    } else if (hints.length) {
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
+        <div class="eh-wrap">
+          <div class="eh-head">
+            <strong>Error Explanation</strong>
+            <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
+          </div>
+          ${hints.map(h => renderHintHTML(h)).join('')}
+        </div>
+      `;
+    } else {
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
+        <div class="eh-wrap">
+          <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
+        </div>
+      `;
+    }
   }
 
+
+
+
+
+  
   // Monaco markers – tolerate missing editor
   try {
     if (window.monaco && window.editor) {
