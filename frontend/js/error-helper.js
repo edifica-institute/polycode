@@ -451,30 +451,23 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
 
 
 
-  if (rt) {
-  // Keep the single, clean runtime issue
+ if (rt) {
   push(rt.title, rt.detail + (rt.fix ? `  Fix: ${rt.fix}` : ''), 'error', null, null, []);
-  // Tag it so the shell can color the header red and show it once
-  issues[issues.length - 1].ruleId = 'runtime';
-
   const hints = issues.map(i => ({
-    lang: langL,
-    severity: 'error',
-    title: i.title || 'Issue',
-    detail: i.message || '',
-    fix: i.quickFixes?.[0]?.label || '',
-    line: i.line ?? null,
-    column: i.col ?? null,
-    ruleId: i.ruleId ?? null,
-    raw: firstLine(normErr),
-    confidence: 0.85
+    lang: langL, severity:'error', title:i.title, detail:i.message,
+    fix: i.quickFixes?.[0]?.label || '', line: i.line ?? null, column: i.col ?? null,
+    ruleId: null, raw: firstLine(normErr), confidence: 0.85
   }));
-  // No code annotations for runtime crashes
-  const annotations = [];
-
-  // Tell the shell clearly this is a runtime crash
-  return { hints, annotations, summary: 'Runtime error/exception', issues };
+  const annotations = issues.map(i => ({ line: i.line ?? 1, col: i.col ?? 1, message: i.message || i.title || 'Issue', severity:'error' }));
+  return {
+    runtime: true,                    // <<< IMPORTANT
+    hints,
+    annotations,
+    summary: '1 error(s), 0 warning(s)',
+    issues
+  };
 }
+
 
 
 
