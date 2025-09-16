@@ -894,3 +894,15 @@ function escapeHtml(s) {
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#39;");
 }
+
+
+// At the very end of error-helper.js
+try {
+  if (typeof window !== 'undefined') {
+    window.PolyErrorHelper = window.PolyErrorHelper || {
+      parseCompilerOutput,
+      applyQuickFix,
+      renderHintHTML,
+    };
+  }
+} catch {}
