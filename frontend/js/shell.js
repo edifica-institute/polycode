@@ -1449,6 +1449,12 @@ if (window.PC) window.PC.__suppressRunErrorUntil = 0;
     runBtn.classList.add('is-running');
     clearEditorErrors(); spin(true); setStatus('Running…'); freezeUI();
 
+
+    bumpRunActivity();
+startRunWatchdog({ softWarnMs: 12000, hardKillMs: 45000 }); // tune thresholds as desired
+
+
+    
     t0 = performance.now();
     
     
@@ -1574,10 +1580,12 @@ await applyDiagnosticsNow({
 // Even on error, show friendly explanations under stderr
 
 
-  } finally {
-    spin(false);
-    runBtn.classList.remove('is-running');
-  }
+ } finally {
+  clearRunWatchdog();
+  spin(false);
+  runBtn.classList.remove('is-running');
+}
+
 });
 
 
@@ -1668,6 +1676,7 @@ await applyDiagnosticsNow({
       document.getElementById('stdoutText')?.textContent || '',
       document.getElementById('stderrText')?.textContent || ''
     );
+    bumpRunActivity();
     refreshStderrExplanation().catch(()=>{});
   });
   mo.observe(host, { childList: true, characterData: true, subtree: true });
@@ -1706,6 +1715,9 @@ await applyDiagnosticsNow({
   
 rstBtn?.addEventListener('click', () => {
   try { PC?.cancelCurrentSession?.('user'); } catch {}   // <-- add this line
+  try { clearRunWatchdog(); } catch {}
+try { document.getElementById('pc-loop-banner')?..remove(); } catch {}
+
 
   try { window.killRunner?.(); } catch {}
  try { window.clearRunUI?.(); } catch {}
@@ -1883,6 +1895,67 @@ function fmtDuration(ms){
   const s = ms / 1000;        // always convert to seconds
   return `${s.toFixed(2)} second(s)`; 
 }
+
+// --- Run watchdog: soft-warn on silence, optional hard kill ---
+let __pc_watchdog = null, __pc_watchWarned = false;
+window.__pc_lastActivity = performance.now();
+
+function bumpRunActivity(){ window.__pc_lastActivity = performance.now(); }
+
+function startRunWatchdog({ softWarnMs = 12000, hardKillMs = 45000 } = {}) {
+  clearRunWatchdog();
+  __pc_watchWarned = false;
+  __pc_watchdog = setInterval(() => {
+    const delta = performance.now() - (window.__pc_lastActivity || 0);
+
+    if (!__pc_watchWarned && delta > softWarnMs) {
+      __pc_watchWarned = true;
+      try {
+        window.PolyShell?.setRunnerPhase?.('running', { detail: `No output for ${(delta/1000).toFixed(1)}s — possible infinite loop` });
+      } catch {}
+      try { showLoopBanner(); } catch {}
+    }
+    if (hardKillMs > 0 && delta > hardKillMs) {
+      try { window.PC?.cancelCurrentSession?.('watchdog'); } catch {}
+      clearRunWatchdog();
+    }
+  }, 1000);
+}
+
+function clearRunWatchdog(){
+  if (__pc_watchdog) { clearInterval(__pc_watchdog); __pc_watchdog = null; }
+}
+
+// Minimal, non-intrusive banner (closeable)
+function showLoopBanner() {
+  if (document.getElementById('pc-loop-banner')) return;
+  const div = document.createElement('div');
+  div.id = 'pc-loop-banner';
+  div.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:9999;padding:10px 12px;border-radius:10px;border:1px solid #e5e7eb;background:#fff;color:#222;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;box-shadow:0 6px 18px rgba(0,0,0,.15)';
+  div.innerHTML = `
+    <div style="margin-bottom:6px"><strong>Program is taking long</strong><br/>It may be stuck in an infinite loop.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button id="pc-loop-stop" class="btn" style="padding:6px 10px;cursor:pointer">Stop (F10)</button>
+      <button id="pc-loop-close" class="btn" style="padding:6px 10px;cursor:pointer">Dismiss</button>
+    </div>`;
+  document.body.appendChild(div);
+  div.querySelector('#pc-loop-stop')?.addEventListener('click', () => { try { window.PC?.cancelCurrentSession?.('user'); } catch {} });
+  div.querySelector('#pc-loop-close')?.addEventListener('click', () => div.remove());
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // 🔧 Ensure footer animations + Run glow start on first paint
@@ -4159,24 +4232,27 @@ class PCWebSocket {
     };
 
     const showWaiting = () => {
-      if (!this._isRunner || waitingShown) return;
-      waitingShown = true;
-      try { window.showInputRow?.(true, { preserveOutput: true, keepPartialLastLine: true }); } catch {}
-      try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
-    };
+  if (!this._isRunner || waitingShown) return;
+  waitingShown = true;
+  bumpRunActivity();
+  try { window.showInputRow?.(true, { preserveOutput: true, keepPartialLastLine: true }); } catch {}
+  try { window.PolyShell?.setRunnerPhase?.('waiting_input'); } catch {}
+};
 
-    const sawStdout = () => {
-      waitingShown = false;
-      cancelProbe();
-      // Only start quiet->waiting probe after we’ve seen at least one newline
-      promptDebounce = setTimeout(() => {
-        if (!this.__pc_lastSentWasInput &&
-            this._real?.readyState === _WS.OPEN &&
-            seenAnyNewline) {
-          showWaiting();
-        }
-      }, 250);
-    };
+
+   const sawStdout = () => {
+  bumpRunActivity();
+  waitingShown = false;
+  cancelProbe();
+  promptDebounce = setTimeout(() => {
+    if (!this.__pc_lastSentWasInput &&
+        this._real?.readyState === _WS.OPEN &&
+        seenAnyNewline) {
+      showWaiting();
+    }
+  }, 250);
+};
+
 
     // ---- proxy props ----
     Object.defineProperty(this, 'readyState', { get: () => this._real.readyState });
