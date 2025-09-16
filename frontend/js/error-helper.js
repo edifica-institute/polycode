@@ -448,16 +448,40 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
    const rt = (langL === 'c' || langL === 'cpp' || langL === 'c++' || langL === 'java' || langL === 'python')
     ? detectRuntimeError(normErr, code)
     : null;
-  if (rt) {
-    push(rt.title, rt.detail + (rt.fix ? `  Fix: ${rt.fix}` : ''), 'error', null, null, []);
-    return { hints: issues.map(i => ({
-              lang: langL, severity:'error', title:i.title, detail:i.message,
-              fix: i.quickFixes?.[0]?.label || '', line: i.line ?? null, column: i.col ?? null,
-              ruleId: null, raw: firstLine(normErr), confidence: 0.85
-            })),
-             annotations: [], summary: '1 issue(s) detected', issues };
-  }
 
+
+
+   if (rt) {
+  push(rt.title, rt.detail + (rt.fix ? `  Fix: ${rt.fix}` : ''), 'error', null, null, []);
+
+  const hints = issues.map(i => ({
+    lang: (lang || '').toLowerCase(),
+    severity: 'error',
+    title: i.title || 'Issue',
+    detail: i.message || '',
+    fix: i.quickFixes?.[0]?.label || '',
+    line: i.line ?? null,
+    column: i.col ?? null,
+    ruleId: i.ruleId ?? null,
+    raw: (normErr || '').split(/\r?\n/)[0] || '',
+    confidence: 0.85
+  }));
+
+  const annotations = issues.map(i => ({
+    line: i.line ?? 1,
+    col: i.col ?? 1,
+    message: i.message || i.title || 'Issue',
+    severity: 'error'
+  }));
+
+  const counts = { e: 1, w: 0, n: 0 };
+  const summary = `${counts.e} error(s), ${counts.w} warning(s)` + (counts.n ? `, ${counts.n} note(s)` : '');
+
+  return { hints, annotations, summary, issues };
+}
+
+
+   
    
   const addRangeFromPattern = (text, re, lineGroup, colGroup) => {
     const m = re.exec(text);
@@ -729,50 +753,40 @@ if (synLine) {
   }
 
  // Adapter: map `issues` → `hints` + `annotations`
-const hints = issues.map(i => ({
-  lang: (lang || '').toLowerCase(),
-  severity: /warn/i.test(i.severity) ? 'warning' : 'error',
-  title: i.title || 'Issue',
-  detail: i.message || '',
-  fix: i.quickFixes?.[0]?.label || '',
-  line: i.line ?? null,
-  column: i.col ?? null,
-  ruleId: i.ruleId ?? null,
-  raw: (normErr  || '').split(/\r?\n/)[0] || '',
-  confidence: 0.75
-}));
+  // ---- Adapter: map `issues` → `hints` + `annotations`
+  const hints = issues.map(i => ({
+    lang: (lang || '').toLowerCase(),
+    severity: /warn/i.test(i.severity) ? 'warning' : /note/i.test(i.severity) ? 'note' : 'error',
+    title: i.title || 'Issue',
+    detail: i.message || '',
+    fix: i.quickFixes?.[0]?.label || '',
+    line: i.line ?? null,
+    column: i.col ?? null,
+    ruleId: i.ruleId ?? null,
+    raw: (normErr || '').split(/\r?\n/)[0] || '',
+    confidence: 0.75
+  }));
 
-const annotations = issues.map(i => ({
-  line: i.line ?? 1,
-  col: i.col ?? 1,
-  message: i.message || i.title || 'Issue'
-}));
+  const annotations = issues.map(i => ({
+    line: i.line ?? 1,
+    col: i.col ?? 1,
+    message: i.message || i.title || 'Issue',
+    severity: /warn/i.test(i.severity) ? 'warning' : /note/i.test(i.severity) ? 'info' : 'error'
+  }));
 
+  // ---- Summary: X errors, Y warnings, Z notes
+  const counts = issues.reduce((a, i) => {
+    if (/warning/i.test(i.severity)) a.w++;
+    else if (/note/i.test(i.severity)) a.n++;
+    else a.e++;
+    return a;
+  }, { e: 0, w: 0, n: 0 });
 
+  const summary = (counts.e || counts.w || counts.n)
+    ? `${counts.e} error(s), ${counts.w} warning(s)` + (counts.n ? `, ${counts.n} note(s)` : '')
+    : 'No issues';
 
-   const hints = issues.map(/* ...as you have... */);
-const annotations = issues.map(/* ...as you have... */);
-
-// NEW summary block here
-const counts = issues.reduce((a, i) => {
-  if (/warning/i.test(i.severity)) a.w++;
-  else if (/error/i.test(i.severity)) a.e++;
-  else if (/note/i.test(i.severity)) a.n++;
-  return a;
-}, { e: 0, w: 0, n: 0 });
-
-const summary = (counts.e || counts.w || counts.n)
-  ? `${counts.e} error(s), ${counts.w} warning(s)` + (counts.n ? `, ${counts.n} note(s)` : '')
-  : 'No issues';
-
-return {
-  hints,
-  annotations,
-  summary,
-  issues
-};
-
-
+  return { hints, annotations, summary, issues };
 }
 
 /* ---------------- Quick-Fix Applicators (examples) ----------------
