@@ -533,10 +533,34 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
     if (err.trim()) push('SQL error', firstLine(err));
   }
 
-  return {
-    issues,
-    summary: issues.length ? `${issues.length} issue(s) detected` : 'No issues'
-  };
+ // Adapter: map `issues` → `hints` + `annotations`
+const hints = issues.map(i => ({
+  lang: (lang || '').toLowerCase(),
+  severity: /warn/i.test(i.severity) ? 'warning' : 'error',
+  title: i.title || 'Issue',
+  detail: i.message || '',
+  fix: i.quickFixes?.[0]?.label || '',
+  line: i.line ?? null,
+  column: i.col ?? null,
+  ruleId: i.ruleId ?? null,
+  raw: (stderr || '').split(/\r?\n/)[0] || '',
+  confidence: 0.75
+}));
+
+const annotations = issues.map(i => ({
+  line: i.line ?? 1,
+  col: i.col ?? 1,
+  message: i.message || i.title || 'Issue'
+}));
+
+return {
+  hints,
+  annotations,
+  summary: issues.length ? `${issues.length} issue(s) detected` : 'No issues',
+  // keep `issues` too for the quick-fix pipeline used elsewhere
+  issues
+};
+
 }
 
 /* ---------------- Quick-Fix Applicators (examples) ----------------
