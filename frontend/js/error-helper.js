@@ -513,21 +513,32 @@ if (ind) {
      // Take the LAST Python frame before the caret + SyntaxError line
 // SyntaxError with caret — take the LAST frame
 // ---- SyntaxError with caret (take the LAST user frame) ----
+// ---- SyntaxError with caret — take the LAST user frame ----
 const synAll = [...(err || '').matchAll(
-  /File "([^"]+)", line (\d+)[\s\S]*?\n([^\n]*)\n\s*\^\s*\n(SyntaxError:[^\n]+)/g
+  // start at beginning of a line, then the file/line,
+  // then exactly one code line, then a caret line, then the SyntaxError line
+  /^ *File "([^"]+)", line (\d+)\r?\n([^\n]*)\r?\n *\^\r?\n(SyntaxError:[^\n]+)/gm
 )];
-const syn = synAll.length ? synAll[synAll.length - 1] : null;
+let syn = synAll.length ? synAll[synAll.length - 1] : null;
 
-// With caret
+// Fallback: pick the last non-internal frame (skip runpy/frozen/etc.), even without caret
+if (!syn) {
+  const frames = [...(err || '').matchAll(/^ *File "([^"]+)", line (\d+)/gm)];
+  const user = frames.filter(f => !/runpy|pc_runner|<frozen|site-packages/i.test(f[1]));
+  const last = (user.length ? user : frames)[(user.length ? user : frames).length - 1];
+  if (last) syn = [null, last[1], last[2], '', (err.match(/SyntaxError:[^\n]+/) || ['','SyntaxError'])[0]];
+}
+
 if (syn) {
   const [, file, line, codeLine, msg] = syn;
   const fixes = pythonQuickFixesFromMessage(msg).map(f => ({
     ...f,
-    meta: { ...(f.meta || {}), line: toNum(line) }
+    meta: { ...(f.meta || {}), line: Number(line) }
   }));
-  push('SyntaxError', msg, 'error', toNum(line), 1, fixes);
+  push('SyntaxError', msg, 'error', Number(line), 1, fixes);
   return;
 }
+
 
 // Fallback (no caret variant)
 const synLine = /File "([^"]+)", line (\d+)[\s\S]*?\n(SyntaxError:[^\n]+)/m.exec(err);
