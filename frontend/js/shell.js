@@ -1218,7 +1218,7 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   if (window.PolyErrorHelper) {
     ({ parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper);
   } else {
-    ({ parseCompilerOutput, renderHintHTML } = await import('./js/error-helper.js'));
+    ({ parseCompilerOutput, renderHintHTML } = await import('./error-helper.js'));
   }
 
   //const lang = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
@@ -4553,62 +4553,42 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
 
 // PATCH the existing left toggle to also reflect expand state on mobile
 // PATCH the existing left toggle so "open" != "expanded"
+// PATCH the existing left toggle so "open" != "expanded" (complete, safe)
 (function(){
   const app = document.querySelector('.app');
-  const btnToggleLeft = document.getElementById('btnToggleLeft');
-  if (!app || !btnToggleLeft) return;
+  const btn = document.getElementById('btnToggleLeft');
+  if (!app || !btn) return;
 
   const mqSmall = window.matchMedia('(max-width:1024px)');
 
-  function setBtnOn(el, on){
-    el.setAttribute('aria-pressed', on ? 'true' : 'false');
-    el.classList.toggle('is-on', on);
+  function syncButton() {
+    const visible = !app.classList.contains('collapsed-left') && !app.classList.contains('hide-left');
+    btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
+    btn.classList.toggle('is-on', visible);
   }
 
-  // Keep a reference to any original click handler
-  const original = btnToggleLeft._handler || btnToggleLeft.onclick;
+  btn.addEventListener('click', () => {
+    const willHide = !app.classList.contains('collapsed-left') && !app.classList.contains('hide-left');
+    app.classList.toggle('collapsed-left', willHide);
+    app.classList.toggle('hide-left', willHide);
 
-  const handler = (e) => {
-    // Run original behavior first (show/hide left)
-    if (typeof original === 'function') { try { original.call(btnToggleLeft, e); } catch {} }
-
-    // Recompute after toggle
-    const leftHidden = app.classList.contains('collapsed-left') || app.classList.contains('hide-left');
-    const leftNowVisible = !leftHidden;
-
-    // On small screens: DO NOT auto-expand when using the toggle.
-    // Ensure left is "visible but unexpanded" and the expander button is OFF.
+    // On small screens make sure “expanded” states are cleared
     if (mqSmall.matches) {
       app.classList.remove('expand-left','expand-center','expand-right');
-      const leftExpander = document.querySelector('#leftPanel .btn.expander');
-      if (leftExpander) setBtnOn(leftExpander, false);
+      document.querySelectorAll('.btn.expander').forEach(b => {
+        b.setAttribute('aria-pressed','false');
+        b.classList.remove('is-on');
+      });
     }
 
-    // The toggle button itself reflects visibility (on = visible)
-    setBtnOn(btnToggleLeft, leftNowVisible);
-
-    // Relayout editor when center size changes
-    if (window.editor?.layout) {
-      const el = document.getElementById('editor');
-      requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
-    }
-  };
-
-  btnToggleLeft._handler = handler;
-  btnToggleLeft.addEventListener('click', handler);
-
-  // Keep classes sane when crossing the breakpoint
-  mqSmall.addEventListener?.('change', () => {
-    // Always clear any expand-* classes when switching modes
-    app.classList.remove('expand-left','expand-center','expand-right');
-    // Also un-blue ALL expander buttons
-    document.querySelectorAll('.btn.expander').forEach(b => {
-  b.setAttribute('aria-pressed','false');
-  b.classList.remove('is-on');
-});
-
+    window.editor?.layout?.();
+    syncButton();
   });
+
+  // initial sync
+  syncButton();
 })();
+
 
 
 
