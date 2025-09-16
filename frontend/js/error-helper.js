@@ -451,11 +451,14 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
 
 
 
-   if (rt) {
+  if (rt) {
+  // Keep the single, clean runtime issue
   push(rt.title, rt.detail + (rt.fix ? `  Fix: ${rt.fix}` : ''), 'error', null, null, []);
+  // Tag it so the shell can color the header red and show it once
+  issues[issues.length - 1].ruleId = 'runtime';
 
   const hints = issues.map(i => ({
-    lang: (lang || '').toLowerCase(),
+    lang: langL,
     severity: 'error',
     title: i.title || 'Issue',
     detail: i.message || '',
@@ -463,22 +466,16 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
     line: i.line ?? null,
     column: i.col ?? null,
     ruleId: i.ruleId ?? null,
-    raw: (normErr || '').split(/\r?\n/)[0] || '',
+    raw: firstLine(normErr),
     confidence: 0.85
   }));
+  // No code annotations for runtime crashes
+  const annotations = [];
 
-  const annotations = issues.map(i => ({
-    line: i.line ?? 1,
-    col: i.col ?? 1,
-    message: i.message || i.title || 'Issue',
-    severity: 'error'
-  }));
-
-  const counts = { e: 1, w: 0, n: 0 };
-  const summary = `${counts.e} error(s), ${counts.w} warning(s)` + (counts.n ? `, ${counts.n} note(s)` : '');
-
-  return { hints, annotations, summary, issues };
+  // Tell the shell clearly this is a runtime crash
+  return { hints, annotations, summary: 'Runtime error/exception', issues };
 }
+
 
 
    
@@ -600,6 +597,75 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
          'error', null, null, fixes);
     return;
   }
+
+     // Also catch lld/clang-style "undefined symbol" messages
+if (/undefined (symbol|reference)/i.test(err)) {
+  const line = err.split('\n').find(l => /undefined (symbol|reference)/i.test(l)) || 'Undefined reference';
+  push('Linker error', line.trim(), 'error', null, null, []);
+  return;
+}
+
+
+
+
+
+
+
+
+
+
+     // --- Heuristics when no diagnostics were captured ---
+// Only run if we didn't parse any diagnostics and stderr is empty.
+if (!err.trim()) {
+  // (A) printf format mismatch: simple and safe check for %d with a known double
+  const doubles = [...(src || '').matchAll(/\bdouble\s+([A-Za-z_]\w*)\b/g)].map(m => m[1]);
+  for (const v of doubles) {
+    const re = new RegExp(String.raw`printf\s*\([^)]*%d[^)]*,\s*${v}\b`);
+    if (re.test(src)) {
+      push('Format string/argument mismatch',
+           `Using %d with a double variable (“${v}”). Use %f instead.`,
+           'error', null, null, []);
+      return;
+    }
+  }
+
+  // (B) Possible undefined function (often leads to link error)
+  //    Find calls like foo(...) that have no declaration/definition in this file.
+  //    Skip a few well-known std names to avoid noise.
+  const stdSkip = new Set(['printf','scanf','puts','gets','putchar','getchar','main']);
+  const calls = [...(src || '').matchAll(/\b([A-Za-z_]\w*)\s*\(/g)].map(m => m[1]);
+  for (const name of _u.uniq(calls)) {
+    if (stdSkip.has(name)) continue;
+    const hasProtoOrDef = new RegExp(String.raw`\b[A-Za-z_]\w*\s+${name}\s*\(`).test(src)
+                        || new RegExp(String.raw`^\s*#\s*include\s*<[^>]+>\s*$`, 'm').test(src);
+    if (!hasProtoOrDef) {
+      push('Possible undefined reference',
+           `Function “${name}” is called but not declared/defined in this file. This may fail during linking.`,
+           'error', null, null, []);
+      return;
+    }
+  }
+
+  // (C) Possible missing return path for non-void function (simple heuristic)
+  //     Look for 'int fname(...) { ... }' where body has an if(return ...) but
+  //     no final 'return' and no 'else'.
+  const funcMatches = [...(src || '').matchAll(/\bint\s+([A-Za-z_]\w*)\s*\([^)]*\)\s*\{([\s\S]*?)\}/g)];
+  for (const [, fname, body] of funcMatches) {
+    const hasReturn = /return\b/.test(body);
+    const hasIfReturn = /\bif\s*\([^)]*\)\s*return\b/.test(body);
+    const hasElse = /\belse\b/.test(body);
+    const hasFinalReturn = /return\b[\s\S]*$/.test(body.trim());
+    if (hasIfReturn && !hasElse && !hasFinalReturn) {
+      push('Missing return in non-void function',
+           `Function “${fname}” may exit without returning a value on some paths.`,
+           'warning', null, null, []);
+      return;
+    }
+  }
+}
+
+
+     
 
   // 7) Fallback (show first line)
   if (err.trim()) push('C/C++ error', err.split('\n')[0]);
