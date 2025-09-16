@@ -328,660 +328,402 @@ function langKey(lang) {
 // =======================
 // Drop-in: parseCompilerOutput
 // =======================
+export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' }) {
+  const text = String((stderr || stdout || '')).trim();
+  const hints = [];
+  const annotations = [];
 
-
-/* ============================================================
-   parseCompilerOutput v1.2  (Polycode drop-in)
-   - Multi-lang error parsing with suggested quick fixes
-   - Returns: { issues: Array<Issue>, summary: string }
-   - Issue: { title, message, severity, line, col, codeFrame?, quickFixes?: QuickFix[] }
-   ============================================================ */
-
-
-// ---- RUNTIME / NOISE NORMALIZATION HELPERS (add above parseCompilerOutput) ----
-
-// Strip duplicate consecutive lines and runner wrapper like "bash: line 7: ..."
-function normalizeToolNoise(s = "") {
-  const lines = s.replace(/\r\n/g, "\n").split("\n");
-  const out = [];
-  for (let i = 0; i < lines.length; i++) {
-    const L = lines[i];
-    // Drop pure "process exited with code X" noise
-    if (/^\[?process exited with code \d+\]?$/i.test(L.trim())) continue;
-    // Collapse bash wrapper: "bash: line N: <signal msg> stdbuf ..."
-    const m = L.match(/^bash:\s+line\s+\d+:\s+(.*)$/i);
-    const cleaned = m ? m[1] : L;
-    if (out.length === 0 || out[out.length - 1] !== cleaned) out.push(cleaned);
-  }
-  return out.join("\n").trim();
-}
-
-// Return a friendly Runtime Error explanation if stderr contains a classic crash line
-function detectRuntimeError(stderr = "", code = "") {
-  const err = normalizeToolNoise(stderr).toLowerCase();
-
-  const mk = (title, detail, fix = "") =>
-    ({ title: `Runtime Error: ${title}`, detail, fix });
-
-  // Common signals/messages
-  if (/segmentation fault|sigsegv/.test(err)) {
-    // Special-case: scanf without &
-    if (/scanf\s*\(\s*"%\s*[di]\s*"\s*,\s*\w+\s*\)/.test(code)) {
-      return mk("Segmentation fault",
-        "Your program crashed while reading input.",
-        "In C, pass the address to scanf: use &x (e.g., scanf(\"%d\", &x);).");
-    }
-    // Null pointer deref hint
-    if (/\bnull\b/.test(code) || /\bNULL\b/.test(code)) {
-      return mk("Segmentation fault",
-        "Tried to read or write through an invalid (likely NULL) pointer.",
-        "Initialize pointers before dereferencing, and check for NULL.");
-    }
-    return mk("Segmentation fault",
-      "The program accessed invalid memory (out-of-bounds or bad pointer).",
-      "Validate indexes and pointers; use tools like AddressSanitizer to catch the exact line.");
-  }
-
-  if (/floating point exception|sigfpe/.test(err)) {
-    // Division by zero hint
-    if (/\/\s*0\b/.test(code) || /\bint\s+\w+\s*=\s*0\s*;/.test(code)) {
-      return mk("Division by zero",
-        "Integer division by zero raises SIGFPE.",
-        "Guard the divisor (if (b==0) { /* handle */ } ) before dividing.");
-    }
-    return mk("Floating point exception",
-      "Invalid arithmetic operation at runtime (often divide by zero).",
-      "Check your divisors and math operations.");
-  }
-
-  if (/illegal instruction/.test(err)) {
-    return mk("Illegal instruction",
-      "The CPU rejected an instruction (often UB or incompatible binary).",
-      "Check for undefined behavior or rebuild with safe flags.");
-  }
-
-  if (/aborted\s*\(core dumped\)|double free|invalid free/.test(err)) {
-    return mk("Aborted",
-      "The memory allocator aborted the program (double free / heap corruption).",
-      "Free each allocation exactly once; avoid writing past buffer bounds.");
-  }
-
-  // “Killed” (137) → OOM/memory limit
-  if (/\bkilled\b/.test(err) || /\bexit code 137\b/.test(err)) {
-    return mk("Killed (likely OOM/limit)",
-      "The runtime killed the process, usually for memory/time limits or infinite recursion.",
-      "Reduce memory usage or recursion depth; check for infinite loops.");
-  }
-
-  return null;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' }) {
-  const issues = [];
-  const push = (title, message, severity='error', line=null, col=null, quickFixes=[]) => {
-    issues.push({ title, message, severity, line, col, quickFixes });
+  // ---------- small utilities ----------
+  const push = (title, detail, line=null, fix=null, kind='error', column=null, confidence='medium') => {
+    hints.push({ title, detail, fix, line, column, kind, confidence });
+    const msg = `${title}${detail ? ': ' + detail : ''}`;
+    annotations.push({ line, column, message: msg, kind });
   };
+  const firstLine = (s) => (String(s||'').split('\n').find(Boolean) || '').trim();
+  const asInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
+  const L = (s) => String(s||'').toLowerCase();
 
-  const firstLine = (s) => (s || '').split(/\r?\n/)[0] || '';
-  const lines = (s) => (s || '').split(/\r?\n/);
+  // ---------- optional JSON diagnostics (clang/gcc/tsc) ----------
+  try {
+    const trimmed = text.replace(/^\u001b\[[0-9;]*m/g, '').trim(); // strip ANSI if any
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const j = JSON.parse(trimmed);
+      // clang/gcc JSON can be array or obj with "diagnostics"
+      const diags = Array.isArray(j) ? j : j?.diagnostics || [];
+      if (Array.isArray(diags) && diags.length) {
+        for (const d of diags) {
+          const msg = (d.message || d.text || d.rendered || '').trim();
+          const kind = L(d.severity || d.level || 'error').includes('warn') ? 'warning' : 'error';
+          const loc = d.location || d.loc || d.range?.start || {};
+          const line = asInt(loc.line || loc.row);
+          const column = asInt(loc.column || loc.col);
+          const codeId = d.code || d.diagnosticId || null;
+          let title = 'Compiler diagnostic';
+          if (codeId) title += ` (${codeId})`;
 
-  const normErr = normalizeToolNoise(stderr);
-  const langL = (lang || '').toLowerCase();
+          // light classification for JSON path
+          let fix = null, confidence = 'medium';
+          if (/expected ['"`;)]/i.test(msg)) { title = 'Missing token'; fix = 'Insert the expected token.'; confidence='high'; }
+          if (/undeclared|not declared|cannot find name/i.test(msg)) { title='Undeclared identifier'; fix='Declare it or include/import the correct symbol.'; confidence='high'; }
+          if (/incompatible|mismatch|cannot convert/i.test(msg)) { title='Type mismatch'; fix='Adjust type or cast appropriately.'; confidence='medium'; }
 
+          push(title, msg, line, fix, kind, column, confidence);
+        }
+        return finalize();
+      }
+    }
+  } catch { /* non-JSON; continue */ }
 
-   const rt = (langL === 'c' || langL === 'cpp' || langL === 'c++' || langL === 'java' || langL === 'python')
-    ? detectRuntimeError(normErr, code)
-    : null;
-
-
-
- if (rt) {
-  push(rt.title, rt.detail + (rt.fix ? `  Fix: ${rt.fix}` : ''), 'error', null, null, []);
-  const hints = issues.map(i => ({
-    lang: langL, severity:'error', title:i.title, detail:i.message,
-    fix: i.quickFixes?.[0]?.label || '', line: i.line ?? null, column: i.col ?? null,
-    ruleId: null, raw: firstLine(normErr), confidence: 0.85
-  }));
-  const annotations = issues.map(i => ({ line: i.line ?? 1, col: i.col ?? 1, message: i.message || i.title || 'Issue', severity:'error' }));
-  return {
-    runtime: true,                    // <<< IMPORTANT
-    hints,
-    annotations,
-    summary: '1 error(s), 0 warning(s)',
-    issues
-  };
-}
-
-
-
-
-   
-   
-  const addRangeFromPattern = (text, re, lineGroup, colGroup) => {
-    const m = re.exec(text);
-    return m ? { line: toNum(m[lineGroup]), col: toNum(m[colGroup], 1) } : {};
-  };
-  const toNum = (x, d= null) => isFinite(+x) ? +x : d;
-
-  const lower = (stderr || '').toLowerCase();
-  const codeLines = lines(code);
-
-  // ---------- Helpers for Quick Fix creation ----------
-  const mkFix = (label, applyFnName, meta={}) => ({ label, apply: applyFnName, meta });
-
-  // ====== LANGUAGE ROUTERS ======
-  switch ((lang || '').toLowerCase()) {
+  // ---------- language-specific text parsers ----------
+  switch ((lang||'').toLowerCase()) {
     case 'c':
     case 'cpp':
     case 'c++':
-      parseCLike(normErr, code);
-      break;
-    case 'java':
-      parseJava(normErr, code);
-      break;
-    case 'python':
-      parsePython(normErr, code);
-      break;
-    case 'sql':
-      parseSql(normErr, code, stdout);
-      break;
-    default:
-      if (normErr.trim()) {
-        push('Program error', firstLine(normErr));
-      }
-  }
-
-  // ---- Parsers ----
-  function parseCLike(err, src) {
-  // 1) Collect ALL gcc/clang diagnostics:  path:line:col: (fatal error|error|warning): message
-  const re = /^.*?:(\d+):(\d+):\s+(fatal error|error|warning):\s+(.+)$/gm;
-  let m, saw = false;
-  while ((m = re.exec(err))) {
-    saw = true;
-    const [, line, col, sev, msg] = m;
-    const severity = /warning/i.test(sev) ? 'warning' : 'error';
-    const fixes = [];
-
-    // Missing header nudges for common symbols
-    const missingHeader =
-      /‘?([A-Za-z_][A-Za-z0-9_]*)’? was not declared in this scope/.exec(msg) ||
-      /implicit declaration of function ‘([A-Za-z_][A-Za-z0-9_]*)’/.exec(msg);
-    if (missingHeader) {
-      const sym = missingHeader[1];
-      const headerMap = { printf:'<stdio.h>', scanf:'<stdio.h>', strlen:'<string.h>', strcpy:'<string.h>' };
-      const hdr = headerMap[sym];
-      if (hdr) fixes.push({ label:`Add #include ${hdr}`, apply:'addInclude', meta:{ header: hdr }});
-    }
-
-    push('C/C++ compilation', msg.trim(), severity, +line, +col, fixes);
-  }
-  if (saw) return;
-
-  // 2) Classic “missing }” tail diagnostics
-  if (/expected\s*['`"]?\}['`"]?\s*at\s+end\s+of\s+input/i.test(err) ||
-      /expected declaration or statement at end of input/i.test(err)) {
-    push("Missing '}' (end of file)",
-         "The compiler reached the end of the file while still inside a block.",
-         'error', null, null, []);
-    return;
-  }
-
-  // 3) Type mismatch (common GCC/Clang phrasings)
-  if (/makes (?:integer|pointer) from (?:pointer|integer) without a cast/i.test(err) ||
-      /invalid conversion|incompatible\s+types|conflicting\s+types/i.test(err)) {
-    push("Type mismatch",
-         "A value of one type is used where another type is required (e.g., assigning a string to an int).",
-         'error', null, null, []);
-    return;
-  }
-
-  // 4) printf/scanf format mismatches (as errors)
-  if (/format.*expects.*but argument.*has type/i.test(err) ||
-      /format specifies type .* but the argument has type/i.test(err)) {
-    push("Format string/argument mismatch",
-         "Your printf/scanf format doesn’t match the argument types (e.g., using %d for a double).",
-         'error', null, null, []);
-    return;
-  }
-
-  // 5) Common warnings
-  if (/unused variable ['‘’`"]?[A-Za-z_]\w*['‘’`"]?/i.test(err)) {
-    push("Unused variable", "A variable is declared but never used.", 'warning', null, null, []);
-    return;
-  }
-  if (/may be used uninitialized/i.test(err)) {
-    push("Variable may be uninitialized", "The variable could be read before it's set.", 'warning', null, null, []);
-    return;
-  }
-  if (/control reaches end of non-void function|no return statement in function returning non-void/i.test(err)) {
-    push("Missing return in non-void function", "All paths must return a value.", 'warning', null, null, []);
-    return;
-  }
-  if (/format specifies type .* but the argument has type/i.test(err)) {
-    push("Format string/argument mismatch", "Your printf/scanf format doesn’t match the argument types.", 'warning', null, null, []);
-    return;
-  }
-
-  // 6) Linker undefined reference
-  if (/undefined reference to/i.test(err)) {
-    const sym = /undefined reference to `([^']+)'/.exec(err)?.[1];
-    const fixes = [];
-    if (sym && /sin|cos|pow|sqrt|log|exp/.test(sym)) {
-      fixes.push({ label:'Link with -lm', apply:'noteBuildFlag', meta:{ flag:'-lm' }});
-    }
-    push('Linker error',
-         err.split('\n').find(l => /undefined reference/.test(l)) || 'Undefined reference',
-         'error', null, null, fixes);
-    return;
-  }
-
-     // Also catch lld/clang-style "undefined symbol" messages
-if (/undefined (symbol|reference)/i.test(err)) {
-  const line = err.split('\n').find(l => /undefined (symbol|reference)/i.test(l)) || 'Undefined reference';
-  push('Linker error', line.trim(), 'error', null, null, []);
-  return;
-}
-
-
-
-
-
-
-
-
-
-
-     // --- Heuristics when no diagnostics were captured ---
-// Only run if we didn't parse any diagnostics and stderr is empty.
-if (!err.trim()) {
-  // (A) printf format mismatch: simple and safe check for %d with a known double
-  const doubles = [...(src || '').matchAll(/\bdouble\s+([A-Za-z_]\w*)\b/g)].map(m => m[1]);
-  for (const v of doubles) {
-    const re = new RegExp(String.raw`printf\s*\([^)]*%d[^)]*,\s*${v}\b`);
-    if (re.test(src)) {
-      push('Format string/argument mismatch',
-           `Using %d with a double variable (“${v}”). Use %f instead.`,
-           'error', null, null, []);
-      return;
-    }
-  }
-
-  // (B) Possible undefined function (often leads to link error)
-  //    Find calls like foo(...) that have no declaration/definition in this file.
-  //    Skip a few well-known std names to avoid noise.
-  const stdSkip = new Set(['printf','scanf','puts','gets','putchar','getchar','main']);
-  const calls = [...(src || '').matchAll(/\b([A-Za-z_]\w*)\s*\(/g)].map(m => m[1]);
-  for (const name of _u.uniq(calls)) {
-    if (stdSkip.has(name)) continue;
-    const hasProtoOrDef = new RegExp(String.raw`\b[A-Za-z_]\w*\s+${name}\s*\(`).test(src)
-                        || new RegExp(String.raw`^\s*#\s*include\s*<[^>]+>\s*$`, 'm').test(src);
-    if (!hasProtoOrDef) {
-      push('Possible undefined reference',
-           `Function “${name}” is called but not declared/defined in this file. This may fail during linking.`,
-           'error', null, null, []);
-      return;
-    }
-  }
-
-  // (C) Possible missing return path for non-void function (simple heuristic)
-  //     Look for 'int fname(...) { ... }' where body has an if(return ...) but
-  //     no final 'return' and no 'else'.
-  const funcMatches = [...(src || '').matchAll(/\bint\s+([A-Za-z_]\w*)\s*\([^)]*\)\s*\{([\s\S]*?)\}/g)];
-  for (const [, fname, body] of funcMatches) {
-    const hasReturn = /return\b/.test(body);
-    const hasIfReturn = /\bif\s*\([^)]*\)\s*return\b/.test(body);
-    const hasElse = /\belse\b/.test(body);
-    const hasFinalReturn = /return\b[\s\S]*$/.test(body.trim());
-    if (hasIfReturn && !hasElse && !hasFinalReturn) {
-      push('Missing return in non-void function',
-           `Function “${fname}” may exit without returning a value on some paths.`,
-           'warning', null, null, []);
-      return;
-    }
-  }
-}
-
-
-     
-
-  // 7) Fallback (show first line)
-  if (err.trim()) push('C/C++ error', err.split('\n')[0]);
-}
-
-
-
-  function parseJava(err, src) {
-    // Common: "error: class X is public, should be declared in a file named X.java"
-    const pub = /error:\s+class\s+([A-Za-z0-9_]+)\s+is\s+public,\s+should be declared in a file named\s+\1\.java/.exec(err);
-    if (pub) {
-      const cls = pub[1];
-      const fixes = [ mkFix(`Rename public class to Main`, 'renamePublicClass', { newName: 'Main' }) ];
-      push('Public class name mismatch', firstLine(err), 'error', null, null, fixes);
-      return;
-    }
-
-    // "cannot find symbol" with line info like: File.java:12: error: cannot find symbol
-    const m = /:(\d+):\s+error:\s+cannot find symbol/.exec(err);
-    if (m) {
-      const line = toNum(m[1]);
-      const sym = /symbol:\s+([^\n]+)/.exec(err)?.[1]?.trim();
-      const fixes = [];
-
-      // Missing import suggestions
-      const importMap = {
-        'Scanner': 'java.util.Scanner',
-        'ArrayList': 'java.util.ArrayList',
-        'List': 'java.util.List',
-        'Map': 'java.util.Map',
-        'HashMap': 'java.util.HashMap'
+    case 'cc': {
+      // --- keyword typo detector (e.g., "fore" vs "for") ---
+      const C_KEYWORDS = ['for','if','while','switch','return','break','continue','sizeof','struct','enum','typedef','do','goto','case','default','else','volatile','static','const','unsigned','signed','long','short','auto','register','extern','union'];
+      const lev = (a,b) => {
+        a=String(a||''); b=String(b||'');
+        const m=a.length, n=b.length; if(!m) return n; if(!n) return m;
+        const dp=Array.from({length:m+1},(_,i)=>Array(n+1).fill(0));
+        for(let i=0;i<=m;i++) dp[i][0]=i;
+        for(let j=0;j<=n;j++) dp[0][j]=j;
+        for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+          const cost = a[i-1]===b[j-1] ? 0 : 1;
+          dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+        }
+        return dp[m][n];
       };
-      const name = /([A-Za-z_][A-Za-z0-9_]*)$/.exec(sym || '')?.[1];
-      if (name && importMap[name]) {
-        fixes.push(mkFix(`Add import ${importMap[name]}`, 'addJavaImport', { fqn: importMap[name] }));
+      const nearestKw = (name) => {
+        let best=null, dist=1e9;
+        for (const k of C_KEYWORDS) { const d=lev(name,k); if (d<dist){ dist=d; best=k; } }
+        return dist<=1 ? best : null; // one edit away → likely typo
+      };
+
+      // gcc/clang: file:line:col: error: message
+      const main = text.match(/^(.*?):(\d+)(?::(\d+))?:\s*(error|fatal error|warning):\s*(.+)$/m);
+      if (main) {
+        const line = asInt(main[2]), col = asInt(main[3]);
+        const level = L(main[4]), msg = main[5].trim();
+
+        // implicit declaration (function) — check for keyword near-miss first
+        const imp = /implicit declaration of function\s+['"`]?([A-Za-z_]\w*)['"`]?/i.exec(msg);
+        if (imp) {
+          const name = imp[1], kw = nearestKw(name);
+          if (kw) {
+            push('Keyword typo', `Looks like \`${name}\` should be the keyword \`${kw}\`.`, line, `Replace \`${name}\` with \`${kw}\`.`, 'error', col, 'high');
+          } else {
+            push('Missing function prototype', 'You called a function before it was declared or included.', line, 'Add a prototype or include the header.', 'error', col, 'high');
+          }
+        }
+        // expected ';'
+        if (/expected\s*['‘’"]?;['‘’"]?\s*(?:before|after)?/i.test(msg)) {
+          push('Missing semicolon', 'Add a `;` at the end of the statement.', line, 'Insert `;`.', 'error', col, 'high');
+        }
+        // undeclared identifier
+        if (/['‘’"`]?([A-Za-z_]\w*)['‘’"`]?\s*(?:undeclared|was not declared)/i.test(msg) ||
+            /use of undeclared identifier/i.test(msg)) {
+          push('Undeclared identifier', 'Declare the name or include the correct header.', line, 'Declare it or include the header.', 'error', col, 'high');
+        }
+        // include not found
+        if (/no such file or directory/i.test(msg) && /include/i.test(msg)) {
+          push('Header not found', 'The included header file was not found.', line, 'Fix the `#include` path or add the missing header.', 'error', col, 'high');
+        }
+        // format mismatch
+        if (/format specifies type.*but the argument has type/i.test(msg)) {
+          push('printf/scanf format mismatch', 'Your `%` format and argument types don’t match.', line, 'Fix the format specifier or cast the argument.', 'error', col, 'high');
+        }
+        // conflicting types / redefinition
+        if (/conflicting types|redefinition/i.test(msg)) {
+          push('Conflicting types / Redefinition', 'The same symbol is declared incompatibly.', line, 'Use a single consistent declaration and remove duplicates.', 'error', col, 'medium');
+        }
+        // generic line-specific
+        if (!hints.length && (level==='error' || level==='fatal error')) {
+          push('Compiler error', msg, line, 'Fix at the highlighted line.', 'error', col, 'low');
+        }
       }
-
-      push('Java: cannot find symbol', firstLine(err), 'error', line, 1, fixes);
-      return;
+      // linker: undefined reference to `foo`
+      const links = [...text.matchAll(/undefined reference to `?([A-Za-z_]\w*)`?/g)];
+      if (links.length) {
+        const names = Array.from(new Set(links.map(m => m[1]))).slice(0,5);
+        push('Linker error: undefined reference', `Missing implementation or library for: ${names.join(', ')}`, null, 'Provide the function(s) or link the correct library.', 'error', null, 'high');
+      }
+      break;
     }
 
-    // Missing main method
-    if (/main method not found in class/i.test(err)) {
-      push('No main method', firstLine(err), 'error', null, null, [
-        mkFix('Insert standard public static void main', 'insertJavaMain', {})
-      ]);
-      return;
+    case 'java': {
+      // javac: file:line: error: message
+      const m = text.match(/^(.*?):(\d+):\s*error:\s*(.+)$/m);
+      if (m) {
+        const line = asInt(m[2]), msg = m[3].trim();
+
+        // cannot find symbol
+        const sym = /cannot find symbol/i.test(msg);
+        if (sym) {
+          // Try to capture symbol name from following lines
+          const nameMatch = text.match(/symbol:\s*(?:class|variable|method)\s+([A-Za-z_]\w*)/i);
+          const name = nameMatch?.[1];
+          push('Cannot find symbol', name ? `Symbol \`${name}\` is not declared or not imported.` : 'A symbol is not declared or not imported.', line, 'Declare it or import the right package.', 'error', null, 'high');
+        }
+        // package does not exist
+        if (/package .* does not exist/i.test(msg)) {
+          push('Package not found', 'The package is not on the classpath.', line, 'Add the dependency or correct the import.', 'error', null, 'high');
+        }
+        // ';' expected
+        if (/';' expected/i.test(msg)) {
+          push('Missing semicolon', 'Add a `;` at the end of the statement.', line, 'Insert `;`.', 'error', null, 'high');
+        }
+        // incompatible types
+        if (/incompatible types/i.test(msg)) {
+          push('Incompatible types', 'The assigned expression type does not match the variable type.', line, 'Adjust the type or cast safely.', 'error', null, 'high');
+        }
+        // missing return statement
+        if (/missing return statement/i.test(msg)) {
+          push('Missing return', 'A non-void method must return a value on all paths.', line, 'Return a value or change the method to void.', 'error', null, 'high');
+        }
+        // unreported exception
+        if (/unreported exception .*; must be caught or declared to be thrown/i.test(msg)) {
+          push('Unchecked exception handling', 'You must catch or declare the checked exception.', line, 'Wrap in try-catch or add `throws` to the method.', 'error', null, 'high');
+        }
+        if (!hints.length) push('Compiler error', firstLine(msg), line, 'Fix at the highlighted line.', 'error', null, 'low');
+      }
+      break;
     }
 
-    if (err.trim()) push('Java error', firstLine(err));
+    case 'python': {
+      // Extract last frame from traceback
+      // File "main.py", line X
+      const frame = [...text.matchAll(/File\s+"([^"]+)",\s+line\s+(\d+)(?:,\s+in\s+([^\n]+))?/g)].pop();
+      const errLine = frame ? asInt(frame[2]) : null;
+      const errMsg = (text.split('\n').reverse().find(l => /\w+Error:/.test(l)) || '').trim();
+
+      if (/SyntaxError:/i.test(errMsg)) {
+        // Common details: unexpected EOF/indent/':' expected etc.
+        if (/unexpected EOF/i.test(errMsg)) {
+          push('SyntaxError: unexpected end of file', 'You likely missed a closing bracket, quote, or block.', errLine, 'Close the bracket/quote or complete the block.', 'error', null, 'high');
+        } else if (/expected ':'/i.test(errMsg)) {
+          push('SyntaxError: missing colon', 'Statements like `if`, `for`, `def`, `class` require a `:`.', errLine, 'Add the colon `:` at the end of the header line.', 'error', null, 'high');
+        } else if (/invalid syntax/i.test(errMsg)) {
+          push('SyntaxError: invalid syntax', 'There is a syntax error on this line.', errLine, 'Fix the syntax near the caret.', 'error', null, 'medium');
+        } else {
+          push('SyntaxError', errMsg.replace(/^\w+Error:\s*/,''), errLine, 'Fix the syntax on this line.', 'error', null, 'medium');
+        }
+      } else if (/IndentationError:/i.test(errMsg)) {
+        push('IndentationError', 'Block indentation is incorrect or inconsistent (tabs/spaces).', errLine, 'Use consistent 4-space indents and align blocks.', 'error', null, 'high');
+      } else if (/NameError:/i.test(errMsg)) {
+        const nm = /NameError:\s*name\s*'([^']+)'/i.exec(errMsg)?.[1];
+        push('NameError', nm ? `\`${nm}\` is not defined.` : 'A name is not defined.', errLine, 'Define the variable/function or import it.', 'error', null, 'high');
+      } else if (/TypeError:/i.test(errMsg)) {
+        push('TypeError', errMsg.replace(/^TypeError:\s*/i,''), errLine, 'Check argument counts and operand types.', 'error', null, 'medium');
+      } else if (/AttributeError:/i.test(errMsg)) {
+        push('AttributeError', errMsg.replace(/^AttributeError:\s*/i,''), errLine, 'Ensure the object is not `None` and has this attribute.', 'error', null, 'medium');
+      } else if (errMsg) {
+        push('Runtime error', errMsg, errLine, 'Fix the error at this line.', 'error', null, 'low');
+      }
+      break;
+    }
+
+    case 'js':
+    case 'javascript':
+    case 'ts':
+    case 'typescript': {
+      // tsc: file(line,col): error TSxxxx: message
+      const tsc = text.match(/^(.*)\((\d+),(\d+)\):\s*error\s*TS(\d+):\s*(.+)$/m);
+      if (tsc) {
+        const line = asInt(tsc[2]), col = asInt(tsc[3]);
+        const msg = tsc[5].trim();
+        // common TS classifications
+        if (/cannot find name/i.test(msg)) {
+          push('Cannot find name', 'This identifier is not declared in the current scope.', line, 'Declare it or import the symbol.', 'error', col, 'high');
+        } else if (/type .* is not assignable to type/i.test(msg)) {
+          push('Type mismatch', 'Assigned value type is incompatible.', line, 'Adjust types or add a safe cast.', 'error', col, 'high');
+        } else if (/property .* does not exist on type/i.test(msg)) {
+          push('Unknown property', 'The property/method is not part of this type.', line, 'Narrow the type or add the property.', 'error', col, 'high');
+        } else if (/cannot find module/i.test(msg)) {
+          push('Module not found', 'Import path or dependency is missing.', line, 'Fix import path or install the dependency.', 'error', col, 'high');
+        } else {
+          push('TypeScript error', msg, line, 'Fix at the highlighted location.', 'error', col, 'medium');
+        }
+      } else {
+        // Generic JS parse/runtime shapes
+        if (/Unexpected token/i.test(text)) {
+          push('Syntax error', firstLine(text), null, 'Check for a missing/extra token.', 'error', null, 'medium');
+        } else if (/is not defined/i.test(text)) {
+          push('ReferenceError', firstLine(text), null, 'Declare the variable or import it.', 'error', null, 'high');
+        } else if (/cannot read (?:properties|property) of undefined/i.test(text)) {
+          push('Undefined value', firstLine(text), null, 'Ensure the value is defined before accessing properties.', 'error', null, 'high');
+        }
+      }
+      break;
+    }
+
+
+case 'sql': {
+  const s = String(text || '');
+  const first = firstLine(s);
+
+
+    if (/\btable\s+([`"'[\]A-Za-z0-9_.-]+)\s+already\s+exists\b/i.test(s)) {
+    const tbl = (s.match(/\btable\s+([`"'[\]A-Za-z0-9_.-]+)\s+already\s+exists\b/i) || [])[1] || 'the table';
+    push(
+      'Table Already Exists',
+      `Table ${tbl} already exists in the database.`,
+      null,
+      `Use \`CREATE TABLE IF NOT EXISTS ${tbl}(...)\` or drop it first with \`DROP TABLE ${tbl};\`.`,
+      'error', null, 'high'
+    );
   }
 
-  function parsePython(err, src) {
-    // IndentationError/File "stdin", line X
-    //const ind = /File ".*", line (\d+)\n\s*([^\n]*)\n\s*^(IndentationError: .+)$/ims.exec(err);
-     // Take the LAST Python frame before an IndentationError line
-const indAll = [...(err || '').matchAll(/File "([^"]+)", line (\d+)\n\s*([^\n]*)\n\s*(IndentationError:[^\n]+)/g)];
-const ind = indAll.length ? indAll[indAll.length - 1] : null;
-if (ind) {
-  const [, file, line, codeLine, msg] = ind;  // include file, use real line #
-  push('Indentation error', msg, 'error', toNum(line), 1, [
-    mkFix('Normalize indentation (4 spaces)', 'normalizeIndent', { line: toNum(line) })
-  ]);
-  return;
-}
 
-    // NameError: name 'x' is not defined
-    const nameErr = /NameError:\s+name '([A-Za-z_][A-Za-z0-9_]*)' is not defined/.exec(err);
-    if (nameErr) {
-      const sym = nameErr[1];
-      push('NameError', firstLine(err), 'error', null, null, [
-        mkFix(`Define variable "${sym}" above first use`, 'insertPythonVar', { name: sym })
-      ]);
-      return;
-    }
-
-    // ModuleNotFoundError: No module named 'X'
-    const modErr = /ModuleNotFoundError:\s+No module named '([^']+)'/.exec(err);
-    if (modErr) {
-      const mod = modErr[1];
-      push('Missing module', firstLine(err), 'error', null, null, [
-        mkFix(`Use built-in alternative or remove import`, 'commentOutImport', { module: mod })
-      ]);
-      return;
-    }
-
-    // SyntaxError with caret
-    //const syn = /File ".*", line (\d+)[\s\S]*?^\s*\^\s*$[\r\n]+(SyntaxError:[^\n]+)/m.exec(err);
-
-     // Take the LAST Python frame before the caret + SyntaxError line
-// SyntaxError with caret — take the LAST frame
-// ---- SyntaxError with caret (take the LAST user frame) ----
-// ---- SyntaxError with caret — take the LAST user frame ----
-const synAll = [...(err || '').matchAll(
-  // start at beginning of a line, then the file/line,
-  // then exactly one code line, then a caret line, then the SyntaxError line
-  /^ *File "([^"]+)", line (\d+)\r?\n([^\n]*)\r?\n *\^\r?\n(SyntaxError:[^\n]+)/gm
-)];
-let syn = synAll.length ? synAll[synAll.length - 1] : null;
-
-// Fallback: pick the last non-internal frame (skip runpy/frozen/etc.), even without caret
-if (!syn) {
-  const frames = [...(err || '').matchAll(/^ *File "([^"]+)", line (\d+)/gm)];
-  const user = frames.filter(f => !/runpy|pc_runner|<frozen|site-packages/i.test(f[1]));
-  const last = (user.length ? user : frames)[(user.length ? user : frames).length - 1];
-  if (last) syn = [null, last[1], last[2], '', (err.match(/SyntaxError:[^\n]+/) || ['','SyntaxError'])[0]];
-}
-
-if (syn) {
-  const [, file, line, codeLine, msg] = syn;
-  const fixes = pythonQuickFixesFromMessage(msg).map(f => ({
-    ...f,
-    meta: { ...(f.meta || {}), line: Number(line) }
-  }));
-  push('SyntaxError', msg, 'error', Number(line), 1, fixes);
-  return;
-}
-
-
-// Fallback (no caret variant)
-const synLine = /File "([^"]+)", line (\d+)[\s\S]*?\n(SyntaxError:[^\n]+)/m.exec(err);
-if (synLine) {
-  const [, file, line, msg] = synLine;
-  const fixes = pythonQuickFixesFromMessage(msg).map(f => ({
-    ...f,
-    meta: { ...(f.meta || {}), line: toNum(line) }
-  }));
-  push('SyntaxError', msg, 'error', toNum(line), 1, fixes);
-  return;
-}
-
-    if (err.trim()) push('Python error', firstLine(err));
+   
+  // --- Table already exists (SQLite/sql.js & others) ---
+  // e.g. "table users already exists"
+  if (/\btable\s+[`"'[\]A-Za-z0-9_.-]+\s+already\s+exists\b/i.test(s) ||
+      /\balready\s+exists\b.*\btable\b/i.test(s)) {
+    const tbl = (s.match(/\btable\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
+    push(
+      'Table Already Exists',
+      `You’re trying to create ${tbl}, but it already exists in this database.`,
+      null,
+      `Use \`CREATE TABLE IF NOT EXISTS ${tbl}(...)\` or drop it first with \`DROP TABLE ${tbl};\`.`,
+      'error', null, 'high'
+    );
   }
 
-  function parseSql(err, src, out) {
-    // sqlite.js common: "near 'XXX': syntax error"
-    const near = /near ["“”']?([A-Za-z0-9_*]+)["“”']?\s*:\s*syntax error/i.exec(err);
-    if (near) {
-      const tok = near[1];
-      push('SQL syntax error', `Problem near \`${tok}\`.`, 'error', null, null, []);
-      return;
-    }
-    if (/no such table:\s*([A-Za-z0-9_]+)/i.test(err)) {
-      const t = /no such table:\s*([A-Za-z0-9_]+)/i.exec(err)[1];
-      push('SQL: missing table', `Table \`${t}\` does not exist.`, 'error', null, null, [
-        mkFix(`Create table ${t}…`, 'insertCreateTableStub', { table: t })
-      ]);
-      return;
-    }
-    if (err.trim()) push('SQL error', firstLine(err));
+  // --- Unknown table ---
+  // SQLite: "no such table: users" | Postgres: "relation users does not exist"
+  if (/\bno such table\b|\brelation\b.+\bdoes not exist\b/i.test(s)) {
+    const tbl = (s.match(/\b(?:no such table|relation)\s*[:\s]+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
+    push(
+      'Unknown Table',
+      `Table ${tbl} does not exist.`,
+      null,
+      'Create the table first or correct the table name.',
+      'error', null, 'high'
+    );
   }
 
- // Adapter: map `issues` → `hints` + `annotations`
-  // ---- Adapter: map `issues` → `hints` + `annotations`
-  const hints = issues.map(i => ({
-    lang: (lang || '').toLowerCase(),
-    severity: /warn/i.test(i.severity) ? 'warning' : /note/i.test(i.severity) ? 'note' : 'error',
-    title: i.title || 'Issue',
-    detail: i.message || '',
-    fix: i.quickFixes?.[0]?.label || '',
-    line: i.line ?? null,
-    column: i.col ?? null,
-    ruleId: i.ruleId ?? null,
-    raw: (normErr || '').split(/\r?\n/)[0] || '',
-    confidence: 0.75
-  }));
-
-  const annotations = issues.map(i => ({
-    line: i.line ?? 1,
-    col: i.col ?? 1,
-    message: i.message || i.title || 'Issue',
-    severity: /warn/i.test(i.severity) ? 'warning' : /note/i.test(i.severity) ? 'info' : 'error'
-  }));
-
-  // ---- Summary: X errors, Y warnings, Z notes
-  const counts = issues.reduce((a, i) => {
-    if (/warning/i.test(i.severity)) a.w++;
-    else if (/note/i.test(i.severity)) a.n++;
-    else a.e++;
-    return a;
-  }, { e: 0, w: 0, n: 0 });
-
-  const summary = (counts.e || counts.w || counts.n)
-    ? `${counts.e} error(s), ${counts.w} warning(s)` + (counts.n ? `, ${counts.n} note(s)` : '')
-    : 'No issues';
-
-  return { hints, annotations, summary, issues };
-}
-
-/* ---------------- Quick-Fix Applicators (examples) ----------------
-   You can place these in a shared module (same file for convenience).
-   Apply them in your UI by calling: newCode = applyQuickFix(oldCode, fix)
-------------------------------------------------------------------- */
-export function applyQuickFix(code, fix) {
-  if (!fix?.apply) return code;
-  switch (fix.apply) {
-    case 'addInclude': {
-      const hdr = fix.meta.header;
-      if (!hdr) return code;
-      const has = new RegExp(`^\\s*#\\s*include\\s*${escapeReg(hdr)}`, 'm').test(code);
-      if (has) return code;
-      return `#include ${hdr}\n` + code;
-    }
-    case 'insertMain': {
-      if (/int\s+main\s*\(/.test(code)) return code;
-      return (
-`#include <stdio.h>
-int main(void){
-    // TODO: your code
-    printf("Hello, World!\\n");
-    return 0;
-}
-`);
-    }
-    case 'noteBuildFlag': {
-      // This fix only annotates; your runner should surface a note to add -lm, etc.
-      return code; // (no-op in source)
-    }
-    case 'renamePublicClass': {
-      const newName = fix.meta.newName || 'Main';
-      // Replace `public class Something` -> `public class Main`
-      return code.replace(/public\s+class\s+([A-Za-z0-9_]+)/, `public class ${newName}`);
-    }
-    case 'addJavaImport': {
-      const fqn = fix.meta.fqn;
-      if (!fqn) return code;
-      if (new RegExp(`^\\s*import\\s+${escapeReg(fqn)}\\s*;`, 'm').test(code)) return code;
-      const pkgIdx = code.match(/^\s*package\s+[^\n]+;?/m)?.index ?? -1;
-      const insertAtTop = pkgIdx >= 0 ? code.indexOf('\n', pkgIdx) + 1 : 0;
-      return splice(code, insertAtTop, 0, `import ${fqn};\n`);
-    }
-    case 'insertJavaMain': {
-      if (/public\s+static\s+void\s+main\s*\(\s*String\s*\[\]\s*\w*\s*\)/.test(code)) return code;
-      return code + `
-
-public class Main {
-  public static void main(String[] args) {
-    // TODO
-    System.out.println("Hello, World!");
+  // --- Unknown column ---
+  // SQLite: "no such column: x" | Postgres: 'column "x" does not exist'
+  if (/\bno such column\b|\bcolumn\b.+\bdoes not exist\b/i.test(s)) {
+    const col = (s.match(/\b(?:no such column|column)\s*[:\s]+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that column';
+    push(
+      'Unknown Column',
+      `Column ${col} does not exist.`,
+      null,
+      'Fix the column name or add the column before querying it.',
+      'error', null, 'high'
+    );
   }
-}
-`;
-    }
-    case 'normalizeIndent': {
-      // Simple: convert tabs to 4 spaces
-      return code.replace(/\t/g, '    ');
-    }
-    case 'insertPythonVar': {
-      const name = fix.meta.name || 'x';
-      return `# TODO: define ${name}\n${name} = None\n` + code;
-    }
-    case 'commentOutImport': {
-      const mod = fix.meta.module;
-      const re = new RegExp(`^\\s*(from\\s+${escapeReg(mod)}\\s+import\\s+.*|import\\s+${escapeReg(mod)}\\s*)$`, 'm');
-      return code.replace(re, m => `# ${m}  # module not available in sandbox`);
-    }
-    case 'insertCreateTableStub': {
-      const t = fix.meta.table || 'my_table';
-      const stub = `\n-- Quick stub for missing table
-CREATE TABLE ${t} (id INTEGER PRIMARY KEY, name TEXT);
-`;
-      return code + stub;
-    }
 
-       case 'insertAtLineEnd': {
-  const tok = fix.meta?.token ?? '';
-  // If a line is supplied in meta, use it (1-based). Otherwise append to last non-empty line.
-  const lines = code.split(/\r?\n/);
-  if (!lines.length) return tok; // empty buffer → just insert token
-  let idx = (fix.meta && Number.isInteger(fix.meta.line)) ? Math.max(0, fix.meta.line - 1) : -1;
-  if (idx < 0) {
-    // find last non-empty; fall back to last line
-    for (let i = lines.length - 1; i >= 0; i--) {
-      if (/\S/.test(lines[i])) { idx = i; break; }
-    }
-    if (idx < 0) idx = lines.length - 1;
+  // --- Syntax error near token (SQLite & Postgres phrasing) ---
+  if (/\bsyntax error\b/i.test(s)) {
+    const token =
+      (/\bnear\s+["']?([^"']+)["']?\s*:\s*syntax error/i.exec(s)?.[1]) ||
+      (/\bsyntax error at or near\s+["']?([^"']+)["']?/i.exec(s)?.[1]);
+    push(
+      'SQL Syntax Error',
+      token ? `Problem near \`${token}\`.` : first,
+      null,
+      'Check the SQL syntax around the highlighted token/position.',
+      'error', null, 'high'
+    );
   }
-  lines[idx] = (lines[idx] || '') + tok;
-  return lines.join('\n');
+
+  // --- Unique / primary key constraint ---
+  // SQLite: "UNIQUE constraint failed: users.id"
+  // Postgres: "duplicate key value violates unique constraint"
+  if (/\bunique constraint failed\b|\bduplicate key\b|\bprimary key must be unique\b/i.test(s)) {
+    const what = (s.match(/unique constraint failed:\s*([A-Za-z0-9_.]+)/i)?.[1]) || 'a unique/primary key';
+    push(
+      'Unique Constraint Violation',
+      `Duplicate value for \`${what}\`.`,
+      null,
+      'Insert a different value, or change/remove the unique/primary key constraint.',
+      'error', null, 'high'
+    );
+  }
+
+  // --- NOT NULL constraint ---
+  // SQLite: "NOT NULL constraint failed: users.name"
+  // Postgres: "null value in column \"name\" violates not-null constraint"
+  if (/\bnot[- ]null constraint failed\b|\bnull value in column\b.+\bviolates not-null\b/i.test(s)) {
+    const what =
+      (s.match(/not[- ]null constraint failed:\s*([A-Za-z0-9_."]+)/i)?.[1]) ||
+      (s.match(/null value in column\s+([A-Za-z0-9_."]+)\s+violates/i)?.[1]) ||
+      'a NOT NULL column';
+    push(
+      'NOT NULL Violation',
+      `A required value for ${what} is missing.`,
+      null,
+      'Provide a non-NULL value for the column (or relax the constraint).',
+      'error', null, 'high'
+    );
+  }
+
+  // --- Foreign key constraint ---
+  if (/\bforeign key constraint failed\b|\breference constraint\b|\breferences\b.+\bfails\b/i.test(s)) {
+    push(
+      'Foreign Key Constraint Failed',
+      first,
+      null,
+      'Ensure the referenced parent row exists and that types/values match.',
+      'error', null, 'medium'
+    );
+  }
+
+  // --- Datatype mismatch / value too long ---
+  if (/\bdatatype mismatch\b|\bvalue too long\b|\binvalid input syntax\b/i.test(s)) {
+    push(
+      'Datatype Mismatch',
+      first,
+      null,
+      'Use a compatible type/size for the column, or cast/trim the value.',
+      'error', null, 'medium'
+    );
+  }
+
+  break;
 }
+
+
+
+
+
+
 
 
         
-    default:
-      return code;
+
+  }
+
+  // ---------- generic fallback ----------
+  if (!hints.length) {
+    if (/error/i.test(text) || /exception/i.test(text) || /traceback/i.test(text)) {
+      push('Error reported', firstLine(text) || 'The tool reported an error.', null, 'Inspect the first error and fix it.', 'error', null, 'low');
+    }
+  }
+
+  return finalize();
+
+  // ---------- summarizer ----------
+  function finalize() {
+    // de-dup annotations with same (line,column,message)
+    const seen = new Set();
+    const ann = [];
+    for (const a of annotations) {
+      const key = `${a.line||0}:${a.column||0}:${a.message}`;
+      if (!seen.has(key)) { seen.add(key); ann.push(a); }
+    }
+
+    const strong = hints.filter(h => h.confidence === 'high').length;
+    const summary = hints.length
+      ? `Found ${hints.length} issue${hints.length>1?'s':''}${strong?` (${strong} high confidence)`:''}. Fix the first error first; later errors may be a cascade.`
+      : `The compiler reported errors, but I couldn’t interpret them confidently.`;
+
+    return { hints, summary, annotations: ann };
   }
 }
-
-// ---------- Tiny utilities ----------
-function splice(str, idx, del, ins){ return str.slice(0, idx) + (ins||'') + str.slice(idx + (del||0)); }
-function escapeReg(s){ return String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1190,27 +932,6 @@ GROUP BY dept;`)
 
 
 
-function pythonQuickFixesFromMessage(msg='') {
-  const fixes = [];
-  const m = String(msg);
-
-  // “was never closed” → propose likely closers
-  if (/was never closed/i.test(m)) {
-    if (m.includes('(')) fixes.push({ label: 'Add a closing “)”', apply: 'insertAtLineEnd', meta: { token: ')' } });
-    if (m.includes('[')) fixes.push({ label: 'Add a closing “]”', apply: 'insertAtLineEnd', meta: { token: ']' } });
-    if (m.includes('{')) fixes.push({ label: 'Add a closing “}”', apply: 'insertAtLineEnd', meta: { token: '}' } });
-    if (m.includes('"')) fixes.push({ label: 'Close the double quote', apply: 'insertAtLineEnd', meta: { token: '"' } });
-    if (m.includes("'")) fixes.push({ label: 'Close the single quote', apply: 'insertAtLineEnd', meta: { token: "'" } });
-  }
-
-  // “expected ':'”
-  if (/expected\s*[:]/i.test(m)) {
-    fixes.push({ label: 'Add “:” at end of line', apply: 'insertAtLineEnd', meta: { token: ':' } });
-  }
-
-  return fixes;
-}
-
 
 
 
@@ -1244,15 +965,3 @@ function escapeHtml(s) {
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#39;");
 }
-
-
-// At the very end of error-helper.js
-try {
-  if (typeof window !== 'undefined') {
-    window.PolyErrorHelper = window.PolyErrorHelper || {
-      parseCompilerOutput,
-      applyQuickFix,
-      renderHintHTML,
-    };
-  }
-} catch {}
