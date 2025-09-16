@@ -405,8 +405,16 @@ window.PolyRun = window.PolyRun || { stdout: '', stderr: '' };
 // Call this whenever you render new raw output
 window.PolyShell = window.PolyShell || {};
 window.PolyShell.setRawOutputs = function setRawOutputs(stdout, stderr) {
-  window.PolyRun.stdout = String(stdout || '');
-  window.PolyRun.stderr = String(stderr || '');
+  const dedupe = (s) => {
+    const lines = String(s || '').replace(/\r\n/g, '\n').split('\n');
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (i === 0 || lines[i] !== lines[i - 1]) out.push(lines[i]);
+    }
+    return out.join('\n');
+  };
+  window.PolyRun.stdout = dedupe(stdout);
+  window.PolyRun.stderr = dedupe(stderr);
 };
 
 
