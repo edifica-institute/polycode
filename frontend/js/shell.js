@@ -1202,28 +1202,33 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 // --- display-only cleaner for the console text (keeps semantics) ---
+
 function __pc_dedupeDisplayStderr(s="") {
   const lines = String(s).replace(/\r\n/g,"\n").split("\n");
-
   const out = [];
+  let sawExitLine = false;
+
   for (let i = 0; i < lines.length; i++) {
     const L = lines[i];
 
-    // drop pure "process exited with code X" duplicates
+    // keep only one "[process exited with code N]"
     if (/^\[?process exited with code \d+\]?$/i.test(L.trim())) {
-      // keep only the first one we encounter
-      if (out.some(x => /^\[?process exited with code \d+\]?$/i.test(x.trim()))) continue;
+      if (sawExitLine) continue;
+      sawExitLine = true;
     }
 
-    // compress exact consecutive duplicates (bash wrapper often repeats)
-    if (out.length && out[out.length - 1] === L) continue;
-
-    // unwrap "bash: line N: <payload>" so payload is shown once
+    // unwrap "bash: line N: <payload>"
     const m = L.match(/^bash:\s+line\s+\d+:\s+(.*)$/i);
-    out.push(m ? m[1] : L);
+    const cleaned = m ? m[1] : L;
+
+    // drop exact consecutive duplicates
+    if (out.length && out[out.length - 1] === cleaned) continue;
+
+    out.push(cleaned);
   }
   return out.join("\n").trim();
 }
+
 
 
 
@@ -1246,16 +1251,12 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   //const code   = window.editor?.getValue?.() || '';
 
 
-    const domErr = document.getElementById('stderrText')?.textContent || '';
-  const domOut = document.getElementById('stdoutText')?.textContent || '';
+    const domErr  = document.getElementById('stderrText')?.textContent || '';
+const domOut  = document.getElementById('stdoutText')?.textContent || '';
 
-  // NEW: compress duplicates & noise for display (does NOT change analysis)
-  const cleanDomErr = __pc_dedupeDisplayStderr(domErr);
-  const cleanDomOut = domOut; // stdout usually fine
-
-  const stderr = String(cachedErr || cleanDomErr || '');
-  const stdout = String(cachedOut || cleanDomOut || '');
-  const code   = window.editor?.getValue?.() || '';
+const stderr  = __pc_dedupeDisplayStderr(String(cachedErr || domErr || '')); // CLEAN
+const stdout  = String(cachedOut || domOut || '');
+const code    = window.editor?.getValue?.() || '';
 
 
   
