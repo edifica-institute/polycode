@@ -4814,35 +4814,29 @@ function termWriteStyled(msg) {
 }
 
 
-// ----- Fail banner (safe fallback if project has none) -----
-function ensureFailBanner() {
-  let el = document.querySelector('#pc-fail-banner');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'pc-fail-banner';
-    el.style.cssText = `
-      display:none; margin:8px 0 12px; padding:10px 12px;
-      background:#fdecea; color:#b00020; border:1px solid #f6c6c5;
-      border-radius:6px; font-weight:600;
-    `;
-    // Put the banner above the stderr/console panel:
-    // Adjust selector below if your stderr container uses a different id/class.
-    const consoleWrap = document.querySelector('.stderr-panel, #stderr, .pc-console, .pc-output');
-    (consoleWrap?.parentNode || document.body).insertBefore(el, consoleWrap || null);
-  }
-  return el;
+
+
+function showCompileFailNotice(kind = 'compile') {
+  const pre = document.getElementById('stderrText') || document.getElementById('stdoutText');
+  if (!pre) return;
+  if (document.getElementById('pcFailNote')) return;
+
+  const n = document.createElement('div');
+  n.id = 'pcFailNote';
+  n.className = 'pc-fail-banner';
+  n.textContent =
+    kind === 'compile'
+      ? 'Compilation Failed — See Details Below.'
+      : 'Execution Failed — See Details Below.';
+  pre.parentNode.insertBefore(n, pre);
 }
-function showCompileFailNotice(kind) {
-  const el = ensureFailBanner();
-  el.textContent = (kind === 'exec')
-    ? 'Runtime Error / Exception — See Details Below.'
-    : 'Compilation Failed — See Details Below.';
-  el.style.display = '';
-}
+
+
 function hideCompileFailNotice() {
-  const el = document.querySelector('#pc-fail-banner');
-  if (el) el.style.display = 'none';
+  const n = document.getElementById('pcFailNote');
+  if (n) n.remove();
 }
+
 
 
 
