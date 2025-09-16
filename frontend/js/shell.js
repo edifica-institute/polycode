@@ -1279,18 +1279,34 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   }
 
   // Render Polycode Analysis (or say we couldn't interpret)
+  // Render Polycode Analysis (or say we couldn't interpret)
   if (explainEl) {
     if (hints.length) {
-      explainEl.innerHTML = `
-        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
-        <div class="eh-wrap">
-          <div class="eh-head">
-            <strong>Error Explanation</strong>
-            <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
+      const isRuntime = /^runtime error/i.test(hints[0]?.title || '');
+      if (isRuntime) {
+        // Special, compact runtime rendering: one red header + one message
+        const runtimeMsg = (hints[0]?.detail || hints[0]?.title || '').replace(/\n/g,'<br>');
+        explainEl.innerHTML = `
+          <h3 style="margin:8px 0 6px;color:#e53935;">Runtime Error/Exception</h3>
+          <div class="eh-wrap">
+            <div class="eh-runtime" style="border-left:4px solid #e53935;padding:8px 10px;">
+              ${runtimeMsg}
+            </div>
           </div>
-          ${hints.map(h => renderHintHTML(h)).join('')}
-        </div>
-      `;
+        `;
+      } else {
+        // Default multi-hint rendering
+        explainEl.innerHTML = `
+          <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
+          <div class="eh-wrap">
+            <div class="eh-head">
+              <strong>Error Explanation</strong>
+              <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
+            </div>
+            ${hints.map(h => renderHintHTML(h)).join('')}
+          </div>
+        `;
+      }
     } else {
       explainEl.innerHTML = `
         <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
@@ -1300,6 +1316,7 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
       `;
     }
   }
+
 
   // Monaco markers – tolerate missing editor
   try {
