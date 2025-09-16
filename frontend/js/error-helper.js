@@ -337,6 +337,101 @@ function langKey(lang) {
    - Issue: { title, message, severity, line, col, codeFrame?, quickFixes?: QuickFix[] }
    ============================================================ */
 
+
+// ---- RUNTIME / NOISE NORMALIZATION HELPERS (add above parseCompilerOutput) ----
+
+// Strip duplicate consecutive lines and runner wrapper like "bash: line 7: ..."
+function normalizeToolNoise(s = "") {
+  const lines = s.replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i];
+    // Drop pure "process exited with code X" noise
+    if (/^\[?process exited with code \d+\]?$/i.test(L.trim())) continue;
+    // Collapse bash wrapper: "bash: line N: <signal msg> stdbuf ..."
+    const m = L.match(/^bash:\s+line\s+\d+:\s+(.*)$/i);
+    const cleaned = m ? m[1] : L;
+    if (out.length === 0 || out[out.length - 1] !== cleaned) out.push(cleaned);
+  }
+  return out.join("\n").trim();
+}
+
+// Return a friendly Runtime Error explanation if stderr contains a classic crash line
+function detectRuntimeError(stderr = "", code = "") {
+  const err = normalizeToolNoise(stderr).toLowerCase();
+
+  const mk = (title, detail, fix = "") =>
+    ({ title: `Runtime Error: ${title}`, detail, fix });
+
+  // Common signals/messages
+  if (/segmentation fault|sigsegv/.test(err)) {
+    // Special-case: scanf without &
+    if (/scanf\s*\(\s*"%\s*[di]\s*"\s*,\s*\w+\s*\)/.test(code)) {
+      return mk("Segmentation fault",
+        "Your program crashed while reading input.",
+        "In C, pass the address to scanf: use &x (e.g., scanf(\"%d\", &x);).");
+    }
+    // Null pointer deref hint
+    if (/\bnull\b/.test(code) || /\bNULL\b/.test(code)) {
+      return mk("Segmentation fault",
+        "Tried to read or write through an invalid (likely NULL) pointer.",
+        "Initialize pointers before dereferencing, and check for NULL.");
+    }
+    return mk("Segmentation fault",
+      "The program accessed invalid memory (out-of-bounds or bad pointer).",
+      "Validate indexes and pointers; use tools like AddressSanitizer to catch the exact line.");
+  }
+
+  if (/floating point exception|sigfpe/.test(err)) {
+    // Division by zero hint
+    if (/\/\s*0\b/.test(code) || /\bint\s+\w+\s*=\s*0\s*;/.test(code)) {
+      return mk("Division by zero",
+        "Integer division by zero raises SIGFPE.",
+        "Guard the divisor (if (b==0) { /* handle */ } ) before dividing.");
+    }
+    return mk("Floating point exception",
+      "Invalid arithmetic operation at runtime (often divide by zero).",
+      "Check your divisors and math operations.");
+  }
+
+  if (/illegal instruction/.test(err)) {
+    return mk("Illegal instruction",
+      "The CPU rejected an instruction (often UB or incompatible binary).",
+      "Check for undefined behavior or rebuild with safe flags.");
+  }
+
+  if (/aborted\s*\(core dumped\)|double free|invalid free/.test(err)) {
+    return mk("Aborted",
+      "The memory allocator aborted the program (double free / heap corruption).",
+      "Free each allocation exactly once; avoid writing past buffer bounds.");
+  }
+
+  // “Killed” (137) → OOM/memory limit
+  if (/\bkilled\b/.test(err) || /\bexit code 137\b/.test(err)) {
+    return mk("Killed (likely OOM/limit)",
+      "The runtime killed the process, usually for memory/time limits or infinite recursion.",
+      "Reduce memory usage or recursion depth; check for infinite loops.");
+  }
+
+  return null;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' }) {
   const issues = [];
   const push = (title, message, severity='error', line=null, col=null, quickFixes=[]) => {
@@ -346,6 +441,24 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
   const firstLine = (s) => (s || '').split(/\r?\n/)[0] || '';
   const lines = (s) => (s || '').split(/\r?\n/);
 
+  const normErr = normalizeToolNoise(stderr);
+  const langL = (lang || '').toLowerCase();
+
+
+   const rt = (langL === 'c' || langL === 'cpp' || langL === 'c++' || langL === 'java' || langL === 'python')
+    ? detectRuntimeError(normErr, code)
+    : null;
+  if (rt) {
+    push(rt.title, rt.detail + (rt.fix ? `  Fix: ${rt.fix}` : ''), 'error', null, null, []);
+    return { hints: issues.map(i => ({
+              lang: langL, severity:'error', title:i.title, detail:i.message,
+              fix: i.quickFixes?.[0]?.label || '', line: i.line ?? null, column: i.col ?? null,
+              ruleId: null, raw: firstLine(normErr), confidence: 0.85
+            })),
+             annotations: [], summary: '1 issue(s) detected', issues };
+  }
+
+   
   const addRangeFromPattern = (text, re, lineGroup, colGroup) => {
     const m = re.exec(text);
     return m ? { line: toNum(m[lineGroup]), col: toNum(m[colGroup], 1) } : {};
@@ -363,70 +476,97 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
     case 'c':
     case 'cpp':
     case 'c++':
-      parseCLike(stderr, code);
+      parseCLike(normErr, code);
       break;
     case 'java':
-      parseJava(stderr, code);
+      parseJava(normErr, code);
       break;
     case 'python':
-      parsePython(stderr, code);
+      parsePython(normErr, code);
       break;
     case 'sql':
-      parseSql(stderr, code, stdout);
+      parseSql(normErr, code, stdout);
       break;
     default:
-      if (stderr.trim()) {
-        push('Program error', firstLine(stderr));
+      if (normErr.trim()) {
+        push('Program error', firstLine(normErr));
       }
   }
 
   // ---- Parsers ----
   function parseCLike(err, src) {
-    // file:line:col: error: message
-    const m1 = /(?:^|\n)(?:[^:\n]*):(\d+):(\d+):\s+(fatal error|error|warning):\s+(.+?)\s*$/im.exec(err);
-    if (m1) {
-      const [, line, col, sev, msg] = m1;
-      const severity = /warning/i.test(sev) ? 'warning' : 'error';
-      const fixes = [];
+  // 1) Rich gcc/clang "file:line:col: error: ..." (keep your existing block)
+  const m1 = /(?:^|\n)(?:[^:\n]*):(\d+):(\d+):\s+(fatal error|error|warning):\s+(.+?)\s*$/im.exec(err);
+  if (m1) {
+    const [, line, col, sev, msg] = m1;
+    const severity = /warning/i.test(sev) ? 'warning' : 'error';
+    const fixes = [];
 
-      // Missing include for common identifiers (string, vector, iostream)
-      const missingHeader = /‘?([A-Za-z_][A-Za-z0-9_]*)’? was not declared in this scope/.exec(err) ||
-                            /implicit declaration of function ‘([A-Za-z_][A-Za-z0-9_]*)’/.exec(err);
-      if (missingHeader) {
-        const sym = missingHeader[1];
-        const headerMap = {
-          printf: '<stdio.h>', scanf: '<stdio.h>',
-          strlen: '<string.h>', strcpy: '<string.h>',
-          vector: '<vector>', string: '<string>',
-          cout: '<iostream>', cin: '<iostream>'
-        };
-        const hdr = headerMap[sym];
-        if (hdr) fixes.push(mkFix(`Add #include ${hdr}`, 'addInclude', { header: hdr }));
-      }
-
-      // Missing main
-      if (/undefined reference to `?main'?/i.test(err)) {
-        fixes.push(mkFix('Insert a basic main()', 'insertMain', { lang: 'c' }));
-      }
-
-      push('C/C++ compilation', msg, severity, toNum(line), toNum(col), fixes);
-      return;
+    // Quick missing-header nudge (keep your map)
+    const missingHeader =
+      /‘?([A-Za-z_][A-Za-z0-9_]*)’? was not declared in this scope/.exec(err) ||
+      /implicit declaration of function ‘([A-Za-z_][A-Za-z0-9_]*)’/.exec(err);
+    if (missingHeader) {
+      const sym = missingHeader[1];
+      const headerMap = { printf:'<stdio.h>', scanf:'<stdio.h>', strlen:'<string.h>', strcpy:'<string.h>' };
+      const hdr = headerMap[sym];
+      if (hdr) fixes.push({ label:`Add #include ${hdr}`, apply:'addInclude', meta:{ header: hdr }});
     }
 
-    // Linker undefined reference (likely missing -lm or function)
-    if (/undefined reference to/i.test(err)) {
-      const sym = /undefined reference to `([^']+)'/.exec(err)?.[1];
-      const fixes = [];
-      if (sym && /sin|cos|pow|sqrt|log|exp/.test(sym)) {
-        fixes.push(mkFix('Link libm (add -lm)', 'noteBuildFlag', { flag: '-lm' }));
-      }
-      push('Linker error', firstLine(err), 'error', null, null, fixes);
-      return;
-    }
-
-    // Generic
-    if (err.trim()) push('C/C++ error', firstLine(err));
+    push('C/C++ compilation', msg, severity, +line, +col, fixes);
+    return;
   }
+
+  // 2) Classic “missing }” tail diagnostics
+  if (/expected\s*['`"]?\}['`"]?\s*at\s+end\s+of\s+input/i.test(err) ||
+      /expected declaration or statement at end of input/i.test(err)) {
+    push("Missing '}' (end of file)", 
+         "The compiler reached the end of the file while still inside a block.",
+         'error', null, null, []);
+    return;
+  }
+
+  // 3) Type mismatch (GCC phrasing)
+  if (/makes (?:integer|pointer) from (?:pointer|integer) without a cast/i.test(err) ||
+      /invalid conversion|incompatible\s+types|conflicting\s+types/i.test(err)) {
+    push("Type mismatch",
+         "A value of one type is assigned/passed where another type is required (e.g., assigning a string to an int).",
+         'error', null, null, []);
+    return;
+  }
+
+  // 4) printf/scanf format mismatches
+  if (/format.*expects.*but argument.*has type/i.test(err) ||
+      /format specifies type .* but the argument has type/i.test(err)) {
+    push("Format string/argument mismatch",
+         "Your printf/scanf format doesn’t match the argument types (e.g., using %d for a double).",
+         'error', null, null, []);
+    return;
+  }
+
+  // 5) “used uninitialized” warnings (surface as warenings)
+  if (/‘?[A-Za-z_]\w*’?\s+is\s+used\s+uninitialized/i.test(err)) {
+    push("Variable used uninitialized",
+         "A variable might be read before it’s assigned.",
+         'warning', null, null, []);
+    return;
+  }
+
+  // 6) Linker undefined reference
+  if (/undefined reference to/i.test(err)) {
+    const sym = /undefined reference to `([^']+)'/.exec(err)?.[1];
+    const fixes = [];
+    if (sym && /sin|cos|pow|sqrt|log|exp/.test(sym)) {
+      fixes.push({ label:'Link with -lm', apply:'noteBuildFlag', meta:{ flag:'-lm' }});
+    }
+    push('Linker error', err.split('\n').find(l => /undefined reference/.test(l)) || 'Undefined reference', 'error', null, null, fixes);
+    return;
+  }
+
+  // 7) Fallback
+  if (err.trim()) push('C/C++ error', err.split('\n')[0]);
+}
+
 
   function parseJava(err, src) {
     // Common: "error: class X is public, should be declared in a file named X.java"
@@ -583,7 +723,7 @@ const hints = issues.map(i => ({
   line: i.line ?? null,
   column: i.col ?? null,
   ruleId: i.ruleId ?? null,
-  raw: (stderr || '').split(/\r?\n/)[0] || '',
+  raw: (normErr  || '').split(/\r?\n/)[0] || '',
   confidence: 0.75
 }));
 
