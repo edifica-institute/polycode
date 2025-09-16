@@ -795,25 +795,44 @@ if (!prep || !prep.ok || !prep.token) {
       window.termWS = ws; window.wsRunInFlight = true;
 
       let settled = false; // prevent double resolve/reject
-      const finish = (ok)=>{
-        if (settled) return; settled = true;
-        try{ hideRunnerOverlay(); }catch{}
-        try{ stopHeartbeat(); }catch{}
-        stopStatusDots(); stopInputCountdown();
-        window.PolyShell?.stopInputTicker?.();
-        showInputRow(false);
-        window.wsRunInFlight = false;
-        setComplexityEnabled(!!ok); // enable Complexity button only on success
-        if (!ok) {
-  const j = document.getElementById('jconsole')?.textContent || '';
-  const st = document.getElementById('stderrText');
-  if (st) {
-    st.textContent = j;
-    st.style.display = 'block'; // optional: show raw stderr only on failure
+      // inside index-c.html, in the `finish` function:
+const finish = async (ok) => {
+  if (settled) return; settled = true;
+  try{ hideRunnerOverlay(); }catch{}
+  try{ stopHeartbeat(); }catch{}
+  stopStatusDots(); stopInputCountdown();
+  window.PolyShell?.stopInputTicker?.();
+  showInputRow(false);
+  window.wsRunInFlight = false;
+  setComplexityEnabled(!!ok);
+
+  if (!ok) {
+    const j = document.getElementById('jconsole')?.textContent || '';
+
+    // NEW: show the runtime banner heading
+    showCompileFailNotice('runtime');  // uses "Execution Failed — See Details Below."
+
+    // Optional: lightly de-duplicate the common double "[process exited ...]" line
+    const cleaned = j.replace(
+      /\n*\[process exited with code\s+(-?\d+)\][^\n]*\n(?:\s*\[process exited with code\s+\1\][^\n]*\n)+/i,
+      '\n[process exited with code $1]\n'
+    );
+
+    // Put the (cleaned) raw error only in #stderrText (single source of truth)
+    const st = document.getElementById('stderrText');
+    if (st) { st.textContent = cleaned; st.style.display = 'block'; }
+
+    // NEW: keep the explainer’s input in sync and render it now
+    window.PolyShell?.setRawOutputs('', cleaned);          // feed stderr
+    try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  // render "Polycode Analysis"
+
+    // Optional: reflect status like the compile path does
+    window.PolyShell?.setRunnerPhase?.('error');
+    window.PolyShell?.setStatus('Execution Failed','error');
   }
-}
-        ok ? resolve() : reject(new Error('run_failed'));
-      };
+
+  ok ? resolve() : reject(new Error('run_failed'));
+};
 
       ws.addEventListener('open', ()=>{
         hideRunnerOverlay();
