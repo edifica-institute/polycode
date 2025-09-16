@@ -1194,18 +1194,71 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 
+
+
+
+
+
+
+
+// --- display-only cleaner for the console text (keeps semantics) ---
+function __pc_dedupeDisplayStderr(s="") {
+  const lines = String(s).replace(/\r\n/g,"\n").split("\n");
+
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const L = lines[i];
+
+    // drop pure "process exited with code X" duplicates
+    if (/^\[?process exited with code \d+\]?$/i.test(L.trim())) {
+      // keep only the first one we encounter
+      if (out.some(x => /^\[?process exited with code \d+\]?$/i.test(x.trim()))) continue;
+    }
+
+    // compress exact consecutive duplicates (bash wrapper often repeats)
+    if (out.length && out[out.length - 1] === L) continue;
+
+    // unwrap "bash: line N: <payload>" so payload is shown once
+    const m = L.match(/^bash:\s+line\s+\d+:\s+(.*)$/i);
+    out.push(m ? m[1] : L);
+  }
+  return out.join("\n").trim();
+}
+
+
+
+
+
+
+
+
 // ---- Friendly error: read stderr/stdout and append detailed explanation under it
 
 // ---- Friendly error: read stderr/stdout and append detailed explanation under it
 async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   const cachedErr = window.PolyRun?.stderr ?? '';
   const cachedOut = window.PolyRun?.stdout ?? '';
-  const domErr = document.getElementById('stderrText')?.textContent || '';
+  //const domErr = document.getElementById('stderrText')?.textContent || '';
+  //const domOut = document.getElementById('stdoutText')?.textContent || '';
+
+  //const stderr = String(cachedErr || domErr || '');
+  //const stdout = String(cachedOut || domOut || '');
+  //const code   = window.editor?.getValue?.() || '';
+
+
+    const domErr = document.getElementById('stderrText')?.textContent || '';
   const domOut = document.getElementById('stdoutText')?.textContent || '';
 
-  const stderr = String(cachedErr || domErr || '');
-  const stdout = String(cachedOut || domOut || '');
+  // NEW: compress duplicates & noise for display (does NOT change analysis)
+  const cleanDomErr = __pc_dedupeDisplayStderr(domErr);
+  const cleanDomOut = domOut; // stdout usually fine
+
+  const stderr = String(cachedErr || cleanDomErr || '');
+  const stdout = String(cachedOut || cleanDomOut || '');
   const code   = window.editor?.getValue?.() || '';
+
+
+  
   const explainEl = document.getElementById('stderrExplain');
 
   // If there’s nowhere to render and we’re not alerting, bail early
