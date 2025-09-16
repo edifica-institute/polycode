@@ -595,10 +595,17 @@ function scheduleIdleProbe(){
     }
 
     /* ===== Helpers ===== */
-    function codeNeedsInput(src){
-      //return /\b(?:std::)?cin\s*>>|\bstd::getline\s*\(|\bgetline\s*\(|\bgetchar\s*\(/.test(src);
-      return false;
-    }
+   function codeNeedsInput(src){
+  const s = String(src || '');
+  // cin >> x, std::cin >> x
+  // getline(...), std::getline(...), getchar(), std::getchar()
+  // (optional) scanf(...) in case learners mix C I/O in C++
+  return /\b(?:std::)?cin\s*>>/.test(s)
+      || /\b(?:std::)?getline\s*\(/.test(s)
+      || /\b(?:std::)?getchar\s*\(/.test(s)
+      || /\bscanf\s*\(/.test(s);
+}
+
 
     // Overlay helpers (same naming as Java)
     function showRunnerOverlay(msg='Connecting to C++ runner…', pct=10, hint='Warming up backend…'){
