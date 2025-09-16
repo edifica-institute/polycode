@@ -504,11 +504,15 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
   const annotations = [];
 
   // ---------- small utilities ----------
-  const push = (title, detail, line=null, fix=null, kind='error', column=null, confidence='medium') => {
-    hints.push({ title, detail, fix, line, column, kind, confidence });
-    const msg = `${title}${detail ? ': ' + detail : ''}`;
-    annotations.push({ line, column, message: msg, kind });
-  };
+
+ const push = (title, detail, line=null, fix=null, severity='error', column=null, confidence='medium') => {
+   hints.push({ title, detail, fix, line, column, severity, confidence });
+   const msg = `${title}${detail ? ': ' + detail : ''}`;
+  annotations.push({ line, column, message: msg, severity });
+ };
+
+
+   
   const firstLine = (s) => (String(s||'').split('\n').find(Boolean) || '').trim();
   const asInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const L = (s) => String(s||'').toLowerCase();
@@ -871,7 +875,10 @@ case 'sql': {
      // ---------- apply runtime/SQL generic rules ----------
   // Map rule severity -> your 'kind', and dedupe against existing hints
   const seen = new Set(hints.map(h => `${h.title}|${h.detail}`));
-  const extra = __pc_applyRules({ lang, text });
+  //const extra = __pc_applyRules({ lang, text });
+    const extra = (lang?.toLowerCase() === 'sql' && hints.length)
+   ? [] // skip rules since the SQL branch already emitted hints
+   : __pc_applyRules({ lang, text });
 
   for (const h of extra) {
     const key = `${h.title}|${h.detail}`;
