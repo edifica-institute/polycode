@@ -1326,41 +1326,24 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   // Render Polycode Analysis (or say we couldn't interpret)
   if (explainEl) {
     if (hints.length) {
-  // detect a runtime error produced by the helper
-  const rt = hints.find(h => /^runtime error/i.test(String(h.title||'')));
-
-  explainEl.innerHTML = `
-    <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
-    <div class="eh-wrap">
-      <div class="eh-head">
-        <strong>Error Explanation</strong>
-        <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
-      </div>
-
-      ${rt ? `
-        <div class="eh-runtime" style="
-             border:1px solid #e53935;
-             background:#ffebee;
-             color:#b71c1c;
-             padding:10px 12px;
-             border-radius:8px;
-             margin:8px 0 10px;">
-          <div style="font-weight:700; margin-bottom:4px;">Runtime Error/Exception</div>
-          <div>${(rt.detail || rt.title || '').replace(/\n/g,'<br>')}</div>
-        </div>` : ''}
-
-      ${hints.map(h => renderHintHTML(h)).join('')}
-    </div>
-  `;
-} else {
-  // (keep your existing "couldn't interpret" branch as-is)
-  explainEl.innerHTML = `
-    <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
-    <div class="eh-wrap">
-      <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
-    </div>
-  `;
-}
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
+        <div class="eh-wrap">
+          <div class="eh-head">
+            <strong>Error Explanation</strong>
+            <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
+          </div>
+          ${hints.map(h => renderHintHTML(h)).join('')}
+        </div>
+      `;
+    } else {
+      explainEl.innerHTML = `
+        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
+        <div class="eh-wrap">
+          <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
+        </div>
+      `;
+    }
 
   }
 
