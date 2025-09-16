@@ -495,17 +495,19 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
 
   // ---- Parsers ----
   function parseCLike(err, src) {
-  // 1) Rich gcc/clang "file:line:col: error: ..." (keep your existing block)
-  const m1 = /(?:^|\n)(?:[^:\n]*):(\d+):(\d+):\s+(fatal error|error|warning):\s+(.+?)\s*$/im.exec(err);
-  if (m1) {
-    const [, line, col, sev, msg] = m1;
+  // 1) Collect ALL gcc/clang diagnostics:  path:line:col: (fatal error|error|warning): message
+  const re = /^.*?:(\d+):(\d+):\s+(fatal error|error|warning):\s+(.+)$/gm;
+  let m, saw = false;
+  while ((m = re.exec(err))) {
+    saw = true;
+    const [, line, col, sev, msg] = m;
     const severity = /warning/i.test(sev) ? 'warning' : 'error';
     const fixes = [];
 
-    // Quick missing-header nudge (keep your map)
+    // Missing header nudges for common symbols
     const missingHeader =
-      /‘?([A-Za-z_][A-Za-z0-9_]*)’? was not declared in this scope/.exec(err) ||
-      /implicit declaration of function ‘([A-Za-z_][A-Za-z0-9_]*)’/.exec(err);
+      /‘?([A-Za-z_][A-Za-z0-9_]*)’? was not declared in this scope/.exec(msg) ||
+      /implicit declaration of function ‘([A-Za-z_][A-Za-z0-9_]*)’/.exec(msg);
     if (missingHeader) {
       const sym = missingHeader[1];
       const headerMap = { printf:'<stdio.h>', scanf:'<stdio.h>', strlen:'<string.h>', strcpy:'<string.h>' };
@@ -513,29 +515,29 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
       if (hdr) fixes.push({ label:`Add #include ${hdr}`, apply:'addInclude', meta:{ header: hdr }});
     }
 
-    push('C/C++ compilation', msg, severity, +line, +col, fixes);
-    return;
+    push('C/C++ compilation', msg.trim(), severity, +line, +col, fixes);
   }
+  if (saw) return;
 
   // 2) Classic “missing }” tail diagnostics
   if (/expected\s*['`"]?\}['`"]?\s*at\s+end\s+of\s+input/i.test(err) ||
       /expected declaration or statement at end of input/i.test(err)) {
-    push("Missing '}' (end of file)", 
+    push("Missing '}' (end of file)",
          "The compiler reached the end of the file while still inside a block.",
          'error', null, null, []);
     return;
   }
 
-  // 3) Type mismatch (GCC phrasing)
+  // 3) Type mismatch (common GCC/Clang phrasings)
   if (/makes (?:integer|pointer) from (?:pointer|integer) without a cast/i.test(err) ||
       /invalid conversion|incompatible\s+types|conflicting\s+types/i.test(err)) {
     push("Type mismatch",
-         "A value of one type is assigned/passed where another type is required (e.g., assigning a string to an int).",
+         "A value of one type is used where another type is required (e.g., assigning a string to an int).",
          'error', null, null, []);
     return;
   }
 
-  // 4) printf/scanf format mismatches
+  // 4) printf/scanf format mismatches (as errors)
   if (/format.*expects.*but argument.*has type/i.test(err) ||
       /format specifies type .* but the argument has type/i.test(err)) {
     push("Format string/argument mismatch",
@@ -544,11 +546,21 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
     return;
   }
 
-  // 5) “used uninitialized” warnings (surface as warenings)
-  if (/‘?[A-Za-z_]\w*’?\s+is\s+used\s+uninitialized/i.test(err)) {
-    push("Variable used uninitialized",
-         "A variable might be read before it’s assigned.",
-         'warning', null, null, []);
+  // 5) Common warnings
+  if (/unused variable ['‘’`"]?[A-Za-z_]\w*['‘’`"]?/i.test(err)) {
+    push("Unused variable", "A variable is declared but never used.", 'warning', null, null, []);
+    return;
+  }
+  if (/may be used uninitialized/i.test(err)) {
+    push("Variable may be uninitialized", "The variable could be read before it's set.", 'warning', null, null, []);
+    return;
+  }
+  if (/control reaches end of non-void function|no return statement in function returning non-void/i.test(err)) {
+    push("Missing return in non-void function", "All paths must return a value.", 'warning', null, null, []);
+    return;
+  }
+  if (/format specifies type .* but the argument has type/i.test(err)) {
+    push("Format string/argument mismatch", "Your printf/scanf format doesn’t match the argument types.", 'warning', null, null, []);
     return;
   }
 
@@ -559,13 +571,16 @@ export function parseCompilerOutput({ lang, stdout = '', stderr = '', code = '' 
     if (sym && /sin|cos|pow|sqrt|log|exp/.test(sym)) {
       fixes.push({ label:'Link with -lm', apply:'noteBuildFlag', meta:{ flag:'-lm' }});
     }
-    push('Linker error', err.split('\n').find(l => /undefined reference/.test(l)) || 'Undefined reference', 'error', null, null, fixes);
+    push('Linker error',
+         err.split('\n').find(l => /undefined reference/.test(l)) || 'Undefined reference',
+         'error', null, null, fixes);
     return;
   }
 
-  // 7) Fallback
+  // 7) Fallback (show first line)
   if (err.trim()) push('C/C++ error', err.split('\n')[0]);
 }
+
 
 
   function parseJava(err, src) {
