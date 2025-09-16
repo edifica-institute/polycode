@@ -1218,7 +1218,7 @@ async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   if (window.PolyErrorHelper) {
     ({ parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper);
   } else {
-    ({ parseCompilerOutput, renderHintHTML } = await import('./error-helper.js'));
+    ({ parseCompilerOutput, renderHintHTML } = await import('/js/error-helper.js'));
   }
 
   //const lang = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
