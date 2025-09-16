@@ -25,28 +25,16 @@
   window.enableReloadConfirm();
 })();*/
 
-// ---- Safe AMD path registration (avoid duplicate module warnings) ----
-(function () {
-  if (typeof require === 'undefined' || !require.s || !require.s.contexts || !require.s.contexts._) return;
-  const ctx   = require.s.contexts._;
-  const paths = (ctx.config && ctx.config.paths) || {};
-  const defined = (ctx.defined) || {};
-
-  const want = {
-    stackframe: 'https://cdn.jsdelivr.net/npm/stackframe@1.3.4/dist/stackframe.min',
-    'error-stack-parser': 'https://cdn.jsdelivr.net/npm/error-stack-parser@2.1.4/dist/error-stack-parser.min'
-  };
-
-  const safePaths = {};
-  for (const [name, url] of Object.entries(want)) {
-    // only add if not already defined and not already in paths
-    if (!defined[name] && !paths[name]) safePaths[name] = url;
-  }
-  if (Object.keys(safePaths).length) {
-    require.config({ paths: safePaths });
-  }
-})();
-
+(function(){
+    if (typeof require === 'undefined' || !require.config) return;
+    require.config({
+      // point to real CDN files (no “.js” suffix for AMD path)
+      paths: {
+        stackframe: 'https://cdn.jsdelivr.net/npm/stackframe@1.3.4/dist/stackframe.min',
+        'error-stack-parser': 'https://cdn.jsdelivr.net/npm/error-stack-parser@2.1.4/dist/error-stack-parser.min'
+      }
+    });
+  })();
 
 
 // Chrome/Edge: catch toolbar Reload without prompting on tab close
@@ -1194,86 +1182,28 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 
-
-
-
-
-
-
-
-// --- display-only cleaner for the console text (keeps semantics) ---
-
-function __pc_dedupeDisplayStderr(s="") {
-  const lines = String(s).replace(/\r\n/g,"\n").split("\n");
-  const out = [];
-  let sawExitLine = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const L = lines[i];
-
-    // keep only one "[process exited with code N]"
-    if (/^\[?process exited with code \d+\]?$/i.test(L.trim())) {
-      if (sawExitLine) continue;
-      sawExitLine = true;
-    }
-
-    // unwrap "bash: line N: <payload>"
-    const m = L.match(/^bash:\s+line\s+\d+:\s+(.*)$/i);
-    const cleaned = m ? m[1] : L;
-
-    // drop exact consecutive duplicates
-    if (out.length && out[out.length - 1] === cleaned) continue;
-
-    out.push(cleaned);
-  }
-  return out.join("\n").trim();
-}
-
-
-
-
-
-
-
-
-
-// ---- Friendly error: read stderr/stdout and append detailed explanation under it
-
 // ---- Friendly error: read stderr/stdout and append detailed explanation under it
 async function refreshStderrExplanation({ alsoAlert = false } = {}) {
+  // Prefer cached raw outputs (set via PolyShell.setRawOutputs)
   const cachedErr = window.PolyRun?.stderr ?? '';
   const cachedOut = window.PolyRun?.stdout ?? '';
-  //const domErr = document.getElementById('stderrText')?.textContent || '';
-  //const domOut = document.getElementById('stdoutText')?.textContent || '';
 
-  //const stderr = String(cachedErr || domErr || '');
-  //const stdout = String(cachedOut || domOut || '');
-  //const code   = window.editor?.getValue?.() || '';
-
-
-   // READ the panel text
-const domErr  = document.getElementById('stderrText')?.textContent || '';
-const domOut  = document.getElementById('stdoutText')?.textContent || '';
-
-// CLEAN stderr for display (dedupe bash wrapper + single [process exited...] line)
-const stderr  = __pc_dedupeDisplayStderr(String(cachedErr || domErr || ''));
-const stdout  = String(cachedOut || domOut || '');
-const code    = window.editor?.getValue?.() || '';
-
-// WRITE BACK the cleaned stderr so the visible console shows it only once
-const stderrEl = document.getElementById('stderrText');
-if (stderrEl && stderrEl.textContent !== stderr) {
-  stderrEl.textContent = stderr;
-}
-
-
+  // Fallback: read from DOM if present
+  const domErr = document.getElementById('stderrText')?.textContent || '';
+  const domOut = document.getElementById('stdoutText')?.textContent || '';
   
+  const stderr = String(cachedErr || domErr || '');
+  const stdout = String(cachedOut || domOut || '');
+  const code   = window.editor?.getValue?.() || '';
   const explainEl = document.getElementById('stderrExplain');
 
-  // If there’s nowhere to render and we’re not alerting, bail early
+  window.PolyShell.setRawOutputs(stdout, stderr);
+
+  
+  // If we have nowhere to render, just exit (alert option still possible)
   if (!explainEl && !alsoAlert) return;
 
-  // If nothing looks error-like, clear and exit
+  // Quick check: is there anything error-like?
   const looksLikeError = !!(stderr.trim() || /(?:Error|Exception|Traceback)/i.test(stdout));
   if (!looksLikeError) {
     if (explainEl) explainEl.innerHTML = '';
@@ -1283,143 +1213,59 @@ if (stderrEl && stderrEl.textContent !== stderr) {
     return;
   }
 
-  // Try to obtain helpers in several ways; tolerate failures
-  let parseCompilerOutput = null, renderHintHTML = null;
-  try {
-    if (window.PolyErrorHelper) {
-      ({ parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper);
-    } else {
-      // Try multiple paths so we work in both / and /js/ layouts
-      let mod = null, lastErr = null;
-      const candidates = ['./js/error-helper.js', './error-helper.js'];
-      for (const p of candidates) {
-        try { mod = await import(p); break; } catch (e) { lastErr = e; }
-      }
-      if (!mod) throw lastErr || new Error('Could not import error-helper');
-      parseCompilerOutput = mod.parseCompilerOutput;
-      renderHintHTML      = mod.renderHintHTML;
-    }
-  } catch (e) {
-    console.debug('[Polycode] error-helper unavailable:', e);
-    if (explainEl) explainEl.innerHTML = ''; // silently skip the analysis block
-    return; // don’t throw; keep the app running
+  // Load helper (either from window or dynamic import)
+  let parseCompilerOutput, renderHintHTML;
+  if (window.PolyErrorHelper) {
+    ({ parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper);
+  } else {
+    ({ parseCompilerOutput, renderHintHTML } = await import('./js/error-helper.js'));
   }
 
-  // Parse safely; default to empty arrays/strings
-  /*let hints = [], summary = '', annotations = [];
-  try {
-    const res = parseCompilerOutput({ 
-      lang: (() => {
-        const monacoId = window.editor?.getModel?.()?.getLanguageId?.();
-        if (monacoId) {
-          const m = monacoId.toLowerCase();
-          if (m === 'cpp' || m === 'c++') return 'cpp';
-          if (m === 'py') return 'python';
-          if (m === 'mysql' || m === 'sqlite') return 'sql';
-          if (['html','css','javascript','typescript'].includes(m)) return 'web';
-          return m;
-        }
-        const hinted = (document.body.getAttribute('data-lang') || '').toLowerCase();
-        return hinted || 'c';
-      })(),
-      stderr, stdout, code 
-    }) || {};
-    hints       = Array.isArray(res.hints) ? res.hints : [];
-    summary     = typeof res.summary === 'string' ? res.summary : '';
-    annotations = Array.isArray(res.annotations) ? res.annotations : [];
-  } catch (e) {
-    console.debug('[Polycode] parse failed:', e);
-    hints = []; summary = ''; annotations = [];
-  }*/
+  //const lang = (window.getLangInfo?.().langLabel || '').toLowerCase() || 'c';
+// Drop-in replacement for the old `const lang = …` line
+const lang = (() => {
+  // 1) Ask Monaco first (most reliable when the editor is loaded)
+  const monacoId = window.editor?.getModel?.()?.getLanguageId?.();
+  if (monacoId) return ({
+    'c':'c', 'cpp':'cpp', 'c++':'cpp',
+    'java':'java', 'python':'python', 'py':'python',
+    'sql':'sql', 'mysql':'sql', 'sqlite':'sql',
+    'html':'web','javascript':'web','typescript':'web','css':'web'
+  })[monacoId.toLowerCase()] || monacoId.toLowerCase();
 
+  // 2) Accept a page hint if present
+  const hinted = (document.body.getAttribute('data-lang') || '').toLowerCase();
+  if (hinted) return hinted;
 
+  // 3) Fall back to the language dropdown’s label
+  const label = (document.querySelector('#langSelect option:checked')?.textContent || '').toLowerCase();
+  if (label.includes('c++'))       return 'cpp';
+  if (label === 'c')               return 'c';
+  if (label.includes('python'))    return 'python';
+  if (label.includes('java'))      return 'java';
+  if (label.includes('sql'))       return 'sql';
+  if (label.includes('html') || label.includes('css') || label.includes('js') || label.includes('web'))
+                                   return 'web';
 
-    let hints = [], summary = '', annotations = [], isRuntime = false;
-  try {
-    const res = parseCompilerOutput({ 
-      lang: (() => { /* unchanged */ })(),
-      stderr, stdout, code 
-    }) || {};
-    hints       = Array.isArray(res.hints) ? res.hints : [];
-    summary     = typeof res.summary === 'string' ? res.summary : '';
-    annotations = Array.isArray(res.annotations) ? res.annotations : [];
-    isRuntime   = !!res.runtime;                // <<< NEW
-  } catch (e) {
-    console.debug('[Polycode] parse failed:', e);
-    hints = []; summary = ''; annotations = []; isRuntime = false;
-  }
-
-  // Detect a compile failure when it's NOT runtime
-const isCompileFail =
-  !isRuntime && (
-    // parser found error-severity issues
-    (hints.length > 0 && hints.some(h => (h.severity || 'error') === 'error')) ||
-    // or the raw stderr contains a typical compiler “error:” line
-    /(^|\n).*error:/i.test(stderr)
-  );
+  // 4) Final fallback
+  return 'c';
+})();
 
 
   
-  // Show a red heading for runtime; hide banner otherwise
-  hideCompileFailNotice();
-if (isRuntime) {
-  showCompileFailNotice('exec');      // Runtime Error / Exception
-} else if (isCompileFail) {
-  showCompileFailNotice('compile');   // Compilation Failed
-}
+  const { hints, summary, annotations } = parseCompilerOutput({ lang, stderr, stdout, code });
 
-
-
-  
-
-  // Render Polycode Analysis (or say we couldn't interpret)
-  /*if (explainEl) {
+  // Render below stderr
+  if (explainEl) {
     if (hints.length) {
       explainEl.innerHTML = `
         <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
         <div class="eh-wrap">
           <div class="eh-head">
             <strong>Error Explanation</strong>
-            <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
+            <span class="eh-summary">${summary.replace(/\n/g,'<br>')}</span>
           </div>
-          ${hints.map(h => renderHintHTML(h)).join('')}
-        </div>
-      `;
-    } else {
-      explainEl.innerHTML = `
-        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
-        <div class="eh-wrap">
-          <div class="eh-empty">The compiler reported errors, but I couldn’t interpret them confidently.</div>
-        </div>
-      `;
-    }
-
-  }*/
-
-
-  // Render Polycode Analysis (no duplicate runtime text)
-  if (explainEl) {
-    if (isRuntime) {
-      // For runtime: we already show the red banner + the raw stderr once above.
-      // Here we only show a concise header/summary, and DO NOT repeat the same message.
-      explainEl.innerHTML = `
-        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
-        <div class="eh-wrap">
-          <div class="eh-head">
-            <strong>Runtime Error / Exception</strong>
-            <span class="eh-summary">${(summary || 'Program crashed at runtime. See the error above.').replace(/\n/g,'<br>')}</span>
-          </div>
-        </div>
-      `;
-    } else if (hints.length) {
-      explainEl.innerHTML = `
-        <h3 style="margin:8px 0 6px;color:#2e5bea;">Polycode Analysis</h3>
-        <div class="eh-wrap">
-          <div class="eh-head">
-            <strong>Error Explanation</strong>
-            <span class="eh-summary">${(summary || '').replace(/\n/g,'<br>')}</span>
-          </div>
-          ${hints.map(h => renderHintHTML(h)).join('')}
+          ${hints.map(renderHintHTML).join('')}
         </div>
       `;
     } else {
@@ -1432,31 +1278,33 @@ if (isRuntime) {
     }
   }
 
+  // Monaco markers
+  if (window.monaco && window.editor) {
+    monaco.editor.setModelMarkers(
+      window.editor.getModel(),
+      'polycode-eh',
+      (annotations || []).map(a => ({
+        startLineNumber: a.line || 1,
+        endLineNumber: a.line || 1,
+        startColumn: 1,
+        endColumn: 300,
+        message: a.message || 'Error',
+        severity: monaco.MarkerSeverity.Error
+      }))
+    );
+  }
 
-
-
-
-  
-  // Monaco markers – tolerate missing editor
-  try {
-    if (window.monaco && window.editor) {
-      monaco.editor.setModelMarkers(
-        window.editor.getModel(),
-        'polycode-eh',
-        annotations.map(a => ({
-          startLineNumber: a.line || 1,
-          endLineNumber:   a.line || 1,
-          startColumn:     a.col  || 1,
-          endColumn:       (a.col || 1) + 1,
-          message: a.message || 'Error',
-          severity: monaco.MarkerSeverity.Error
-        }))
-      );
-    }
-  } catch {}
+  // Optional: show alert dialog too
+  if (alsoAlert && (hints?.length || stderr || stdout)) {
+    const head = 'Polycode Analysis';
+    const errText = stderr || stdout;
+    const first = hints?.[0];
+    const friendly = first ? `${first.title}${first.line ? ` (line ${first.line})` : ''}\n\n${first.detail}\n\nTry: ${first.fix || 'Check the line reported above.'}` : '';
+    alert(`${head}\n\n${friendly || 'See Output panel for details.'}\n\n--- Raw Error ---\n${errText.substring(0, 2000)}`);
+  }
 }
+// after function refreshStderrExplanation() { ... }
 window.refreshStderrExplanation = refreshStderrExplanation;
-
 
 
 
@@ -4705,42 +4553,62 @@ window.toggleExpand = window.toggleExpand || function(which, btn){
 
 // PATCH the existing left toggle to also reflect expand state on mobile
 // PATCH the existing left toggle so "open" != "expanded"
-// PATCH the existing left toggle so "open" != "expanded" (complete, safe)
 (function(){
   const app = document.querySelector('.app');
-  const btn = document.getElementById('btnToggleLeft');
-  if (!app || !btn) return;
+  const btnToggleLeft = document.getElementById('btnToggleLeft');
+  if (!app || !btnToggleLeft) return;
 
   const mqSmall = window.matchMedia('(max-width:1024px)');
 
-  function syncButton() {
-    const visible = !app.classList.contains('collapsed-left') && !app.classList.contains('hide-left');
-    btn.setAttribute('aria-pressed', visible ? 'true' : 'false');
-    btn.classList.toggle('is-on', visible);
+  function setBtnOn(el, on){
+    el.setAttribute('aria-pressed', on ? 'true' : 'false');
+    el.classList.toggle('is-on', on);
   }
 
-  btn.addEventListener('click', () => {
-    const willHide = !app.classList.contains('collapsed-left') && !app.classList.contains('hide-left');
-    app.classList.toggle('collapsed-left', willHide);
-    app.classList.toggle('hide-left', willHide);
+  // Keep a reference to any original click handler
+  const original = btnToggleLeft._handler || btnToggleLeft.onclick;
 
-    // On small screens make sure “expanded” states are cleared
+  const handler = (e) => {
+    // Run original behavior first (show/hide left)
+    if (typeof original === 'function') { try { original.call(btnToggleLeft, e); } catch {} }
+
+    // Recompute after toggle
+    const leftHidden = app.classList.contains('collapsed-left') || app.classList.contains('hide-left');
+    const leftNowVisible = !leftHidden;
+
+    // On small screens: DO NOT auto-expand when using the toggle.
+    // Ensure left is "visible but unexpanded" and the expander button is OFF.
     if (mqSmall.matches) {
       app.classList.remove('expand-left','expand-center','expand-right');
-      document.querySelectorAll('.btn.expander').forEach(b => {
-        b.setAttribute('aria-pressed','false');
-        b.classList.remove('is-on');
-      });
+      const leftExpander = document.querySelector('#leftPanel .btn.expander');
+      if (leftExpander) setBtnOn(leftExpander, false);
     }
 
-    window.editor?.layout?.();
-    syncButton();
+    // The toggle button itself reflects visibility (on = visible)
+    setBtnOn(btnToggleLeft, leftNowVisible);
+
+    // Relayout editor when center size changes
+    if (window.editor?.layout) {
+      const el = document.getElementById('editor');
+      requestAnimationFrame(() => window.editor.layout({ width: el.clientWidth, height: el.clientHeight }));
+    }
+  };
+
+  btnToggleLeft._handler = handler;
+  btnToggleLeft.addEventListener('click', handler);
+
+  // Keep classes sane when crossing the breakpoint
+  mqSmall.addEventListener?.('change', () => {
+    // Always clear any expand-* classes when switching modes
+    app.classList.remove('expand-left','expand-center','expand-right');
+    // Also un-blue ALL expander buttons
+    document.querySelectorAll('.btn.expander').forEach(b => {
+  b.setAttribute('aria-pressed','false');
+  b.classList.remove('is-on');
+});
+
   });
-
-  // initial sync
-  syncButton();
 })();
-
 
 
 
@@ -4895,8 +4763,6 @@ function termWriteStyled(msg) {
 }
 
 
-
-
 function showCompileFailNotice(kind = 'compile') {
   const pre = document.getElementById('stderrText') || document.getElementById('stdoutText');
   if (!pre) return;
@@ -4917,8 +4783,6 @@ function hideCompileFailNotice() {
   const n = document.getElementById('pcFailNote');
   if (n) n.remove();
 }
-
-
 
 
 
@@ -5016,3 +4880,8 @@ function hideCompileFailNotice() {
     out.__pc_resetObserver = obs;
   }
 })();
+
+
+
+
+
