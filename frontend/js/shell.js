@@ -1194,80 +1194,18 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 
-
-
-
-
-
-
-
-// --- display-only cleaner for the console text (keeps semantics) ---
-
-function __pc_dedupeDisplayStderr(s="") {
-  const lines = String(s).replace(/\r\n/g,"\n").split("\n");
-  const out = [];
-  let sawExitLine = false;
-
-  for (let i = 0; i < lines.length; i++) {
-    const L = lines[i];
-
-    // keep only one "[process exited with code N]"
-    if (/^\[?process exited with code \d+\]?$/i.test(L.trim())) {
-      if (sawExitLine) continue;
-      sawExitLine = true;
-    }
-
-    // unwrap "bash: line N: <payload>"
-    const m = L.match(/^bash:\s+line\s+\d+:\s+(.*)$/i);
-    const cleaned = m ? m[1] : L;
-
-    // drop exact consecutive duplicates
-    if (out.length && out[out.length - 1] === cleaned) continue;
-
-    out.push(cleaned);
-  }
-  return out.join("\n").trim();
-}
-
-
-
-
-
-
-
-
-
 // ---- Friendly error: read stderr/stdout and append detailed explanation under it
 
 // ---- Friendly error: read stderr/stdout and append detailed explanation under it
 async function refreshStderrExplanation({ alsoAlert = false } = {}) {
   const cachedErr = window.PolyRun?.stderr ?? '';
   const cachedOut = window.PolyRun?.stdout ?? '';
-  //const domErr = document.getElementById('stderrText')?.textContent || '';
-  //const domOut = document.getElementById('stdoutText')?.textContent || '';
+  const domErr = document.getElementById('stderrText')?.textContent || '';
+  const domOut = document.getElementById('stdoutText')?.textContent || '';
 
-  //const stderr = String(cachedErr || domErr || '');
-  //const stdout = String(cachedOut || domOut || '');
-  //const code   = window.editor?.getValue?.() || '';
-
-
-   // READ the panel text
-const domErr  = document.getElementById('stderrText')?.textContent || '';
-const domOut  = document.getElementById('stdoutText')?.textContent || '';
-
-// CLEAN stderr for display (dedupe bash wrapper + single [process exited...] line)
-const stderr  = __pc_dedupeDisplayStderr(String(cachedErr || domErr || ''));
-const stdout  = String(cachedOut || domOut || '');
-const code    = window.editor?.getValue?.() || '';
-
-// WRITE BACK the cleaned stderr so the visible console shows it only once
-const stderrEl = document.getElementById('stderrText');
-if (stderrEl && stderrEl.textContent !== stderr) {
-  stderrEl.textContent = stderr;
-}
-
-
-  
+  const stderr = String(cachedErr || domErr || '');
+  const stdout = String(cachedOut || domOut || '');
+  const code   = window.editor?.getValue?.() || '';
   const explainEl = document.getElementById('stderrExplain');
 
   // If there’s nowhere to render and we’re not alerting, bail early
@@ -1353,7 +1291,6 @@ if (stderrEl && stderrEl.textContent !== stderr) {
         </div>
       `;
     }
-
   }
 
   // Monaco markers – tolerate missing editor
