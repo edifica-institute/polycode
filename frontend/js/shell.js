@@ -4255,7 +4255,7 @@ class PCWebSocket {
 window.WebSocket = PCWebSocket;
 
     window.WebSocket.__pcWrapped = true;
-  }
+  
 })();
 
 
