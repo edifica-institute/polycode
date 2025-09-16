@@ -1728,6 +1728,7 @@ try {
 
 try {
   if (window.monaco && window.editor) {
+    monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode', []); 
     monaco.editor.setModelMarkers(window.editor.getModel(), 'polycode-eh', []);
   }
 } catch {}
