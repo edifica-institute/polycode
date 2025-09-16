@@ -99,10 +99,23 @@ curl -fSL -o /app/libs/kotlin-stdlib-1.9.24.jar \
   curl -fSL -o /app/libs/jetty-webapp-11.0.24.jar \
     https://repo1.maven.org/maven2/org/eclipse/jetty/jetty-webapp/11.0.24/jetty-webapp-11.0.24.jar && \
   curl -fSL -o /app/libs/jakarta.servlet-api-5.0.0.jar \
-    https://repo1.maven.org/maven2/jakarta/servlet/jakarta.servlet-api/5.0.0/jakarta.servlet-api-5.0.0.jar
+    https://repo1.maven.org/maven2/jakarta/servlet/jakarta.servlet-api/5.0.0/jakarta.servlet-api-5.0.0.jar &&\
 
 
 
+# ---- MongoDB driver (sync) ----
+curl -fSL -o /app/libs/bson-5.1.0.jar \
+  https://repo1.maven.org/maven2/org/mongodb/bson/5.1.0/bson-5.1.0.jar && \
+curl -fSL -o /app/libs/mongodb-driver-core-5.1.0.jar \
+  https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-core/5.1.0/mongodb-driver-core-5.1.0.jar && \
+curl -fSL -o /app/libs/mongodb-driver-sync-5.1.0.jar \
+  https://repo1.maven.org/maven2/org/mongodb/mongodb-driver-sync/5.1.0/mongodb-driver-sync-5.1.0.jar && \
+
+# ---- Redis (Jedis) + commons-pool2 ----
+curl -fSL -o /app/libs/jedis-5.1.3.jar \
+  https://repo1.maven.org/maven2/redis/clients/jedis/5.1.3/jedis-5.1.3.jar && \
+curl -fSL -o /app/libs/commons-pool2-2.12.0.jar \
+  https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.0/commons-pool2-2.12.0.jar
 
 
 
