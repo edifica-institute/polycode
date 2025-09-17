@@ -119,43 +119,22 @@ function mergeStreams(a, b) {
 }
 
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
-function runWithLimits(cmd, args, cwd, { timeoutSec, unbuffer = "auto" } = {}) {
-  // unbuffer: "auto" | "script" | "stdbuf" | "none"
+function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
-
-  // prefer `script -qfec` (PTY, no LD_PRELOAD), else fall back.
-  const wrapAuto = `
-    if command -v script >/dev/null 2>&1; then
-      script -qfec ${argv} /dev/null;
-    elif command -v stdbuf >/dev/null 2>&1; then
+  const bash = `
+    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
+    if command -v stdbuf >/dev/null 2>&1; then
       stdbuf -o0 -e0 ${argv};
     else
       ${argv};
     fi
   `;
-
-  const wrapScript = `script -qfec ${argv} /dev/null`;
-  const wrapStdbuf = `stdbuf -o0 -e0 ${argv}`;
-  const wrapNone   = `${argv}`;
-
-  const wrapped =
-    unbuffer === "script" ? wrapScript :
-    unbuffer === "stdbuf" ? wrapStdbuf :
-    unbuffer === "none"   ? wrapNone   :
-    wrapAuto;
-
-  const bash = `
-    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
-    ${wrapped}
-  `;
-
   const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
-
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
@@ -238,7 +217,7 @@ app.post("/api/cc/prepare", async (req, res) => {
     child.stderr.on("data", d => err += d.toString());
 
     child.on("close", (code) => {
-      const compileLog = mergeStreams(out, err); // de-duped
+      const compileLog = mergeStreams(out, err); // <<< de-duped
       if (code !== 0) {
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
         return res.json({ token: null, ok: false, compileLog, diagnostics: parseGcc(compileLog) });
@@ -285,7 +264,7 @@ wss.on("connection", (ws, req) => {
   if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
 
   const { dir, exePath } = sess;
-  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S, unbuffer: "script" });
+  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S });
 
   // Stream output
   child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
