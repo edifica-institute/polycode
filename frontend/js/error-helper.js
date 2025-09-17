@@ -837,7 +837,7 @@ if (hadPosix && hadSan) {
   }
 }
 
-       if (!hints.length) detectLibcErrno(text, hints);
+       //if (!hints.length) detectLibcErrno(text, hints);
 
       // gcc/clang: file:line:col: error: message
        if (!hints.length) {
