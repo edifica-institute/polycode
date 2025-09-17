@@ -322,53 +322,6 @@ const add = (arr, {title, detail, line=null, fix=null, severity='error', confide
 
 // === DETECTOR A: POSIX runtime crashes (all langs that run native) ===
 // Maps Linux "128 + signal" exit codes -> signal names
-const SIG_BY_EXIT = {132:'SIGILL', 134:'SIGABRT', 136:'SIGFPE', 139:'SIGSEGV', 138:'SIGBUS'};
-function detectPosixCrash(text, codeText, codeString, hints) {
-  const t = (text || '') + '\n' + (codeText || '');
-  const mExit = RE_EXIT.exec(t);
-  const exitCode = mExit ? parseInt(mExit[1],10) : null;
-  const sig = (exitCode && SIG_BY_EXIT[exitCode]) ? SIG_BY_EXIT[exitCode] : null;
-
-  const mSig = /(Illegal instruction|Floating point exception|Segmentation fault|Bus error|Aborted)(?:\s*\(core dumped\))?/i.exec(t);
-  const sigWord = mSig ? mSig[1].toLowerCase() : null;
-
-  if (!mSig && !sig) return false;
-
-  let title='Program crashed at runtime', detail='The OS terminated the program.', fix='Check last changes and sanitize inputs.';
-  let line=null;
-
-  const findDivZero = (src) => {
-    const L = String(src||'').split('\n');
-    for (let i=0;i<L.length;i++) if (/\b\/\s*0(?!\d)/.test(L[i])) return i+1;
-    return null;
-  };
-
-  if (sigWord?.includes('illegal') || sig==='SIGILL') {
-    title='Illegal instruction (SIGILL)';
-    detail='CPU tried to execute an invalid instruction—often undefined behavior or incompatible build flags.';
-    fix='Remove UB, compile without aggressive -march flags, and try UBSan/ASan.';
-  } else if (sigWord?.includes('floating') || sig==='SIGFPE') {
-    title='Floating point exception (SIGFPE)';
-    detail='Most commonly division by zero or invalid arithmetic.';
-    fix='Guard divisors against zero; validate arithmetic operands.';
-    line = findDivZero(codeString);
-  } else if (sigWord?.includes('segmentation') || sig==='SIGSEGV') {
-    title='Segmentation fault (SIGSEGV)';
-    detail='Invalid memory access (bad pointer / out-of-bounds).';
-    fix='Check pointer init and array bounds; run with AddressSanitizer.';
-  } else if (sigWord?.includes('aborted') || sig==='SIGABRT') {
-    title='Aborted (SIGABRT)';
-    detail='abort() called, often from failed assert() or library fatal error.';
-    fix='Find the assert/error path and handle it cleanly.';
-  } else if (sigWord?.includes('bus') || sig==='SIGBUS') {
-    title='Bus error (SIGBUS)';
-    detail='Unaligned memory access or invalid mapping.';
-    fix='Check struct packing / file mappings.';
-  }
-
-  add(hints, {title, detail, line, fix});
-  return true;
-}
 
 // === DETECTOR B: Sanitizers (C/C++) ===
 function detectSanitizers(text, hints) {
@@ -605,6 +558,117 @@ function detectPythonTraceback(text, push) {
 
 
 
+// --- DROP-IN HELPER ---
+function explainPyTypeOrAttr(errMsgRaw) {
+  const msg = String(errMsgRaw || "");
+  let detail = msg.replace(/^.*?:\s*/i, ""); // strip "TypeError:" / "AttributeError:"
+  let fix = null;
+  let confidence = 'high';
+
+  // —— AttributeError patterns ——
+  // 'NoneType' object has no attribute 'x'
+  if (/'NoneType' object has no attribute '([^']+)'/i.test(msg)) {
+    const attr = (/'NoneType' object has no attribute '([^']+)'/i.exec(msg) || [])[1];
+    fix = [
+      `The object is \`None\` before access${attr ? ` (attribute \`${attr}\`)` : ""}.`,
+      '• Ensure the function you called returns a value (not None).',
+      '• Initialize the object before use.',
+      '• Add a guard: `if obj is None: ...`'
+    ].join('\n');
+    return { detail, fix, confidence };
+  }
+
+  // 'dict' object has no attribute 'x'  → probably using dot-access
+  if (/'dict' object has no attribute '([^']+)'/i.test(msg)) {
+    const key = (/'dict' object has no attribute '([^']+)'/i.exec(msg) || [])[1];
+    fix = `Use key access on dicts (e.g., \`d['${key || 'key'}']\`) rather than dot access.`;
+    return { detail, fix, confidence };
+  }
+
+  // 'list' object has no attribute 'split' | 'keys' etc.
+  if (/'list' object has no attribute '([^']+)'/i.test(msg)) {
+    const a = (/'list' object has no attribute '([^']+)'/i.exec(msg) || [])[1];
+    fix = [
+      `You're calling \`${a}\` on a list.`,
+      '• If you meant a string, select the string item first: `my_list[i].split(...)`.',
+      '• Or convert to the right type before calling methods.'
+    ].join('\n');
+    return { detail, fix, confidence };
+  }
+
+  // 'str' object has no attribute 'append'
+  if (/'str' object has no attribute '([^']+)'/i.test(msg)) {
+    const a = (/'str' object has no attribute '([^']+)'/i.exec(msg) || [])[1];
+    fix = `Strings are immutable and lack \`${a}\`. For building text, use concatenation or \`str.join\`; for collections, use a list.`;
+    return { detail, fix, confidence };
+  }
+
+  // —— TypeError patterns ——
+  // str + int or "can only concatenate str (not 'int')"
+  if (/can only concatenate str .* not '.*' to str/i.test(msg) ||
+      /unsupported operand type\(s\) for \+:\s*'str'\s*and\s*'int'/i.test(msg)) {
+    fix = 'Cast before using `+`: e.g., `str(x) + " years"` or convert inputs with `int()`/`float()` for numeric addition.';
+    return { detail, fix, confidence };
+  }
+
+  // unsupported operand types for arithmetic
+  if (/unsupported operand type\(s\) for [+\-*/]/i.test(msg)) {
+    fix = 'Make operand types compatible (e.g., convert with `int()`, `float()`, or parse input before arithmetic).';
+    return { detail, fix, confidence };
+  }
+
+  // list/tuple/string indices must be integers, not str
+  if (/(indices must be integers|list indices must be integers|slice indices must be integers)/i.test(msg)) {
+    fix = 'Convert the index to an integer (e.g., `seq[int(i)]`) or ensure you’re indexing the right structure.';
+    return { detail, fix, confidence };
+  }
+
+  // 'int' object is not subscriptable
+  if (/'int' object is not subscriptable/i.test(msg)) {
+    fix = 'You tried to index an int. Index the sequence instead, or compute the int value first and don’t subscript it.';
+    return { detail, fix, confidence };
+  }
+
+  // 'str' object is not callable (using "x(...)" where x is a string)
+  if (/'str' object is not callable/i.test(msg)) {
+    fix = 'You’re calling a string like a function. Remove the parentheses or rename a variable that shadows a function name.';
+    return { detail, fix, confidence };
+  }
+
+  // takes N positional arguments but M were given / missing required positional arg
+  if (/takes \d+ positional arguments but \d+ were given/i.test(msg) ||
+      /missing \d+ required positional argument/i.test(msg)) {
+    fix = [
+      'Check the function signature and your call.',
+      'Common pitfall: instance methods need `self`; call them on an instance (e.g., `obj.method(...)`) not the class, or add `@staticmethod` if `self` is not used.'
+    ].join('\n');
+    return { detail, fix, confidence };
+  }
+
+  // got an unexpected keyword argument 'x'
+  if (/got an unexpected keyword argument\s+'([^']+)'/i.test(msg)) {
+    const kw = (/got an unexpected keyword argument\s+'([^']+)'/i.exec(msg) || [])[1];
+    fix = `The callee doesn’t accept \`${kw}\`. Rename the argument to match the function’s parameter name or upgrade/downgrade to a matching API version.`;
+    return { detail, fix, confidence };
+  }
+
+  // cannot unpack non-iterable X object
+  if (/cannot unpack non-iterable .* object/i.test(msg)) {
+    fix = 'The right side isn’t a tuple/iterable. Make the function return multiple values (tuple) or unpack one variable only.';
+    return { detail, fix, confidence };
+  }
+
+  // slice step cannot be zero
+  if (/slice step cannot be zero/i.test(msg)) {
+    fix = 'Use a non-zero step in slicing (e.g., `a[::1]`).';
+    return { detail, fix, confidence };
+  }
+
+  // Fallback
+  return { detail, fix: 'Check argument counts and operand types; convert or validate inputs where needed.', confidence: 'medium' };
+}
+
+
 
 
 
@@ -635,7 +699,7 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
   const push = (title, detail, line=null, fix=null, kind='error', column=null, confidence='medium') => {
     hints.push({ title, detail, fix, line, column, kind, confidence });
     const msg = `${title}${detail ? ': ' + detail : ''}`;
-    annotations.push({ line, column, message: msg, kind });
+    annotations.push({ line, column, message: msg, severity: kind });
   };
   const firstLine = (s) => (String(s||'').split('\n').find(Boolean) || '').trim();
   const asInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
@@ -698,7 +762,12 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
         return dist<=1 ? best : null; // one edit away → likely typo
       };
 
+       detectGccClang(text, hints);
+  detectSanitizers(text, hints);
+
+       
       // gcc/clang: file:line:col: error: message
+       if (!hints.length) {
       const main = text.match(/^(.*?):(\d+)(?::(\d+))?:\s*(error|fatal error|warning):\s*(.+)$/m);
       if (main) {
         const line = asInt(main[2]), col = asInt(main[3]);
@@ -740,12 +809,15 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
           push('Compiler error', msg, line, 'Fix at the highlighted line.', 'error', col, 'low');
         }
       }
+       }
+
+        if (!hints.length) {
       // linker: undefined reference to `foo`
       const links = [...text.matchAll(/undefined reference to `?([A-Za-z_]\w*)`?/g)];
       if (links.length) {
         const names = Array.from(new Set(links.map(m => m[1]))).slice(0,5);
         push('Linker error: undefined reference', `Missing implementation or library for: ${names.join(', ')}`, null, 'Provide the function(s) or link the correct library.', 'error', null, 'high');
-      }
+      }}
 
        if (!hints.length) detectPosixCrash(text, code, push);
       break;
@@ -815,10 +887,12 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
         const nm = /NameError:\s*name\s*'([^']+)'/i.exec(errMsg)?.[1];
         push('NameError', nm ? `\`${nm}\` is not defined.` : 'A name is not defined.', errLine, 'Define the variable/function or import it.', 'error', null, 'high');
       } else if (/TypeError:/i.test(errMsg)) {
-        push('TypeError', errMsg.replace(/^TypeError:\s*/i,''), errLine, 'Check argument counts and operand types.', 'error', null, 'medium');
-      } else if (/AttributeError:/i.test(errMsg)) {
-        push('AttributeError', errMsg.replace(/^AttributeError:\s*/i,''), errLine, 'Ensure the object is not `None` and has this attribute.', 'error', null, 'medium');
-      } else if (errMsg) {
+  const q = explainPyTypeOrAttr(errMsg);
+  push('TypeError', q.detail, errLine, q.fix, 'error', null, q.confidence);
+} else if (/AttributeError:/i.test(errMsg)) {
+  const q = explainPyTypeOrAttr(errMsg);
+  push('AttributeError', q.detail, errLine, q.fix, 'error', null, q.confidence);
+} else if (errMsg) {
         push('Runtime error', errMsg, errLine, 'Fix the error at this line.', 'error', null, 'low');
       }
        if (!hints.length) detectPythonTraceback(text, push);
@@ -866,16 +940,7 @@ case 'sql': {
   const first = firstLine(s);
 
 
-    if (/\btable\s+([`"'[\]A-Za-z0-9_.-]+)\s+already\s+exists\b/i.test(s)) {
-    const tbl = (s.match(/\btable\s+([`"'[\]A-Za-z0-9_.-]+)\s+already\s+exists\b/i) || [])[1] || 'the table';
-    push(
-      'Table Already Exists',
-      `Table ${tbl} already exists in the database.`,
-      null,
-      `Use \`CREATE TABLE IF NOT EXISTS ${tbl}(...)\` or drop it first with \`DROP TABLE ${tbl};\`.`,
-      'error', null, 'high'
-    );
-  }
+  
 
 
    
@@ -1007,6 +1072,14 @@ case 'sql': {
     }
   }
 
+   // ---------- enrich hints with code snippets ----------
+for (const h of hints) {
+  if (h && h.line && code) {
+    h.snippet = extractSnippet(code, h.line, 1);  // 1 line of context above/below
+  }
+}
+
+
   return finalize();
 
   // ---------- summarizer ----------
@@ -1020,10 +1093,17 @@ case 'sql': {
     }
 
     const strong = hints.filter(h => h.confidence === 'high').length;
-    const summary = hints.length
+    /*const summary = hints.length
       ? `Found ${hints.length} issue${hints.length>1?'s':''}${strong?` (${strong} high confidence)`:''}. Fix the first error first; later errors may be a cascade.`
-      : `The compiler reported errors, but I couldn’t interpret them confidently.`;
+      : `The compiler reported errors, but I couldn’t interpret them confidently.`;*/
 
+
+     const top = hints[0];
+const summary = hints.length
+  ? `${top.title}${top.detail ? ' — ' + top.detail : ''}`
+  : `The compiler reported errors, but I couldn’t interpret them confidently.`;
+
+     
     return { hints, summary, annotations: ann };
   }
 }
@@ -1240,25 +1320,44 @@ GROUP BY dept;`)
 
 
 /** Turn a hint into minimal HTML (safe string; you can style with your CSS) */
+// --- DROP-IN REPLACEMENT ---
 export function renderHintHTML(hint) {
-  const line = hint.line ? `Line ${hint.line}` : "";
-  const conf = `Confidence: ${(hint.confidence * 100 | 0)}%`;
-  const rule = hint.ruleId ? `<code>${hint.ruleId}</code>` : "";
+  const sev = hint.severity || hint.kind || "error";
+
+  const hasLine = Number.isFinite(hint.line);
+  const hasCol  = Number.isFinite(hint.column);
+  const lineCol = hasLine ? `Line ${hint.line}${hasCol ? ':' + hint.column : ''}` : "";
+
+  const confText = typeof hint.confidence === "number"
+    ? `${(hint.confidence * 100 | 0)}%`
+    : (hint.confidence || "");
+
+  const rule = hint.ruleId ? `<code>${escapeHtml(hint.ruleId)}</code>` : "";
+
+  const meta = [lineCol, confText && `Confidence: ${confText}`, rule]
+    .filter(Boolean)
+    .join(" · ");
+
+  const fixes = Array.isArray(hint.fix) ? hint.fix
+              : hint.fix ? [hint.fix]
+              : [];
+
   const snip = (hint.snippet || [])
     .map(s => `<div class="eh-snip-line"><em>${s.n}</em> ${escapeHtml(s.text)}</div>`)
     .join("");
 
   return `
-  <div class="eh-hint ${hint.severity}">
+  <div class="eh-hint ${sev}">
     <div class="eh-hdr">
-      <strong>${escapeHtml(hint.title)}</strong>
-      <span class="eh-meta">${[line, conf, rule].filter(Boolean).join(" · ")}</span>
+      <strong>${escapeHtml(hint.title || 'Issue')}</strong>
+      ${meta ? `<span class="eh-meta">${meta}</span>` : ""}
     </div>
-    <div class="eh-detail">${escapeHtml(hint.detail)}</div>
-    ${hint.fix ? `<div class="eh-fix"><span>Try:</span> ${escapeHtml(hint.fix)}</div>` : ""}
+    ${hint.detail ? `<div class="eh-detail">${escapeHtml(hint.detail)}</div>` : ""}
+    ${fixes.length ? `<div class="eh-fix"><span>Try:</span> ${fixes.map(f => `<div class="eh-fix-line">${escapeHtml(f)}</div>`).join("")}</div>` : ""}
     ${snip ? `<div class="eh-snip">${snip}</div>` : ""}
   </div>`;
 }
+
 
 function escapeHtml(s) {
   return (s || "")
