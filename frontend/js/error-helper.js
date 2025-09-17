@@ -805,9 +805,7 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
          
          
          // Catch simple perror-style runtime errors early (works for any lang)
-if (detectCommonRuntimeErrors(text, push)) {
-  return finalize();
-}
+
 
 
  
@@ -816,6 +814,12 @@ if (detectCommonRuntimeErrors(text, push)) {
     }
   } catch { /* non-JSON; continue */ }
 
+
+   if (detectCommonRuntimeErrors(text, push)) {
+  return finalize();
+}
+
+   
   // ---------- language-specific text parsers ----------
   switch ((lang||'').toLowerCase()) {
     case 'c':
