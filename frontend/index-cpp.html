@@ -713,11 +713,18 @@ __liftedPrompt = false;
       const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
       showInputRow(false);
       setConsole('');
+
+      const e1 = document.getElementById('stderrText');
+const e2 = document.getElementById('stderrExplain');
+if (e1) e1.textContent = '';
+if (e2) e2.innerHTML = '';
+
+      
       document.getElementById('output')?.classList.remove('error');
 
       const src = window.editor ? window.editor.getValue() : '';
       const needsStdin = codeNeedsInput(src);
-
+let runtimeBuf = '';
       const runState = { exitCode:null, compiled:false };
 
       return new Promise(async (resolve, reject)=>{
@@ -842,6 +849,8 @@ if (!prep || !prep.ok || !prep.token) {
 
   // --- D) Normal console echo ---
   if (cleaned.trim() !== '') termWrite(cleaned);
+runtimeBuf += cleaned;
+if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
 
   // show input row if it *looks* like a prompt
   try {
@@ -874,7 +883,47 @@ if (!prep || !prep.ok || !prep.token) {
 
 
           ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
-          ws.addEventListener('close', ()=>{ const ok = (runState.exitCode === 0); finish(ok); }, { once:true });
+         ws.addEventListener('close', () => {
+  // try to recover exit code if not already set
+  if (runState.exitCode == null) {
+    const m = (runtimeBuf || '').match(/\[process exited with code\s+(-?\d+)\]/i);
+    if (m) runState.exitCode = parseInt(m[1], 10);
+  }
+
+  const ok = (runState.exitCode === 0);
+
+  if (!ok) {
+    // 1) red heading like C
+    showCompileFailNotice('runtime');
+
+    // 2) run Polycode analysis using your existing error-helper.js
+    try {
+      const { parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper || {};
+      if (parseCompilerOutput) {
+        const codeSrc = window.editor ? window.editor.getValue() : '';
+        const { hints, summary } = parseCompilerOutput({
+          lang: 'cpp',
+          stderr: runtimeBuf || '',   // collected console output
+          stdout: '',
+          code: codeSrc
+        });
+
+        const errBox = document.getElementById('stderrText');
+        const expl   = document.getElementById('stderrExplain');
+        if (errBox) errBox.textContent = summary || 'Program exited with error.';
+        if (expl && renderHintHTML) expl.innerHTML = hints.map(renderHintHTML).join('');
+
+        // Make the right panel go red (same as compile path)
+        document.getElementById('output')?.classList.add('error');
+        window.PolyShell?.setRunnerPhase?.('error');
+        window.PolyShell?.setStatus('Executed with Error', 'error');
+      }
+    } catch {}
+  }
+
+  finish(ok);
+}, { once: true });
+
         }catch(err){
           stopStatusDots(); stopInputCountdown();
           window.PolyShell?.stopInputTicker?.();
