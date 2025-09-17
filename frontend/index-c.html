@@ -819,8 +819,8 @@ const finish = async (ok) => {
     );
 
     // Put the (cleaned) raw error only in #stderrText (single source of truth)
-    const st = document.getElementById('stderrText');
-    if (st) { st.textContent = cleaned; st.style.display = 'block'; }
+    //const st = document.getElementById('stderrText');
+    //if (st) { st.textContent = cleaned; st.style.display = 'block'; }
 
     // NEW: keep the explainer’s input in sync and render it now
     window.PolyShell?.setRawOutputs('', cleaned);          // feed stderr
