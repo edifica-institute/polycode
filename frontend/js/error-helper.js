@@ -712,6 +712,35 @@ function explainPyTypeOrAttr(errMsgRaw) {
 
 
 
+function detectCommonRuntimeErrors(text, push) {
+  const t = String(text || '');
+
+  // fopen/open: No such file or directory
+  if (/(^|\n)\s*(f?open|fopen64|read|write|stat|access)\s*:\s*No such file or directory/i.test(t) ||
+      /No such file or directory/i.test(t)) {
+    push(
+      'File not found',
+      'The program tried to open a file that does not exist (often using mode "r").',
+      null,
+      'Create the file first, check the path/working directory, or open with "w"/"a" to create it.'
+    );
+    return true;
+  }
+
+  // Permission denied
+  if (/(^|\n)\s*(f?open|fopen64|read|write|stat|access)\s*:\s*Permission denied/i.test(t) ||
+      /Permission denied/i.test(t)) {
+    push(
+      'Permission denied',
+      'The OS blocked access to the file/path.',
+      null,
+      'Use a writable location, adjust permissions, or run with appropriate rights.'
+    );
+    return true;
+  }
+
+  return false;
+}
 
 
 
@@ -772,7 +801,14 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
 
           push(title, msg, line, fix, kind, column, confidence);
         }
-        return finalize();
+        //return finalize();
+
+  // catch simple runtime errors (perror-style) early
+  if (detectCommonRuntimeErrors(text, push)) {
+    return finalize(); // <-- same finalize() you already use at the end
+  }
+
+         
       }
     }
   } catch { /* non-JSON; continue */ }
