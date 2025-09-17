@@ -530,10 +530,23 @@ function scheduleIdleProbe(){
       if (row) row.style.display = show ? 'flex' : 'none';
 
       if (show){
-        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
-        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-        else { prefix.textContent = ''; }
+        //const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
+        //if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+        //else { prefix.textContent = ''; }
+   // Only pull the tail up if it *looks like a prompt*
+   const txt  = pre.textContent;
+   const i    = txt.lastIndexOf('\n');
+   const tail = txt.slice(i + 1);
+   const isPrompt = PROMPT_RE.test(tail);
+   if (isPrompt) {
+     prefix.textContent = tail + ' ';
+     pre.textContent = i >= 0 ? txt.slice(0, i + 1) : '';
+   } else {
+     prefix.textContent = '';
+  }
 
+
+        
         window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
         window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
         __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
@@ -541,6 +554,9 @@ function scheduleIdleProbe(){
         window.PolyShell?.startInputTicker?.(getCountdownText, 500);
 
         focusConsoleInput();
+   // Make sure the input row is visible even if the console is long
+   document.getElementById('output')?.scrollTo({ top: 1e9 });
+        
       }else{
         if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
           window.PolyShell?.setStatus('Executing...', 'busy');
