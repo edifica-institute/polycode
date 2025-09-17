@@ -211,6 +211,12 @@ app.post("/api/cc/prepare", async (req, res) => {
     ];
 
 
+    // enable sanitizers when requested
+if (process.env.CC_ENABLE_ASAN === "1") {
+  args.push("-fsanitize=address,undefined", "-fno-omit-frame-pointer");
+}
+
+
     
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
