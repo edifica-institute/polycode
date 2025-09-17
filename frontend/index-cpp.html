@@ -937,7 +937,7 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
          ws.addEventListener('close', () => {
   const ok = (runState.exitCode === 0);
 
-  if (!ok) {
+ /* if (!ok) {
     // 1) Put a cleaned runtime log into the red block
     const errBox = document.getElementById('stderrText');
     const raw = (runtimeBuf || '').trim();
@@ -984,8 +984,19 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
     }
 
     showCompileFailNotice('runtime');
-  }
+  }*/
 
+
+  if (!ok) {
+  const j  = document.getElementById('jconsole')?.textContent || '';
+  const st = document.getElementById('stderrText');
+  if (st) { st.textContent = j; st.style.display = 'block'; }
+  showCompileFailNotice('runtime');                // add this
+  const jc = document.getElementById('jconsole');  // and clear console
+  if (jc) jc.textContent = '';
+}
+
+           
   finish(ok);
 }, { once:true });
 
