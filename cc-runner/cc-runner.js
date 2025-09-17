@@ -217,7 +217,7 @@ app.post("/api/cc/prepare", async (req, res) => {
     child.stderr.on("data", d => err += d.toString());
 
     child.on("close", (code) => {
-      const compileLog = mergeStreams(out, err); // <<< de-duped
+      const compileLog = mergeStreams(out, err); // de-duped
       if (code !== 0) {
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
         return res.json({ token: null, ok: false, compileLog, diagnostics: parseGcc(compileLog) });
