@@ -638,45 +638,59 @@ __liftedPrompt = false;
     }*/
 
 
-    function dedupeConsecutiveLines(s) {
+   function stripAnsi(s){
+  return String(s || '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
+}
+
+// Split on: (a) blank lines  OR  (b) the start of a new "bash: line N:" stanza
+function splitParas(s){
+  const t = stripAnsi(s);
+  return t.split(/(?:\n{2,}|\n(?=bash:\s*line\s+\d+:))/);
+}
+
+function dedupeParagraphsAggressive(s){
+  const paras = splitParas(s);
+  const out = [];
+  let lastNorm = null;
+  for (const p of paras){
+    // normalize whitespace inside the paragraph before comparing
+    const norm = p.replace(/\s+/g, ' ').trim();
+    if (norm && norm === lastNorm) continue;
+    out.push(p);
+    lastNorm = norm;
+  }
+  return out.join('\n\n'); // keep a blank line between paragraphs in the final view
+}
+
+// collapse duplicated “[process exited with code …]” even if repeated many times
+function dedupeExitTrailers(s){
+  return String(s || '').replace(
+    /(?:\n*\[process exited with code\s+-?\d+\][^\n]*\n)+/gi,
+    (m) => {
+      const first = m.match(/\[process exited with code\s+-?\d+\][^\n]*\n/i);
+      return '\n' + (first ? first[0] : '');
+    }
+  );
+}
+
+function dedupeConsecutiveLines(s){
   const out = [];
   let prev = null;
-  for (const ln of String(s || '').split(/\r?\n/)) {
+  for (const ln of String(s || '').split(/\r?\n/)){
     if (ln !== prev) out.push(ln);
     prev = ln;
   }
   return out.join('\n');
 }
 
-// optional: collapse duplicated exit trailers (same as in error-helper)
-function dedupeExitTrailers(s) {
-  return String(s||'').replace(
-    /\n*\[process exited with code\s+(-?\d+)\][^\n]*\n(?:\s*\[process exited with code\s+\1\][^\n]*\n)+/i,
-    '\n[process exited with code $1]\n'
-  );
-}
-function dedupeParagraphs(s){
-  const paras = String(s || '').split(/\n{2,}/); // split on blank lines
-  const out = [];
-  let last = null;
-  for (const p of paras){
-    const q = p.trim();
-    if (q && q === last) continue;  // drop repeated paragraph
-    out.push(p);
-    last = q;
-  }
-  return out.join('\n\n');
-}
-
 function dedupeRuntimeLog(s){
-  // 1) collapse duplicated “[process exited with code …]”
-  let t = dedupeExitTrailers(s);
-  // 2) collapse identical consecutive paragraphs (covers the bash wrapper repeat)
-  t = dedupeParagraphs(t);
-  // 3) as a final pass, still remove identical adjacent lines
-  t = dedupeConsecutiveLines(t);
+  let t = s || '';
+  t = dedupeExitTrailers(t);           // collapse repeated exit trailers anywhere
+  t = dedupeParagraphsAggressive(t);   // collapse repeated bash-wrapper paragraphs
+  t = dedupeConsecutiveLines(t);       // final safety pass
   return t.trim();
 }
+
 
 
 
