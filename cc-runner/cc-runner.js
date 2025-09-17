@@ -9,16 +9,14 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
 
-
-
 const PORT = process.env.PORT || 8083;
 const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 // Limits (env-overridable)
-const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);           // per-process CPU seconds
-const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);       // ~256MB
-const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);      // 1GB output cap
-const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);        // hard kill (run)
+const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // per-process CPU seconds
+const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB
+const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);            // 1GB output cap
+const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);              // hard kill (run)
 const CC_COMPILE_TIMEOUT_S = Number(process.env.CC_COMPILE_TIMEOUT_S || 60); // hard kill (compile)
 const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000); // unused token TTL
 
@@ -26,11 +24,6 @@ const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000); //
 // Express
 // ----------------------------------------------------------------------------
 const app = express();
-
-
-
-
-
 
 // ---- CORS allowlist ----
 const ALLOW_ORIGINS = [
@@ -57,20 +50,13 @@ app.options("*", cors(corsOptions)); // preflight with same options
 
 app.use(express.json({ limit: "1mb" }));
 
-
-
-
 // --- Artifacts (images) static route with CORS ---
-// Folder to hold short-lived artifacts copied after a run
 const PUBLIC_ROOT = "/tmp/polycode-artifacts";
 try { fssync.mkdirSync(PUBLIC_ROOT, { recursive: true }); } catch {}
-
-// Serve artifacts with Access-Control-Allow-Origin so the frontend can fetch PPM/PNG
 app.use(
   "/artifacts",
   (req, res, next) => {
     const o = req.headers.origin;
-    // Reuse your allowlist: if origin is allowed (or not present), set ACAO
     if (!o || ALLOW_ORIGINS.includes(o)) {
       res.setHeader("Access-Control-Allow-Origin", o || "*");
     }
@@ -78,10 +64,6 @@ app.use(
   },
   express.static(PUBLIC_ROOT, { maxAge: "5m", fallthrough: true })
 );
-// --- end artifacts route ---
-
-
-
 
 // ---- Health check ----
 app.get("/health", (_, res) => res.json({ ok: true }));
@@ -104,11 +86,9 @@ async function collectImagesFrom(dir, limit = 6, maxBytes = 5 * 1024 * 1024) {
     picks.push({ name, full, mtime: st.mtimeMs });
   }
 
-  picks.sort((a, b) => b.mtime - a.mtime);     // newest first
+  picks.sort((a, b) => b.mtime - a.mtime); // newest first
   return picks.slice(0, limit);
 }
-
-
 
 async function ensureDir(p) { await fs.mkdir(p, { recursive: true }); }
 
@@ -129,6 +109,15 @@ function parseGcc(out) {
   return ds;
 }
 
+// Merge stdout/stderr without duplicating identical blocks
+function mergeStreams(a, b) {
+  const A = String(a || "").trim();
+  const B = String(b || "").trim();
+  if (!A) return B;
+  if (!B) return A;
+  return A === B ? A : (A + "\n" + B);
+}
+
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
@@ -147,16 +136,11 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   return child;
 }
 
-
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
   if (lang === "cpp") return { cc: "g++", std: "-std=c++20" };
-
-
   const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entry || "");
   return isCpp ? { cc: "g++", std: "-std=c++20" } : { cc: "gcc", std: "-std=c17" };
-
-  //return isCpp ? { cc: "g++", std: stdFlag || "-std=c++17" } : { cc: "gcc", std: stdFlag || "-std=c11" };
 }
 
 // Make sure root exists
@@ -193,30 +177,39 @@ app.post("/api/cc/prepare", async (req, res) => {
     // Decide compiler/flags
     const entryFile = entry || files[0].path;
     const { cc, std } = compilerFor(lang, entryFile);
-    const srcs = files.map(f => safeJoin(dir, f.path));
+    const srcs   = files.map(f => safeJoin(dir, f.path));
     const exePath = safeJoin(dir, output);
 
-    // Compile with limits; add -O2 and -lm (harmless for both C/C++)
-    //const args = [...srcs, std, "-O2", "-pthread", "-o", exePath, "-lm"];
-    
- const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
- const isC   = /\.c$/i.test(entryFile) || (lang === "c");
-    
+    const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
+    const isC   = /\.c$/i.test(entryFile) || (lang === "c");
+
+    // Pull flags from environment (Dockerfile provides them)
+    const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
+    const envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
+
+    // Detect if env already sets some knobs
+    const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
+    const hasWall   = envFlags.includes("-Wall");
+    const hasWextra = envFlags.includes("-Wextra");
+    const hasFmt2   = envFlags.includes("-Wformat=2");
+
+    // Build compiler argv.
+    // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
     const args = [
       ...srcs,
-     std, "-O2",
+      std,
+      ...(hasOpt ? [] : ["-O2"]),
       "-D_POSIX_C_SOURCE=200809L",
-      "-Wall", "-Wextra", "-Wpedantic",
-      "-Wshadow", "-Wvla", "-Wconversion",
-     ...(isCpp ? ["-pthread", "-fcoroutines"] : []),
-      ...(isC   ? ["-pthread"] : []),
+      ...(hasWall   ? [] : ["-Wall"]),
+      ...(hasWextra ? [] : ["-Wextra"]),
+      ...(hasFmt2   ? [] : ["-Wformat=2"]),
+      "-pthread",
       "-o", exePath,
-     "-lm",
-      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"])
-     // If you ever hit old libstdc++ filesystem link errors, append: "-lstdc++fs"
+      "-lm",
+      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
+      ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
     ];
 
-    
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
     let out = "", err = "";
@@ -224,9 +217,8 @@ app.post("/api/cc/prepare", async (req, res) => {
     child.stderr.on("data", d => err += d.toString());
 
     child.on("close", (code) => {
-      const compileLog = out + (err ? "\n" + err : "");
+      const compileLog = mergeStreams(out, err); // <<< de-duped
       if (code !== 0) {
-        // Clean job dir on failed compile
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
         return res.json({ token: null, ok: false, compileLog, diagnostics: parseGcc(compileLog) });
       }
@@ -278,13 +270,12 @@ wss.on("connection", (ws, req) => {
   child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
   child.stderr.on("data", d => { try { ws.send(d.toString()); } catch {} });
 
-  // ⬇⬇⬇ ASYNC CLOSE HANDLER (publishes images, then calls cleanup()) ⬇⬇⬇
+  // Close handler: publishes images, then cleanup
   child.on("close", async (code) => {
     try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
 
-    // Collect and publish artifacts (optional; safe if none found)
     try {
-      const found = await collectImagesFrom(dir); // <- helper you added earlier
+      const found = await collectImagesFrom(dir);
       if (found.length) {
         const tokenDir = crypto.randomUUID();
         const outDir = path.join(PUBLIC_ROOT, tokenDir);
@@ -294,28 +285,22 @@ wss.on("connection", (ws, req) => {
         for (const f of found) {
           const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
           const dest = path.join(outDir, safeName);
-          await fs.copyFile(f.full, dest); // fs = node:fs/promises (already imported)
+          await fs.copyFile(f.full, dest);
           urls.push(`/artifacts/${tokenDir}/${safeName}`);
         }
 
-        // New JSON payload (frontend can handle); harmless if ignored
         try { ws.send(JSON.stringify({ type: "images", urls })); } catch {}
-
-        // Plain-text fallback (old UIs just show lines)
         for (const u of urls) { try { ws.send(`[image] ${u}\n`); } catch {} }
 
-        // Auto-expire this token directory after 5 minutes
         setTimeout(() => { try { fssync.rmSync(outDir, { recursive: true, force: true }); } catch {} }, 5 * 60 * 1000);
       }
     } catch (e) { console.error("artifact publish error:", e); }
 
     try { ws.close(); } catch {}
-    cleanup(); // <— now in scope
+    cleanup();
   });
-  // ⬆⬆⬆ END ASYNC CLOSE HANDLER ⬆⬆⬆
 
   ws.on("message", m => {
-    // Expecting {"type":"stdin","data":"..."} from the client
     try {
       const msg = JSON.parse(m.toString());
       if (msg?.type === "stdin") {
@@ -329,10 +314,8 @@ wss.on("connection", (ws, req) => {
   ws.on("close", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
   ws.on("error", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
 
-  // >>> keep this function EXACTLY HERE (inside the same scope) <<<
   function cleanup() {
     try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
     SESSIONS.delete(token);
   }
 });
-
