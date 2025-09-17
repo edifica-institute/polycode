@@ -530,23 +530,10 @@ function scheduleIdleProbe(){
       if (row) row.style.display = show ? 'flex' : 'none';
 
       if (show){
-        //const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
-        //if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-        //else { prefix.textContent = ''; }
-   // Only pull the tail up if it *looks like a prompt*
-   const txt  = pre.textContent;
-   const i    = txt.lastIndexOf('\n');
-   const tail = txt.slice(i + 1);
-   const isPrompt = PROMPT_RE.test(tail);
-   if (isPrompt) {
-     prefix.textContent = tail + ' ';
-     pre.textContent = i >= 0 ? txt.slice(0, i + 1) : '';
-   } else {
-     prefix.textContent = '';
-  }
+        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
+        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
+        else { prefix.textContent = ''; }
 
-
-        
         window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
         window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
         __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
@@ -554,9 +541,6 @@ function scheduleIdleProbe(){
         window.PolyShell?.startInputTicker?.(getCountdownText, 500);
 
         focusConsoleInput();
-   // Make sure the input row is visible even if the console is long
-   document.getElementById('output')?.scrollTo({ top: 1e9 });
-        
       }else{
         if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
           window.PolyShell?.setStatus('Executing...', 'busy');
@@ -611,17 +595,10 @@ function scheduleIdleProbe(){
     }
 
     /* ===== Helpers ===== */
-   function codeNeedsInput(src){
-  const s = String(src || '');
-  // cin >> x, std::cin >> x
-  // getline(...), std::getline(...), getchar(), std::getchar()
-  // (optional) scanf(...) in case learners mix C I/O in C++
-  return /\b(?:std::)?cin\s*>>/.test(s)
-      || /\b(?:std::)?getline\s*\(/.test(s)
-      || /\b(?:std::)?getchar\s*\(/.test(s)
-      || /\bscanf\s*\(/.test(s);
-}
-
+    function codeNeedsInput(src){
+      //return /\b(?:std::)?cin\s*>>|\bstd::getline\s*\(|\bgetline\s*\(|\bgetchar\s*\(/.test(src);
+      return false;
+    }
 
     // Overlay helpers (same naming as Java)
     function showRunnerOverlay(msg='Connecting to C++ runner…', pct=10, hint='Warming up backend…'){
@@ -821,13 +798,13 @@ if (!prep || !prep.ok || !prep.token) {
 
   // show input row if it *looks* like a prompt
   try {
-    if (needsStdin && !isInputRowVisible() && PROMPT_RE.test(latestConsoleTail())) {
+    if (!isInputRowVisible() && PROMPT_RE.test(latestConsoleTail())) {
       showInputRow(true);
     }
   } catch {}
 
   // optional: idle probe (helps stdin that prints no prompt)
-  if (needsStdin) scheduleIdleProbe?.();
+  scheduleIdleProbe?.();
 
   // --- E) structured control messages you already support ---
   try{
