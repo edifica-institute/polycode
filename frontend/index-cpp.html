@@ -655,6 +655,28 @@ function dedupeExitTrailers(s) {
     '\n[process exited with code $1]\n'
   );
 }
+function dedupeParagraphs(s){
+  const paras = String(s || '').split(/\n{2,}/); // split on blank lines
+  const out = [];
+  let last = null;
+  for (const p of paras){
+    const q = p.trim();
+    if (q && q === last) continue;  // drop repeated paragraph
+    out.push(p);
+    last = q;
+  }
+  return out.join('\n\n');
+}
+
+function dedupeRuntimeLog(s){
+  // 1) collapse duplicated “[process exited with code …]”
+  let t = dedupeExitTrailers(s);
+  // 2) collapse identical consecutive paragraphs (covers the bash wrapper repeat)
+  t = dedupeParagraphs(t);
+  // 3) as a final pass, still remove identical adjacent lines
+  t = dedupeConsecutiveLines(t);
+  return t.trim();
+}
 
 
 
@@ -915,7 +937,7 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
 
  const errBox = document.getElementById('stderrText');
    const raw = (runtimeBuf || '').trim();
-   const pretty = dedupeConsecutiveLines(dedupeExitTrailers(raw));
+   const pretty = dedupeRuntimeLog(raw); 
    if (errBox) errBox.textContent = pretty;
 
     
