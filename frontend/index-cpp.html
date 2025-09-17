@@ -192,7 +192,7 @@
         </div>
 <div class="pane-scroll">
 
-        <div id="output" class="screen-dim" style="padding:12px;">
+        <div id="output" style="padding:12px;">
           <pre id="jconsole" class="console" style="margin:0;"></pre>
           <div id="consoleRow" style="display:none; margin-top:0; gap:4px; align-items:baseline; font:14px/1.4 ui-monospace, Menlo, Consolas, monospace;">
             <span id="consolePrefix"></span>
@@ -523,31 +523,49 @@ function scheduleIdleProbe(){
       el.focus(); const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
       const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
     }
+
+let __liftedPrompt = false; // did we remove the prompt from <pre>? (we won't)
+
     function showInputRow(show){
-      const row = document.getElementById('consoleRow');
-      const pre = document.getElementById('jconsole');
-      const prefix = document.getElementById('consolePrefix');
-      if (row) row.style.display = show ? 'flex' : 'none';
+  const row    = document.getElementById('consoleRow');
+  const pre    = document.getElementById('jconsole');
+  const prefix = document.getElementById('consolePrefix');
+  if (row) row.style.display = show ? 'flex' : 'none';
 
-      if (show){
-        const txt = pre.textContent; const i = txt.lastIndexOf('\n'); const tail = txt.slice(i+1);
-        if (tail && !/^\s*$/.test(tail)){ prefix.textContent = tail + ' '; pre.textContent = txt.slice(0, i+1); }
-        else { prefix.textContent = ''; }
+  if (show){
+    const txt  = pre.textContent;
+    const i    = txt.lastIndexOf('\n');
+    const tail = txt.slice(i + 1);
 
-        window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
-        window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
-        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
-        startInputCountdown(inputWaitMs);
-        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-
-        focusConsoleInput();
-      }else{
-        if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
-          window.PolyShell?.setStatus('Executing...', 'busy');
-        }
-        if (prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
-      }
+    if (tail && !/^\s*$/.test(tail)){
+      // mirror the prompt but DO NOT remove it from <pre>
+      prefix.textContent = tail + ' ';
+      __liftedPrompt = false;   // we did not slice from <pre>
+    }else{
+      prefix.textContent = '';
+      __liftedPrompt = false;
     }
+
+    window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
+    window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
+    __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+    startInputCountdown(inputWaitMs);
+    window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+
+    focusConsoleInput();
+    document.getElementById('output')?.scrollTo({ top: 1e9 });
+  }else{
+    if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
+      window.PolyShell?.setStatus('Executing...', 'busy');
+    }
+    // Only re-append if we had lifted the prompt (we never do now).
+    if (__liftedPrompt && prefix.textContent){
+      pre.textContent += prefix.textContent;
+    }
+    prefix.textContent = '';
+  }
+}
+
 
     document.addEventListener('keydown', (e)=>{
       const el = document.getElementById('consoleInput');
@@ -562,8 +580,15 @@ function scheduleIdleProbe(){
 
         const pre    = document.getElementById('jconsole');
         const prefix = document.getElementById('consolePrefix');
-        if (prefix && prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
+        //if (prefix && prefix.textContent){ pre.textContent += prefix.textContent; prefix.textContent=''; }
+        
+if (__liftedPrompt && prefix && prefix.textContent){
+  pre.textContent += prefix.textContent;
+}
+if (prefix) prefix.textContent = '';
 
+
+        
         const line = el.textContent;
         termWrite(line + '\n');
         el.textContent = '';
@@ -594,11 +619,21 @@ function scheduleIdleProbe(){
       }]);
     }
 
-    /* ===== Helpers ===== */
+    /* ===== Helpers ===== 
     function codeNeedsInput(src){
       //return /\b(?:std::)?cin\s*>>|\bstd::getline\s*\(|\bgetline\s*\(|\bgetchar\s*\(/.test(src);
       return false;
-    }
+    }*/
+
+
+    function codeNeedsInput(src){
+  const s = String(src || '');
+  return /\b(?:std::)?cin\s*>>/.test(s)
+      || /\b(?:std::)?getline\s*\(/.test(s)
+      || /\b(?:std::)?getchar\s*\(/.test(s)
+      || /\bscanf\s*\(/.test(s);
+}
+    
 
     // Overlay helpers (same naming as Java)
     function showRunnerOverlay(msg='Connecting to C++ runner…', pct=10, hint='Warming up backend…'){
