@@ -285,7 +285,7 @@ wss.on("connection", (ws, req) => {
   if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
 
   const { dir, exePath } = sess;
-  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S });
+  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S, unbuffer: "script" });
 
   // Stream output
   child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
