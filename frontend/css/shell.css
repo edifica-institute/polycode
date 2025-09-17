@@ -1505,4 +1505,23 @@ body[data-boot] .right.panel{
 .eh-hint.warning { background:#fff7e6; border-color:#f3d08a; }
 .eh-hint.note    { background:#eef6ff; border-color:#b7d3f6; }
 .eh-meta { color:#6b7280; font-weight:400; font-size:12px; }
+.eh-hdr{
+  display:flex;
+  align-items:baseline;          /* keep baseline tidy */
+  justify-content:space-between; /* title left, meta right */
+  gap:.5rem;
+}
+.eh-hdr > strong{
+  flex:1 1 auto;                 /* let title take remaining space */
+  min-width:0;
+  overflow:hidden;               /* avoid overflow */
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.eh-meta{
+  flex:0 0 auto;
+  display:inline-flex;
+  gap:.5rem;
+  white-space:nowrap;            /* keep "Line" + "Confidence" on one line */
+}
 
