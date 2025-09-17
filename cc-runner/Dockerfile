@@ -1,5 +1,6 @@
 FROM node:20-bullseye
 
+
 # Toolchains for C/C++
 RUN apt-get update && apt-get install -y \
     build-essential g++ make cmake \
@@ -7,16 +8,28 @@ RUN apt-get update && apt-get install -y \
     libboost-all-dev \
  && rm -rf /var/lib/apt/lists/*
 
-# Safer defaults for student code (C & C++).
-# - turn on ASan/UBSan
-# - keep frame pointers for better stacks
-# - avoid CPU-specific codegen so binaries run everywhere
-ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -march=x86-64 -mtune=generic"
-ENV CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -march=x86-64 -mtune=generic"
+# Turn on sanitizers and helpful defaults for *both* languages.
+# (Runner appends env flags at the end, so these "win".)
+ENV CFLAGS="-std=c17 -O1 -g -fno-omit-frame-pointer \
+  -fsanitize=address,undefined -fno-sanitize-recover=all \
+  -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror \
+  -march=x86-64 -mtune=generic"
 
-# Make sanitizer output strict and readable
-ENV ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:color=always"
-ENV UBSAN_OPTIONS="print_stacktrace=1:color=always"
+ENV CXXFLAGS="-std=c++20 -O1 -g -fno-omit-frame-pointer \
+  -fsanitize=address,undefined -fno-sanitize-recover=all \
+  -D_GLIBCXX_ASSERTIONS \
+  -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror \
+  -march=x86-64 -mtune=generic"
+
+# (Optional but nice: make ASan/UBSan logs clearer)
+ENV ASAN_OPTIONS="detect_leaks=0:abort_on_error=1:strict_string_checks=1"
+ENV UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
+
+
+
+
+
+
 
 # Give sanitized binaries some headroom by default (runner can still override)
 # (≈ 1 GiB; used by cc-runner via process.env.CC_VMEM_KB)
