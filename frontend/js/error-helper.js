@@ -804,8 +804,11 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
          
          
          
-         detectCommonRuntimeErrors(text, push)
-        return finalize();
+         // Catch simple perror-style runtime errors early (works for any lang)
+if (detectCommonRuntimeErrors(text, push)) {
+  return finalize();
+}
+
 
  
          
