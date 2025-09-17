@@ -806,9 +806,10 @@ const finish = async (ok) => {
   window.wsRunInFlight = false;
   setComplexityEnabled(!!ok);
 
-  if (!ok) {
+  /*if (!ok) {
     const j = document.getElementById('jconsole')?.textContent || '';
 
+    
     // NEW: show the runtime banner heading
     showCompileFailNotice('runtime');  // uses "Execution Failed — See Details Below."
 
@@ -829,7 +830,18 @@ const finish = async (ok) => {
     // Optional: reflect status like the compile path does
     window.PolyShell?.setRunnerPhase?.('error');
     window.PolyShell?.setStatus('Execution Failed','error');
-  }
+  }*/
+
+
+  if (!ok) {
+  const j  = document.getElementById('jconsole')?.textContent || '';
+  const st = document.getElementById('stderrText');
+  if (st) { st.textContent = j; st.style.display = 'block'; }
+  showCompileFailNotice('runtime');                // add this
+  const jc = document.getElementById('jconsole');  // and clear console
+  if (jc) jc.textContent = '';
+}
+
 
   ok ? resolve() : reject(new Error('run_failed'));
 };
