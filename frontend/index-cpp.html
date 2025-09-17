@@ -638,22 +638,14 @@ __liftedPrompt = false;
     }*/
 
 
-   function stripAnsi(s){
-  return String(s || '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
-}
-
-// Split on: (a) blank lines  OR  (b) the start of a new "bash: line N:" stanza
-function stripAnsi(s){
+  function stripAnsi(s){
   return String(s || '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 }
 
 function normalizeForDedupe(s){
   return stripAnsi(String(s||''))
-    // normalize temp job paths + executable name
     .replace(/\/tmp\/ccjobs\/[A-Za-z0-9/_-]+\/a\.out/g, '/tmp/ccjobs/…/a.out')
-    // normalize varying "bash: line N:" prefixes
     .replace(/bash:\s*line\s+\d+:/gi, 'bash: line N:')
-    // collapse PIDs / numeric tokens that can change
     .replace(/\b\d{3,}\b/g, '#')
     .trim();
 }
@@ -667,15 +659,11 @@ function dedupeExitTrailers(s){
 
 function dedupeRuntimeLog(s){
   let t = dedupeExitTrailers(String(s||''));
-
-  // split into logical paragraphs (blank lines OR a new "bash: line …" stanza)
   const paras = t.split(/(?:\n{2,}|\n(?=bash:\s*line\s+\d+:))/i);
-
   const seen = new Set(), out = [];
   for (const p of paras){
     const key = normalizeForDedupe(p);
-    if (!key) continue;
-    if (seen.has(key)) continue;
+    if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(p.trimEnd());
   }
@@ -937,17 +925,35 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
   const ok = (runState.exitCode === 0);
 
   if (!ok) {
-    // 1) Raw log into the red error block
-    //const errBox = document.getElementById('stderrText');
-    //if (errBox) errBox.textContent = (runtimeBuf || '').trim();
+    // 1) Put a cleaned runtime log into the red block
+    const errBox = document.getElementById('stderrText');
+    const raw = (runtimeBuf || '').trim();
+    const pretty = dedupeRuntimeLog(raw);
+    if (errBox) errBox.textContent = pretty;
 
- const errBox = document.getElementById('stderrText');
-   const raw = (runtimeBuf || '').trim();
-   const pretty = dedupeRuntimeLog(raw); 
-   if (errBox) errBox.textContent = pretty;
+    // 2) If it's SIGILL, override the explainer and STOP here
+    const isSigill =
+      runState.exitCode === 132 ||                    // 128 + SIGILL(4)
+      /\bIllegal instruction\b/i.test(pretty);        // textual match
 
-    
-    // 2) Polycode Analysis (use code to enable DZ source sniff)
+    if (isSigill) {
+      const ex = document.getElementById('stderrExplain');
+      if (ex) {
+        ex.innerHTML =
+          `<div class="console-title error">Execution Failed — Illegal instruction (SIGILL)</div>` +
+          `<div class="eh-summary">
+             The program executed a CPU instruction unsupported on this host.
+             This usually means the binary was compiled with an aggressive
+             <code>-march</code>/<code>-mcpu</code> (e.g., AVX on a non-AVX CPU) or for the wrong architecture.
+             Recompile for a safe baseline (e.g., <code>-march=x86-64 -mtune=generic</code>) and avoid <code>-march=native</code>.
+           </div>`;
+      }
+      showCompileFailNotice('runtime');
+      finish(false);
+      return; // 🔴 do not call parseCompilerOutput on SIGILL
+    }
+
+    // 3) Otherwise let the explainer do its normal thing
     const codeText = window.editor?.getValue() || '';
     const { hints, summary } = window.PolyErrorHelper.parseCompilerOutput({
       lang: 'cpp',
@@ -964,12 +970,12 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
         hints.map(window.PolyErrorHelper.renderHintHTML).join('');
     }
 
-    // 3) Paint the banner style
     showCompileFailNotice('runtime');
   }
 
   finish(ok);
 }, { once:true });
+
 
 
         }catch(err){
