@@ -526,25 +526,25 @@ function scheduleIdleProbe(){
 
 let __liftedPrompt = false; // did we remove the prompt from <pre>? (we won't)
 
-    function showInputRow(show){
+function showInputRow(show){
   const row    = document.getElementById('consoleRow');
   const pre    = document.getElementById('jconsole');
   const prefix = document.getElementById('consolePrefix');
-  if (row) row.style.display = show ? 'flex' : 'none';
+
+  if (!row) return;
 
   if (show){
+    // if already visible, just refocus—don’t re-mirror the prompt
+    if (row.style.display !== 'none'){ focusConsoleInput(); return; }
+    row.style.display = 'flex';
+
+    // mirror the tail (prompt) to the prefix without removing from <pre>
     const txt  = pre.textContent;
     const i    = txt.lastIndexOf('\n');
     const tail = txt.slice(i + 1);
-
-    if (tail && !/^\s*$/.test(tail)){
-      // mirror the prompt but DO NOT remove it from <pre>
-      prefix.textContent = tail + ' ';
-      __liftedPrompt = false;   // we did not slice from <pre>
-    }else{
-      prefix.textContent = '';
-      __liftedPrompt = false;
-    }
+    if (tail && !/^\s*$/.test(tail)) prefix.textContent = tail + ' ';
+    else prefix.textContent = '';
+    __liftedPrompt = false; // we did not slice from <pre>
 
     window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
     window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
@@ -554,17 +554,19 @@ let __liftedPrompt = false; // did we remove the prompt from <pre>? (we won't)
 
     focusConsoleInput();
     document.getElementById('output')?.scrollTo({ top: 1e9 });
-  }else{
+  } else {
+    row.style.display = 'none';
     if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
       window.PolyShell?.setStatus('Executing...', 'busy');
     }
-    // Only re-append if we had lifted the prompt (we never do now).
+    // ✅ only append back if we had actually lifted (we don't anymore)
     if (__liftedPrompt && prefix.textContent){
       pre.textContent += prefix.textContent;
     }
     prefix.textContent = '';
   }
 }
+
 
 
     document.addEventListener('keydown', (e)=>{
