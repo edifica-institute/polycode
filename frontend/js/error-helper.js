@@ -364,23 +364,42 @@ function detectGccClang(text, hints) {
   for (const ln of lines) {
     // file:line:col: error: message
     let m = /^(.+?):(\d+):(\d+):\s+(fatal error|error|warning):\s+(.*)$/i.exec(ln);
-    if (m) {
-      const [,file,row,col,kind,msg] = m;
-      const sev = /warning/i.test(kind) ? 'warning' : 'error';
-      let fix=null;
-      if (/expected.*';'/.test(msg)) fix='Add a missing semicolon at the end of the statement.';
-      else if (/undeclared|not declared/i.test(msg)) fix='Declare the variable/function before use or include the right header.';
-      else if (/assignment of read-only/i.test(msg)) fix='Do not modify const data; remove const or copy into a mutable variable.';
-      add(hints, {
-        title: `${kind.toUpperCase()} in ${file}:${row}:${col}`,
-        detail: msg,
-        line: parseInt(row,10),
-        fix,
-        severity: sev,
-        confidence: 'high'
-      });
-      hit=true; continue;
-    }
+   if (m) {
+  const [,file,row,col,kind,msg] = m;
+  const sev = /warning/i.test(kind) ? 'warning' : 'error';
+  let fix = null;
+
+  // ✅ check for compile-time divide-by-zero first
+  if (/division by zero/i.test(msg)) {
+    add(hints, {
+      title: 'Division by zero (compile-time)',
+      detail: msg,
+      line: parseInt(row,10),
+      fix: 'Guard the divisor or restructure the expression so the divisor is non-zero at compile time.',
+      severity: sev,
+      confidence: 'high'
+    });
+    hit = true; 
+    continue;
+  }
+
+  if (/expected.*';'/.test(msg)) fix='Add a missing semicolon at the end of the statement.';
+  else if (/undeclared|not declared/i.test(msg)) fix='Declare the variable/function before use or include the right header.';
+  else if (/assignment of read-only/i.test(msg)) fix='Do not modify const data; remove const or copy into a mutable variable.';
+
+  add(hints, {
+    title: `${kind.toUpperCase()} in ${file}:${row}:${col}`,
+    detail: msg,
+    line: parseInt(row,10),
+    fix,
+    severity: sev,
+    confidence: 'high'
+  });
+  hit = true; 
+  continue;
+}
+
+
     // linker: undefined reference to `...`
     m = /undefined reference to\s*`([^']+)'/i.exec(ln);
     if (m) {
@@ -467,10 +486,11 @@ function detectPython(text, hints) {
 
 
 // --- POSIX runtime crash detector (for native langs like C/C++) ---
+// --- DROP-IN: smarter runtime crash classifier (C/C++) ---
 function detectPosixCrash(text, code, push) {
-  const t = String(text||'');
+  const t = String(text || '');
   const mExit = /process exited with code\s+(-?\d+)/i.exec(t);
-  const exitCode = mExit ? parseInt(mExit[1],10) : null;
+  const exitCode = mExit ? parseInt(mExit[1], 10) : null;
   const SIG_BY_EXIT = {132:'SIGILL', 134:'SIGABRT', 136:'SIGFPE', 139:'SIGSEGV', 138:'SIGBUS'};
   const sig = exitCode && SIG_BY_EXIT[exitCode] ? SIG_BY_EXIT[exitCode] : null;
 
@@ -479,41 +499,61 @@ function detectPosixCrash(text, code, push) {
 
   if (!mSig && !sig) return false;
 
-  let title='Program crashed at runtime', detail='The OS terminated the program.', fix='Check recent changes; validate inputs.';
-  let line=null;
-
-  const guessDivZero = (src) => {
-    const L = String(src||'').split('\n');
-    for (let i=0;i<L.length;i++) if (/\b\/\s*0(?!\d)/.test(L[i])) return i+1;
+  const findDivZero = (src) => {
+    const L = String(src || '').split('\n');
+    for (let i = 0; i < L.length; i++) {
+      if (/\b[/%]\s*0(?!\d)/.test(L[i])) return i + 1;  // match "/ 0" or "% 0"
+    }
     return null;
   };
 
-  if (sigWord?.includes('illegal') || sig==='SIGILL') {
-    title='Illegal instruction (SIGILL)';
-    detail='Invalid CPU instruction—often undefined behavior or bad build flags.';
-    fix='Remove UB; compile without aggressive -march; try UBSan/ASan.';
-  } else if (sigWord?.includes('floating') || sig==='SIGFPE') {
-    title='Floating point exception (SIGFPE)';
-    detail='Most commonly division by zero or invalid arithmetic.';
-    fix='Guard divisors against zero; validate arithmetic operands.';
-    line = guessDivZero(code);
-  } else if (sigWord?.includes('segmentation') || sig==='SIGSEGV') {
-    title='Segmentation fault (SIGSEGV)';
-    detail='Invalid memory access (bad pointer / out-of-bounds array).';
-    fix='Check pointer init and bounds; try AddressSanitizer.';
-  } else if (sigWord?.includes('aborted') || sig==='SIGABRT') {
-    title='Aborted (SIGABRT)';
-    detail='abort() called (failed assert or fatal library error).';
-    fix='Find and handle the assert/error condition.';
-  } else if (sigWord?.includes('bus') || sig==='SIGBUS') {
-    title='Bus error (SIGBUS)';
-    detail='Unaligned memory access or invalid mapping.';
-    fix='Check struct packing and file mappings.';
+  // Heuristic: identify classic int divide/mod-by-zero in source, regardless of OS signal
+  const dzLine = findDivZero(code);
+  if (dzLine) {
+    push(
+      'Floating point exception / UB: divide by zero',
+      'Integer divide or modulo by zero is undefined behavior; many compilers emit a trap that appears as SIGILL.',
+      dzLine,
+      'Guard the divisor: e.g., `if (b==0) { /* handle */ } else { a/b; }`.',
+      'error',
+      null,
+      'high'
+    );
+    return true;
+  }
+
+  // Otherwise fall back to signal-based message
+  let title = 'Program crashed at runtime';
+  let detail = 'The OS terminated the program.';
+  let fix = 'Check recent changes; validate inputs.';
+  let line = null;
+
+  if (sigWord?.includes('illegal') || sig === 'SIGILL') {
+    title = 'Illegal instruction (SIGILL)';
+    detail = 'Invalid CPU instruction—often undefined behavior or aggressive build flags.';
+    fix = 'Remove UB; compile without aggressive -march; try UBSan/ASan.';
+  } else if (sigWord?.includes('floating') || sig === 'SIGFPE') {
+    title = 'Floating point exception (SIGFPE)';
+    detail = 'Most commonly divide-by-zero or invalid arithmetic.';
+    fix = 'Guard divisors against zero; validate arithmetic operands.';
+  } else if (sigWord?.includes('segmentation') || sig === 'SIGSEGV') {
+    title = 'Segmentation fault (SIGSEGV)';
+    detail = 'Invalid memory access (bad pointer or out-of-bounds).';
+    fix = 'Check pointer init and bounds; try AddressSanitizer.';
+  } else if (sigWord?.includes('aborted') || sig === 'SIGABRT') {
+    title = 'Aborted (SIGABRT)';
+    detail = 'abort() called (failed assert or fatal library error).';
+    fix = 'Find and handle the assert/error condition.';
+  } else if (sigWord?.includes('bus') || sig === 'SIGBUS') {
+    title = 'Bus error (SIGBUS)';
+    detail = 'Unaligned access or invalid mapping.';
+    fix = 'Check struct packing and file mappings.';
   }
 
   push(title, detail, line, fix, 'error', null, 'high');
   return true;
 }
+
 
 // (optional) collapse duplicate “[process exited …]” lines
 function dedupeExitTrailers(s) {
@@ -892,7 +932,10 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
 } else if (/AttributeError:/i.test(errMsg)) {
   const q = explainPyTypeOrAttr(errMsg);
   push('AttributeError', q.detail, errLine, q.fix, 'error', null, q.confidence);
-} else if (errMsg) {
+}
+ 
+      
+      else if (errMsg) {
         push('Runtime error', errMsg, errLine, 'Fix the error at this line.', 'error', null, 'low');
       }
        if (!hints.length) detectPythonTraceback(text, push);
