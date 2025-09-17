@@ -123,7 +123,7 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
   const bash = `
-    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
+    ulimit -t ${CC_CPU_SECS} -f ${CC_FSIZE_KB};
     if command -v stdbuf >/dev/null 2>&1; then
       stdbuf -o0 -e0 ${argv};
     else
