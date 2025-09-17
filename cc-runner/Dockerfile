@@ -20,6 +20,7 @@ ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wc
 # let ASan run even though stdbuf is preloaded
 ENV ASAN_OPTIONS="abort_on_error=1:detect_stack_use_after_return=1:verify_asan_link_order=0"
 ENV UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
+ENV CC_ENABLE_ASAN=1
 
 
 WORKDIR /app
