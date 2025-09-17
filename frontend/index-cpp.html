@@ -884,45 +884,37 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
 
           ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
          ws.addEventListener('close', () => {
-  // try to recover exit code if not already set
-  if (runState.exitCode == null) {
-    const m = (runtimeBuf || '').match(/\[process exited with code\s+(-?\d+)\]/i);
-    if (m) runState.exitCode = parseInt(m[1], 10);
-  }
-
   const ok = (runState.exitCode === 0);
 
   if (!ok) {
-    // 1) red heading like C
+    // 1) Raw log into the red error block
+    const errBox = document.getElementById('stderrText');
+    if (errBox) errBox.textContent = (runtimeBuf || '').trim();
+
+    // 2) Polycode Analysis (use code to enable DZ source sniff)
+    const codeText = window.editor?.getValue() || '';
+    const { hints, summary } = window.PolyErrorHelper.parseCompilerOutput({
+      lang: 'cpp',
+      stderr: runtimeBuf || '',
+      stdout: '',
+      code: codeText,
+    });
+
+    const ex = document.getElementById('stderrExplain');
+    if (ex) {
+      ex.innerHTML =
+        `<div class="console-title error">Execution Failed — See Details Below.</div>` +
+        (summary ? `<div class="eh-summary">${summary}</div>` : '') +
+        hints.map(window.PolyErrorHelper.renderHintHTML).join('');
+    }
+
+    // 3) Paint the banner style
     showCompileFailNotice('runtime');
-
-    // 2) run Polycode analysis using your existing error-helper.js
-    try {
-      const { parseCompilerOutput, renderHintHTML } = window.PolyErrorHelper || {};
-      if (parseCompilerOutput) {
-        const codeSrc = window.editor ? window.editor.getValue() : '';
-        const { hints, summary } = parseCompilerOutput({
-          lang: 'cpp',
-          stderr: runtimeBuf || '',   // collected console output
-          stdout: '',
-          code: codeSrc
-        });
-
-        const errBox = document.getElementById('stderrText');
-        const expl   = document.getElementById('stderrExplain');
-        if (errBox) errBox.textContent = summary || 'Program exited with error.';
-        if (expl && renderHintHTML) expl.innerHTML = hints.map(renderHintHTML).join('');
-
-        // Make the right panel go red (same as compile path)
-        document.getElementById('output')?.classList.add('error');
-        window.PolyShell?.setRunnerPhase?.('error');
-        window.PolyShell?.setStatus('Executed with Error', 'error');
-      }
-    } catch {}
   }
 
   finish(ok);
-}, { once: true });
+}, { once:true });
+
 
         }catch(err){
           stopStatusDots(); stopInputCountdown();
