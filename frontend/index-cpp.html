@@ -638,37 +638,50 @@ __liftedPrompt = false;
     }*/
 
 
-  function stripAnsi(s){
-  return String(s || '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
-}
+// --- de-ANSI + normalize + dedupe (drop-in) ---
+function stripAnsi(s){ return String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g,''); }
+function _collapseWS(s){ return s.replace(/\s+/g,' ').trim(); }   // <-- key to catch spacing diffs
 
 function normalizeForDedupe(s){
-  return stripAnsi(String(s||''))
-    .replace(/\/tmp\/ccjobs\/[A-Za-z0-9/_-]+\/a\.out/g, '/tmp/ccjobs/…/a.out')
-    .replace(/bash:\s*line\s+\d+:/gi, 'bash: line N:')
-    .replace(/\b\d{3,}\b/g, '#')
-    .trim();
+  return _collapseWS(
+    stripAnsi(String(s||''))
+      // normalize volatile bits so repeated stanzas compare equal
+      .replace(/\/tmp\/ccjobs\/[A-Za-z0-9/_-]+\/a\.out/g, '/tmp/ccjobs/…/a.out')
+      .replace(/bash:\s*line\s+\d+:/gi, 'bash: line N:')
+      .replace(/\b\d{3,}\b/g, '#') // PIDs, exit codes, etc.
+  );
 }
 
 function dedupeExitTrailers(s){
+  // collapse repeated “[process exited …]” even if spammed together
   return String(s||'').replace(
     /(?:\n*\[process exited with code\s+-?\d+\][^\n]*\n)+/gi,
-    m => '\n' + (m.match(/\[process exited with code\s+-?\d+\][^\n]*\n/i) || [''])[0]
+    m => '\n' + (m.match(/\[process exited with code\s+-?\d+\][^\n]*\n/i)||[''])[0]
   );
 }
 
 function dedupeRuntimeLog(s){
-  let t = dedupeExitTrailers(String(s||''));
-  const paras = t.split(/(?:\n{2,}|\n(?=bash:\s*line\s+\d+:))/i);
+  let t = String(s||'').replace(/\r/g,'');
+  t = dedupeExitTrailers(t);
+
+  // split into logical chunks: blank line OR new “bash: line …” stanza
+  const chunks = t.split(/(?:\n{2,}|\n(?=bash:\s*line\s+\d+:))/i);
   const seen = new Set(), out = [];
-  for (const p of paras){
-    const key = normalizeForDedupe(p);
+  for (const c of chunks){
+    const key = normalizeForDedupe(c);
     if (!key || seen.has(key)) continue;
     seen.add(key);
-    out.push(p.trimEnd());
+    out.push(c.trimEnd());
   }
-  return out.join('\n\n').trim();
+
+  // safety: leave only one final exit trailer if more sneaked through
+  const joined = out.join('\n\n').trim();
+  return joined.replace(
+    /(?:\n*\[process exited with code\s+-?\d+\][^\n]*\n)+/gi,
+    m => '\n' + (m.match(/\[process exited with code\s+-?\d+\][^\n]*\n/i)||[''])[0]
+  ).trim();
 }
+
 
 
 
