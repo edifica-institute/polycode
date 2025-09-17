@@ -643,53 +643,45 @@ __liftedPrompt = false;
 }
 
 // Split on: (a) blank lines  OR  (b) the start of a new "bash: line N:" stanza
-function splitParas(s){
-  const t = stripAnsi(s);
-  return t.split(/(?:\n{2,}|\n(?=bash:\s*line\s+\d+:))/);
+function stripAnsi(s){
+  return String(s || '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '');
 }
 
-function dedupeParagraphsAggressive(s){
-  const paras = splitParas(s);
-  const out = [];
-  let lastNorm = null;
-  for (const p of paras){
-    // normalize whitespace inside the paragraph before comparing
-    const norm = p.replace(/\s+/g, ' ').trim();
-    if (norm && norm === lastNorm) continue;
-    out.push(p);
-    lastNorm = norm;
-  }
-  return out.join('\n\n'); // keep a blank line between paragraphs in the final view
+function normalizeForDedupe(s){
+  return stripAnsi(String(s||''))
+    // normalize temp job paths + executable name
+    .replace(/\/tmp\/ccjobs\/[A-Za-z0-9/_-]+\/a\.out/g, '/tmp/ccjobs/…/a.out')
+    // normalize varying "bash: line N:" prefixes
+    .replace(/bash:\s*line\s+\d+:/gi, 'bash: line N:')
+    // collapse PIDs / numeric tokens that can change
+    .replace(/\b\d{3,}\b/g, '#')
+    .trim();
 }
 
-// collapse duplicated “[process exited with code …]” even if repeated many times
 function dedupeExitTrailers(s){
-  return String(s || '').replace(
+  return String(s||'').replace(
     /(?:\n*\[process exited with code\s+-?\d+\][^\n]*\n)+/gi,
-    (m) => {
-      const first = m.match(/\[process exited with code\s+-?\d+\][^\n]*\n/i);
-      return '\n' + (first ? first[0] : '');
-    }
+    m => '\n' + (m.match(/\[process exited with code\s+-?\d+\][^\n]*\n/i) || [''])[0]
   );
 }
 
-function dedupeConsecutiveLines(s){
-  const out = [];
-  let prev = null;
-  for (const ln of String(s || '').split(/\r?\n/)){
-    if (ln !== prev) out.push(ln);
-    prev = ln;
+function dedupeRuntimeLog(s){
+  let t = dedupeExitTrailers(String(s||''));
+
+  // split into logical paragraphs (blank lines OR a new "bash: line …" stanza)
+  const paras = t.split(/(?:\n{2,}|\n(?=bash:\s*line\s+\d+:))/i);
+
+  const seen = new Set(), out = [];
+  for (const p of paras){
+    const key = normalizeForDedupe(p);
+    if (!key) continue;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p.trimEnd());
   }
-  return out.join('\n');
+  return out.join('\n\n').trim();
 }
 
-function dedupeRuntimeLog(s){
-  let t = s || '';
-  t = dedupeExitTrailers(t);           // collapse repeated exit trailers anywhere
-  t = dedupeParagraphsAggressive(t);   // collapse repeated bash-wrapper paragraphs
-  t = dedupeConsecutiveLines(t);       // final safety pass
-  return t.trim();
-}
 
 
 
