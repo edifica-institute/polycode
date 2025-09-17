@@ -803,8 +803,23 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
       };
 
        detectGccClang(text, hints);
-  detectSanitizers(text, hints);
+const hadSan = detectSanitizers(text, hints);
 
+// ALWAYS try to classify native crashes too (SIGILL/SIGFPE/etc.)
+const hadPosix = detectPosixCrash(text, code, push);
+
+// (optional) prioritize divide-by-zero over a generic UBSan card
+if (hadPosix && hadSan) {
+  const dzIdx = hints.findIndex(h =>
+    /divide by zero/i.test(h.title) || /divide by zero/i.test(h.detail)
+  );
+  const ubIdx = hints.findIndex(h => /UndefinedBehaviorSanitizer/i.test(h.title));
+  if (dzIdx >= 0 && ubIdx >= 0) {
+    // move DZ card to the top
+    const dz = hints.splice(dzIdx, 1)[0];
+    hints.unshift(dz);
+  }
+}
        
       // gcc/clang: file:line:col: error: message
        if (!hints.length) {
@@ -859,7 +874,7 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
         push('Linker error: undefined reference', `Missing implementation or library for: ${names.join(', ')}`, null, 'Provide the function(s) or link the correct library.', 'error', null, 'high');
       }}
 
-       if (!hints.length) detectPosixCrash(text, code, push);
+      //if (!hints.length) detectPosixCrash(text, code, push);
       break;
     }
 
