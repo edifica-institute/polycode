@@ -312,6 +312,304 @@ function langKey(lang) {
 
 /* ---------------------------- CORE ------------------------------ */
 
+
+// === Generic utilities ===
+const RE_EXIT = /process exited with code\s+(-?\d+)/i;
+const add = (arr, {title, detail, line=null, fix=null, severity='error', confidence='high'}) =>
+  arr.push({ title, detail, line, fix, severity, confidence });
+
+// Collapse duplicate "[process exited ...]" trailers
+
+// === DETECTOR A: POSIX runtime crashes (all langs that run native) ===
+// Maps Linux "128 + signal" exit codes -> signal names
+const SIG_BY_EXIT = {132:'SIGILL', 134:'SIGABRT', 136:'SIGFPE', 139:'SIGSEGV', 138:'SIGBUS'};
+function detectPosixCrash(text, codeText, codeString, hints) {
+  const t = (text || '') + '\n' + (codeText || '');
+  const mExit = RE_EXIT.exec(t);
+  const exitCode = mExit ? parseInt(mExit[1],10) : null;
+  const sig = (exitCode && SIG_BY_EXIT[exitCode]) ? SIG_BY_EXIT[exitCode] : null;
+
+  const mSig = /(Illegal instruction|Floating point exception|Segmentation fault|Bus error|Aborted)(?:\s*\(core dumped\))?/i.exec(t);
+  const sigWord = mSig ? mSig[1].toLowerCase() : null;
+
+  if (!mSig && !sig) return false;
+
+  let title='Program crashed at runtime', detail='The OS terminated the program.', fix='Check last changes and sanitize inputs.';
+  let line=null;
+
+  const findDivZero = (src) => {
+    const L = String(src||'').split('\n');
+    for (let i=0;i<L.length;i++) if (/\b\/\s*0(?!\d)/.test(L[i])) return i+1;
+    return null;
+  };
+
+  if (sigWord?.includes('illegal') || sig==='SIGILL') {
+    title='Illegal instruction (SIGILL)';
+    detail='CPU tried to execute an invalid instruction—often undefined behavior or incompatible build flags.';
+    fix='Remove UB, compile without aggressive -march flags, and try UBSan/ASan.';
+  } else if (sigWord?.includes('floating') || sig==='SIGFPE') {
+    title='Floating point exception (SIGFPE)';
+    detail='Most commonly division by zero or invalid arithmetic.';
+    fix='Guard divisors against zero; validate arithmetic operands.';
+    line = findDivZero(codeString);
+  } else if (sigWord?.includes('segmentation') || sig==='SIGSEGV') {
+    title='Segmentation fault (SIGSEGV)';
+    detail='Invalid memory access (bad pointer / out-of-bounds).';
+    fix='Check pointer init and array bounds; run with AddressSanitizer.';
+  } else if (sigWord?.includes('aborted') || sig==='SIGABRT') {
+    title='Aborted (SIGABRT)';
+    detail='abort() called, often from failed assert() or library fatal error.';
+    fix='Find the assert/error path and handle it cleanly.';
+  } else if (sigWord?.includes('bus') || sig==='SIGBUS') {
+    title='Bus error (SIGBUS)';
+    detail='Unaligned memory access or invalid mapping.';
+    fix='Check struct packing / file mappings.';
+  }
+
+  add(hints, {title, detail, line, fix});
+  return true;
+}
+
+// === DETECTOR B: Sanitizers (C/C++) ===
+function detectSanitizers(text, hints) {
+  const t = String(text||'');
+  // AddressSanitizer
+  if (/AddressSanitizer/i.test(t)) {
+    const m = /AddressSanitizer: ([^\n]+)/i.exec(t);
+    add(hints, {
+      title: 'AddressSanitizer: ' + (m ? m[1] : 'memory error'),
+      detail: 'ASan found invalid memory access (use-after-free, OOB, etc.).',
+      fix: 'Read the stack in the log; fix the access; keep -fsanitize=address while testing.'
+    });
+    return true;
+  }
+  // UndefinedBehaviorSanitizer
+  if (/UndefinedBehaviorSanitizer|undefined behavior/i.test(t)) {
+    add(hints, {
+      title: 'UndefinedBehaviorSanitizer: undefined behavior',
+      detail: 'UBSan detected undefined behavior (e.g., signed overflow, null deref).',
+      fix: 'Follow the file:line shown by UBSan and correct the operation.'
+    });
+    return true;
+  }
+  // ThreadSanitizer
+  if (/ThreadSanitizer|data race/i.test(t)) {
+    add(hints, {
+      title: 'ThreadSanitizer: data race',
+      detail: 'Concurrent access without synchronization.',
+      fix: 'Protect shared data with mutexes/atomics or redesign concurrency.'
+    });
+    return true;
+  }
+  return false;
+}
+
+// === DETECTOR C: GCC/Clang compile & link (C/C++) ===
+function detectGccClang(text, hints) {
+  const lines = String(text||'').split('\n');
+  let hit=false;
+  for (const ln of lines) {
+    // file:line:col: error: message
+    let m = /^(.+?):(\d+):(\d+):\s+(fatal error|error|warning):\s+(.*)$/i.exec(ln);
+    if (m) {
+      const [,file,row,col,kind,msg] = m;
+      const sev = /warning/i.test(kind) ? 'warning' : 'error';
+      let fix=null;
+      if (/expected.*';'/.test(msg)) fix='Add a missing semicolon at the end of the statement.';
+      else if (/undeclared|not declared/i.test(msg)) fix='Declare the variable/function before use or include the right header.';
+      else if (/assignment of read-only/i.test(msg)) fix='Do not modify const data; remove const or copy into a mutable variable.';
+      add(hints, {
+        title: `${kind.toUpperCase()} in ${file}:${row}:${col}`,
+        detail: msg,
+        line: parseInt(row,10),
+        fix,
+        severity: sev,
+        confidence: 'high'
+      });
+      hit=true; continue;
+    }
+    // linker: undefined reference to `...`
+    m = /undefined reference to\s*`([^']+)'/i.exec(ln);
+    if (m) {
+      add(hints, {
+        title: 'Linker error: undefined reference',
+        detail: `Missing symbol: ${m[1]}`,
+        fix: 'Link the correct library/object file or provide the function definition.'
+      });
+      hit=true;
+    }
+  }
+  return hit;
+}
+
+// === DETECTOR D: Java (javac + JVM runtime) ===
+function detectJava(text, codeText, hints) {
+  const t = String(text||'');
+  let hit=false;
+
+  // javac: Foo.java:12: error: ...
+  const reJavac = /^(.+?):(\d+):\s+error:\s+(.*)$/im;
+  let m = reJavac.exec(t);
+  while (m) {
+    add(hints, {
+      title: 'Compilation error',
+      detail: m[3],
+      line: parseInt(m[2],10),
+      fix: /';' expected/.test(m[3]) ? 'Insert a missing semicolon.' : null
+    });
+    hit=true;
+    m = reJavac.exec(t.substring(m.index + 1));
+  }
+
+  // JVM runtime exceptions
+  // Example: Exception in thread "main" java.lang.ArithmeticException: / by zero
+  const reEx = /Exception in thread ".*?" ([\w.$]+):\s*(.*)/i;
+  const reAt = /\s*at\s+([^\s(]+)\(([^:]+):(\d+)\)/; // stack frame
+  const e = reEx.exec(t);
+  if (e) {
+    const ex = e[1], msg = e[2] || '';
+    let fix=null;
+    if (/NullPointerException/i.test(ex)) fix='Check for null before dereferencing; ensure objects are initialized.';
+    else if (/ArrayIndexOutOfBoundsException/i.test(ex)) fix='Check array indices and bounds.';
+    else if (/ArithmeticException/i.test(ex)) fix='Guard divisors; avoid / by zero.';
+    else if (/InputMismatchException/i.test(ex)) fix='Validate Scanner input types before parsing.';
+    add(hints, { title: ex.replace(/^java\.lang\./,''), detail: msg || 'Runtime exception', fix });
+    // try to pin first source frame
+    const s = reAt.exec(t);
+    if (s) hints[hints.length-1].line = parseInt(s[3],10);
+    hit=true;
+  }
+
+  return hit;
+}
+
+// === DETECTOR E: Python (Traceback) ===
+function detectPython(text, hints) {
+  const t = String(text||'');
+  if (!/Traceback \(most recent call last\):/i.test(t) && !/File ".*", line \d+/.test(t)) return false;
+
+  // capture last frame
+  const frames = Array.from(t.matchAll(/File "([^"]+)", line (\d+), in ([^\n]+)\n([\s\S]*?)(?=File "|[A-Za-z]+Error:|$)/g));
+  const last = frames.length ? frames[frames.length-1] : null;
+
+  // final exception line
+  const mExc = /([A-Za-z_]+Error):\s*([^\n]*)/i.exec(t);
+  let title='Python error', detail=mExc ? mExc[2] : 'Uncaught exception', fix=null;
+  if (mExc) {
+    const ex = mExc[1];
+    if (/ZeroDivisionError/i.test(ex)) fix='Guard divisors against zero.';
+    else if (/IndexError/i.test(ex)) fix='Check list/tuple index bounds.';
+    else if (/KeyError/i.test(ex)) fix='Ensure dictionary key exists before access or use dict.get().';
+    else if (/TypeError/i.test(ex)) fix='Check argument types; convert/parse inputs.';
+    else if (/ValueError/i.test(ex)) fix='Validate/parse your inputs before converting.';
+    else if (/ModuleNotFoundError/i.test(ex)) fix='Install or include the missing module; check the module name.';
+    else if (/MemoryError/i.test(ex)) fix='Reduce data size or algorithmic memory use.';
+    add(hints, { title, detail, line: last ? parseInt(last[2],10) : null, fix, confidence:'high' });
+  } else {
+    add(hints, { title, detail, line: last ? parseInt(last[2],10) : null });
+  }
+  return true;
+}
+
+
+
+// --- POSIX runtime crash detector (for native langs like C/C++) ---
+function detectPosixCrash(text, code, push) {
+  const t = String(text||'');
+  const mExit = /process exited with code\s+(-?\d+)/i.exec(t);
+  const exitCode = mExit ? parseInt(mExit[1],10) : null;
+  const SIG_BY_EXIT = {132:'SIGILL', 134:'SIGABRT', 136:'SIGFPE', 139:'SIGSEGV', 138:'SIGBUS'};
+  const sig = exitCode && SIG_BY_EXIT[exitCode] ? SIG_BY_EXIT[exitCode] : null;
+
+  const mSig = /(Illegal instruction|Floating point exception|Segmentation fault|Bus error|Aborted)(?:\s*\(core dumped\))?/i.exec(t);
+  const sigWord = mSig ? mSig[1].toLowerCase() : null;
+
+  if (!mSig && !sig) return false;
+
+  let title='Program crashed at runtime', detail='The OS terminated the program.', fix='Check recent changes; validate inputs.';
+  let line=null;
+
+  const guessDivZero = (src) => {
+    const L = String(src||'').split('\n');
+    for (let i=0;i<L.length;i++) if (/\b\/\s*0(?!\d)/.test(L[i])) return i+1;
+    return null;
+  };
+
+  if (sigWord?.includes('illegal') || sig==='SIGILL') {
+    title='Illegal instruction (SIGILL)';
+    detail='Invalid CPU instruction—often undefined behavior or bad build flags.';
+    fix='Remove UB; compile without aggressive -march; try UBSan/ASan.';
+  } else if (sigWord?.includes('floating') || sig==='SIGFPE') {
+    title='Floating point exception (SIGFPE)';
+    detail='Most commonly division by zero or invalid arithmetic.';
+    fix='Guard divisors against zero; validate arithmetic operands.';
+    line = guessDivZero(code);
+  } else if (sigWord?.includes('segmentation') || sig==='SIGSEGV') {
+    title='Segmentation fault (SIGSEGV)';
+    detail='Invalid memory access (bad pointer / out-of-bounds array).';
+    fix='Check pointer init and bounds; try AddressSanitizer.';
+  } else if (sigWord?.includes('aborted') || sig==='SIGABRT') {
+    title='Aborted (SIGABRT)';
+    detail='abort() called (failed assert or fatal library error).';
+    fix='Find and handle the assert/error condition.';
+  } else if (sigWord?.includes('bus') || sig==='SIGBUS') {
+    title='Bus error (SIGBUS)';
+    detail='Unaligned memory access or invalid mapping.';
+    fix='Check struct packing and file mappings.';
+  }
+
+  push(title, detail, line, fix, 'error', null, 'high');
+  return true;
+}
+
+// (optional) collapse duplicate “[process exited …]” lines
+function dedupeExitTrailers(s) {
+  return String(s||'').replace(
+    /\n*\[process exited with code\s+(-?\d+)\][^\n]*\n(?:\s*\[process exited with code\s+\1\][^\n]*\n)+/i,
+    '\n[process exited with code $1]\n'
+  );
+}
+
+function detectJavaRuntime(text, push) {
+  const t = String(text||'');
+  const m = /Exception in thread ".*?" ([\w.$]+):\s*(.*)/i.exec(t);
+  if (!m) return false;
+  const ex = m[1], msg = m[2] || '';
+  let fix=null;
+  if (/NullPointerException/i.test(ex)) fix='Check for null before dereferencing; ensure objects are initialized.';
+  else if (/ArrayIndexOutOfBoundsException/i.test(ex)) fix='Validate array indices and bounds.';
+  else if (/ArithmeticException/i.test(ex)) fix='Guard divisors against zero.';
+  else if (/InputMismatchException/i.test(ex)) fix='Validate Scanner inputs before parsing.';
+  push(ex.replace(/^java\.lang\./,''), msg || 'Runtime exception', null, fix, 'error', null, 'high');
+  return true;
+}
+
+function detectPythonTraceback(text, push) {
+  const t = String(text||''); if (!/Traceback \(most recent call last\):/i.test(t)) return false;
+  const frames = Array.from(t.matchAll(/File "([^"]+)", line (\d+), in ([^\n]+)/g));
+  const last = frames[frames.length-1];
+  const mExc = /([A-Za-z_]+Error):\s*([^\n]*)/i.exec(t);
+  if (!mExc) return false;
+  const ex = mExc[1], msg = mExc[2] || '';
+  let fix=null;
+  if (/ZeroDivisionError/i.test(ex)) fix='Guard divisors against zero.';
+  else if (/IndexError/i.test(ex)) fix='Check list/tuple index bounds.';
+  else if (/KeyError/i.test(ex)) fix='Ensure key exists or use dict.get().';
+  else if (/TypeError/i.test(ex)) fix='Check argument counts and types.';
+  else if (/ValueError/i.test(ex)) fix='Validate/parse inputs before converting.';
+  push(ex, msg, last ? parseInt(last[2],10) : null, fix, 'error', null, 'high');
+  return true;
+}
+
+
+
+
+
+
+
+
+
+
 /**
  * Parse and interpret compiler output.
  * @param {Object} params
@@ -329,7 +627,7 @@ function langKey(lang) {
 // Drop-in: parseCompilerOutput
 // =======================
 export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' }) {
-  const text = String((stderr || stdout || '')).trim();
+  const text = dedupeExitTrailers([stderr, stdout].filter(Boolean).join('\n'));
   const hints = [];
   const annotations = [];
 
@@ -448,6 +746,8 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
         const names = Array.from(new Set(links.map(m => m[1]))).slice(0,5);
         push('Linker error: undefined reference', `Missing implementation or library for: ${names.join(', ')}`, null, 'Provide the function(s) or link the correct library.', 'error', null, 'high');
       }
+
+       if (!hints.length) detectPosixCrash(text, code, push);
       break;
     }
 
@@ -487,6 +787,7 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
         }
         if (!hints.length) push('Compiler error', firstLine(msg), line, 'Fix at the highlighted line.', 'error', null, 'low');
       }
+       if (!hints.length) detectJavaRuntime(text, push);
       break;
     }
 
@@ -520,6 +821,8 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
       } else if (errMsg) {
         push('Runtime error', errMsg, errLine, 'Fix the error at this line.', 'error', null, 'low');
       }
+       if (!hints.length) detectPythonTraceback(text, push);
+
       break;
     }
 
