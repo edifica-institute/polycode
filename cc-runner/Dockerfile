@@ -9,9 +9,17 @@ RUN apt-get update && apt-get install -y \
 
 # --- ADD THESE TWO LINES ---
 # Surface beginner mistakes as hard errors; avoid CPU-specific codegen.
-ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
-ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
+#ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
+#ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
 # --------------------------
+
+# keep your existing CFLAGS/CXXFLAGS lines
+ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic -fsanitize=address,undefined -fno-omit-frame-pointer"
+ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic -fsanitize=address,undefined -fno-omit-frame-pointer"
+
+# let ASan run even though stdbuf is preloaded
+ENV ASAN_OPTIONS="abort_on_error=1:detect_stack_use_after_return=1:verify_asan_link_order=0"
+ENV UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
 
 
 WORKDIR /app
