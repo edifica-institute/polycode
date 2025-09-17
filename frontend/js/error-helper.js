@@ -1379,7 +1379,7 @@ export function renderHintHTML(hint) {
 
   const meta = [lineCol, confText && `Confidence: ${confText}`, rule]
     .filter(Boolean)
-    .join(" · ");
+    .join(" \u00A0·\u00A0 ");
 
   const fixes = Array.isArray(hint.fix) ? hint.fix
               : hint.fix ? [hint.fix]
