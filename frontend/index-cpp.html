@@ -805,13 +805,13 @@ if (!prep || !prep.ok || !prep.token) {
 
   // show input row if it *looks* like a prompt
   try {
-    if (!isInputRowVisible() && PROMPT_RE.test(latestConsoleTail())) {
+    if (needsStdin && !isInputRowVisible() && PROMPT_RE.test(latestConsoleTail())) {
       showInputRow(true);
     }
   } catch {}
 
   // optional: idle probe (helps stdin that prints no prompt)
-  scheduleIdleProbe?.();
+  if (needsStdin) scheduleIdleProbe?.();
 
   // --- E) structured control messages you already support ---
   try{
