@@ -749,11 +749,11 @@ if (!prep || !prep.ok || !prep.token) {
   showCompileFailNotice();
 
   // 3) Put the full log ONLY into #stderrText (single source of truth for the explainer/UI)
-  /*const st = document.getElementById('stderrText');
+  const st = document.getElementById('stderrText');
   if (st) {
     st.textContent = trimmed;
     st.style.display = 'block';
-  }*/
+  }
 
   // 4) Set Monaco marker from the first precise error, if present
   const m = /main\.c:(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(trimmed);
