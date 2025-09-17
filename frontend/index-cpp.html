@@ -530,21 +530,28 @@ function showInputRow(show){
   const row    = document.getElementById('consoleRow');
   const pre    = document.getElementById('jconsole');
   const prefix = document.getElementById('consolePrefix');
-
   if (!row) return;
 
   if (show){
-    // if already visible, just refocus—don’t re-mirror the prompt
+    // If already visible, just refocus
     if (row.style.display !== 'none'){ focusConsoleInput(); return; }
     row.style.display = 'flex';
 
-    // mirror the tail (prompt) to the prefix without removing from <pre>
-    const txt  = pre.textContent;
+    // Compute tail (works whether or not there's a trailing \n)
+    const txt  = pre.textContent || '';
     const i    = txt.lastIndexOf('\n');
     const tail = txt.slice(i + 1);
-    if (tail && !/^\s*$/.test(tail)) prefix.textContent = tail + ' ';
-    else prefix.textContent = '';
-    __liftedPrompt = false; // we did not slice from <pre>
+
+    // Only lift if it *looks* like a prompt (prevents accidental removal)
+    if (PROMPT_RE.test(tail)) {
+      prefix.textContent = tail + ' ';
+      // Remove it from <pre> so it doesn't appear twice
+      pre.textContent = i >= 0 ? txt.slice(0, i + 1) : '';
+      __liftedPrompt = true;
+    } else {
+      prefix.textContent = '';
+      __liftedPrompt = false;
+    }
 
     window.PolyShell?.setRunnerPhase?.('waiting_input', { detail: getCountdownText?.() });
     window.PolyShell?.setStatus('Waiting for User Input...', 'busy');
@@ -559,13 +566,15 @@ function showInputRow(show){
     if (typeof window.wsRunInFlight !== 'undefined' && window.wsRunInFlight){
       window.PolyShell?.setStatus('Executing...', 'busy');
     }
-    // ✅ only append back if we had actually lifted (we don't anymore)
+    // Put the lifted prompt back (exactly once)
     if (__liftedPrompt && prefix.textContent){
       pre.textContent += prefix.textContent;
     }
     prefix.textContent = '';
+    __liftedPrompt = false;
   }
 }
+
 
 
 
@@ -588,6 +597,7 @@ if (__liftedPrompt && prefix && prefix.textContent){
   pre.textContent += prefix.textContent;
 }
 if (prefix) prefix.textContent = '';
+__liftedPrompt = false;
 
 
         
