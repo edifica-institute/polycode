@@ -710,6 +710,22 @@ function explainPyTypeOrAttr(errMsgRaw) {
 
 
 
+// === DETECTOR D: libc errno lines (perror) ===
+function detectLibcErrno(text, hints) {
+  const s = String(text || '');
+  // match single-line perror prints like: "fopen: No such file or directory"
+  const m = s.match(/^(fopen|open|fread|fwrite|close|remove|rename|stat|mkdir|rmdir):\s*(.+)$/m);
+  if (m) {
+    const api = m[1], detail = m[2];
+    add(hints, {
+      title: `${api} failed`,
+      detail,
+      fix: 'Check the path/permissions; ensure the file exists and the open mode is correct.',
+    });
+    return true;
+  }
+  return false;
+}
 
 
 
@@ -820,7 +836,9 @@ if (hadPosix && hadSan) {
     hints.unshift(dz);
   }
 }
-       
+
+       if (!hints.length) detectLibcErrno(text, hints);
+
       // gcc/clang: file:line:col: error: message
        if (!hints.length) {
       const main = text.match(/^(.*?):(\d+)(?::(\d+))?:\s*(error|fatal error|warning):\s*(.+)$/m);
