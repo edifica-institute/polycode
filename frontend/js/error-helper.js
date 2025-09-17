@@ -801,13 +801,13 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
 
           push(title, msg, line, fix, kind, column, confidence);
         }
-        //return finalize();
+         
+         
+         
+         detectCommonRuntimeErrors(text, push)
+        return finalize();
 
-  // catch simple runtime errors (perror-style) early
-  if (detectCommonRuntimeErrors(text, push)) {
-    return finalize(); // <-- same finalize() you already use at the end
-  }
-
+ 
          
       }
     }
