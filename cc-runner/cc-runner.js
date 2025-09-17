@@ -210,6 +210,13 @@ app.post("/api/cc/prepare", async (req, res) => {
       ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
     ];
 
+
+    const wantSan = process.env.CC_ENABLE_ASAN === "1" || req.body?.sanitize === "asan";
+if (wantSan) {
+  args.push("-fsanitize=address,undefined", "-fno-omit-frame-pointer");
+}
+
+    
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
     let out = "", err = "";
