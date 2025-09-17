@@ -1371,9 +1371,13 @@ export function renderHintHTML(hint) {
   const hasCol  = Number.isFinite(hint.column);
   const lineCol = hasLine ? `Line ${hint.line}${hasCol ? ':' + hint.column : ''}` : "";
 
-  const confText = typeof hint.confidence === "number"
-    ? `${(hint.confidence * 100 | 0)}%`
-    : (hint.confidence || "");
+  const confText =
+  typeof hint.confidence === "number"
+    ? `${(hint.confidence * 100) | 0}%`
+    : (hint.confidence
+        ? String(hint.confidence).charAt(0).toUpperCase() +
+          String(hint.confidence).slice(1).toLowerCase()
+        : "");
 
   const rule = hint.ruleId ? `<code>${escapeHtml(hint.ruleId)}</code>` : "";
 
