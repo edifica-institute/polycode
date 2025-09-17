@@ -12,6 +12,9 @@ RUN apt-get update && apt-get install -y \
 ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
 ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
 # --------------------------
+ENV ASAN_OPTIONS="abort_on_error=1:detect_stack_use_after_return=1"
+ENV UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
+
 
 WORKDIR /app
 
