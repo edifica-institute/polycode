@@ -4764,9 +4764,8 @@ function termWriteStyled(msg) {
 
 
 function showCompileFailNotice(kind = 'compile') {
-  const pre = document.getElementById('stderrText') || document.getElementById('stdoutText');
-  if (!pre) return;
-  if (document.getElementById('pcFailNote')) return;
+  const out = document.getElementById('output');   // <— was stderr/stdout
+  if (!out || document.getElementById('pcFailNote')) return;
 
   const n = document.createElement('div');
   n.id = 'pcFailNote';
@@ -4775,8 +4774,9 @@ function showCompileFailNotice(kind = 'compile') {
     kind === 'compile'
       ? 'Compilation Failed — See Details Below.'
       : 'Execution Failed — See Details Below.';
-  pre.parentNode.insertBefore(n, pre);
+  out.insertBefore(n, out.firstChild);             // <— top of output
 }
+
 
 
 function hideCompileFailNotice() {
