@@ -3,7 +3,7 @@ FROM node:20-bullseye
 
 # Toolchains for C/C++
 RUN apt-get update && apt-get install -y \
-    build-essential g++ make cmake \
+    build-essential g++ make cmake util-linux \
     libgmp-dev \
     libboost-all-dev \
  && rm -rf /var/lib/apt/lists/*
