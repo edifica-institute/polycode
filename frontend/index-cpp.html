@@ -638,6 +638,28 @@ __liftedPrompt = false;
     }*/
 
 
+    function dedupeConsecutiveLines(s) {
+  const out = [];
+  let prev = null;
+  for (const ln of String(s || '').split(/\r?\n/)) {
+    if (ln !== prev) out.push(ln);
+    prev = ln;
+  }
+  return out.join('\n');
+}
+
+// optional: collapse duplicated exit trailers (same as in error-helper)
+function dedupeExitTrailers(s) {
+  return String(s||'').replace(
+    /\n*\[process exited with code\s+(-?\d+)\][^\n]*\n(?:\s*\[process exited with code\s+\1\][^\n]*\n)+/i,
+    '\n[process exited with code $1]\n'
+  );
+}
+
+
+
+    
+
     function codeNeedsInput(src){
   const s = String(src || '');
   return /\b(?:std::)?cin\s*>>/.test(s)
@@ -888,14 +910,20 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
 
   if (!ok) {
     // 1) Raw log into the red error block
-    const errBox = document.getElementById('stderrText');
-    if (errBox) errBox.textContent = (runtimeBuf || '').trim();
+    //const errBox = document.getElementById('stderrText');
+    //if (errBox) errBox.textContent = (runtimeBuf || '').trim();
 
+ const errBox = document.getElementById('stderrText');
+   const raw = (runtimeBuf || '').trim();
+   const pretty = dedupeConsecutiveLines(dedupeExitTrailers(raw));
+   if (errBox) errBox.textContent = pretty;
+
+    
     // 2) Polycode Analysis (use code to enable DZ source sniff)
     const codeText = window.editor?.getValue() || '';
     const { hints, summary } = window.PolyErrorHelper.parseCompilerOutput({
       lang: 'cpp',
-      stderr: runtimeBuf || '',
+      stderr: pretty,
       stdout: '',
       code: codeText,
     });
