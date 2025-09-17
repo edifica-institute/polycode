@@ -211,11 +211,6 @@ app.post("/api/cc/prepare", async (req, res) => {
     ];
 
 
-    const wantSan = process.env.CC_ENABLE_ASAN === "1" || req.body?.sanitize === "asan";
-if (wantSan) {
-  args.push("-fsanitize=address,undefined", "-fno-omit-frame-pointer");
-}
-
     
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
