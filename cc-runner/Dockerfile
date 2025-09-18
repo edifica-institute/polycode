@@ -1,20 +1,22 @@
 FROM node:20-bullseye
 
-RUN apt-get update && apt-get install -y \
-    build-essential g++ make cmake \
-    libgmp-dev libboost-all-dev \
- && rm -rf /var/lib/apt/lists/*
-
-# Remove the strict CFLAGS/CXXFLAGS you added earlier (with -Werror).
-# Optionally keep mild ones; not required:
-# ENV CFLAGS="-O2 -g"
-# ENV CXXFLAGS="-O2 -g"
+# Toolchains for C/C++
+ RUN apt-get update && apt-get install -y \
+     build-essential g++ make cmake \
+     libgmp-dev \
+     libboost-all-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+
+# Install deps first (better layer caching)
 COPY package*.json ./
 RUN npm ci --omit=dev || npm i --production
+
+# App code
 COPY cc-runner.js ./cc-runner.js
 
+# Non-root
 RUN useradd -m runner && chown -R runner:runner /app
 USER runner
 
