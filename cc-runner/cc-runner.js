@@ -1,4 +1,4 @@
-// cc-runner.js — C & C++ runner with CORS + WebSocket (safe defaults + opt-in strict mode)
+// cc-runner.js — C & C++ runner with CORS + WebSocket (hardened)
 import express from "express";
 import cors from "cors";
 import { WebSocketServer } from "ws";
@@ -13,12 +13,12 @@ const PORT = process.env.PORT || 8083;
 const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 // Limits (env-overridable)
-const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                   // per-process CPU seconds
-const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);               // ~256MB
-const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);              // 1GB output cap
-const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);                // hard kill (run)
+const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // per-process CPU seconds
+const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB
+const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);            // 1GB output cap
+const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);              // hard kill (run)
 const CC_COMPILE_TIMEOUT_S = Number(process.env.CC_COMPILE_TIMEOUT_S || 60); // hard kill (compile)
-const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000);// unused token TTL
+const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000); // unused token TTL
 
 // ----------------------------------------------------------------------------
 // Express
@@ -47,6 +47,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // preflight with same options
+
 app.use(express.json({ limit: "1mb" }));
 
 // --- Artifacts (images) static route with CORS ---
@@ -74,6 +75,7 @@ async function collectImagesFrom(dir, limit = 6, maxBytes = 5 * 1024 * 1024) {
   const allow = new Set([".png", ".bmp", ".ppm"]);
   const names = await fs.readdir(dir);
   const picks = [];
+
   for (const name of names) {
     const full = path.join(dir, name);
     const st = await fs.stat(full).catch(() => null);
@@ -83,6 +85,7 @@ async function collectImagesFrom(dir, limit = 6, maxBytes = 5 * 1024 * 1024) {
     if (st.size > maxBytes) continue;
     picks.push({ name, full, mtime: st.mtimeMs });
   }
+
   picks.sort((a, b) => b.mtime - a.mtime); // newest first
   return picks.slice(0, limit);
 }
@@ -98,7 +101,7 @@ function safeJoin(root, relPath) {
 }
 
 function parseGcc(out) {
-  const lines = String(out || "").split(/\r?\n/), ds = [];
+  const lines = out.split(/\r?\n/), ds = [];
   for (const line of lines) {
     const m = line.match(/^(.*?):(\d+):(\d+):\s+(error|warning|note):\s+(.*)$/i);
     if (m) ds.push({ file: m[1], line: +m[2], column: +m[3], severity: m[4].toLowerCase(), message: m[5] });
@@ -116,20 +119,18 @@ function mergeStreams(a, b) {
 }
 
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
-// PATCH: accept envExtra + vmemKB
-function runWithLimits(cmd, args, cwd, { timeoutSec, envExtra = {}, vmemKB } = {}) {
+function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
-  const vkb = Number(vmemKB ?? CC_VMEM_KB);
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
   const bash = `
-    ulimit -t ${CC_CPU_SECS} -v ${vkb} -f ${CC_FSIZE_KB};
+    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
     if command -v stdbuf >/dev/null 2>&1; then
       stdbuf -o0 -e0 ${argv};
     else
       ${argv};
     fi
   `;
-  const child = spawn("bash", ["-lc", bash], { cwd, env: { ...process.env, ...envExtra } });
+  const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
@@ -146,7 +147,7 @@ function compilerFor(lang, entry) {
 try { fssync.mkdirSync(JOB_ROOT, { recursive: true }); } catch {}
 
 // ----------------------------------------------------------------------------
-// In-memory sessions: token → { dir, exePath, tmr?, runOpts? }
+// In-memory sessions: token → { dir, exePath, tmr? }
 // ----------------------------------------------------------------------------
 const SESSIONS = new Map();
 
@@ -155,14 +156,10 @@ const SESSIONS = new Map();
 // ----------------------------------------------------------------------------
 app.post("/api/cc/prepare", async (req, res) => {
   try {
-    const { files = [], lang, entry, output = "a.out", opts = {} } = req.body || {};
+    const { files = [], lang, entry, output = "a.out" } = req.body || {};
     if (!Array.isArray(files) || files.length === 0) {
       return res.status(400).json({ error: "No files" });
     }
-
-    // Normalized options (defaults preserve current behavior)
-    const preset = (opts.preset === "strict") ? "strict" : "fast";  // default: fast (no sanitizers)
-    const quietOnError = opts.quietOnError === true ? true : false; // default: false (stream live)
 
     // Create job dir
     const id = nanoid();
@@ -184,62 +181,43 @@ app.post("/api/cc/prepare", async (req, res) => {
     const exePath = safeJoin(dir, output);
 
     const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
-    // Pull flags from environment (Dockerfile may provide them)
+    const isC   = /\.c$/i.test(entryFile) || (lang === "c");
+
+    // Pull flags from environment (Dockerfile provides them)
     const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
     const envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
+
     // Detect if env already sets some knobs
     const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
     const hasWall   = envFlags.includes("-Wall");
     const hasWextra = envFlags.includes("-Wextra");
     const hasFmt2   = envFlags.includes("-Wformat=2");
 
-    // Build compiler argv (NO -Werror)
+    // Build compiler argv.
+    // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
     const args = [
       ...srcs,
       std,
       ...(hasOpt ? [] : ["-O2"]),
-      "-g",
       "-D_POSIX_C_SOURCE=200809L",
-      "-D_FORTIFY_SOURCE=2",
       ...(hasWall   ? [] : ["-Wall"]),
       ...(hasWextra ? [] : ["-Wextra"]),
       ...(hasFmt2   ? [] : ["-Wformat=2"]),
-      "-Wformat-security",
-      "-fstack-protector-strong",
       "-pthread",
       "-o", exePath,
       "-lm",
-      ...(isCpp ? ["-lgmp", "-lgmpxx", "-D_GLIBCXX_ASSERTIONS"] : ["-lgmp"]),
+      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
       ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
     ];
 
-    // Strict preset: add sanitizers (opt-in)
-    const wantStrict = preset === "strict";
-    if (wantStrict) {
-      args.push(
-        "-fsanitize=address",
-        "-fsanitize=undefined",
-        "-fsanitize=float-divide-by-zero",
-        "-fno-omit-frame-pointer"
-      );
-    }
-
-    const envCompile = wantStrict
-      ? { ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1:allocator_may_return_null=1",
-          UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=1" }
-      : {};
-
-    const child = runWithLimits(cc, args, dir, {
-      timeoutSec: CC_COMPILE_TIMEOUT_S,
-      envExtra: envCompile
-    });
+    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
     let out = "", err = "";
     child.stdout.on("data", d => out += d.toString());
     child.stderr.on("data", d => err += d.toString());
 
     child.on("close", (code) => {
-      const compileLog = mergeStreams(out, err);
+      const compileLog = mergeStreams(out, err); // <<< de-duped
       if (code !== 0) {
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
         return res.json({ token: null, ok: false, compileLog, diagnostics: parseGcc(compileLog) });
@@ -252,8 +230,8 @@ app.post("/api/cc/prepare", async (req, res) => {
         SESSIONS.delete(token);
       }, CC_TOKEN_TTL_MS);
 
-      SESSIONS.set(token, { dir, exePath, tmr, runOpts: { preset, quietOnError } });
-      res.json({ token, ok: true, compileLog, diagnostics: parseGcc(compileLog) });
+      SESSIONS.set(token, { dir, exePath, tmr });
+      res.json({ token, ok: true, compileLog, diagnostics: [] });
     });
   } catch (e) {
     console.error(e);
@@ -285,59 +263,17 @@ wss.on("connection", (ws, req) => {
   // Token is being consumed → cancel TTL timer
   if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
 
-  const { dir, exePath, runOpts = { preset: "fast", quietOnError: false } } = sess;
-  const preset = runOpts.preset === "strict" ? "strict" : "fast";
-  const quietOnError = !!runOpts.quietOnError;
+  const { dir, exePath } = sess;
+  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S });
 
-  // Env for the run
-  const envRun = (preset === "strict")
-    ? { ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1:allocator_may_return_null=1",
-        UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=1" }
-    : {}; // keep empty to preserve exact old behavior; you may use { GLIBC_TUNABLES: "glibc.malloc.check=3" } if desired.
+  // Stream output
+  child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
+  child.stderr.on("data", d => { try { ws.send(d.toString()); } catch {} });
 
-  // ASan needs more virtual memory; fast mode keeps your current cap
-  const vmemKB = (preset === "strict") ? Math.max(CC_VMEM_KB, 2 * 1024 * 1024) : CC_VMEM_KB;
-
-  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S, envExtra: envRun, vmemKB });
-
-  // Buffer only when quietOnError; otherwise stream live (old behavior)
-  let bufOut = "", bufErr = "";
-  const sendLive = !quietOnError;
-
-  child.stdout.on("data", d => {
-    const s = d.toString();
-    if (sendLive) { try { ws.send(s); } catch {} }
-    else { bufOut += s; }
-  });
-  child.stderr.on("data", d => {
-    const s = d.toString();
-    if (sendLive) { try { ws.send(s); } catch {} }
-    else { bufErr += s; }
-  });
-
-  function looksLikeSanitizerError(s) {
-    return /AddressSanitizer|UndefinedBehaviorSanitizer|heap-use-after-free|double free|out-of-bounds|invalid pointer|object-size|null-pointer|shift-exponent|integer divide by zero|float divide by zero/i.test(s || "");
-  }
-
+  // Close handler: publishes images, then cleanup
   child.on("close", async (code) => {
     try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
 
-    if (!sendLive) {
-      const combined = mergeStreams(bufOut, bufErr);
-      const isErrorRun = code !== 0 || looksLikeSanitizerError(combined);
-
-      if (isErrorRun) {
-        // Prefer showing errors; hide stdout
-        const errMsg = bufErr || combined || "Program terminated with an error.";
-        try { ws.send(errMsg); } catch {}
-      } else {
-        // success: flush stdout and any stderr notes
-        if (bufOut) { try { ws.send(bufOut); } catch {} }
-        if (bufErr) { try { ws.send(bufErr); } catch {} }
-      }
-    }
-
-    // Publish images (unchanged)
     try {
       const found = await collectImagesFrom(dir);
       if (found.length) {
@@ -383,7 +319,3 @@ wss.on("connection", (ws, req) => {
     SESSIONS.delete(token);
   }
 });
-
-// ----------------------------------------------------------------------------
-// Startup
-// ----------------------------------------------------------------------------
