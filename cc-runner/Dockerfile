@@ -9,9 +9,17 @@ RUN apt-get update && apt-get install -y \
 
 # --- ADD THESE TWO LINES ---
 # Surface beginner mistakes as hard errors; avoid CPU-specific codegen.
-ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
-ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
+ENV MALLOC_CHECK_=3
+ENV GLIBC_TUNABLES="glibc.malloc.check=3"
+ENV MALLOC_PERTURB_=204
+
+#ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
+EENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
 # --------------------------
+# NOTE: intentionally no -std flags here; your runner supplies them.
+ENV CFLAGS="-O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -Wno-error=unused-variable -Wno-error=unused-but-set-variable -march=x86-64 -mtune=generic"
+ENV CXXFLAGS="-O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -Wno-error=unused-variable -Wno-error=unused-but-set-variable -D_GLIBCXX_ASSERTIONS -march=x86-64 -mtune=generic"
+
 
 WORKDIR /app
 
