@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y \
 # Surface beginner mistakes as hard errors; avoid CPU-specific codegen.
 # keep the non -Werror CFLAGS/CXXFLAGS above, then add:
 # Warnings ON (not -Werror), sanitizers ON, plain logs (no ANSI colors)
-ENV BASE_C_WARN="-std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -fdiagnostics-color=never"
-ENV BASE_CXX_WARN="-std=c++20 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -fdiagnostics-color=never"
+ENV BASE_C_WARN="-std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -fdiagnostics-color=never -fno-diagnostics-show-caret"
+ENV BASE_CXX_WARN="-std=c++20 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -fdiagnostics-color=never -fno-diagnostics-show-caret"
 ENV SAN="-fsanitize=address,undefined -fno-sanitize-recover=all -no-pie"
 
 ENV CFLAGS="$BASE_C_WARN $SAN"
