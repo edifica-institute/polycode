@@ -1,4 +1,4 @@
-// cc-runner.js — C & C++ runner with CORS + WebSocket + friendly analysis + friendly-fatal gate
+// cc-runner.js — C & C++ runner with CORS + WebSocket (hardened + friendly analysis)
 import express from "express";
 import cors from "cors";
 import { WebSocketServer } from "ws";
@@ -13,31 +13,28 @@ const PORT = process.env.PORT || 8083;
 const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 // Limits (env-overridable)
-const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // per-process CPU seconds
-const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB (not enforced with ASan)
-const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);            // 1GB output cap
-const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);              // hard kill (run)
-const CC_COMPILE_TIMEOUT_S = Number(process.env.CC_COMPILE_TIMEOUT_S || 60); // hard kill (compile)
-const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000); // unused token TTL
+const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);
+const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144); // ~256MB (unused by ASan)
+const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576); // 1GB output cap
+const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);
+const CC_COMPILE_TIMEOUT_S = Number(process.env.CC_COMPILE_TIMEOUT_S || 60);
+const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000);
 
-// ----------------------------------------------------------------------------
-// Express
-// ----------------------------------------------------------------------------
 const app = express();
 
-// ---- CORS allowlist ----
+// CORS allowlist
 const ALLOW_ORIGINS = [
   "https://www.polycode.in",
   "https://polycode.in",
   "https://polycode.pages.dev",
   "https://edifica-polycode.pages.dev",
   "https://polycode.cc",
-  "http://localhost:3000", // dev
+  "http://localhost:3000",
 ];
 
 const corsOptions = {
   origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // curl / health checks
+    if (!origin) return cb(null, true);
     if (ALLOW_ORIGINS.includes(origin)) return cb(null, true);
     return cb(new Error("CORS: origin not allowed"));
   },
@@ -46,36 +43,37 @@ const corsOptions = {
   maxAge: 86400,
 };
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // preflight with same options
-
+app.options("*", cors(corsOptions));
 app.use(express.json({ limit: "1mb" }));
 
-// --- Artifacts (images) static route with CORS ---
+// Static artifacts (images)
 const PUBLIC_ROOT = "/tmp/polycode-artifacts";
 try { fssync.mkdirSync(PUBLIC_ROOT, { recursive: true }); } catch {}
 app.use(
   "/artifacts",
   (req, res, next) => {
     const o = req.headers.origin;
-    if (!o || ALLOW_ORIGINS.includes(o)) {
-      res.setHeader("Access-Control-Allow-Origin", o || "*");
-    }
+    if (!o || ALLOW_ORIGINS.includes(o)) res.setHeader("Access-Control-Allow-Origin", o || "*");
     next();
   },
   express.static(PUBLIC_ROOT, { maxAge: "5m", fallthrough: true })
 );
 
-// ---- Health check ----
+// Health
 app.get("/health", (_, res) => res.json({ ok: true }));
 
-// ----------------------------------------------------------------------------
 // Helpers
-// ----------------------------------------------------------------------------
+async function ensureDir(p) { await fs.mkdir(p, { recursive: true }); }
+function safeJoin(root, relPath) {
+  const base = path.resolve(root) + path.sep;
+  const full = path.resolve(root, relPath);
+  if (!full.startsWith(base)) throw new Error("Bad path");
+  return full;
+}
 async function collectImagesFrom(dir, limit = 6, maxBytes = 5 * 1024 * 1024) {
   const allow = new Set([".png", ".bmp", ".ppm"]);
   const names = await fs.readdir(dir);
   const picks = [];
-
   for (const name of names) {
     const full = path.join(dir, name);
     const st = await fs.stat(full).catch(() => null);
@@ -85,23 +83,13 @@ async function collectImagesFrom(dir, limit = 6, maxBytes = 5 * 1024 * 1024) {
     if (st.size > maxBytes) continue;
     picks.push({ name, full, mtime: st.mtimeMs });
   }
-
-  picks.sort((a, b) => b.mtime - a.mtime); // newest first
+  picks.sort((a, b) => b.mtime - a.mtime);
   return picks.slice(0, limit);
 }
 
-async function ensureDir(p) { await fs.mkdir(p, { recursive: true }); }
-
-// Guard against ../ traversal; returns absolute path inside root
-function safeJoin(root, relPath) {
-  const base = path.resolve(root) + path.sep;
-  const full = path.resolve(root, relPath);
-  if (!full.startsWith(base)) throw new Error("Bad path");
-  return full;
-}
-
 function parseGcc(out) {
-  const lines = out.split(/\r?\n/), ds = [];
+  const lines = String(out || "").split(/\r?\n/);
+  const ds = [];
   for (const line of lines) {
     const m = line.match(/^(.*?):(\d+):(\d+):\s+(error|warning|note):\s+(.*)$/i);
     if (m) ds.push({ file: m[1], line: +m[2], column: +m[3], severity: m[4].toLowerCase(), message: m[5] });
@@ -109,28 +97,172 @@ function parseGcc(out) {
   return ds;
 }
 
-// Merge stdout/stderr without duplicating identical blocks
 function mergeStreams(a, b) {
   const A = String(a || "").trim();
   const B = String(b || "").trim();
   if (!A) return B;
   if (!B) return A;
-  return A === B ? A : (A + "\n" + B);
+  return A === B ? A : A + "\n" + B;
 }
 
-// Run a command with ulimits and a PTY (via `script`) so prompts flush.
-// We avoid stdbuf (LD_PRELOAD) and pass a single string to `script -c`.
+// Build friendly compile-time “Polycode Analysis” items from diagnostics
+function friendlyCompileItems(diags) {
+  const items = [];
+  const hasFmt = diags.find(d => /format.*expects argument/i.test(d.message));
+  if (hasFmt) {
+    items.push({
+      title: "Mismatched printf/scanf format",
+      bullets: [
+        "You used a format specifier that does not match the argument type.",
+        "Fix: For double use %f (e.g. printf(\"%.2f\\n\", d);). For scanf of int use %d with &x.",
+      ],
+    });
+  }
+  const hasScanfAddr = diags.find(d => /scanf.*expects.*int \*/i.test(d.message));
+  if (hasScanfAddr) {
+    items.push({
+      title: "scanf missing '&'",
+      bullets: [
+        "scanf needs the address of the variable (a pointer).",
+        "Fix: use &x for ints, &d for doubles, etc. (e.g. scanf(\"%d\", &x);).",
+      ],
+    });
+  }
+  const hasIntConv = diags.find(d => /incompatible pointer.*integer|makes pointer from integer/i.test(d.message));
+  if (hasIntConv) {
+    items.push({
+      title: "Pointer/integer mismatch",
+      bullets: [
+        "You are storing a pointer (like a string literal) into an int, or vice-versa.",
+        "Fix: use the correct type, e.g. char const *s = \"hello\"; or int x = 42;",
+      ],
+    });
+  }
+  const hasNoReturn = diags.find(d => /control reaches end of non-void function|no return statement/i.test(d.message));
+  if (hasNoReturn) {
+    items.push({
+      title: "Function may not return a value",
+      bullets: [
+        "A non-void function has a path without 'return'.",
+        "Fix: ensure every path returns a value.",
+      ],
+    });
+  }
+  const hasUninit = diags.find(d => /may be used uninitialized|is used uninitialized/i.test(d.message));
+  if (hasUninit) {
+    items.push({
+      title: "Variable may be used before set",
+      bullets: [
+        "A variable is read before it’s given a value.",
+        "Fix: initialize it (e.g. int x = 0;).",
+      ],
+    });
+  }
+  return items;
+}
+
+// Which compile warnings should block execution?
+function hasDangerousCompileIssues(diags) {
+  return diags.some(d =>
+    d.severity !== "note" && (
+      /format.*expects argument/i.test(d.message) ||
+      /scanf.*expects.*\*/i.test(d.message) ||
+      /incompatible pointer.*integer|makes pointer from integer/i.test(d.message) ||
+      /control reaches end of non-void function|no return statement/i.test(d.message) ||
+      /may be used uninitialized|is used uninitialized/i.test(d.message)
+    )
+  );
+}
+
+// Parse sanitizer output → friendly runtime analysis
+function friendlyRuntimeItems(allOut) {
+  const txt = String(allOut || "");
+  const items = [];
+
+  const hasDiv0 = /integer-divide-by-zero/i.test(txt);
+  if (hasDiv0) {
+    items.push({
+      title: "Division by zero",
+      bullets: [
+        "A division had 0 as the denominator.",
+        "Fix: check the denominator before dividing.",
+      ],
+    });
+  }
+
+  const hasNull = /null[- ]pointer[- ](use|dereference)|null pointer/i.test(txt);
+  if (hasNull) {
+    items.push({
+      title: "Null pointer dereference",
+      bullets: [
+        "Code dereferenced a NULL pointer.",
+        "Fix: validate pointers before use; ensure memory is allocated and initialized.",
+      ],
+    });
+  }
+
+  const hasOOB = /out[- ]of[- ]bounds|out[- ]of[- ]bounds[- ]index|index out of bounds/i.test(txt);
+  if (hasOOB) {
+    items.push({
+      title: "Array index out of bounds",
+      bullets: [
+        "An array was accessed with an invalid index.",
+        "Fix: check index ranges 0..size-1.",
+      ],
+    });
+  }
+
+  const hasUAF = /use[- ]after[- ]free/i.test(txt);
+  if (hasUAF) {
+    items.push({
+      title: "Use-after-free",
+      bullets: [
+        "Memory was used after it was freed.",
+        "Fix: set pointer to NULL after free; don’t access freed memory.",
+      ],
+    });
+  }
+
+  const hasDoubleFree = /double[- ]free/i.test(txt);
+  if (hasDoubleFree) {
+    items.push({
+      title: "Double free",
+      bullets: [
+        "The same pointer was freed twice.",
+        "Fix: free each allocation exactly once; set pointer to NULL after free.",
+      ],
+    });
+  }
+
+  const hasStackOverflow = /stack-overflow/i.test(txt);
+  if (hasStackOverflow) {
+    items.push({
+      title: "Stack overflow (likely infinite recursion)",
+      bullets: [
+        "The program exhausted the stack, often due to unbounded recursion.",
+        "Fix: add a base case or convert to an iterative approach.",
+      ],
+    });
+  }
+
+  return items;
+}
+
+// Runner with ulimits + PTY (for prompt flush) + input echo disabled
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
-  const shQ = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const shQ = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
   const cmdStr = [cmd, ...args].map(shQ).join(" ");
+
   const limits = `ulimit -t ${CC_CPU_SECS}; ulimit -f ${CC_FSIZE_KB};`;
   const inner = `if command -v stty >/dev/null 2>&1; then stty -echo; trap 'stty echo' EXIT INT TERM HUP; fi; ${cmdStr}; rc=$?; if command -v stty >/dev/null 2>&1; then stty echo; fi; exit $rc`;
-  const ptyCmd   = `script -qefc ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
+  const ptyCmd = `script -qefc ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
   const fallback = `bash -lc ${shQ(cmdStr)}`;
-  const runner   = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
+  const runner = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
   const bash = `${limits} ${runner}`;
+
   const env = { ...process.env, LD_PRELOAD: "", TERM: "dumb" };
+
   const child = spawn("bash", ["-lc", bash], { cwd, env });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
@@ -144,144 +276,11 @@ function compilerFor(lang, entry) {
   return isCpp ? { cc: "g++", std: "-std=c++20" } : { cc: "gcc", std: "-std=c17" };
 }
 
-// ----------------------------------------------------------------------------
-// Friendly explainers (compile + runtime)
-// ----------------------------------------------------------------------------
-function friendlyCompileItems(log) {
-  const items = [];
-  const L = log.split(/\r?\n/);
-  const push = (code, title, detail, fix, file=null, line=null, col=null) =>
-    items.push({ kind: "warning", code, title, detail, fix, file, line, col });
-
-  for (const raw of L) {
-    const s = raw.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]/g, "");
-    const loc = s.match(/^(.*?):(\d+):(\d+):\s+(warning|note|error):\s+(.*)$/i);
-    const at = loc ? { file: loc[1], line: +loc[2], col: +loc[3], msg: loc[5] } : null;
-    const msg = at ? at.msg : s;
-
-    if (/format .*%d.* expects argument of type .*int \*/i.test(msg) ||
-        /expects argument of type 'int \*'/i.test(msg)) {
-      push("SCANF_MISSING_AMP",
-        "scanf is missing &",
-        "The format needs an address (e.g. int*), but you passed an int variable.",
-        "Use: scanf(\"%d\", &x);",
-        at?.file, at?.line, at?.col
-      );
-      continue;
-    }
-    if (/format .*%d.* expects argument of type .*int\b/i.test(msg) && /has type .*double\b/i.test(msg)) {
-      push("PRINTF_FORMAT_MISMATCH",
-        "Mismatched printf format",
-        "You used %d with a double.",
-        "Use %f (e.g. printf(\"%.2f\\n\", d);).",
-        at?.file, at?.line, at?.col
-      );
-      continue;
-    }
-    if (/incompatible pointer to integer conversion/i.test(msg)) {
-      push("TYPE_MISMATCH",
-        "Type mismatch",
-        "Assigning a pointer (like a string) to an int.",
-        "Use an int literal (without quotes) or change the variable to char*.",
-        at?.file, at?.line, at?.col
-      );
-      continue;
-    }
-    if (/is used uninitialized/i.test(msg) || /may be used uninitialized/i.test(msg)) {
-      push("UNINITIALIZED",
-        "Variable may be used before set",
-        "A variable is read before it’s given a value.",
-        "Initialize it, e.g. int x = 0;",
-        at?.file, at?.line, at?.col
-      );
-      continue;
-    }
-    if (/control reaches end of non-void function/i.test(msg) ||
-        /non-void function does not return/i.test(msg)) {
-      push("MISSING_RETURN",
-        "Missing return value",
-        "The function promises to return a value on all paths.",
-        "Add a return statement for every branch.",
-        at?.file, at?.line, at?.col
-      );
-      continue;
-    }
-  }
-  return items;
-}
-
-function friendlyRuntimeItems(output) {
-  const s = output.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]/g, "");
-  const items = [];
-  const push = (code, title, detail, fix) => items.push({ kind: "error", code, title, detail, fix });
-
-  if (/UndefinedBehaviorSanitizer:.*integer[- ]divide[- ]by[- ]zero/i.test(s) || /runtime error: division by zero/i.test(s)) {
-    push("DIV_BY_ZERO", "Division by zero",
-         "A division had 0 as the denominator.", "Check the denominator before dividing.");
-  }
-  if (/UndefinedBehaviorSanitizer:.*out[- ]of[- ]bounds/i.test(s) || /index .* out of bounds/i.test(s)) {
-    push("OOB_INDEX", "Array index out of bounds",
-         "An array was accessed with an invalid index.", "Check index ranges: 0..size-1.");
-  }
-  if (/UndefinedBehaviorSanitizer:.*null[- ]deref/i.test(s) || /null pointer/i.test(s)) {
-    push("NULL_DEREF", "Null pointer dereference",
-         "Code dereferenced a NULL pointer.", "Validate pointers before use; ensure memory is allocated.");
-  }
-  if (/AddressSanitizer: heap-use-after-free/i.test(s)) {
-    push("USE_AFTER_FREE", "Use after free",
-         "Memory was used after it was freed.", "Don't use pointers after free; set to NULL.");
-  }
-  if (/AddressSanitizer: heap-buffer-overflow/i.test(s) || /stack-buffer-overflow/i.test(s)) {
-    push("BUF_OVERFLOW", "Buffer overflow",
-         "A buffer was read/written past its bounds.", "Fix indexing; allocate enough space.");
-  }
-  if (/AddressSanitizer: stack-overflow/i.test(s)) {
-    push("STACK_OVERFLOW", "Stack overflow",
-         "Likely infinite recursion or very large stack allocation.", "Add a base case or use heap allocation.");
-  }
-  if (/double free/i.test(s)) {
-    push("DOUBLE_FREE", "Double free",
-         "The same pointer was freed twice.", "Free each allocation once and set pointer to NULL after free.");
-  }
-  if (/free\(\): invalid pointer/i.test(s) || /munmap_chunk\(\): invalid pointer/i.test(s)) {
-    push("INVALID_FREE", "Invalid free",
-         "Pointer passed to free() wasn’t from malloc/new.", "Only free pointers obtained from malloc/new.");
-  }
-  return items;
-}
-
-function formatFriendlyBlock(items, header="[analysis]") {
-  if (!items?.length) return "";
-  const lines = [header];
-  for (const it of items) {
-    const loc = it.file ? ` (${it.file}:${it.line})` : "";
-    lines.push(`• ${it.title}${loc}`);
-    if (it.detail) lines.push(`  – ${it.detail}`);
-    if (it.fix)    lines.push(`  ✓ Fix: ${it.fix}`);
-  }
-  return lines.join("\n") + "\n\n";
-}
-
-// Allow ops to choose which friendly codes are fatal (block run)
-const DEFAULT_FATALS = ["PRINTF_FORMAT_MISMATCH", "SCANF_MISSING_AMP", "TYPE_MISMATCH", "MISSING_RETURN"];
-const FRIENDLY_FATALS = new Set(
-  (process.env.FRIENDLY_FATALS || DEFAULT_FATALS.join(","))
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean)
-);
-
-// Make sure root exists
 try { fssync.mkdirSync(JOB_ROOT, { recursive: true }); } catch {}
 
-// ----------------------------------------------------------------------------
-// In-memory sessions: token → { dir, exePath, ... }
-// ----------------------------------------------------------------------------
 const SESSIONS = new Map();
 
-// ----------------------------------------------------------------------------
-// Compile endpoint
-// ----------------------------------------------------------------------------
+// ---------------------- Compile endpoint ----------------------
 app.post("/api/cc/prepare", async (req, res) => {
   try {
     const { files = [], lang, entry, output = "a.out" } = req.body || {};
@@ -289,12 +288,10 @@ app.post("/api/cc/prepare", async (req, res) => {
       return res.status(400).json({ error: "No files" });
     }
 
-    // Create job dir
     const id = nanoid();
     const dir = path.join(JOB_ROOT, id);
     await ensureDir(dir);
 
-    // Write files (safe paths)
     await Promise.all(files.map(async f => {
       if (!f?.path || typeof f.content !== "string") throw new Error("Bad file");
       const full = safeJoin(dir, f.path);
@@ -302,25 +299,19 @@ app.post("/api/cc/prepare", async (req, res) => {
       await fs.writeFile(full, f.content, "utf8");
     }));
 
-    // Decide compiler/flags
     const entryFile = entry || files[0].path;
     const { cc, std } = compilerFor(lang, entryFile);
     const srcs   = files.map(f => safeJoin(dir, f.path));
     const exePath = safeJoin(dir, output);
 
     const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
-
-    // Pull flags from environment (Dockerfile provides them)
     const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
     const envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
-
-    // Detect if env already sets some knobs
     const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
     const hasWall   = envFlags.includes("-Wall");
     const hasWextra = envFlags.includes("-Wextra");
     const hasFmt2   = envFlags.includes("-Wformat=2");
 
-    // Build compiler argv.
     const args = [
       ...srcs,
       std,
@@ -329,6 +320,7 @@ app.post("/api/cc/prepare", async (req, res) => {
       ...(hasWall   ? [] : ["-Wall"]),
       ...(hasWextra ? [] : ["-Wextra"]),
       ...(hasFmt2   ? [] : ["-Wformat=2"]),
+      // extra beginner-friendly (remain warnings)
       "-Wuninitialized",
       "-Wmaybe-uninitialized",
       "-Wnull-dereference",
@@ -339,11 +331,10 @@ app.post("/api/cc/prepare", async (req, res) => {
       "-o", exePath,
       "-lm",
       ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
-      ...envFlags
+      ...envFlags,
     ];
 
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
-
     let out = "", err = "";
     child.stdout.on("data", d => out += d.toString());
     child.stderr.on("data", d => err += d.toString());
@@ -351,39 +342,39 @@ app.post("/api/cc/prepare", async (req, res) => {
     child.on("close", (code) => {
       const compileLog = mergeStreams(out, err);
       const diagnostics = parseGcc(compileLog);
-      const friendly = friendlyCompileItems(compileLog);
+      const friendly = friendlyCompileItems(diagnostics);
+      // Attach friendly items into diagnostics as notes so your UI can show them in Polycode Analysis
+      for (const it of friendly) {
+        diagnostics.push({
+          file: "(analysis)",
+          line: 0,
+          column: 0,
+          severity: "note",
+          message: `[${it.title}] ${it.bullets.join(" ")}`
+        });
+      }
 
-      // --- NEW: block execution if any "friendly fatal" is present
-      const friendlyFatal = friendly.filter(it => FRIENDLY_FATALS.has(it.code));
-      const polycodeAnalysis = formatFriendlyBlock(
-        friendlyFatal.length ? friendlyFatal : friendly,
-        "[compile analysis]"
-      );
-
-      if (code !== 0 || friendlyFatal.length) {
-        // treat as compilation failed for the UI if friendly-fatal
+      // If the compiler failed OR we found dangerous mistakes, block run.
+      if (code !== 0 || hasDangerousCompileIssues(diagnostics)) {
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
         return res.json({
           token: null,
           ok: false,
+          blockedByAnalysis: code === 0,   // true when we blocked despite successful compile
           compileLog,
-          diagnostics,
-          friendly,
-          friendlyFatal,
-          polycodeAnalysis,
-          reason: friendlyFatal.length ? "friendly-fatal" : "compile-error"
+          diagnostics
         });
       }
 
-      // Successful compile → issue token (still return friendly warnings)
+      // Success → issue token
       const token = nanoid();
       const tmr = setTimeout(() => {
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
         SESSIONS.delete(token);
       }, CC_TOKEN_TTL_MS);
 
-      SESSIONS.set(token, { dir, exePath, tmr, compileLog, diagnostics, friendly });
-      res.json({ token, ok: true, compileLog, diagnostics, friendly, polycodeAnalysis });
+      SESSIONS.set(token, { dir, exePath, tmr });
+      res.json({ token, ok: true, compileLog, diagnostics });
     });
   } catch (e) {
     console.error(e);
@@ -391,9 +382,7 @@ app.post("/api/cc/prepare", async (req, res) => {
   }
 });
 
-// ----------------------------------------------------------------------------
-// WebSocket run endpoint
-// ----------------------------------------------------------------------------
+// ---------------------- WebSocket run endpoint ----------------------
 const wss = new WebSocketServer({ noServer: true });
 const server = app.listen(PORT, () => console.log(`[cc-runner] listening on :${PORT}`));
 
@@ -412,42 +401,45 @@ wss.on("connection", (ws, req) => {
   const sess = token && SESSIONS.get(token);
   if (!sess) return ws.close(1008, "invalid token");
 
-  // Token is being consumed → cancel TTL timer
   if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
 
-  const { dir, exePath, friendly } = sess;
-
-  // Optional: show compile analysis before run
-  try {
-    const block = formatFriendlyBlock(friendly, "[compile analysis]");
-    if (block) ws.send(block);
-  } catch {}
-
+  const { dir, exePath } = sess;
   const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S });
 
-  // Stream + buffer output for runtime analysis
-  let runBuf = "";
-  child.stdout.on("data", d => { const t = d.toString(); runBuf += t; try { ws.send(t); } catch {} });
-  child.stderr.on("data", d => { const t = d.toString(); runBuf += t; try { ws.send(t); } catch {} });
+  // Capture output for analysis while streaming to the UI
+  let runOut = "", runErr = "";
+  child.stdout.on("data", d => {
+    const s = d.toString();
+    runOut += s;
+    try { ws.send(s); } catch {}
+  });
+  child.stderr.on("data", d => {
+    const s = d.toString();
+    runErr += s;
+    try { ws.send(s); } catch {}
+  });
 
-  // Close handler: publishes images, runtime analysis, then cleanup
   child.on("close", async (code) => {
+    // Friendly runtime analysis
+    const items = friendlyRuntimeItems(runOut + "\n" + runErr);
+    if (items.length) {
+      try {
+        ws.send(JSON.stringify({ type: "analysis", where: "runtime", items }));
+      } catch {}
+      // also print a plain text version so something appears even if UI ignores JSON
+      const bullets = items.map(it => `• ${it.title}\n  - ${it.bullets.join("\n  - ")}`).join("\n");
+      try { ws.send(`\n[runtime analysis]\n${bullets}\n`); } catch {}
+    }
+
     try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
 
-    // Runtime friendly analysis
-    try {
-      const items = friendlyRuntimeItems(runBuf);
-      const block = formatFriendlyBlock(items, "[runtime analysis]");
-      if (block) ws.send(block);
-    } catch {}
-
+    // Publish images if any
     try {
       const found = await collectImagesFrom(dir);
       if (found.length) {
         const tokenDir = crypto.randomUUID();
         const outDir = path.join(PUBLIC_ROOT, tokenDir);
         try { fssync.mkdirSync(outDir, { recursive: true }); } catch {}
-
         const urls = [];
         for (const f of found) {
           const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -455,13 +447,13 @@ wss.on("connection", (ws, req) => {
           await fs.copyFile(f.full, dest);
           urls.push(`/artifacts/${tokenDir}/${safeName}`);
         }
-
         try { ws.send(JSON.stringify({ type: "images", urls })); } catch {}
         for (const u of urls) { try { ws.send(`[image] ${u}\n`); } catch {} }
-
         setTimeout(() => { try { fssync.rmSync(outDir, { recursive: true, force: true }); } catch {} }, 5 * 60 * 1000);
       }
-    } catch (e) { console.error("artifact publish error:", e); }
+    } catch (e) {
+      console.error("artifact publish error:", e);
+    }
 
     try { ws.close(); } catch {}
     cleanup();
@@ -470,12 +462,8 @@ wss.on("connection", (ws, req) => {
   ws.on("message", m => {
     try {
       const msg = JSON.parse(m.toString());
-      if (msg?.type === "stdin") {
-        child.stdin.write(String(msg.data));
-      }
-    } catch {
-      // ignore non-JSON messages
-    }
+      if (msg?.type === "stdin") child.stdin.write(String(msg.data));
+    } catch { /* ignore */ }
   });
 
   ws.on("close", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
