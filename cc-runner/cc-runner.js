@@ -123,7 +123,9 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
   const bash = `
-    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
+   export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/;
+  export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1;
+     ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
     if command -v stdbuf >/dev/null 2>&1; then
       stdbuf -o0 -e0 ${argv};
     else
@@ -211,7 +213,13 @@ app.post("/api/cc/prepare", async (req, res) => {
     ];
 
 
-      
+     args.push("-Wno-error"); 
+    const wantSan = String(process.env.CC_ENABLE_SAN || '1') !== '0';
+if (wantSan) {
+  args.push("-fsanitize=address,undefined", "-fno-omit-frame-pointer");
+}
+
+    
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
     let out = "", err = "";
