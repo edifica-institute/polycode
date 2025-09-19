@@ -14,7 +14,7 @@ const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 // Limits (env-overridable)
 const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // per-process CPU seconds
-const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB
+const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB (not enforced with ASan)
 const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);            // 1GB output cap
 const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);              // hard kill (run)
 const CC_COMPILE_TIMEOUT_S = Number(process.env.CC_COMPILE_TIMEOUT_S || 60); // hard kill (compile)
@@ -118,9 +118,8 @@ function mergeStreams(a, b) {
   return A === B ? A : (A + "\n" + B);
 }
 
-// Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
 // Run a command with ulimits and a PTY (via `script`) so prompts flush.
-// We avoid stdbuf (LD_PRELOAD) and pass a single string to `script -c`.
+// We avoid stdbuf (LD_PRELOAD). Also disable terminal echo for clean input.
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
 
@@ -148,10 +147,6 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
-
-
-
-
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
@@ -198,42 +193,43 @@ app.post("/api/cc/prepare", async (req, res) => {
     const exePath = safeJoin(dir, output);
 
     const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
-    const isC   = /\.c$/i.test(entryFile) || (lang === "c");
 
     // Pull flags from environment (Dockerfile provides them)
     const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
     const envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
 
-    // Detect if env already sets some knobs
-    const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
-    const hasWall   = envFlags.includes("-Wall");
-    const hasWextra = envFlags.includes("-Wextra");
-    const hasFmt2   = envFlags.includes("-Wformat=2");
-
-    // Build compiler argv.
-    // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
-    const args = [
-       ...srcs,
-       std,
-       ...(hasOpt ? [] : ["-O2"]),
-       "-D_POSIX_C_SOURCE=200809L",
-       ...(hasWall   ? [] : ["-Wall"]),
-       ...(hasWextra ? [] : ["-Wextra"]),
-       ...(hasFmt2   ? [] : ["-Wformat=2"]),
-      // extra beginner-friendly warnings (remain as warnings)
-      "-Wuninitialized",
-      "-Wmaybe-uninitialized",
+    // ---- Force must-have warnings (as warnings) and sanitizers on the link line ----
+    const baseWarn = [
+      "-Wall", "-Wextra", "-Wpedantic",
+      "-Wformat=2", "-Wshadow", "-Wconversion", "-Wint-conversion",
+      "-Wreturn-type", "-Wuninitialized", "-Wmaybe-uninitialized",
       "-Wnull-dereference",
-      "-Wreturn-type",
-      // keep logs clean & plain (also set in env, harmless to repeat)
-      "-fdiagnostics-color=never",
-      "-fno-diagnostics-show-caret",
-       "-pthread",
-       "-o", exePath,
-       "-lm",
-       ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
-       ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
-     ];
+      "-fdiagnostics-color=never", "-fno-diagnostics-show-caret"
+    ];
+
+    const forceSan = [
+      "-fsanitize=address,undefined",
+      "-fno-sanitize-recover=all",
+      "-fno-omit-frame-pointer",
+      "-no-pie"
+    ];
+
+    const hasSan = /\b-fsanitize=/.test(envFlagsRaw);
+    const wantOpt = envFlags.find(f => /^-O\d\b/.test(f)) ? [] : ["-O2"];
+
+    const args = [
+      ...srcs,
+      std,
+      ...wantOpt,
+      "-D_POSIX_C_SOURCE=200809L",
+      ...baseWarn,
+      "-pthread",
+      "-o", exePath,
+      "-lm",
+      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
+      ...(hasSan ? [] : forceSan),
+      ...envFlags
+    ];
 
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
@@ -241,25 +237,42 @@ app.post("/api/cc/prepare", async (req, res) => {
     child.stdout.on("data", d => out += d.toString());
     child.stderr.on("data", d => err += d.toString());
 
-child.on("close", (code) => {
-    const compileLog = mergeStreams(out, err);
-    const diagnostics = parseGcc(compileLog);   // ← collect warnings & notes either way
+    child.on("close", (code) => {
+      const compileLog = mergeStreams(out, err);
+      const diagnostics = parseGcc(compileLog);
+      const hasWarnings = diagnostics.some(d => d.severity === "warning");
 
-    if (code !== 0) {
-      try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-      return res.json({ token: null, ok: false, compileLog, diagnostics });
-    }
+      // Show the exact invocation used (helps verify flags in effect)
+      const invoked = [cc, ...args].join(" ");
+      const finalLog = `> ${invoked}\n\n${compileLog}`.trim();
 
-    // Successful compile → still return diagnostics (warnings) to the UI
-    const token = nanoid();
-    const tmr = setTimeout(() => {
-      try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-      SESSIONS.delete(token);
-    }, CC_TOKEN_TTL_MS);
+      if (code !== 0) {
+        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
+        return res.json({
+          token: null,
+          ok: false,
+          compileLog: finalLog,
+          diagnostics,
+          hasWarnings
+        });
+      }
 
-    SESSIONS.set(token, { dir, exePath, tmr });
-    res.json({ token, ok: true, compileLog, diagnostics });
-  });
+      // Successful compile → still return diagnostics (warnings) to the UI
+      const token = nanoid();
+      const tmr = setTimeout(() => {
+        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
+        SESSIONS.delete(token);
+      }, CC_TOKEN_TTL_MS);
+
+      SESSIONS.set(token, { dir, exePath, tmr });
+      res.json({
+        token,
+        ok: true,
+        compileLog: finalLog,
+        diagnostics,
+        hasWarnings
+      });
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || "internal error" });
