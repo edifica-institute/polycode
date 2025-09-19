@@ -1017,9 +1017,12 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
       });
     };
 
+    let __userReset = false;
+
     window.clearLang = function(){
       setConsole('');
-      try{ window.termWS?.close(); }catch{}
+     __userReset = true;
+     try{ window.termWS?.close(1000, 'user_reset'); }catch{}
       window.termWS = null; window.wsRunInFlight = false;
       showInputRow(false);
       setComplexityEnabled(false);
