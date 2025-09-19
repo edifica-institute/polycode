@@ -126,7 +126,7 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   ASAN_RT=$(gcc -print-file-name=libasan.so 2>/dev/null || true)
   UBSAN_RT=$(gcc -print-file-name=libubsan.so 2>/dev/null || true)
   if [ -n "$ASAN_RT" ]; then
-    export LD_PRELOAD="$ASAN_RT${UBSAN_RT:+:$UBSAN_RT}${LD_PRELOAD:+:$LD_PRELOAD}"
+    export LD_PRELOAD="$ASAN_RT\${UBSAN_RT:+:\$UBSAN_RT}\${LD_PRELOAD:+:\$LD_PRELOAD}"
   fi
 
   export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/;
