@@ -123,34 +123,32 @@ function mergeStreams(a, b) {
 // We avoid stdbuf (LD_PRELOAD) and pass a single string to `script -c`.
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
-  const shQ = s => `'${String(s).replace(/'/g, `'\\''`)}'`;           // shell-quote one token
-  const cmdStr = [cmd, ...args].map(shQ).join(" ");                   // what we really want to run
 
-  // resource limits (skip -v to not break ASan shadow memory, keep CPU & file-size)
+  const shQ = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const cmdStr = [cmd, ...args].map(shQ).join(" ");
+
+  // Keep CPU and file-size limits. No VMEM cap (ASan needs big shadow mapping).
   const limits = `ulimit -t ${CC_CPU_SECS}; ulimit -f ${CC_FSIZE_KB};`;
 
-  // inside the PTY: turn echo off, run the program, restore echo, return child's rc
-  // use double-quotes inside, and make stty best-effort (|| true)
-  const inner =
-    `stty -echo || true; ` +
-    `trap "stty echo || true" EXIT INT TERM HUP; ` +
-    `${cmdStr}; rc=$?; ` +
-    `stty echo || true; exit $rc`;
+  // Disable echo so user input isn’t printed; restore on exit no matter what.
+  const inner = `if command -v stty >/dev/null 2>&1; then stty -echo; trap 'stty echo' EXIT INT TERM HUP; fi; ${cmdStr}; rc=$?; if command -v stty >/dev/null 2>&1; then stty echo; fi; exit $rc`;
 
-  // prefer PTY for interactive flushing; fall back to plain bash if 'script' is missing
-  // keep flags minimal for portability: -q = quiet, -e = return child status, -c "<cmd>"
-  const ptyCmd   = `script -qe -c ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
+  // Prefer a PTY so prompts flush immediately; fall back to plain bash.
+  const ptyCmd   = `script -qefc ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
   const fallback = `bash -lc ${shQ(cmdStr)}`;
   const runner   = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
 
   const bash = `${limits} ${runner}`;
-  const env  = { ...process.env, LD_PRELOAD: "" }; // avoid stdbuf/ASan interpose conflicts
+
+  // Keep sanitizers happy & output clean
+  const env = { ...process.env, LD_PRELOAD: "", TERM: "dumb" };
 
   const child = spawn("bash", ["-lc", bash], { cwd, env });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
+
 
 
 
