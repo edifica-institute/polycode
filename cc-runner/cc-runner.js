@@ -119,31 +119,29 @@ function mergeStreams(a, b) {
 }
 
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
+// Run a command with ulimits + hard timeout; no stdbuf, no -v (ASan-safe).
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
 
-  // Detect sanitizer mode (you set ASAN_OPTIONS/UBSAN_OPTIONS in Docker)
-  const sanitizersOn = !!(process.env.ASAN_OPTIONS || process.env.UBSAN_OPTIONS);
+  // Keep CPU and file-size caps. Skip virtual-memory cap (breaks ASan).
+  const bash = `
+    ulimit -t ${CC_CPU_SECS};
+    ulimit -f ${CC_FSIZE_KB};
+    exec ${argv};
+  `;
 
-  // Build ulimits: keep CPU and file-size; SKIP virtual-memory cap with ASan.
-  const ulimits = [
-    `ulimit -t ${CC_CPU_SECS}`,
-    ...(sanitizersOn ? [] : [`ulimit -v ${CC_VMEM_KB}`]),
-    `ulimit -f ${CC_FSIZE_KB}`
-  ].join("; ");
+  // Also scrub any accidental LD_PRELOAD (stdbuf etc.) just in case.
+  const child = spawn("bash", ["-lc", bash], {
+    cwd,
+    env: { ...process.env, LD_PRELOAD: "" }
+  });
 
-  // stdbuf (LD_PRELOAD) conflicts with ASan – avoid it when sanitizers are on.
-  const runner = sanitizersOn
-    ? `${argv};`
-    : `if command -v stdbuf >/dev/null 2>&1; then stdbuf -o0 -e0 ${argv}; else ${argv}; fi`;
-
-  const bash = `${ulimits}; ${runner}`;
-  const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
+
 
 
 function compilerFor(lang, entry) {
