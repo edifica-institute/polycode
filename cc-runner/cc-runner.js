@@ -119,32 +119,43 @@ function mergeStreams(a, b) {
 }
 
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
-function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
+// add near the other limits (top of file)
+const CC_VMEM_KB_ASAN = Number(process.env.CC_VMEM_KB_ASAN || 4194304); // 4GB virtual cap for ASan
+
+// -------------------- replace runWithLimits with this --------------------
+function runWithLimits(cmd, args, cwd, { timeoutSec, preloadSan = false } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
+
+  // Preload libs only for runtime, never for compile
+  const preloadBlock = preloadSan ? `
+ASAN_RT=$(gcc -print-file-name=libasan.so 2>/dev/null || true)
+UBSAN_RT=$(gcc -print-file-name=libubsan.so 2>/dev/null || true)
+if [ -n "$ASAN_RT" ]; then
+  export LD_PRELOAD="$ASAN_RT\${UBSAN_RT:+:\$UBSAN_RT}\${LD_PRELOAD:+:\$LD_PRELOAD}"
+fi
+` : `unset LD_PRELOAD || true`;
+
+  // choose vmem cap: larger when ASan is preloaded (needs virtual address space)
+  const VM_KB = preloadSan ? CC_VMEM_KB_ASAN : CC_VMEM_KB;
+
   const bash = `
-  ASAN_RT=$(gcc -print-file-name=libasan.so 2>/dev/null || true)
-  UBSAN_RT=$(gcc -print-file-name=libubsan.so 2>/dev/null || true)
-  if [ -n "$ASAN_RT" ]; then
-    export LD_PRELOAD="$ASAN_RT\${UBSAN_RT:+:\$UBSAN_RT}\${LD_PRELOAD:+:\$LD_PRELOAD}"
-  fi
-
-  export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/;
-  export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1;
-
-  ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
-  if command -v stdbuf >/dev/null 2>&1; then
-    stdbuf -o0 -e0 ${argv};
-  else
-    ${argv};
-  fi
+${preloadBlock}
+export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/;
+export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1;
+ulimit -t ${CC_CPU_SECS} -v ${VM_KB} -f ${CC_FSIZE_KB};
+if command -v stdbuf >/dev/null 2>&1; then
+  stdbuf -o0 -e0 ${argv};
+else
+  ${argv};
+fi
 `;
-
   const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
+
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
@@ -246,7 +257,7 @@ const args = [
     
 
     
-    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
+    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S, preloadSan: false });
 
     let out = "", err = "";
     child.stdout.on("data", d => out += d.toString());
@@ -300,7 +311,7 @@ wss.on("connection", (ws, req) => {
   if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
 
   const { dir, exePath } = sess;
-  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S });
+  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S, preloadSan: true });
 
   // Stream output
   child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
