@@ -120,35 +120,35 @@ function mergeStreams(a, b) {
 
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
 // add near the other limits (top of file)
-const CC_VMEM_KB_ASAN = Number(process.env.CC_VMEM_KB_ASAN || 4194304); // 4GB virtual cap for ASan
+// add near the top
+const CC_USE_STDBUF = process.env.CC_USE_STDBUF ?? "1";
 
-// -------------------- replace runWithLimits with this --------------------
-function runWithLimits(cmd, args, cwd, { timeoutSec, preloadSan = false } = {}) {
+// replace runWithLimits with:
+function runWithLimits(cmd, args, cwd, { timeoutSec, withSan = false } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
 
-  // Preload libs only for runtime, never for compile
-  const preloadBlock = preloadSan ? `
+  // Only preload for run (not needed for compile), and avoid stdbuf with ASan
+  const preloadBlock = withSan ? `
 ASAN_RT=$(gcc -print-file-name=libasan.so 2>/dev/null || true)
 UBSAN_RT=$(gcc -print-file-name=libubsan.so 2>/dev/null || true)
-if [ -n "$ASAN_RT" ]; then
-  export LD_PRELOAD="$ASAN_RT\${UBSAN_RT:+:\$UBSAN_RT}\${LD_PRELOAD:+:\$LD_PRELOAD}"
-fi
+[ -n "$ASAN_RT" ] && export LD_PRELOAD="$ASAN_RT${UBSAN_RT:+:$UBSAN_RT}${LD_PRELOAD:+:$LD_PRELOAD}"
 ` : `unset LD_PRELOAD || true`;
 
-  // choose vmem cap: larger when ASan is preloaded (needs virtual address space)
-  const VM_KB = preloadSan ? CC_VMEM_KB_ASAN : CC_VMEM_KB;
+  // No -v cap with ASan; it needs huge virtual space for the shadow
+  const vmLine = withSan
+    ? `ulimit -v unlimited 2>/dev/null || true`
+    : `ulimit -v ${CC_VMEM_KB}`;
+
+  const useStdbuf = (CC_USE_STDBUF !== "0") && !withSan;
+  const invoke = useStdbuf ? `stdbuf -o0 -e0 ${argv}` : `${argv}`;
 
   const bash = `
 ${preloadBlock}
-export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/;
-export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1;
-ulimit -t ${CC_CPU_SECS} -v ${VM_KB} -f ${CC_FSIZE_KB};
-if command -v stdbuf >/dev/null 2>&1; then
-  stdbuf -o0 -e0 ${argv};
-else
-  ${argv};
-fi
+export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/
+export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
+ulimit -t ${CC_CPU_SECS} -f ${CC_FSIZE_KB}; ${vmLine};
+${invoke}
 `;
   const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
