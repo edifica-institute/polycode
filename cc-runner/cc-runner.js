@@ -259,7 +259,7 @@ const args = [
     
 
     
-    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S, preloadSan: false });
+    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S, withSan: false });
 
     let out = "", err = "";
     child.stdout.on("data", d => out += d.toString());
@@ -313,7 +313,7 @@ wss.on("connection", (ws, req) => {
   if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
 
   const { dir, exePath } = sess;
-  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S, preloadSan: true });
+  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S, withSan: true });
 
   // Stream output
   child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
