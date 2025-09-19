@@ -716,7 +716,7 @@ async function explainAndMaybeBlock(phase, { stderr="", stdout="", code="" }) {
   // For compile phase only: block execution on dangerous warnings
   if (phase === "compile" && shouldBlockRunFromHints(result.hints)) {
     // status + do not proceed to /cc
-    window.PolyShell?.setStatus("Executed with Error", "err");
+    window.PolyShell?.setStatus("Execution Failed", "error");
     return false;
   }
   return true;
@@ -824,16 +824,19 @@ if (!prep || !prep.ok || !prep.token) {
     st.style.display = 'block';
   }
 
+  await explainAndMaybeBlock("compile", { stderr: trimmed, stdout: "", code });
+
+  
   // 4) Set Monaco marker from the first precise error, if present
   const m = /main\.c:(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(trimmed);
   if (m) { setEditorMarker(Math.max(1, parseInt(m[1], 10)), m[2]); }
   else   { setEditorMarker(1, (trimmed.split('\n')[0] || 'Compilation failed').trim()); }
 
   // 5) Keep PolyShell cache in sync for the explainer
-  window.PolyShell?.setRawOutputs('', trimmed);
+  //window.PolyShell?.setRawOutputs('', trimmed);
 
   // 6) Render the friendly explanation INLINE now (no alert here to avoid double popups)
-  try { await window.refreshStderrExplanation?.({ alsoAlert: false }); } catch {}
+  //try { await window.refreshStderrExplanation?.({ alsoAlert: false }); } catch {}
 
   // 7) Status/UI
   window.PolyShell?.setRunnerPhase?.('error');
@@ -848,6 +851,43 @@ if (!prep || !prep.ok || !prep.token) {
 
 
 
+
+// === STEP 3A: show compile-time analysis and optionally block run ===
+{
+  const allowRun = await explainAndMaybeBlock("compile", {
+    stderr: String(prep.compileLog || ""),  // compiler messages even when code==0
+    stdout: "",
+    code: code                              // current editor source
+  });
+
+  if (!allowRun) {
+    // Put raw log under the error panel so the explainer has one source of truth
+    const st = document.getElementById('stderrText');
+    if (st) { st.textContent = String(prep.compileLog || "").trim(); st.style.display = 'block'; }
+
+    // Mirror the normal failure UI
+    stopStatusDots();
+    window.PolyShell?.setRunnerPhase?.('error');
+    window.PolyShell?.setStatus('Execution Failed', 'error');
+    setComplexityEnabled(false);
+    showCompileFailNotice();   // you already use this
+    return reject(new Error('run_blocked_by_warnings'));
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+      
 
 
 
@@ -903,15 +943,24 @@ const finish = async (ok) => {
 
 
   if (!ok) {
-  const j  = document.getElementById('jconsole')?.textContent || '';
-   window.PolyShell?.setRawOutputs('', j);                 // NEW: give stderr to explainer
-try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  // NEW
+  const j = document.getElementById('jconsole')?.textContent || '';
+
+  // Put raw stderr text in the error panel (single source of truth)
   const st = document.getElementById('stderrText');
-  if (st) { st.textContent = j; st.style.display = 'block'; }
-  showCompileFailNotice('runtime');                // add this
-  const jc = document.getElementById('jconsole');  // and clear console
+  if (st) { st.textContent = j.trim(); st.style.display = 'block'; }
+
+  // === STEP 3B: render runtime analysis under “Polycode Analysis” ===
+  await explainAndMaybeBlock("runtime", { stderr: j, stdout: "", code: src });
+
+  // Keep your usual UI affordances
+  showCompileFailNotice('runtime');
+  const jc = document.getElementById('jconsole');  // clear console so only panels show
   if (jc) jc.textContent = '';
+
+  window.PolyShell?.setRunnerPhase?.('error');
+  window.PolyShell?.setStatus('Execution Failed','error');
 }
+
 
 
   ok ? resolve() : reject(new Error('run_failed'));
@@ -929,48 +978,45 @@ try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  
         }
       });
 
-     ws.addEventListener('message', (ev)=>{
-  const raw = ev.data;
-  const text = typeof raw === 'string' ? raw : String(raw || '');
+  ws.addEventListener('message', (ev) => {
+  const text = typeof ev.data === 'string' ? ev.data : String(ev.data || '');
+  let handled = false;
 
-  // 1) JSON image payload from runner
-  if (text.trim().startsWith('{')) {
-    try {
-      const msg = JSON.parse(text);
-      if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
-        showImages(msg.urls);      // NEW
-        return;                    // don't print JSON to console
-      }
-    } catch {}
-  }
-
-  // 2) Plain-text fallback marker from runner (still supported)
-  if (text.startsWith('[image] ')) {
-    const url = text.substring(8).trim();
-    if (url) { showImages([url]); return; }   // NEW
-  }
-
-  // 3) Original behavior (unchanged)
-  termWrite(text);
-
-  // 4) Your existing structured messages
-  try{
+  // JSON payloads
+  try {
     const msg = JSON.parse(text);
-    if (msg.type === 'stdin_req'){
+
+    if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
+      showImages(msg.urls);
+      handled = true;
+    } else if (msg && msg.type === 'stdin_req') {
       showInputRow(true);
       window.PolyShell?.setRunnerPhase?.('waiting_input');
       window.PolyShell?.setStatus('Waiting for User Input…','busy');
       __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
       startInputCountdown(5*60*1000);
       window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-    } else if (msg.type === 'exit'){
+      handled = true;
+    } else if (msg && msg.type === 'exit') {
       runState.exitCode = Number(msg.code);
+      handled = true;
     }
-  }catch{}
+  } catch {}
 
-  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
-  if (m) runState.exitCode = parseInt(m[1],10);
+  // Fallback image marker
+  if (!handled && text.startsWith('[image] ')) {
+    const url = text.substring(8).trim();
+    if (url) { showImages([url]); handled = true; }
+  }
+
+  // Only print plain text
+  if (!handled) {
+    termWrite(text);
+    const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
+    if (m) runState.exitCode = parseInt(m[1],10);
+  }
 });
+
 
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
@@ -1064,6 +1110,7 @@ try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  
   import { parseCompilerOutput, renderHintHTML } from './js/error-helper.js';
   // Expose for shell.js if needed:
   window.PolyErrorHelper = { parseCompilerOutput, renderHintHTML };
+  window.PolyExplain = { parseCompilerOutput }; 
 </script>
 
   
