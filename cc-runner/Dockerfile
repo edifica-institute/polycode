@@ -18,7 +18,7 @@ ENV ASAN_OPTIONS="halt_on_error=1:abort_on_error=1:detect_leaks=0"
 ENV UBSAN_OPTIONS="print_stacktrace=1"
 
 # Runner limits (give ASan enough virtual memory)
-ENV CC_VMEM_KB=1572864
+ENV CC_VMEM_KB=0
 ENV CC_CPU_SECS=10
 ENV CC_FSIZE_KB=1048576
 ENV CC_TIMEOUT_S=300
