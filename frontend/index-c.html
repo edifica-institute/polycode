@@ -445,113 +445,6 @@ function drawPixels(canvas, width, height, maxval, pixels){
 
 
 
-  // --- Minimal helpers to render runtime analysis into the Polycode Analysis card ---
-
-  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-  function stripAnsi(s){ return String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g, ''); }
-
-  // Pull runtime analysis either from a JSON blob or the legacy [runtime analysis] block
-  function pickRuntimeAnalysis(stderr) {
-    const s = stripAnsi(stderr || '');
-
-    // New JSON payload: {"type":"analysis","where":"runtime","items":[...]}
-    const jm = s.match(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}/i);
-    if (jm) {
-      try {
-        const obj = JSON.parse(jm[0]);
-        const lines = [];
-        (obj.items || []).forEach(it => {
-          if (it.title) lines.push(it.title);
-          (it.bullets || []).forEach(b => lines.push(b));
-        });
-        if (lines.length) return lines;
-      } catch {}
-    }
-
-    // Legacy text block: [runtime analysis] ... bullets ...
-    const m = s.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
-    if (!m) return null;
-    const body = m[1] || '';
-    return body.split('\n')
-      .map(t => t.replace(/^\s*[-•]\s*/, '').trim())
-      .filter(Boolean);
-  }
-
-  // Make (or reuse) a simple analysis card in #stderrExplain and return its list container
-  function ensureExplainList() {
-    const host = document.getElementById('stderrExplain');
-    if (!host) return null;
-
-    let card = host.querySelector('.pc-analysis');
-    if (!card) {
-      card = document.createElement('div');
-      card.className = 'pc-analysis';
-      card.innerHTML = `
-        <h3 class="explain-title" style="margin:0 0 8px;">Polycode Analysis</h3>
-        <div class="explain-list" style="display:flex; flex-direction:column; gap:10px;"></div>
-      `;
-      host.appendChild(card);
-    }
-    return card.querySelector('.explain-list');
-  }
-
-  // Minimal version used by finish(); also used at compile time if you want
-  async function explainAndMaybeBlock(phase, { stderr="", stdout="", code="" }) {
-    // If you’re importing PolyExplain.parseCompilerOutput, keep using it to
-    // populate the compile-time hints (safe to no-op if missing)
-    try {
-      const parse = window.PolyExplain?.parseCompilerOutput;
-      if (parse && phase === "compile") {
-        const result = parse({ lang: "c", stderr, stdout, code });
-        // render compile hints into our card (optional; the existing compile UI already works)
-        const list = ensureExplainList();
-        if (list && result?.hints?.length) {
-          list.innerHTML = ''; // reset card
-          for (const h of result.hints) {
-            const div = document.createElement('div');
-            div.className = 'explain-item';
-            div.innerHTML = `
-              <div style="font-weight:600;">${escapeHtml(h.title || "Issue")}</div>
-              ${h.detail ? `<div style="opacity:.85">${escapeHtml(h.detail)}</div>` : ""}
-              ${h.fix ? `<div style="margin-top:4px;">✓ Fix: ${escapeHtml(h.fix)}</div>` : ""}
-            `;
-            list.appendChild(div);
-          }
-        }
-      }
-    } catch {}
-
-    // Append runtime bullets (what we care about here)
-    const runtimeLines = pickRuntimeAnalysis(stderr);
-    if (runtimeLines && runtimeLines.length) {
-      const list = ensureExplainList();
-      if (list) {
-        const item = document.createElement('div');
-        item.className = 'explain-item';
-        item.innerHTML = `
-          <div style="font-weight:600;">Runtime analysis</div>
-          <ul style="margin:4px 0 0 18px;">
-            ${runtimeLines.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
-          </ul>`;
-        list.appendChild(item);
-      }
-    }
-
-    // If you want to block execution on dangerous compile warnings, keep this:
-    if (phase === "compile" && window.shouldBlockRunFromHints && window.PolyExplain) {
-      try {
-        const result = window.PolyExplain.parseCompilerOutput({ lang:"c", stderr, stdout, code }) || {};
-        if (window.shouldBlockRunFromHints(result.hints || [])) {
-          window.PolyShell?.setStatus("Execution Failed", "error");
-          return false;
-        }
-      } catch {}
-    }
-    return true;
-  }
-
-
 
 
 
@@ -756,7 +649,6 @@ async function prepare(){
   return res.json();
 }
 
-let __runtimeAnalysisRaw = "";
 
 
 
@@ -802,10 +694,6 @@ window.runLang = async function(){
   // --- pre-run cleanup (same as you already do) ---
   clearEditorMarkers();
   setComplexityEnabled(false);
-  __runtimeAnalysisRaw = "";
-// (optional) also clear the card from a previous run:
-document.getElementById('stderrExplain')?.replaceChildren();
-
   const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
   showInputRow(false);
   setConsole('');
@@ -946,37 +834,15 @@ const finish = async (ok) => {
 
 
   if (!ok) {
-  const j = document.getElementById('jconsole')?.textContent || '';
-
-  // 1) Show only non-analysis text in the raw stderr panel
+  const j  = document.getElementById('jconsole')?.textContent || '';
+   window.PolyShell?.setRawOutputs('', j);                 // NEW: give stderr to explainer
+try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  // NEW
   const st = document.getElementById('stderrText');
-  if (st) {
-    const cleaned = j
-      .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')                       // strip ANSI
-      .replace(/\[runtime analysis\][\s\S]*?(?=\n\[[^\]]+\]|$)/i, '') // strip legacy block
-      .replace(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}\s*/i, '')     // strip JSON analysis block
-      .trim();
-    st.textContent = cleaned;
-    st.style.display = 'block';
-  }
-
-  // 2) Render the “Polycode Analysis” card (this adds the runtime bullets inside it)
-  await explainAndMaybeBlock("runtime", {
-  stderr: __runtimeAnalysisRaw || j,  // << use the captured blob
-  stdout: "",
-  code: src
-});
-
-
-  // 3) Usual UI
-  showCompileFailNotice('runtime');
-  const jc = document.getElementById('jconsole');  // keep console tidy
+  if (st) { st.textContent = j; st.style.display = 'block'; }
+  showCompileFailNotice('runtime');                // add this
+  const jc = document.getElementById('jconsole');  // and clear console
   if (jc) jc.textContent = '';
-
-  window.PolyShell?.setRunnerPhase?.('error');
-  window.PolyShell?.setStatus('Execution Failed','error');
 }
-
 
 
   ok ? resolve() : reject(new Error('run_failed'));
@@ -994,53 +860,48 @@ const finish = async (ok) => {
         }
       });
 
-ws.addEventListener('message', (ev) => {
-  const text = typeof ev.data === 'string' ? ev.data : String(ev.data || '');
-  let handled = false;
+     ws.addEventListener('message', (ev)=>{
+  const raw = ev.data;
+  const text = typeof raw === 'string' ? raw : String(raw || '');
 
-  // --- stash runtime analysis (JSON or legacy block) ---
-  const isRuntimeJson   = /"type"\s*:\s*"analysis"\s*,\s*"where"\s*:\s*"runtime"/i.test(text);
-  const isRuntimeLegacy = /\[runtime analysis\]/i.test(text);
-  if (isRuntimeJson || isRuntimeLegacy) {
-    __runtimeAnalysisRaw += text + "\n";  // keep it for the explainer
-    handled = true;                        // but don't print to console
-  }
-
-  // existing JSON handling…
-  if (!handled) {
+  // 1) JSON image payload from runner
+  if (text.trim().startsWith('{')) {
     try {
       const msg = JSON.parse(text);
       if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
-        showImages(msg.urls); handled = true;
-      } else if (msg && msg.type === 'stdin_req') {
-        showInputRow(true);
-        window.PolyShell?.setRunnerPhase?.('waiting_input');
-        window.PolyShell?.setStatus('Waiting for User Input…','busy');
-        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
-        startInputCountdown(5*60*1000);
-        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-        handled = true;
-      } else if (msg && msg.type === 'exit') {
-        runState.exitCode = Number(msg.code);
-        handled = true;
+        showImages(msg.urls);      // NEW
+        return;                    // don't print JSON to console
       }
     } catch {}
   }
 
-  // fallback image marker
-  if (!handled && text.startsWith('[image] ')) {
+  // 2) Plain-text fallback marker from runner (still supported)
+  if (text.startsWith('[image] ')) {
     const url = text.substring(8).trim();
-    if (url) { showImages([url]); handled = true; }
+    if (url) { showImages([url]); return; }   // NEW
   }
 
-  // only print plain text
-  if (!handled) {
-    termWrite(text);
-    const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
-    if (m) runState.exitCode = parseInt(m[1],10);
-  }
+  // 3) Original behavior (unchanged)
+  termWrite(text);
+
+  // 4) Your existing structured messages
+  try{
+    const msg = JSON.parse(text);
+    if (msg.type === 'stdin_req'){
+      showInputRow(true);
+      window.PolyShell?.setRunnerPhase?.('waiting_input');
+      window.PolyShell?.setStatus('Waiting for User Input…','busy');
+      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+      startInputCountdown(5*60*1000);
+      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+    } else if (msg.type === 'exit'){
+      runState.exitCode = Number(msg.code);
+    }
+  }catch{}
+
+  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
+  if (m) runState.exitCode = parseInt(m[1],10);
 });
-
 
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
