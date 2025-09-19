@@ -9,8 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# --- Compiler flags (warnings on, NOT errors) ---
-# C uses C17; C++ matches runner (C++20). Sanitizers enabled.
+# --- Compiler flags (warnings on; NOT errors). Sanitizers enabled. ---
 ENV CFLAGS="-std=c17  -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -march=x86-64 -mtune=generic -fsanitize=address,undefined -fno-omit-frame-pointer"
 ENV CXXFLAGS="-std=c++20 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion               -march=x86-64 -mtune=generic -fsanitize=address,undefined -fno-omit-frame-pointer"
 
@@ -19,7 +18,7 @@ ENV ASAN_OPTIONS="halt_on_error=1:abort_on_error=1:detect_leaks=0"
 ENV UBSAN_OPTIONS="print_stacktrace=1"
 
 # Runner limits (give ASan enough virtual memory)
-ENV CC_VMEM_KB=1572864   # ~1.5 GB
+ENV CC_VMEM_KB=1572864
 ENV CC_CPU_SECS=10
 ENV CC_FSIZE_KB=1048576
 ENV CC_TIMEOUT_S=300
