@@ -195,25 +195,23 @@ app.post("/api/cc/prepare", async (req, res) => {
 
     // Pull flags from environment (Dockerfile provides them)
     
-    // Detect if env already sets some knobs
-    const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
-    const hasWall   = envFlags.includes("-Wall");
-    const hasWextra = envFlags.includes("-Wextra");
-    const hasFmt2   = envFlags.includes("-Wformat=2");
+    // Pull flags from environment (Dockerfile provides them)
+const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
+let envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
+// strip any -Werror from env (so warnings don't become errors)
+envFlags = envFlags.filter(f => !/^-(Werror)(=|$)/.test(f));
 
-    // Build compiler argv.
-    // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
-   // Pull flags from environment (Dockerfile provides them)
-
-
-     const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
- let envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
- // strip any -Werror from env (so warnings don't become errors)
- envFlags = envFlags.filter(f => !/^-(Werror)(=|$)/.test(f));
+// Detect if env already sets some knobs (based on sanitized envFlags)
+const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
+const hasWall   = envFlags.includes("-Wall");
+const hasWextra = envFlags.includes("-Wextra");
+const hasFmt2   = envFlags.includes("-Wformat=2");
 
 // decide sanitizer flags
 const wantSan = String(process.env.CC_ENABLE_SAN || '1') !== '0';
 const sanFlags = wantSan ? ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"] : [];
+
+
 
 // Build compiler argv.
 // Order: srcs, std, opts/warns, SANITIZERS, pthread, -o exe, libs, env
