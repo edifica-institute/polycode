@@ -750,7 +750,7 @@ function stripAnsi(s){ return String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g, ''
 function pickRuntimeAnalysis(stderr) {
   const s = stripAnsi(stderr || '');
 
-  // A) New JSON payload: {"type":"analysis","where":"runtime","items":[...]}
+  // 1) JSON envelope produced by the runner (if present)
   const jm = s.match(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}/i);
   if (jm) {
     try {
@@ -758,20 +758,37 @@ function pickRuntimeAnalysis(stderr) {
       const lines = [];
       (obj.items || []).forEach(it => {
         if (it.title) lines.push(it.title);
-        (it.bullets || []).forEach(b => lines.push(b));
+        (it.bullets || []).forEach(b => lines.push(String(b)));
       });
       if (lines.length) return lines;
     } catch {}
   }
 
-  // B) Legacy text block: [runtime analysis] ... bullets ...
-  const m = s.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
-  if (!m) return null;
-  const body = m[1] || '';
-  return body.split('\n')
-    .map(t => t.replace(/^\s*[-•]\s*/, '').trim())
-    .filter(Boolean);
+  // 2) Legacy block: [runtime analysis] … bullets …
+  const bm = s.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
+  if (bm) {
+    const body = bm[1] || '';
+    const lines = body.split('\n')
+      .map(t => t.replace(/^\s*[-•]\s*/, '').trim())
+      .filter(Boolean);
+    if (lines.length) return lines;
+  }
+
+  // 3) Fallback: plain UBSan text (what your screenshot shows)
+  const lines = [];
+  // collect every "runtime error: …" line
+  let m; const re = /(?:^|\n)\s*.*?runtime error:\s*([^\n]+)/gi;
+  while ((m = re.exec(s))) {
+    const msg = m[1].trim();
+    lines.push(msg.charAt(0).toUpperCase() + msg.slice(1));
+  }
+  // append SUMMARY line (nice to have)
+  const sm = s.match(/SUMMARY:\s*UndefinedBehaviorSanitizer:\s*([^\n]+)/i);
+  if (sm) lines.push(sm[1].trim());
+
+  return lines.length ? lines : null;
 }
+
 
 
 // Append those lines into the Polycode Analysis box
