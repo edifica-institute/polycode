@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y \
 ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -march=x86-64 -mtune=generic"
 ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -march=x86-64 -mtune=generic"
 # --------------------------
+ENV CFLAGS="$CFLAGS -fsanitize=address,undefined -fno-omit-frame-pointer"
+ENV CXXFLAGS="$CXXFLAGS -fsanitize=address,undefined -fno-omit-frame-pointer"
 
 WORKDIR /app
 
