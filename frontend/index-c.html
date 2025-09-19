@@ -913,11 +913,17 @@ try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  
       }, { once:true });*/
 
 
- ws.addEventListener('close', ()=>{
-       const ok = __userReset || (runState.exitCode === 0);
-      __userReset = false;                // reset the flag for the next run
-        finish(ok);
-      }, { once:true });
+       ws.addEventListener('close', ()=>{
+        const ok = __userReset || (runState.exitCode === 0);   // from the previous minimal fix
+       if (__userReset) {
+          // nudge the footer AFTER shell.js writes its success line
+         setTimeout(()=> {
+           window.PolyShell?.setRunnerPhase?.('idle');
+            window.PolyShell?.setStatus('Waiting for Execution','ok');
+          }, 50);
+        }
+         finish(ok);
+       }, { once:true });
 
     }catch(err){
       // network / unexpected failure
@@ -949,7 +955,8 @@ try{ window.termWS?.close(1000, 'user_reset'); }catch{}
       setComplexityEnabled(false);
       stopStatusDots(); stopInputCountdown();
       window.PolyShell?.stopInputTicker?.();
-      window.PolyShell.setStatus('Ready','ok');
+      //window.PolyShell.setStatus('Ready','ok');
+      window.PolyShell.setStatus('Waiting for Execution','ok');
     };
 
     // Start after shell.js
