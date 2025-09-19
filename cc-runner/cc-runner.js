@@ -66,23 +66,24 @@ async function ensureDir(p) {
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
 function spawnLogged(cmd, args, opts = {}) {
-  // Wrap in bash -lc to set ulimit for CPU time; keeps portability.
+  const { limitFileSize = false } = opts;           // NEW flag
+  const fileLimitLine = limitFileSize
+    ? `ulimit -f ${Math.ceil(CC_OUTPUT_MAX / 512)};`  // correct units: 512-byte blocks
+    : "";
+
   const bashCmd = [
     "bash", "-lc",
     [
-      // CPU time cap (seconds); prevents runaway loops
       `ulimit -t ${clamp(CC_CPU_SECS, 1, 60)};`,
-      // No core files
       "ulimit -c 0;",
-      // Reasonable file size/output caps (soft)
-      `ulimit -f ${Math.ceil(CC_OUTPUT_MAX / 1024)};`,
-      // exec
+      fileLimitLine,                                 // only when requested
       [cmd, ...args].map(x => `'${x.replace(/'/g, `'\\''`)}'`).join(" ")
     ].join(" ")
   ];
 
   return spawn(bashCmd[0], bashCmd.slice(1), opts);
 }
+
 
 async function writeLimitedFile(p, content, maxBytes) {
   const buf = Buffer.from(content ?? "", "utf8");
@@ -138,7 +139,7 @@ async function runJob(jobDir, stdin = "") {
   if (!fssync.existsSync(exe)) throw new Error("Executable missing");
 
   const env = { ...process.env, ...RUN_ENV_SAN };
-  const child = spawnLogged(exe, [], { cwd: jobDir, env });
+  const child = spawnLogged(exe, [], { cwd: jobDir, env, limitFileSize: true });
 
   // feed stdin with length cap
   const inBuf = Buffer.from(stdin ?? "", "utf8");
