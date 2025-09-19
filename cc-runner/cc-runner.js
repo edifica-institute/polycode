@@ -123,15 +123,23 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
   const bash = `
-   export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/;
+  ASAN_RT=$(gcc -print-file-name=libasan.so 2>/dev/null || true)
+  UBSAN_RT=$(gcc -print-file-name=libubsan.so 2>/dev/null || true)
+  if [ -n "$ASAN_RT" ]; then
+    export LD_PRELOAD="$ASAN_RT${UBSAN_RT:+:$UBSAN_RT}${LD_PRELOAD:+:$LD_PRELOAD}"
+  fi
+
+  export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/;
   export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1;
-     ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
-    if command -v stdbuf >/dev/null 2>&1; then
-      stdbuf -o0 -e0 ${argv};
-    else
-      ${argv};
-    fi
-  `;
+
+  ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
+  if command -v stdbuf >/dev/null 2>&1; then
+    stdbuf -o0 -e0 ${argv};
+  else
+    ${argv};
+  fi
+`;
+
   const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
@@ -186,9 +194,7 @@ app.post("/api/cc/prepare", async (req, res) => {
     const isC   = /\.c$/i.test(entryFile) || (lang === "c");
 
     // Pull flags from environment (Dockerfile provides them)
-    const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
-    const envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
-
+    
     // Detect if env already sets some knobs
     const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
     const hasWall   = envFlags.includes("-Wall");
@@ -197,27 +203,49 @@ app.post("/api/cc/prepare", async (req, res) => {
 
     // Build compiler argv.
     // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
-    const args = [
-      ...srcs,
-      std,
-      ...(hasOpt ? [] : ["-O2"]),
-      "-D_POSIX_C_SOURCE=200809L",
-      ...(hasWall   ? [] : ["-Wall"]),
-      ...(hasWextra ? [] : ["-Wextra"]),
-      ...(hasFmt2   ? [] : ["-Wformat=2"]),
-      "-pthread",
-      "-o", exePath,
-      "-lm",
-      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
-      ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
-    ];
+   // Pull flags from environment (Dockerfile provides them)
 
 
-     args.push("-Wno-error"); 
-    const wantSan = String(process.env.CC_ENABLE_SAN || '1') !== '0';
-if (wantSan) {
-  args.push("-fsanitize=address,undefined", "-fno-omit-frame-pointer");
-}
+     const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
+ let envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
+ // strip any -Werror from env (so warnings don't become errors)
+ envFlags = envFlags.filter(f => !/^-(Werror)(=|$)/.test(f));
+
+// decide sanitizer flags
+const wantSan = String(process.env.CC_ENABLE_SAN || '1') !== '0';
+const sanFlags = wantSan ? ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"] : [];
+
+// Build compiler argv.
+// Order: srcs, std, opts/warns, SANITIZERS, pthread, -o exe, libs, env
+const args = [
+  ...srcs,
+  std,
+  ...(hasOpt ? [] : ["-O2"]),
+  "-D_POSIX_C_SOURCE=200809L",
+  ...(hasWall   ? [] : ["-Wall"]),
+  ...(hasWextra ? [] : ["-Wextra"]),
+  ...(hasFmt2   ? [] : ["-Wformat=2"]),
+
+  // ✅ must be before -o and before libraries
+  ...sanFlags,
+
+  // keep warnings as warnings
+  "-Wno-error",
+
+  "-pthread",
+  "-o", exePath,
+
+  // libs last
+  "-lm",
+  ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
+
+  // env flags (after we've removed any -Werror)
+  ...envFlags,
+];
+
+
+
+    
 
     
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
