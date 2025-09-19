@@ -122,19 +122,24 @@ function mergeStreams(a, b) {
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
+
+  // If sanitizers are enabled, avoid stdbuf (it uses LD_PRELOAD which fights ASan).
+  const sanitizersOn = !!(process.env.ASAN_OPTIONS || process.env.UBSAN_OPTIONS);
+  const body = sanitizersOn
+    ? `${argv};`
+    : `if command -v stdbuf >/dev/null 2>&1; then stdbuf -o0 -e0 ${argv}; else ${argv}; fi`;
+
   const bash = `
+    # Note: ulimit -f uses 512-byte blocks; current CC_FSIZE_KB is interpreted as-is.
     ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
-    if command -v stdbuf >/dev/null 2>&1; then
-      stdbuf -o0 -e0 ${argv};
-    else
-      ${argv};
-    fi
+    ${body}
   `;
   const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
+
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
