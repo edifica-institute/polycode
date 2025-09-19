@@ -16,11 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy package.json (and lock if it exists). This line succeeds even if there's no lockfile.
+# Copy deps (works with or without lockfile)
 COPY package*.json ./
-
-# Install deps
-# If lockfile exists -> npm ci; otherwise -> npm i
 RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm i --omit=dev; fi
 
 # Copy runner source
@@ -28,7 +25,8 @@ COPY cc-runner.js ./cc-runner.js
 
 EXPOSE 8083
 
+# Optional: quick health probe that compiles & runs a 1-liner
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8083)+'/api/cc/run',{method:'POST',headers:{'content-type':'application/json'},body:'{\"lang\":\"c\",\"code\":\"int main(){return 0;}\"}'}).then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8083)+'/api/cc/selftest').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
 CMD ["node", "cc-runner.js"]
