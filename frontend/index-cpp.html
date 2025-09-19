@@ -935,8 +935,8 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
 
           ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
          ws.addEventListener('close', () => {
-  const ok = (runState.exitCode === 0);
-
+  const ok = __userReset || (runState.exitCode === 0);
+__userReset = false; 
  /* if (!ok) {
     // 1) Put a cleaned runtime log into the red block
     const errBox = document.getElementById('stderrText');
@@ -987,7 +987,7 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
   }*/
 
 
-  if (!ok) {
+  if (!ok && !__userReset) {
   const j  = document.getElementById('jconsole')?.textContent || '';
   const st = document.getElementById('stderrText');
   if (st) { st.textContent = j; st.style.display = 'block'; }
