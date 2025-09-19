@@ -210,8 +210,9 @@
           </div>
            
         
-      <div id="stderrExplain" class="console-explain" aria-live="polite"></div>
-<pre id="stderrText" class="console-block error"></pre>
+        <pre id="stderrText" class="console-block error" aria-label="Compiler Errors"></pre>
+            <!-- NEW: explanations will be injected here -->
+            <div id="stderrExplain" class="console-explain" aria-live="polite"></div>
         
         </div>
 
@@ -634,7 +635,7 @@ const GRAPHICS_H_FALLBACK = `/* your working graphics.h content */`;
     }
   }
 
-/*async function prepare(){
+async function prepare(){
   const code  = window.editor ? window.editor.getValue() : '';
   const files = [{ path:'main.c', content: code }];
   const headers = await loadHeaders(['graphics.h']);
@@ -646,165 +647,13 @@ const GRAPHICS_H_FALLBACK = `/* your working graphics.h content */`;
   });
   if (!res.ok) throw new Error('Prepare failed: ' + res.status);
   return res.json();
-}*/
-
-
-
-
-// === Polycode Analysis renderer & gating (DROP-IN) ==================
-
-function renderPolycodeAnalysis(hints, hostId = "stderrExplain") {
-  const host = document.getElementById(hostId);
-  if (!host) return;
-  host.innerHTML = "";
-
-  if (!hints || !hints.length) return;
-
-  // minimal, clean card output
-  const wrap = document.createElement("div");
-  wrap.className = "pc-analysis";
-  wrap.innerHTML = `
-    <h3 class="explain-title" style="margin:0 0 8px;">Polycode Analysis</h3>
-    <div class="explain-list" style="display:flex; flex-direction:column; gap:10px;"></div>
-  `;
-  const list = wrap.querySelector(".explain-list");
-
-  for (const h of hints) {
-    const item = document.createElement("div");
-    item.className = "explain-item";
-    item.innerHTML = `
-      <div style="font-weight:600;">${escapeHtml(h.title || "Issue")}</div>
-      ${h.detail ? `<div style="opacity:.85">${escapeHtml(h.detail)}</div>` : ""}
-      ${h.fix ? `<div style="margin-top:4px;">✓ Fix: ${escapeHtml(h.fix)}</div>` : ""}
-    `;
-    list.appendChild(item);
-  }
-  host.appendChild(wrap);
-}
-
-// Treat some warnings as “errors” to beginners (block run)
-function shouldBlockRunFromHints(hints) {
-  if (!Array.isArray(hints)) return false;
-
-  // warnings to block even if exit code==0 (add/tweak as you like)
-  const blockIf = [
-    /printf.*format/i,               // printf format mismatch
-    /scanf.*(&|missing)/i,           // scanf missing &
-    /format.*mismatch/i,
-    /uninitialized/i,                // may be used uninitialized / is uninitialized
-    /use before set/i,
-    /incompatible (types|conversion)/i
-  ];
-
-  return hints.some(h =>
-    (String(h.kind || h.severity || "error") !== "warning") ||
-    blockIf.some(rx => rx.test(h.title || "") || rx.test(h.detail || ""))
-  );
-}
-
-function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
-// Parse text → hints, render them, and optionally block
-async function explainAndMaybeBlock(phase, { stderr="", stdout="", code="" }) {
-  const parse = window.PolyExplain?.parseCompilerOutput;
-  const result = parse ? parse({ lang: "c", stderr, stdout, code }) : { hints: [] };
-
-  // Put everything in the “Polycode Analysis” area
-  renderPolycodeAnalysis(result.hints);
-  // Also show UBSan "[runtime analysis]" bullets inside the card
-const m = stderr.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
-if (m) {
-  const lines = (m[1] || '').split('\n')
-    .map(s => s.replace(/^\s*[-•]\s*/, '').trim())
-    .filter(Boolean);
-  const list = document.querySelector('#stderrExplain .pc-analysis .explain-list');
-  if (list && lines.length) {
-    const div = document.createElement('div');
-    div.className = 'explain-item';
-    div.innerHTML = `<div style="font-weight:600;">Runtime analysis</div>
-      <ul style="margin:4px 0 0 18px;">${lines.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
-    list.appendChild(div);
-  }
-}
-
-  
-
-  // Put the UBSan "[runtime analysis]" bullets inside the Polycode box too
-const ra = pickRuntimeAnalysis(stderr);
-if (ra) appendRuntimeAnalysisToExplain(ra);
-
-  
-  // For compile phase only: block execution on dangerous warnings
-  if (phase === "compile" && shouldBlockRunFromHints(result.hints)) {
-    // status + do not proceed to /cc
-    window.PolyShell?.setStatus("Execution Failed", "error");
-    return false;
-  }
-  return true;
-}
-
-
-// Grab the "[runtime analysis]" block and turn bullets into an array of lines
-function stripAnsi(s){ return String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g, ''); }
-
-function pickRuntimeAnalysis(stderr) {
-  const s = stripAnsi(stderr || '');
-
-  // 1) JSON envelope produced by the runner (if present)
-  const jm = s.match(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}/i);
-  if (jm) {
-    try {
-      const obj = JSON.parse(jm[0]);
-      const lines = [];
-      (obj.items || []).forEach(it => {
-        if (it.title) lines.push(it.title);
-        (it.bullets || []).forEach(b => lines.push(String(b)));
-      });
-      if (lines.length) return lines;
-    } catch {}
-  }
-
-  // 2) Legacy block: [runtime analysis] … bullets …
-  const bm = s.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
-  if (bm) {
-    const body = bm[1] || '';
-    const lines = body.split('\n')
-      .map(t => t.replace(/^\s*[-•]\s*/, '').trim())
-      .filter(Boolean);
-    if (lines.length) return lines;
-  }
-
-  // 3) Fallback: plain UBSan text (what your screenshot shows)
-  const lines = [];
-  // collect every "runtime error: …" line
-  let m; const re = /(?:^|\n)\s*.*?runtime error:\s*([^\n]+)/gi;
-  while ((m = re.exec(s))) {
-    const msg = m[1].trim();
-    lines.push(msg.charAt(0).toUpperCase() + msg.slice(1));
-  }
-  // append SUMMARY line (nice to have)
-  const sm = s.match(/SUMMARY:\s*UndefinedBehaviorSanitizer:\s*([^\n]+)/i);
-  if (sm) lines.push(sm[1].trim());
-
-  return lines.length ? lines : null;
 }
 
 
 
-// Append those lines into the Polycode Analysis box
-function appendRuntimeAnalysisToExplain(lines) {
-  const host = document.getElementById('stderrExplain');
-  const list = host?.querySelector('.pc-analysis .explain-list');
-  if (!host || !list || !lines) return;
-  const item = document.createElement('div');
-  item.className = 'explain-item';
-  item.innerHTML =
-    `<div style="font-weight:600;">Runtime analysis</div>
-     <ul style="margin:4px 0 0 18px;">
-       ${lines.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
-     </ul>`;
-  list.appendChild(item);
-}
+
+
+
 
 
 
@@ -864,7 +713,7 @@ window.runLang = async function(){
 
       const code = window.editor ? window.editor.getValue() : '';
       const files = [{ path:'main.c', content:code }];
-      const res = await fetch(C_API_BASE + '/api/cc/prepare', {
+      const res = await fetch('https://polycode-cc.onrender.com/api/cc/prepare', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
       });
@@ -906,19 +755,16 @@ if (!prep || !prep.ok || !prep.token) {
     st.style.display = 'block';
   }
 
-  await explainAndMaybeBlock("compile", { stderr: trimmed, stdout: "", code });
-
-  
   // 4) Set Monaco marker from the first precise error, if present
   const m = /main\.c:(\d+):\d+:\s*(?:error|fatal error):\s*(.+)/.exec(trimmed);
   if (m) { setEditorMarker(Math.max(1, parseInt(m[1], 10)), m[2]); }
   else   { setEditorMarker(1, (trimmed.split('\n')[0] || 'Compilation failed').trim()); }
 
   // 5) Keep PolyShell cache in sync for the explainer
-  //window.PolyShell?.setRawOutputs('', trimmed);
+  window.PolyShell?.setRawOutputs('', trimmed);
 
   // 6) Render the friendly explanation INLINE now (no alert here to avoid double popups)
-  //try { await window.refreshStderrExplanation?.({ alsoAlert: false }); } catch {}
+  try { await window.refreshStderrExplanation?.({ alsoAlert: false }); } catch {}
 
   // 7) Status/UI
   window.PolyShell?.setRunnerPhase?.('error');
@@ -927,49 +773,12 @@ if (!prep || !prep.ok || !prep.token) {
 
   // 8) Reject with a meaningful first line (so your catch has a good .message)
   const firstLine = trimmed.split('\n').find(Boolean) || 'Compilation failed';
-   //showCompileFailNotice();
+   showCompileFailNotice();
   return reject(new Error(firstLine));
 }
 
 
 
-
-// === STEP 3A: show compile-time analysis and optionally block run ===
-{
-  const allowRun = await explainAndMaybeBlock("compile", {
-    stderr: String(prep.compileLog || ""),  // compiler messages even when code==0
-    stdout: "",
-    code: code                              // current editor source
-  });
-
-  if (!allowRun) {
-    // Put raw log under the error panel so the explainer has one source of truth
-    const st = document.getElementById('stderrText');
-    if (st) { st.textContent = String(prep.compileLog || "").trim(); st.style.display = 'block'; }
-
-    // Mirror the normal failure UI
-    stopStatusDots();
-    window.PolyShell?.setRunnerPhase?.('error');
-    window.PolyShell?.setStatus('Execution Failed', 'error');
-    setComplexityEnabled(false);
-    showCompileFailNotice();   // you already use this
-    return reject(new Error('run_blocked_by_warnings'));
-  }
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-      
 
 
 
@@ -982,8 +791,7 @@ if (!prep || !prep.ok || !prep.token) {
       showRunnerOverlay('Connecting to C runner…', 12, 'Creating interactive session…');
       __statusBase = 'Connecting'; startStatusDots(__statusBase);
 
-      //const ws = new WebSocket('wss://polycode-cc.onrender.com/cc?token=' + encodeURIComponent(prep.token));
-      const ws = new WebSocket(C_WS_BASE + '?token=' + encodeURIComponent(prep.token));
+      const ws = new WebSocket('wss://polycode-cc.onrender.com/cc?token=' + encodeURIComponent(prep.token));
       window.termWS = ws; window.wsRunInFlight = true;
 
       let settled = false; // prevent double resolve/reject
@@ -1026,44 +834,19 @@ const finish = async (ok) => {
 
 
   if (!ok) {
-  const j = document.getElementById('jconsole')?.textContent || '';
-
-  // Put raw stderr text in the error panel (single source of truth)
- const st = document.getElementById('stderrText');
-if (st) {
-  const cleaned = j
-  .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')                      // strip ANSI
-  .replace(/\[runtime analysis\][\s\S]*?(?=\n\[[^\]]+\]|$)/i, '') // strip legacy block
-  .replace(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}\s*/i, '')    // strip JSON analysis
-  .trim();
-  st.textContent = cleaned;
-  st.style.display = 'block';
-}
-  // === STEP 3B: render runtime analysis under “Polycode Analysis” ===
-  await explainAndMaybeBlock("runtime", { stderr: j, stdout: "", code: src });
-
-  // Keep your usual UI affordances
-  showCompileFailNotice('runtime');
-  const jc = document.getElementById('jconsole');  // clear console so only panels show
+  const j  = document.getElementById('jconsole')?.textContent || '';
+   window.PolyShell?.setRawOutputs('', j);                 // NEW: give stderr to explainer
+try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  // NEW
+  const st = document.getElementById('stderrText');
+  if (st) { st.textContent = j; st.style.display = 'block'; }
+  showCompileFailNotice('runtime');                // add this
+  const jc = document.getElementById('jconsole');  // and clear console
   if (jc) jc.textContent = '';
-
-  window.PolyShell?.setRunnerPhase?.('error');
-  window.PolyShell?.setStatus('Execution Failed','error');
 }
 
 
-
-  //ok ? resolve() : reject(new Error('run_failed'));
-
-   if (ok) {
-    const st = document.getElementById('stderrText');
-    if (st) { st.textContent = ''; st.style.display = 'none'; }
-    const ex = document.getElementById('stderrExplain');
-    if (ex) ex.innerHTML = '';
-  }
   ok ? resolve() : reject(new Error('run_failed'));
 };
-
 
       ws.addEventListener('open', ()=>{
         hideRunnerOverlay();
@@ -1077,45 +860,48 @@ if (st) {
         }
       });
 
-  ws.addEventListener('message', (ev) => {
-  const text = typeof ev.data === 'string' ? ev.data : String(ev.data || '');
-  let handled = false;
+     ws.addEventListener('message', (ev)=>{
+  const raw = ev.data;
+  const text = typeof raw === 'string' ? raw : String(raw || '');
 
-  // JSON payloads
-  try {
+  // 1) JSON image payload from runner
+  if (text.trim().startsWith('{')) {
+    try {
+      const msg = JSON.parse(text);
+      if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
+        showImages(msg.urls);      // NEW
+        return;                    // don't print JSON to console
+      }
+    } catch {}
+  }
+
+  // 2) Plain-text fallback marker from runner (still supported)
+  if (text.startsWith('[image] ')) {
+    const url = text.substring(8).trim();
+    if (url) { showImages([url]); return; }   // NEW
+  }
+
+  // 3) Original behavior (unchanged)
+  termWrite(text);
+
+  // 4) Your existing structured messages
+  try{
     const msg = JSON.parse(text);
-
-    if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
-      showImages(msg.urls);
-      handled = true;
-    } else if (msg && msg.type === 'stdin_req') {
+    if (msg.type === 'stdin_req'){
       showInputRow(true);
       window.PolyShell?.setRunnerPhase?.('waiting_input');
       window.PolyShell?.setStatus('Waiting for User Input…','busy');
       __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
       startInputCountdown(5*60*1000);
       window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-      handled = true;
-    } else if (msg && msg.type === 'exit') {
+    } else if (msg.type === 'exit'){
       runState.exitCode = Number(msg.code);
-      handled = true;
     }
-  } catch {}
+  }catch{}
 
-  // Fallback image marker
-  if (!handled && text.startsWith('[image] ')) {
-    const url = text.substring(8).trim();
-    if (url) { showImages([url]); handled = true; }
-  }
-
-  // Only print plain text
-  if (!handled) {
-    termWrite(text);
-    const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
-    if (m) runState.exitCode = parseInt(m[1],10);
-  }
+  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
+  if (m) runState.exitCode = parseInt(m[1],10);
 });
-
 
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
@@ -1165,15 +951,6 @@ if (st) {
       }
       if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
       else { start(); }
-
-
-      (() => {
-  const ex = document.getElementById('stderrExplain');
-  const tx = document.getElementById('stderrText');
-  if (ex && tx) tx.parentNode.insertBefore(ex, tx);
-})();
-
-      
     })();
   </script>
 
@@ -1218,7 +995,6 @@ if (st) {
   import { parseCompilerOutput, renderHintHTML } from './js/error-helper.js';
   // Expose for shell.js if needed:
   window.PolyErrorHelper = { parseCompilerOutput, renderHintHTML };
-  window.PolyExplain = { parseCompilerOutput }; 
 </script>
 
   
