@@ -711,6 +711,23 @@ async function explainAndMaybeBlock(phase, { stderr="", stdout="", code="" }) {
 
   // Put everything in the “Polycode Analysis” area
   renderPolycodeAnalysis(result.hints);
+  // Also show UBSan "[runtime analysis]" bullets inside the card
+const m = stderr.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
+if (m) {
+  const lines = (m[1] || '').split('\n')
+    .map(s => s.replace(/^\s*[-•]\s*/, '').trim())
+    .filter(Boolean);
+  const list = document.querySelector('#stderrExplain .pc-analysis .explain-list');
+  if (list && lines.length) {
+    const div = document.createElement('div');
+    div.className = 'explain-item';
+    div.innerHTML = `<div style="font-weight:600;">Runtime analysis</div>
+      <ul style="margin:4px 0 0 18px;">${lines.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
+    list.appendChild(div);
+  }
+}
+
+  
 
   // Put the UBSan "[runtime analysis]" bullets inside the Polycode box too
 const ra = pickRuntimeAnalysis(stderr);
