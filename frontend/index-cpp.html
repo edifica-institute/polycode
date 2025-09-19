@@ -935,8 +935,8 @@ if (runtimeBuf.length > 8192) runtimeBuf = runtimeBuf.slice(-8192);
 
           ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
          ws.addEventListener('close', () => {
-  const ok = __userReset || (runState.exitCode === 0);
-__userReset = false; 
+ const ok = (runState.exitCode === 0);
+
  /* if (!ok) {
     // 1) Put a cleaned runtime log into the red block
     const errBox = document.getElementById('stderrText');
