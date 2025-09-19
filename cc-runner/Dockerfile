@@ -17,15 +17,17 @@ ENV MALLOC_PERTURB_=204
 # NOTE: intentionally no -std flags here; your runner supplies them.
 #ENV CFLAGS="-O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -Wno-error=unused-variable -Wno-error=unused-but-set-variable -march=x86-64 -mtune=generic"
 #ENV CXXFLAGS="-O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -Wno-error=unused-variable -Wno-error=unused-but-set-variable -D_GLIBCXX_ASSERTIONS -march=x86-64 -mtune=generic"
+
 ENV CFLAGS="-O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion \
  -Werror -Wno-error=unused-variable -Wno-error=unused-but-set-variable \
- -Wno-error=misleading-indentation -Wno-error=missing-braces \
+ -Wno-error=misleading-indentation -Wno-error=missing-braces -Wno-error=missing-field-initializers \
  -march=x86-64 -mtune=generic"
 
 ENV CXXFLAGS="-O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion \
  -Werror -Wno-error=unused-variable -Wno-error=unused-but-set-variable \
- -Wno-error=misleading-indentation -Wno-error=missing-braces \
+ -Wno-error=misleading-indentation -Wno-error=missing-braces -Wno-error=missing-field-initializers \
  -D_GLIBCXX_ASSERTIONS -march=x86-64 -mtune=generic"
+
 
 
 WORKDIR /app
