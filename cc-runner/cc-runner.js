@@ -134,7 +134,11 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const limits = `ulimit -t ${CC_CPU_SECS}; ulimit -f ${CC_FSIZE_KB};`;
 
   // 3) PTY runner: `script -c "<one string>" /dev/null`
-  const ptyCmd   = `script -qefc ${shQ(`bash -lc ${shQ(cmdStr)}`)} /dev/null`;
+  //const ptyCmd   = `script -qefc ${shQ(`bash -lc ${shQ(cmdStr)}`)} /dev/null`;
+  // 3) PTY runner: disable echo so user input isn't printed by the PTY
+const inner = `stty -echo; trap 'stty echo' EXIT INT TERM HUP; ${cmdStr}; rc=$?; stty echo; exit $rc`;
+const ptyCmd = `script -qefc ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
+
   const fallback = `bash -lc ${shQ(cmdStr)}`;
 
   // prefer PTY, otherwise fall back to plain bash
