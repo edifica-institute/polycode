@@ -712,6 +712,11 @@ async function explainAndMaybeBlock(phase, { stderr="", stdout="", code="" }) {
   // Put everything in the “Polycode Analysis” area
   renderPolycodeAnalysis(result.hints);
 
+  // Put the UBSan "[runtime analysis]" bullets inside the Polycode box too
+const ra = pickRuntimeAnalysis(stderr);
+if (ra) appendRuntimeAnalysisToExplain(ra);
+
+  
   // For compile phase only: block execution on dangerous warnings
   if (phase === "compile" && shouldBlockRunFromHints(result.hints)) {
     // status + do not proceed to /cc
@@ -722,6 +727,31 @@ async function explainAndMaybeBlock(phase, { stderr="", stdout="", code="" }) {
 }
 
 
+// Grab the "[runtime analysis]" block and turn bullets into an array of lines
+function pickRuntimeAnalysis(stderr) {
+  const m = stderr.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
+  if (!m) return null;
+  const body = m[1] || "";
+  const lines = body.split('\n')
+    .map(s => s.replace(/^\s*[-•]\s*/, '').trim())
+    .filter(Boolean);
+  return lines.length ? lines : null;
+}
+
+// Append those lines into the Polycode Analysis box
+function appendRuntimeAnalysisToExplain(lines) {
+  const host = document.getElementById('stderrExplain');
+  const list = host?.querySelector('.pc-analysis .explain-list');
+  if (!host || !list || !lines) return;
+  const item = document.createElement('div');
+  item.className = 'explain-item';
+  item.innerHTML =
+    `<div style="font-weight:600;">Runtime analysis</div>
+     <ul style="margin:4px 0 0 18px;">
+       ${lines.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+     </ul>`;
+  list.appendChild(item);
+}
 
 
 
@@ -946,9 +976,12 @@ const finish = async (ok) => {
   const j = document.getElementById('jconsole')?.textContent || '';
 
   // Put raw stderr text in the error panel (single source of truth)
-  const st = document.getElementById('stderrText');
-  if (st) { st.textContent = j.trim(); st.style.display = 'block'; }
-
+ const st = document.getElementById('stderrText');
+if (st) {
+  const cleaned = j.replace(/\[runtime analysis\][\s\S]*?(?=\n\[[^\]]+\]|$)/i, '').trim();
+  st.textContent = cleaned;
+  st.style.display = 'block';
+}
   // === STEP 3B: render runtime analysis under “Polycode Analysis” ===
   await explainAndMaybeBlock("runtime", { stderr: j, stdout: "", code: src });
 
