@@ -47,6 +47,18 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
+const ok = (res, extra={}) => res.json({ ok: true, service: "cc-runner", ...extra });
+
+app.get ("/health",            (_req, res) => ok(res));
+app.get ("/api/cc/health",     (_req, res) => ok(res));
+app.post("/api/cc/health",     (_req, res) => ok(res));
+app.get ("/cc/health",         (_req, res) => ok(res));
+
+app.get ("/api/cc/prepare",    (_req, res) => ok(res));
+app.post("/api/cc/prepare",    (_req, res) => ok(res));
+app.get ("/cc/prepare",        (_req, res) => ok(res));
+app.post("/cc/prepare",        (_req, res) => ok(res));
+
 /** utils */
 async function ensureDir(p) {
   await fs.mkdir(p, { recursive: true });
@@ -83,11 +95,11 @@ function collect(child, { max = CC_OUTPUT_MAX }) {
   let stderr = Buffer.alloc(0);
 
   child.stdout.on("data", (d) => {
-    stdout = Buffer.concat([stdout, d].slice(0, 1));
+    stdout = Buffer.concat([stdout, d]);             // <-- no slice
     if (stdout.length > max) stdout = stdout.subarray(0, max);
   });
   child.stderr.on("data", (d) => {
-    stderr = Buffer.concat([stderr, d].slice(0, 1));
+    stderr = Buffer.concat([stderr, d]);             // <-- no slice
     if (stderr.length > max) stderr = stderr.subarray(0, max);
   });
 
@@ -95,6 +107,7 @@ function collect(child, { max = CC_OUTPUT_MAX }) {
     child.on("close", (code, sig) => resolve({ code, sig, stdout, stderr }));
   });
 }
+
 
 /** compile one file (C or C++) */
 async function compileJob(jobDir, lang) {
