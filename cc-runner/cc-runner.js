@@ -213,19 +213,27 @@ app.post("/api/cc/prepare", async (req, res) => {
     // Build compiler argv.
     // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
     const args = [
-      ...srcs,
-      std,
-      ...(hasOpt ? [] : ["-O2"]),
-      "-D_POSIX_C_SOURCE=200809L",
-      ...(hasWall   ? [] : ["-Wall"]),
-      ...(hasWextra ? [] : ["-Wextra"]),
-      ...(hasFmt2   ? [] : ["-Wformat=2"]),
-      "-pthread",
-      "-o", exePath,
-      "-lm",
-      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
-      ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
-    ];
+       ...srcs,
+       std,
+       ...(hasOpt ? [] : ["-O2"]),
+       "-D_POSIX_C_SOURCE=200809L",
+       ...(hasWall   ? [] : ["-Wall"]),
+       ...(hasWextra ? [] : ["-Wextra"]),
+       ...(hasFmt2   ? [] : ["-Wformat=2"]),
+      // extra beginner-friendly warnings (remain as warnings)
+      "-Wuninitialized",
+      "-Wmaybe-uninitialized",
+      "-Wnull-dereference",
+      "-Wreturn-type",
+      // keep logs clean & plain (also set in env, harmless to repeat)
+      "-fdiagnostics-color=never",
+      "-fno-diagnostics-show-caret",
+       "-pthread",
+       "-o", exePath,
+       "-lm",
+       ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
+       ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
+     ];
 
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
@@ -233,23 +241,25 @@ app.post("/api/cc/prepare", async (req, res) => {
     child.stdout.on("data", d => out += d.toString());
     child.stderr.on("data", d => err += d.toString());
 
-    child.on("close", (code) => {
-      const compileLog = mergeStreams(out, err); // <<< de-duped
-      if (code !== 0) {
-        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-        return res.json({ token: null, ok: false, compileLog, diagnostics: parseGcc(compileLog) });
-      }
+child.on("close", (code) => {
+    const compileLog = mergeStreams(out, err);
+    const diagnostics = parseGcc(compileLog);   // ← collect warnings & notes either way
 
-      // Successful compile → issue token with TTL (for unused tokens)
-      const token = nanoid();
-      const tmr = setTimeout(() => {
-        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-        SESSIONS.delete(token);
-      }, CC_TOKEN_TTL_MS);
+    if (code !== 0) {
+      try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
+      return res.json({ token: null, ok: false, compileLog, diagnostics });
+    }
 
-      SESSIONS.set(token, { dir, exePath, tmr });
-      res.json({ token, ok: true, compileLog, diagnostics: [] });
-    });
+    // Successful compile → still return diagnostics (warnings) to the UI
+    const token = nanoid();
+    const tmr = setTimeout(() => {
+      try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
+      SESSIONS.delete(token);
+    }, CC_TOKEN_TTL_MS);
+
+    SESSIONS.set(token, { dir, exePath, tmr });
+    res.json({ token, ok: true, compileLog, diagnostics });
+  });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || "internal error" });
