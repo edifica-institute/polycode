@@ -1,35 +1,32 @@
-# Dockerfile — cc-runner with GCC + ASan/UBSan
 FROM node:20-bullseye
 
-# Avoid interactive tz prompts etc.
-ENV DEBIAN_FRONTEND=noninteractive
-
-# System deps: compilers + sanitizer runtimes + bash
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential gcc g++ \
-    libasan6 libubsan1 \
-    ca-certificates curl bash \
- && rm -rf /var/lib/apt/lists/*
-
-# Workdir & app
-WORKDIR /app
-COPY package*.json ./  2>/dev/null || true
-RUN npm pkg set type=module 2>/dev/null || true
-RUN npm install --omit=dev 2>/dev/null || true
-
-# Copy runner
-COPY cc-runner.js ./cc-runner.js
-
-# Runtime env (can be overridden)
-ENV PORT=8083 \
+ENV DEBIAN_FRONTEND=noninteractive \
+    NODE_ENV=production \
+    PORT=8083 \
     JOB_ROOT=/tmp/ccjobs \
     CC_CPU_SECS=10 \
-    CC_OUTPUT_MAX=$((256*1024)) \
-    CC_STDIN_MAX=$((128*1024)) \
-    CC_FILE_MAX=$((256*1024))
+    CC_OUTPUT_MAX=262144 \
+    CC_STDIN_MAX=131072 \
+    CC_FILE_MAX=262144
 
-# Healthcheck (optional)
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT||8083) + '/api/cc/run',{method:'POST',headers:{'content-type':'application/json'},body:'{\"lang\":\"c\",\"code\":\"int main(){return 0;}\"}' }).then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
+# compilers + sanitizer runtimes
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc g++ libasan6 libubsan1 bash ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# your package.json is here (because root dir is cc-runner/)
+COPY package.json ./
+# lockfile optional—copy if present
+COPY package-lock.json ./package-lock.json
+RUN if [ -f package-lock.json ]; then npm ci --omit=dev; else npm i --omit=dev; fi
+
+# runner
+COPY cc-runner.js ./cc-runner.js
 
 EXPOSE 8083
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8083)+'/api/cc/run',{method:'POST',headers:{'content-type':'application/json'},body:'{\"lang\":\"c\",\"code\":\"int main(){return 0;}\"}'}).then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
+
 CMD ["node", "cc-runner.js"]
