@@ -23,9 +23,9 @@ ENV CXXFLAGS="-std=c++17 -O1 -g -fno-omit-frame-pointer \
   -march=x86-64 -mtune=generic \
   -fsanitize=address,undefined -no-pie"
 
-  
 ENV ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:abort_on_error=1:allocator_may_return_null=1"
 ENV UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
+
 
 
 
