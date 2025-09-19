@@ -913,17 +913,11 @@ try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  
       }, { once:true });*/
 
 
-       ws.addEventListener('close', ()=>{
-        const ok = __userReset || (runState.exitCode === 0);   // from the previous minimal fix
-       if (__userReset) {
-          // nudge the footer AFTER shell.js writes its success line
-         setTimeout(()=> {
-           window.PolyShell?.setRunnerPhase?.('idle');
-            window.PolyShell?.setStatus('Waiting for Execution','ok');
-          }, 50);
-        }
-         finish(ok);
-       }, { once:true });
+   ws.addEventListener('close', ()=>{
+        // stop timers/overlays, then resolve/reject so shell.js can set final status + time
+        const ok = (runState.exitCode === 0);
+        finish(ok);
+      }, { once:true });
 
     }catch(err){
       // network / unexpected failure
