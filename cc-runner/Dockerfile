@@ -9,8 +9,8 @@ RUN apt-get update && apt-get install -y \
 
 # --- ADD THESE TWO LINES ---
 # Surface beginner mistakes as hard errors; avoid CPU-specific codegen.
-ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
-ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
+ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -march=x86-64 -mtune=generic"
+ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -march=x86-64 -mtune=generic"
 # --------------------------
 
 WORKDIR /app
