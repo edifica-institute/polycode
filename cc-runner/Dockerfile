@@ -10,10 +10,18 @@ RUN apt-get update && apt-get install -y \
 # --- ADD THESE TWO LINES ---
 # Surface beginner mistakes as hard errors; avoid CPU-specific codegen.
 # keep the non -Werror CFLAGS/CXXFLAGS above, then add:
-ENV CFLAGS="$CFLAGS -fno-omit-frame-pointer -fsanitize=address,undefined -no-pie"
-ENV CXXFLAGS="$CXXFLAGS -fno-omit-frame-pointer -fsanitize=address,undefined -no-pie"
-ENV ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:abort_on_error=1:allocator_may_return_null=1:verify_asan_link_order=0"
-ENV UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
+# Warnings ON (not -Werror), sanitizers ON, plain logs (no ANSI colors)
+ENV BASE_C_WARN="-std=c17 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -fdiagnostics-color=never"
+ENV BASE_CXX_WARN="-std=c++20 -O1 -g -fno-omit-frame-pointer -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -fdiagnostics-color=never"
+ENV SAN="-fsanitize=address,undefined -fno-sanitize-recover=all -no-pie"
+
+ENV CFLAGS="$BASE_C_WARN $SAN"
+ENV CXXFLAGS="$BASE_CXX_WARN $SAN"
+
+# Short, colorless, first-error-only sanitizer messages
+ENV ASAN_OPTIONS="color=never:detect_leaks=1:halt_on_error=1:allocator_may_return_null=1:verbosity=0:print_summary=1:exitcode=66:strip_path_prefix=/tmp/ccjobs/"
+ENV UBSAN_OPTIONS="print_stacktrace=0:halt_on_error=1:report_error_type=1:print_summary=1"
+
 
 # --------------------------
 
