@@ -119,37 +119,35 @@ function mergeStreams(a, b) {
 }
 
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
-// Run a command with ulimits + hard timeout; no stdbuf, no -v (ASan-safe).
-// Run a command with ulimits + (optionally) a PTY via `script`.
-// We avoid stdbuf (conflicts with ASan) and pass a single string to `-c`.
+// Run a command with ulimits and a PTY (via `script`) so prompts flush.
+// We avoid stdbuf (LD_PRELOAD) and pass a single string to `script -c`.
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
 
-  // Make a single shell-safe string for the whole command line
+  // shell-quote a single token
   const shQ = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-  const cmdStr = [cmd, ...args].map(shQ).join(' ');   // one string
 
-  // Keep CPU/file-size limits; skip -v (vmem) so ASan can map shadow memory
+  // 1) build the *one* command string we actually want to run
+  const cmdStr = [cmd, ...args].map(shQ).join(" ");
+
+  // 2) resource limits (skip -v/VMEM so ASan can map shadow memory if enabled)
   const limits = `ulimit -t ${CC_CPU_SECS}; ulimit -f ${CC_FSIZE_KB};`;
 
-  // Prefer a PTY so stdout is line-buffered and prompts appear immediately.
-  // Use `script -qef /dev/null bash -lc '<cmdStr>'` (note: single argument to -lc).
-  const runUnderPty =
-    `if command -v script >/dev/null 2>&1; then ` +
-      `script -qef /dev/null bash -lc ${shQ(cmdStr)}; ` +
-    `else ` +
-      // Fallback: plain bash -lc (still works, but prompts may need fflush)
-      `bash -lc ${shQ(cmdStr)}; ` +
-    `fi`;
+  // 3) PTY runner: `script -c "<one string>" /dev/null`
+  const ptyCmd   = `script -qefc ${shQ(`bash -lc ${shQ(cmdStr)}`)} /dev/null`;
+  const fallback = `bash -lc ${shQ(cmdStr)}`;
 
-  const bash = `${limits} ${runUnderPty}`;
+  // prefer PTY, otherwise fall back to plain bash
+  const runner = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
 
-  // Clear LD_PRELOAD so nothing interferes with sanitizers
-  const env = { ...process.env, LD_PRELOAD: '' };
+  const bash = `${limits} ${runner}`;
 
-  const child = spawn('bash', ['-lc', bash], { cwd, env });
-  const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch {} }, hardTimeout * 1000);
-  child.on('close', () => { try { clearTimeout(killer); } catch {} });
+  // clear LD_PRELOAD to avoid sanitizer/stdlib interposition conflicts
+  const env = { ...process.env, LD_PRELOAD: "" };
+
+  const child = spawn("bash", ["-lc", bash], { cwd, env });
+  const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
+  child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
 
