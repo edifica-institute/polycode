@@ -123,23 +123,24 @@ function mergeStreams(a, b) {
 // add near the top
 const CC_USE_STDBUF = process.env.CC_USE_STDBUF ?? "1";
 
-// replace runWithLimits with:
 function runWithLimits(cmd, args, cwd, { timeoutSec, withSan = false } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
 
-  // Only preload for run (not needed for compile), and avoid stdbuf with ASan
   const preloadBlock = withSan ? `
 ASAN_RT=$(gcc -print-file-name=libasan.so 2>/dev/null || true)
 UBSAN_RT=$(gcc -print-file-name=libubsan.so 2>/dev/null || true)
-[ -n "$ASAN_RT" ] && export LD_PRELOAD="$ASAN_RT${UBSAN_RT:+:$UBSAN_RT}${LD_PRELOAD:+:$LD_PRELOAD}"
+if [ -n "$ASAN_RT" ]; then
+  export LD_PRELOAD="$ASAN_RT\${UBSAN_RT:+:\$UBSAN_RT}\${LD_PRELOAD:+:\$LD_PRELOAD}"
+fi
 ` : `unset LD_PRELOAD || true`;
 
-  // No -v cap with ASan; it needs huge virtual space for the shadow
+  // no address-space cap with ASan; it needs huge virtual space
   const vmLine = withSan
     ? `ulimit -v unlimited 2>/dev/null || true`
     : `ulimit -v ${CC_VMEM_KB}`;
 
+  // avoid stdbuf when withSan (it also LD_PRELOADs)
   const useStdbuf = (CC_USE_STDBUF !== "0") && !withSan;
   const invoke = useStdbuf ? `stdbuf -o0 -e0 ${argv}` : `${argv}`;
 
@@ -155,6 +156,7 @@ ${invoke}
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
+
 
 
 function compilerFor(lang, entry) {
