@@ -123,37 +123,35 @@ function mergeStreams(a, b) {
 // We avoid stdbuf (LD_PRELOAD) and pass a single string to `script -c`.
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
+  const shQ = s => `'${String(s).replace(/'/g, `'\\''`)}'`;           // shell-quote one token
+  const cmdStr = [cmd, ...args].map(shQ).join(" ");                   // what we really want to run
 
-  // shell-quote a single token
-  const shQ = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-
-  // 1) build the *one* command string we actually want to run
-  const cmdStr = [cmd, ...args].map(shQ).join(" ");
-
-  // 2) resource limits (skip -v/VMEM so ASan can map shadow memory if enabled)
+  // resource limits (skip -v to not break ASan shadow memory, keep CPU & file-size)
   const limits = `ulimit -t ${CC_CPU_SECS}; ulimit -f ${CC_FSIZE_KB};`;
 
-  // 3) PTY runner: `script -c "<one string>" /dev/null`
-  //const ptyCmd   = `script -qefc ${shQ(`bash -lc ${shQ(cmdStr)}`)} /dev/null`;
-  // 3) PTY runner: disable echo so user input isn't printed by the PTY
-const inner = `stty -echo; trap 'stty echo' EXIT INT TERM HUP; ${cmdStr}; rc=$?; stty echo; exit $rc`;
-const ptyCmd = `script -qefc ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
+  // inside the PTY: turn echo off, run the program, restore echo, return child's rc
+  // use double-quotes inside, and make stty best-effort (|| true)
+  const inner =
+    `stty -echo || true; ` +
+    `trap "stty echo || true" EXIT INT TERM HUP; ` +
+    `${cmdStr}; rc=$?; ` +
+    `stty echo || true; exit $rc`;
 
+  // prefer PTY for interactive flushing; fall back to plain bash if 'script' is missing
+  // keep flags minimal for portability: -q = quiet, -e = return child status, -c "<cmd>"
+  const ptyCmd   = `script -qe -c ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
   const fallback = `bash -lc ${shQ(cmdStr)}`;
-
-  // prefer PTY, otherwise fall back to plain bash
-  const runner = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
+  const runner   = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
 
   const bash = `${limits} ${runner}`;
-
-  // clear LD_PRELOAD to avoid sanitizer/stdlib interposition conflicts
-  const env = { ...process.env, LD_PRELOAD: "" };
+  const env  = { ...process.env, LD_PRELOAD: "" }; // avoid stdbuf/ASan interpose conflicts
 
   const child = spawn("bash", ["-lc", bash], { cwd, env });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
+
 
 
 
