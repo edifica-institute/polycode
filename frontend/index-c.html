@@ -745,15 +745,34 @@ if (ra) appendRuntimeAnalysisToExplain(ra);
 
 
 // Grab the "[runtime analysis]" block and turn bullets into an array of lines
+function stripAnsi(s){ return String(s||'').replace(/\x1B\[[0-9;]*[A-Za-z]/g, ''); }
+
 function pickRuntimeAnalysis(stderr) {
-  const m = stderr.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
+  const s = stripAnsi(stderr || '');
+
+  // A) New JSON payload: {"type":"analysis","where":"runtime","items":[...]}
+  const jm = s.match(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}/i);
+  if (jm) {
+    try {
+      const obj = JSON.parse(jm[0]);
+      const lines = [];
+      (obj.items || []).forEach(it => {
+        if (it.title) lines.push(it.title);
+        (it.bullets || []).forEach(b => lines.push(b));
+      });
+      if (lines.length) return lines;
+    } catch {}
+  }
+
+  // B) Legacy text block: [runtime analysis] ... bullets ...
+  const m = s.match(/\[runtime analysis\]([\s\S]*?)(?=\n\[[^\]]+\]|$)/i);
   if (!m) return null;
-  const body = m[1] || "";
-  const lines = body.split('\n')
-    .map(s => s.replace(/^\s*[-•]\s*/, '').trim())
+  const body = m[1] || '';
+  return body.split('\n')
+    .map(t => t.replace(/^\s*[-•]\s*/, '').trim())
     .filter(Boolean);
-  return lines.length ? lines : null;
 }
+
 
 // Append those lines into the Polycode Analysis box
 function appendRuntimeAnalysisToExplain(lines) {
@@ -995,7 +1014,11 @@ const finish = async (ok) => {
   // Put raw stderr text in the error panel (single source of truth)
  const st = document.getElementById('stderrText');
 if (st) {
-  const cleaned = j.replace(/\[runtime analysis\][\s\S]*?(?=\n\[[^\]]+\]|$)/i, '').trim();
+  const cleaned = j
+  .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')                      // strip ANSI
+  .replace(/\[runtime analysis\][\s\S]*?(?=\n\[[^\]]+\]|$)/i, '') // strip legacy block
+  .replace(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}\s*/i, '')    // strip JSON analysis
+  .trim();
   st.textContent = cleaned;
   st.style.display = 'block';
 }
