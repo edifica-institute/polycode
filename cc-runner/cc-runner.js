@@ -130,7 +130,15 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
       ${argv};
     fi
   `;
-  const child = spawn("bash", ["-lc", bash], { cwd });
+
+  const env = {
+  ...process.env,
+  MALLOC_CHECK_: "3",
+  GLIBC_TUNABLES: "glibc.malloc.check=3",
+  MALLOC_PERTURB_: "204",
+};
+const child = spawn("bash", ["-lc", bash], { cwd, env });
+  //const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
