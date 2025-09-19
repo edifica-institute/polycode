@@ -122,9 +122,11 @@ function mergeStreams(a, b) {
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
+  const vmemKB = Number(process.env.CC_VMEM_KB || 0);     // 0 → unlimited
+const vflag  = vmemKB > 0 ? `-v ${vmemKB}` : "";        // skip -v for ASan
   const bash = `
-    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
-    # Avoid stdbuf when ASAN is active (stdbuf uses LD_PRELOAD and breaks ASan order)
+     ulimit -t ${CC_CPU_SECS} ${vflag} -f ${CC_FSIZE_KB};
+    # Avoid stdbuf when ASAN is active (stdbuf uses LD_PRELOAD and breaks ASan)
     if command -v stdbuf >/dev/null 2>&1 && [ -z "$ASAN_OPTIONS" ]; then
       stdbuf -o0 -e0 ${argv};
     else
