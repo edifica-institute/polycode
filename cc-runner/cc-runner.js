@@ -6,20 +6,19 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import fssync from "node:fs";
 import path from "node:path";
-import os from "node:os";
 import { nanoid } from "nanoid";
 
 const PORT = process.env.PORT || 8083;
 const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 // Limits (env-overridable)
-const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // runtime cap
-const CC_OUTPUT_MAX = Number(process.env.CC_OUTPUT_MAX || 256 * 1024);     // bytes
-const CC_STDIN_MAX = Number(process.env.CC_STDIN_MAX || 128 * 1024);       // bytes
-const CC_FILE_MAX = Number(process.env.CC_FILE_MAX || 256 * 1024);         // source size
+const CC_CPU_SECS   = Number(process.env.CC_CPU_SECS   || 10);          // runtime CPU cap (secs)
+const CC_OUTPUT_MAX = Number(process.env.CC_OUTPUT_MAX || 256 * 1024);  // cap captured stdout/stderr (bytes)
+const CC_STDIN_MAX  = Number(process.env.CC_STDIN_MAX  || 128 * 1024);  // stdin cap (bytes)
+const CC_FILE_MAX   = Number(process.env.CC_FILE_MAX   || 256 * 1024);  // source size cap (bytes)
 
 // Toolchain (override if you prefer clang)
-const CC = process.env.CC || "gcc";
+const CC  = process.env.CC  || "gcc";
 const CXX = process.env.CXX || "g++";
 
 // Base compile flags: keep warnings as warnings; enable runtime sanitizers
@@ -31,11 +30,12 @@ const COMMON_FLAGS = [
   "-fanalyzer",
   "-fsanitize=address,undefined"
 ];
-const C_STD = process.env.C_STD || "-std=c17";
+
+const C_STD   = process.env.C_STD   || "-std=c17";
 const CXX_STD = process.env.CXX_STD || "-std=c++17";
 
-// Link sanitizers too
-const LINK_FLAGS = ["-fsanitize=address,undefined"];
+// Link sanitizers too; add -no-pie to avoid ASan+PIE quirks on some hosts
+const LINK_FLAGS = ["-fsanitize=address,undefined", "-no-pie"];
 
 // Runtime sanitizer behavior: fail hard on UB
 const RUN_ENV_SAN = {
@@ -47,17 +47,18 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-const ok = (res, extra={}) => res.json({ ok: true, service: "cc-runner", ...extra });
+const ok = (res, extra = {}) => res.json({ ok: true, service: "cc-runner", ...extra });
 
-app.get ("/health",            (_req, res) => ok(res));
-app.get ("/api/cc/health",     (_req, res) => ok(res));
-app.post("/api/cc/health",     (_req, res) => ok(res));
-app.get ("/cc/health",         (_req, res) => ok(res));
+// Health / prepare endpoints used by your UI
+app.get ("/health",         (_req, res) => ok(res));
+app.get ("/api/cc/health",  (_req, res) => ok(res));
+app.post("/api/cc/health",  (_req, res) => ok(res));
+app.get ("/cc/health",      (_req, res) => ok(res));
 
-app.get ("/api/cc/prepare",    (_req, res) => ok(res));
-app.post("/api/cc/prepare",    (_req, res) => ok(res));
-app.get ("/cc/prepare",        (_req, res) => ok(res));
-app.post("/cc/prepare",        (_req, res) => ok(res));
+app.get ("/api/cc/prepare", (_req, res) => ok(res));
+app.post("/api/cc/prepare", (_req, res) => ok(res));
+app.get ("/cc/prepare",     (_req, res) => ok(res));
+app.post("/cc/prepare",     (_req, res) => ok(res));
 
 /** utils */
 async function ensureDir(p) {
@@ -65,25 +66,17 @@ async function ensureDir(p) {
 }
 function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
+// Spawn helper: allow toggling limits per process
 function spawnLogged(cmd, args, opts = {}) {
-  const { limitFileSize = false } = opts;           // NEW flag
-  const fileLimitLine = limitFileSize
-    ? `ulimit -f ${Math.ceil(CC_OUTPUT_MAX / 512)};`  // correct units: 512-byte blocks
-    : "";
-
-  const bashCmd = [
-    "bash", "-lc",
-    [
-      `ulimit -t ${clamp(CC_CPU_SECS, 1, 60)};`,
-      "ulimit -c 0;",
-      fileLimitLine,                                 // only when requested
-      [cmd, ...args].map(x => `'${x.replace(/'/g, `'\\''`)}'`).join(" ")
-    ].join(" ")
-  ];
-
+  const { limitFileSize = false, limitCpu = true } = opts;
+  const lines = [];
+  if (limitCpu)        lines.push(`ulimit -t ${clamp(CC_CPU_SECS, 1, 60)};`); // CPU seconds
+  lines.push("ulimit -c 0;");                                                 // no core dumps
+  if (limitFileSize)   lines.push(`ulimit -f ${Math.ceil(CC_OUTPUT_MAX / 512)};`); // 512-byte blocks
+  const execLine = [cmd, ...args].map(x => `'${String(x).replace(/'/g, `'\\''`)}'`).join(" ");
+  const bashCmd = ["bash", "-lc", [...lines, execLine].join(" ")];
   return spawn(bashCmd[0], bashCmd.slice(1), opts);
 }
-
 
 async function writeLimitedFile(p, content, maxBytes) {
   const buf = Buffer.from(content ?? "", "utf8");
@@ -96,11 +89,11 @@ function collect(child, { max = CC_OUTPUT_MAX }) {
   let stderr = Buffer.alloc(0);
 
   child.stdout.on("data", (d) => {
-    stdout = Buffer.concat([stdout, d]);             // <-- no slice
+    stdout = Buffer.concat([stdout, d]);
     if (stdout.length > max) stdout = stdout.subarray(0, max);
   });
   child.stderr.on("data", (d) => {
-    stderr = Buffer.concat([stderr, d]);             // <-- no slice
+    stderr = Buffer.concat([stderr, d]);
     if (stderr.length > max) stderr = stderr.subarray(0, max);
   });
 
@@ -108,7 +101,6 @@ function collect(child, { max = CC_OUTPUT_MAX }) {
     child.on("close", (code, sig) => resolve({ code, sig, stdout, stderr }));
   });
 }
-
 
 /** compile one file (C or C++) */
 async function compileJob(jobDir, lang) {
@@ -127,10 +119,11 @@ async function compileJob(jobDir, lang) {
     ...LINK_FLAGS
   ];
 
-  const proc = spawnLogged(compiler, args, { cwd: jobDir });
+  // IMPORTANT: no CPU/file-size caps during compile/link
+  const proc = spawnLogged(compiler, args, { cwd: jobDir, limitCpu: false, limitFileSize: false });
   const { code, stdout, stderr } = await collect(proc, { max: CC_OUTPUT_MAX });
 
-  return { code, stdout: stdout.toString(), stderr: stderr.toString(), exe: out };
+  return { code, stdout: stdout.toString(), stderr: stderr.toString(), exe: out, args };
 }
 
 /** run compiled artifact */
@@ -139,18 +132,16 @@ async function runJob(jobDir, stdin = "") {
   if (!fssync.existsSync(exe)) throw new Error("Executable missing");
 
   const env = { ...process.env, ...RUN_ENV_SAN };
-  const child = spawnLogged(exe, [], { cwd: jobDir, env, limitFileSize: true });
+  // runtime: enforce CPU + file-size caps
+  const child = spawnLogged(exe, [], { cwd: jobDir, env, limitCpu: true, limitFileSize: true });
 
   // feed stdin with length cap
   const inBuf = Buffer.from(stdin ?? "", "utf8");
   if (inBuf.length > CC_STDIN_MAX) throw new Error(`stdin too large (> ${CC_STDIN_MAX} bytes)`);
   child.stdin.end(inBuf);
 
-  // hard timeout (CPU time is also capped by ulimit)
-  const killTimer = setTimeout(() => {
-    try { child.kill("SIGKILL"); } catch {}
-  }, (CC_CPU_SECS + 1) * 1000);
-
+  // hard wall-clock timeout safety (in addition to CPU ulimit)
+  const killTimer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, (CC_CPU_SECS + 1) * 1000);
   const res = await collect(child, { max: CC_OUTPUT_MAX });
   clearTimeout(killTimer);
 
@@ -182,31 +173,47 @@ app.post("/api/cc/run", async (req, res) => {
     // compile
     const comp = await compileJob(jobDir, lang);
 
-    // If compilation failed (exit code != 0), return immediately with stderr (warnings remain warnings)
     if (comp.code !== 0) {
+      // surface compile diagnostics to logs for fast debugging if UI truncates
+      console.error("[compile fail]", { args: comp.args, stderr: comp.stderr.slice(0, 2000) });
       return res.json({
         phase: "compile",
         exitCode: comp.code,
         stdout: comp.stdout,
-        stderr: comp.stderr,
+        stderr: comp.stderr
       });
     }
 
     // run
     const run = await runJob(jobDir, stdin);
 
-    // Combine and cap outputs
     return res.json({
       phase: "run",
       exitCode: run.exitCode,
       stdout: run.stdout,
       stderr: run.stderr,
-      // expose compile warnings too, if any
       compileStdout: comp.stdout,
       compileStderr: comp.stderr
     });
   } catch (e) {
     return res.status(500).json({ error: String(e && e.message || e) });
+  }
+});
+
+// Self-test endpoint (quick sanity without UI)
+app.get("/api/cc/selftest", async (_req, res) => {
+  try {
+    const code = "#include <stdio.h>\nint main(){puts(\"ok\");}\n";
+    const id = nanoid(6);
+    const jobDir = path.join(JOB_ROOT, "selftest-" + id);
+    await ensureDir(jobDir);
+    await writeLimitedFile(path.join(jobDir, "main.c"), code, CC_FILE_MAX);
+    const comp = await compileJob(jobDir, "c");
+    if (comp.code !== 0) return res.status(500).json({ phase: "compile", stderr: comp.stderr, stdout: comp.stdout });
+    const run = await runJob(jobDir, "");
+    return res.json({ phase: "run", exitCode: run.exitCode, stdout: run.stdout, stderr: run.stderr });
+  } catch (e) {
+    return res.status(500).json({ error: String(e?.message || e) });
   }
 });
 
@@ -223,10 +230,7 @@ wss.on("connection", (ws) => {
       const msg = JSON.parse(String(raw || "{}"));
       const fakeReq = { body: msg };
       const out = await new Promise((resolve) => {
-        const resShim = {
-          status: (_s) => resShim,
-          json: (o) => resolve(o)
-        };
+        const resShim = { status: (_s) => resShim, json: (o) => resolve(o) };
         app._router.handle({ ...fakeReq, method: "POST", url: "/api/cc/run" }, resShim, () => {});
       });
       ws.send(JSON.stringify(out));
