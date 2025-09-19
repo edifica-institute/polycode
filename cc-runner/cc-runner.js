@@ -122,12 +122,9 @@ function mergeStreams(a, b) {
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
-  const vmemKB = Number(process.env.CC_VMEM_KB || 0);     // 0 → unlimited
-const vflag  = vmemKB > 0 ? `-v ${vmemKB}` : "";        // skip -v for ASan
   const bash = `
-     ulimit -t ${CC_CPU_SECS} ${vflag} -f ${CC_FSIZE_KB};
-    # Avoid stdbuf when ASAN is active (stdbuf uses LD_PRELOAD and breaks ASan)
-    if command -v stdbuf >/dev/null 2>&1 && [ -z "$ASAN_OPTIONS" ]; then
+    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
+    if command -v stdbuf >/dev/null 2>&1; then
       stdbuf -o0 -e0 ${argv};
     else
       ${argv};
@@ -229,19 +226,14 @@ app.post("/api/cc/prepare", async (req, res) => {
       }
 
       // Successful compile → issue token with TTL (for unused tokens)
-      // ...after compile finished successfully
-const token = nanoid();
-const tmr = setTimeout(() => {
-  try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-  SESSIONS.delete(token);
-}, CC_TOKEN_TTL_MS);
+      const token = nanoid();
+      const tmr = setTimeout(() => {
+        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
+        SESSIONS.delete(token);
+      }, CC_TOKEN_TTL_MS);
 
-// NEW: parse warnings too
-const diags = parseGcc(compileLog).filter(d => d.severity !== "note");
-
-SESSIONS.set(token, { dir, exePath, tmr });
-res.json({ token, ok: true, compileLog, diagnostics: diags });
-
+      SESSIONS.set(token, { dir, exePath, tmr });
+      res.json({ token, ok: true, compileLog, diagnostics: [] });
     });
   } catch (e) {
     console.error(e);
