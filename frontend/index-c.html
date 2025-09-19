@@ -635,7 +635,7 @@ const GRAPHICS_H_FALLBACK = `/* your working graphics.h content */`;
     }
   }
 
-async function prepare(){
+/*async function prepare(){
   const code  = window.editor ? window.editor.getValue() : '';
   const files = [{ path:'main.c', content: code }];
   const headers = await loadHeaders(['graphics.h']);
@@ -647,7 +647,7 @@ async function prepare(){
   });
   if (!res.ok) throw new Error('Prepare failed: ' + res.status);
   return res.json();
-}
+}*/
 
 
 
@@ -782,7 +782,7 @@ window.runLang = async function(){
 
       const code = window.editor ? window.editor.getValue() : '';
       const files = [{ path:'main.c', content:code }];
-      const res = await fetch('https://polycode-cc.onrender.com/api/cc/prepare', {
+      const res = await fetch(C_API_BASE + '/api/cc/prepare', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ lang:'c', files, entry:'main.c', output:'a.out' })
       });
@@ -845,7 +845,7 @@ if (!prep || !prep.ok || !prep.token) {
 
   // 8) Reject with a meaningful first line (so your catch has a good .message)
   const firstLine = trimmed.split('\n').find(Boolean) || 'Compilation failed';
-   showCompileFailNotice();
+   //showCompileFailNotice();
   return reject(new Error(firstLine));
 }
 
@@ -900,7 +900,8 @@ if (!prep || !prep.ok || !prep.token) {
       showRunnerOverlay('Connecting to C runner…', 12, 'Creating interactive session…');
       __statusBase = 'Connecting'; startStatusDots(__statusBase);
 
-      const ws = new WebSocket('wss://polycode-cc.onrender.com/cc?token=' + encodeURIComponent(prep.token));
+      //const ws = new WebSocket('wss://polycode-cc.onrender.com/cc?token=' + encodeURIComponent(prep.token));
+      const ws = new WebSocket(C_WS_BASE + '?token=' + encodeURIComponent(prep.token));
       window.termWS = ws; window.wsRunInFlight = true;
 
       let settled = false; // prevent double resolve/reject
@@ -963,7 +964,16 @@ const finish = async (ok) => {
 
 
 
+  //ok ? resolve() : reject(new Error('run_failed'));
+
+   if (ok) {
+    const st = document.getElementById('stderrText');
+    if (st) { st.textContent = ''; st.style.display = 'none'; }
+    const ex = document.getElementById('stderrExplain');
+    if (ex) ex.innerHTML = '';
+  }
   ok ? resolve() : reject(new Error('run_failed'));
+};
 };
 
       ws.addEventListener('open', ()=>{
