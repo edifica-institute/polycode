@@ -9,27 +9,9 @@ RUN apt-get update && apt-get install -y \
 
 # --- ADD THESE TWO LINES ---
 # Surface beginner mistakes as hard errors; avoid CPU-specific codegen.
-#ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
-#ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
+ENV CFLAGS="-std=c17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Wint-conversion -Werror -march=x86-64 -mtune=generic"
+ENV CXXFLAGS="-std=c++17 -O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -Werror -march=x86-64 -mtune=generic"
 # --------------------------
-# Surface warnings but don't fail the build; enable ASan/UBSan & stable codegen
-ENV CFLAGS="-std=c17 -O1 -g -fno-omit-frame-pointer \
-  -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion \
-  -march=x86-64 -mtune=generic \
-  -fsanitize=address,undefined -no-pie"
-
-ENV CXXFLAGS="-std=c++17 -O1 -g -fno-omit-frame-pointer \
-  -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion \
-  -march=x86-64 -mtune=generic \
-  -fsanitize=address,undefined -no-pie"
-
-ENV ASAN_OPTIONS="detect_leaks=1:halt_on_error=1:abort_on_error=1:allocator_may_return_null=1:verify_asan_link_order=0"
-ENV UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1"
-
-
-
-
-
 
 WORKDIR /app
 
