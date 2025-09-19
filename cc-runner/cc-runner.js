@@ -122,20 +122,19 @@ function mergeStreams(a, b) {
 // Run a command with ulimits + hard timeout; no stdbuf, no -v (ASan-safe).
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
-  const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
-
-  // Keep CPU and file-size caps. Skip virtual-memory cap (breaks ASan).
-  const bash = `
-    ulimit -t ${CC_CPU_SECS};
-    ulimit -f ${CC_FSIZE_KB};
+ const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
+const bash = `
+  ulimit -t ${CC_CPU_SECS};
+  ulimit -f ${CC_FSIZE_KB};
+  if command -v script >/dev/null 2>&1; then
+    # run under a PTY so prompts flush; -e = return child status, -q = quiet, -f = flush
+    script -qefc ${argv} /dev/null;
+  else
     exec ${argv};
-  `;
+  fi
+`;
+const child = spawn("bash", ["-lc", bash], { cwd, env: { ...process.env, LD_PRELOAD: "" } });
 
-  // Also scrub any accidental LD_PRELOAD (stdbuf etc.) just in case.
-  const child = spawn("bash", ["-lc", bash], {
-    cwd,
-    env: { ...process.env, LD_PRELOAD: "" }
-  });
 
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
