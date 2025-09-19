@@ -124,7 +124,8 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
   const bash = `
     ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
-    if command -v stdbuf >/dev/null 2>&1; then
+    # Avoid stdbuf when ASAN is active (stdbuf uses LD_PRELOAD and breaks ASan order)
+    if command -v stdbuf >/dev/null 2>&1 && [ -z "$ASAN_OPTIONS" ]; then
       stdbuf -o0 -e0 ${argv};
     else
       ${argv};
