@@ -1,4 +1,4 @@
-// cc-runner.js — C & C++ runner with CORS + WebSocket (hardened)
+// cc-runner.js — C & C++ runner with sanitizers (warnings stay warnings)
 import express from "express";
 import cors from "cors";
 import { WebSocketServer } from "ws";
@@ -6,316 +6,218 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import fssync from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { nanoid } from "nanoid";
-import crypto from "crypto";
 
 const PORT = process.env.PORT || 8083;
 const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 // Limits (env-overridable)
-const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // per-process CPU seconds
-const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB
-const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);            // 1GB output cap
-const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);              // hard kill (run)
-const CC_COMPILE_TIMEOUT_S = Number(process.env.CC_COMPILE_TIMEOUT_S || 60); // hard kill (compile)
-const CC_TOKEN_TTL_MS = Number(process.env.CC_TOKEN_TTL_MS || 5 * 60 * 1000); // unused token TTL
+const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // runtime cap
+const CC_OUTPUT_MAX = Number(process.env.CC_OUTPUT_MAX || 256 * 1024);     // bytes
+const CC_STDIN_MAX = Number(process.env.CC_STDIN_MAX || 128 * 1024);       // bytes
+const CC_FILE_MAX = Number(process.env.CC_FILE_MAX || 256 * 1024);         // source size
 
-// ----------------------------------------------------------------------------
-// Express
-// ----------------------------------------------------------------------------
-const app = express();
+// Toolchain (override if you prefer clang)
+const CC = process.env.CC || "gcc";
+const CXX = process.env.CXX || "g++";
 
-// ---- CORS allowlist ----
-const ALLOW_ORIGINS = [
-  "https://www.polycode.in",
-  "https://polycode.in",
-  "https://polycode.pages.dev",
-  "https://edifica-polycode.pages.dev",
-  "https://polycode.cc",
-  "http://localhost:3000", // dev
+// Base compile flags: keep warnings as warnings; enable runtime sanitizers
+const COMMON_FLAGS = [
+  "-O1", "-g", "-fno-omit-frame-pointer",
+  "-Wall", "-Wextra", "-Wpedantic",
+  "-Wformat=2", "-Wshadow", "-Wconversion",
+  "-Wnull-dereference", "-Wdouble-promotion", "-Wundef",
+  "-fanalyzer",
+  "-fsanitize=address,undefined"
 ];
+const C_STD = process.env.C_STD || "-std=c17";
+const CXX_STD = process.env.CXX_STD || "-std=c++17";
 
-const corsOptions = {
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true); // curl / health checks
-    if (ALLOW_ORIGINS.includes(origin)) return cb(null, true);
-    return cb(new Error("CORS: origin not allowed"));
-  },
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "X-Requested-With"],
-  maxAge: 86400,
+// Link sanitizers too
+const LINK_FLAGS = ["-fsanitize=address,undefined"];
+
+// Runtime sanitizer behavior: fail hard on UB
+const RUN_ENV_SAN = {
+  ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1:abort_on_error=1:allocator_may_return_null=1",
+  UBSAN_OPTIONS: "print_stacktrace=1:halt_on_error=1"
 };
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // preflight with same options
 
+const app = express();
+app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
-// --- Artifacts (images) static route with CORS ---
-const PUBLIC_ROOT = "/tmp/polycode-artifacts";
-try { fssync.mkdirSync(PUBLIC_ROOT, { recursive: true }); } catch {}
-app.use(
-  "/artifacts",
-  (req, res, next) => {
-    const o = req.headers.origin;
-    if (!o || ALLOW_ORIGINS.includes(o)) {
-      res.setHeader("Access-Control-Allow-Origin", o || "*");
-    }
-    next();
-  },
-  express.static(PUBLIC_ROOT, { maxAge: "5m", fallthrough: true })
-);
+/** utils */
+async function ensureDir(p) {
+  await fs.mkdir(p, { recursive: true });
+}
+function clamp(n, a, b) { return Math.max(a, Math.min(b, n)); }
 
-// ---- Health check ----
-app.get("/health", (_, res) => res.json({ ok: true }));
+function spawnLogged(cmd, args, opts = {}) {
+  // Wrap in bash -lc to set ulimit for CPU time; keeps portability.
+  const bashCmd = [
+    "bash", "-lc",
+    [
+      // CPU time cap (seconds); prevents runaway loops
+      `ulimit -t ${clamp(CC_CPU_SECS, 1, 60)};`,
+      // No core files
+      "ulimit -c 0;",
+      // Reasonable file size/output caps (soft)
+      `ulimit -f ${Math.ceil(CC_OUTPUT_MAX / 1024)};`,
+      // exec
+      [cmd, ...args].map(x => `'${x.replace(/'/g, `'\\''`)}'`).join(" ")
+    ].join(" ")
+  ];
 
-// ----------------------------------------------------------------------------
-// Helpers
-// ----------------------------------------------------------------------------
-async function collectImagesFrom(dir, limit = 6, maxBytes = 5 * 1024 * 1024) {
-  const allow = new Set([".png", ".bmp", ".ppm"]);
-  const names = await fs.readdir(dir);
-  const picks = [];
-
-  for (const name of names) {
-    const full = path.join(dir, name);
-    const st = await fs.stat(full).catch(() => null);
-    if (!st || !st.isFile()) continue;
-    const ext = path.extname(name).toLowerCase();
-    if (!allow.has(ext)) continue;
-    if (st.size > maxBytes) continue;
-    picks.push({ name, full, mtime: st.mtimeMs });
-  }
-
-  picks.sort((a, b) => b.mtime - a.mtime); // newest first
-  return picks.slice(0, limit);
+  return spawn(bashCmd[0], bashCmd.slice(1), opts);
 }
 
-async function ensureDir(p) { await fs.mkdir(p, { recursive: true }); }
-
-// Guard against ../ traversal; returns absolute path inside root
-function safeJoin(root, relPath) {
-  const base = path.resolve(root) + path.sep;
-  const full = path.resolve(root, relPath);
-  if (!full.startsWith(base)) throw new Error("Bad path");
-  return full;
+async function writeLimitedFile(p, content, maxBytes) {
+  const buf = Buffer.from(content ?? "", "utf8");
+  if (buf.length > maxBytes) throw new Error(`Source too large (> ${maxBytes} bytes)`);
+  await fs.writeFile(p, buf);
 }
 
-function parseGcc(out) {
-  const lines = out.split(/\r?\n/), ds = [];
-  for (const line of lines) {
-    const m = line.match(/^(.*?):(\d+):(\d+):\s+(error|warning|note):\s+(.*)$/i);
-    if (m) ds.push({ file: m[1], line: +m[2], column: +m[3], severity: m[4].toLowerCase(), message: m[5] });
-  }
-  return ds;
+function collect(child, { max = CC_OUTPUT_MAX }) {
+  let stdout = Buffer.alloc(0);
+  let stderr = Buffer.alloc(0);
+
+  child.stdout.on("data", (d) => {
+    stdout = Buffer.concat([stdout, d].slice(0, 1));
+    if (stdout.length > max) stdout = stdout.subarray(0, max);
+  });
+  child.stderr.on("data", (d) => {
+    stderr = Buffer.concat([stderr, d].slice(0, 1));
+    if (stderr.length > max) stderr = stderr.subarray(0, max);
+  });
+
+  return new Promise((resolve) => {
+    child.on("close", (code, sig) => resolve({ code, sig, stdout, stderr }));
+  });
 }
 
-// Merge stdout/stderr without duplicating identical blocks
-function mergeStreams(a, b) {
-  const A = String(a || "").trim();
-  const B = String(b || "").trim();
-  if (!A) return B;
-  if (!B) return A;
-  return A === B ? A : (A + "\n" + B);
+/** compile one file (C or C++) */
+async function compileJob(jobDir, lang) {
+  const out = path.join(jobDir, "a.out");
+  const src = path.join(jobDir, lang === "cpp" ? "main.cpp" : "main.c");
+
+  const isCpp = lang === "cpp";
+  const compiler = isCpp ? CXX : CC;
+  const std = isCpp ? CXX_STD : C_STD;
+
+  const args = [
+    std,
+    ...COMMON_FLAGS,
+    src,
+    "-o", out,
+    ...LINK_FLAGS
+  ];
+
+  const proc = spawnLogged(compiler, args, { cwd: jobDir });
+  const { code, stdout, stderr } = await collect(proc, { max: CC_OUTPUT_MAX });
+
+  return { code, stdout: stdout.toString(), stderr: stderr.toString(), exe: out };
 }
 
-// Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
-function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
-  const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
-  const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
-  const bash = `
-    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
-    if command -v stdbuf >/dev/null 2>&1; then
-      stdbuf -o0 -e0 ${argv};
-    else
-      ${argv};
-    fi
-  `;
-  const child = spawn("bash", ["-lc", bash], { cwd });
-  const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
-  child.on("close", () => { try { clearTimeout(killer); } catch {} });
-  return child;
+/** run compiled artifact */
+async function runJob(jobDir, stdin = "") {
+  const exe = path.join(jobDir, "a.out");
+  if (!fssync.existsSync(exe)) throw new Error("Executable missing");
+
+  const env = { ...process.env, ...RUN_ENV_SAN };
+  const child = spawnLogged(exe, [], { cwd: jobDir, env });
+
+  // feed stdin with length cap
+  const inBuf = Buffer.from(stdin ?? "", "utf8");
+  if (inBuf.length > CC_STDIN_MAX) throw new Error(`stdin too large (> ${CC_STDIN_MAX} bytes)`);
+  child.stdin.end(inBuf);
+
+  // hard timeout (CPU time is also capped by ulimit)
+  const killTimer = setTimeout(() => {
+    try { child.kill("SIGKILL"); } catch {}
+  }, (CC_CPU_SECS + 1) * 1000);
+
+  const res = await collect(child, { max: CC_OUTPUT_MAX });
+  clearTimeout(killTimer);
+
+  return {
+    exitCode: res.code,
+    signal: res.sig,
+    stdout: res.stdout.toString(),
+    stderr: res.stderr.toString()
+  };
 }
 
-function compilerFor(lang, entry) {
-  if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
-  if (lang === "cpp") return { cc: "g++", std: "-std=c++20" };
-  const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entry || "");
-  return isCpp ? { cc: "g++", std: "-std=c++20" } : { cc: "gcc", std: "-std=c17" };
-}
-
-// Make sure root exists
-try { fssync.mkdirSync(JOB_ROOT, { recursive: true }); } catch {}
-
-// ----------------------------------------------------------------------------
-// In-memory sessions: token → { dir, exePath, tmr? }
-// ----------------------------------------------------------------------------
-const SESSIONS = new Map();
-
-// ----------------------------------------------------------------------------
-// Compile endpoint
-// ----------------------------------------------------------------------------
-app.post("/api/cc/prepare", async (req, res) => {
+/** REST: compile+run
+ *  POST /api/cc/run  { lang: "c"|"cpp", code: string, stdin?: string }
+ */
+app.post("/api/cc/run", async (req, res) => {
   try {
-    const { files = [], lang, entry, output = "a.out" } = req.body || {};
-    if (!Array.isArray(files) || files.length === 0) {
-      return res.status(400).json({ error: "No files" });
+    const { lang, code, stdin } = req.body || {};
+    if (!["c", "cpp"].includes(lang)) return res.status(400).json({ error: "lang must be 'c' or 'cpp'" });
+    if (typeof code !== "string" || !code.trim()) return res.status(400).json({ error: "code missing" });
+
+    const id = nanoid(10);
+    const jobDir = path.join(JOB_ROOT, id);
+    await ensureDir(jobDir);
+
+    // write source
+    const srcName = lang === "cpp" ? "main.cpp" : "main.c";
+    await writeLimitedFile(path.join(jobDir, srcName), code, CC_FILE_MAX);
+
+    // compile
+    const comp = await compileJob(jobDir, lang);
+
+    // If compilation failed (exit code != 0), return immediately with stderr (warnings remain warnings)
+    if (comp.code !== 0) {
+      return res.json({
+        phase: "compile",
+        exitCode: comp.code,
+        stdout: comp.stdout,
+        stderr: comp.stderr,
+      });
     }
 
-    // Create job dir
-    const id = nanoid();
-    const dir = path.join(JOB_ROOT, id);
-    await ensureDir(dir);
+    // run
+    const run = await runJob(jobDir, stdin);
 
-    // Write files (safe paths)
-    await Promise.all(files.map(async f => {
-      if (!f?.path || typeof f.content !== "string") throw new Error("Bad file");
-      const full = safeJoin(dir, f.path);
-      await ensureDir(path.dirname(full));
-      await fs.writeFile(full, f.content, "utf8");
-    }));
-
-    // Decide compiler/flags
-    const entryFile = entry || files[0].path;
-    const { cc, std } = compilerFor(lang, entryFile);
-    const srcs   = files.map(f => safeJoin(dir, f.path));
-    const exePath = safeJoin(dir, output);
-
-    const isCpp = /\.(cc|cpp|cxx|c\+\+)$/i.test(entryFile) || (lang === "cpp");
-    const isC   = /\.c$/i.test(entryFile) || (lang === "c");
-
-    // Pull flags from environment (Dockerfile provides them)
-    const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
-    const envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
-
-    // Detect if env already sets some knobs
-    const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
-    const hasWall   = envFlags.includes("-Wall");
-    const hasWextra = envFlags.includes("-Wextra");
-    const hasFmt2   = envFlags.includes("-Wformat=2");
-
-    // Build compiler argv.
-    // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
-    const args = [
-      ...srcs,
-      std,
-      ...(hasOpt ? [] : ["-O2"]),
-      "-D_POSIX_C_SOURCE=200809L",
-      ...(hasWall   ? [] : ["-Wall"]),
-      ...(hasWextra ? [] : ["-Wextra"]),
-      ...(hasFmt2   ? [] : ["-Wformat=2"]),
-      "-pthread",
-      "-o", exePath,
-      "-lm",
-      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
-      ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
-    ];
-
-    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
-
-    let out = "", err = "";
-    child.stdout.on("data", d => out += d.toString());
-    child.stderr.on("data", d => err += d.toString());
-
-    child.on("close", (code) => {
-      const compileLog = mergeStreams(out, err); // <<< de-duped
-      if (code !== 0) {
-        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-        return res.json({ token: null, ok: false, compileLog, diagnostics: parseGcc(compileLog) });
-      }
-
-      // Successful compile → issue token with TTL (for unused tokens)
-      const token = nanoid();
-      const tmr = setTimeout(() => {
-        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-        SESSIONS.delete(token);
-      }, CC_TOKEN_TTL_MS);
-
-      SESSIONS.set(token, { dir, exePath, tmr });
-      res.json({ token, ok: true, compileLog, diagnostics: [] });
+    // Combine and cap outputs
+    return res.json({
+      phase: "run",
+      exitCode: run.exitCode,
+      stdout: run.stdout,
+      stderr: run.stderr,
+      // expose compile warnings too, if any
+      compileStdout: comp.stdout,
+      compileStderr: comp.stderr
     });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message || "internal error" });
+    return res.status(500).json({ error: String(e && e.message || e) });
   }
 });
 
-// ----------------------------------------------------------------------------
-// WebSocket run endpoint
-// ----------------------------------------------------------------------------
-const wss = new WebSocketServer({ noServer: true });
-const server = app.listen(PORT, () => console.log(`[cc-runner] listening on :${PORT}`));
-
-server.on("upgrade", (req, socket, head) => {
-  const url = new URL(req.url, "http://localhost");
-  if (url.pathname === "/cc") {
-    wss.handleUpgrade(req, socket, head, ws => wss.emit("connection", ws, req));
-  } else {
-    socket.destroy();
-  }
+/** Minimal WS passthrough if your UI expects a socket; it mirrors the HTTP route.
+ *  Client can send: {lang, code, stdin}
+ */
+const server = app.listen(PORT, () => {
+  console.log(`[cc-runner] listening on :${PORT}`);
 });
-
-wss.on("connection", (ws, req) => {
-  const url = new URL(req.url, "http://localhost");
-  const token = url.searchParams.get("token");
-  const sess = token && SESSIONS.get(token);
-  if (!sess) return ws.close(1008, "invalid token");
-
-  // Token is being consumed → cancel TTL timer
-  if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
-
-  const { dir, exePath } = sess;
-  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S });
-
-  // Stream output
-  child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
-  child.stderr.on("data", d => { try { ws.send(d.toString()); } catch {} });
-
-  // Close handler: publishes images, then cleanup
-  child.on("close", async (code) => {
-    try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
-
+const wss = new WebSocketServer({ server, path: "/ws/cc" });
+wss.on("connection", (ws) => {
+  ws.on("message", async (raw) => {
     try {
-      const found = await collectImagesFrom(dir);
-      if (found.length) {
-        const tokenDir = crypto.randomUUID();
-        const outDir = path.join(PUBLIC_ROOT, tokenDir);
-        try { fssync.mkdirSync(outDir, { recursive: true }); } catch {}
-
-        const urls = [];
-        for (const f of found) {
-          const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-          const dest = path.join(outDir, safeName);
-          await fs.copyFile(f.full, dest);
-          urls.push(`/artifacts/${tokenDir}/${safeName}`);
-        }
-
-        try { ws.send(JSON.stringify({ type: "images", urls })); } catch {}
-        for (const u of urls) { try { ws.send(`[image] ${u}\n`); } catch {} }
-
-        setTimeout(() => { try { fssync.rmSync(outDir, { recursive: true, force: true }); } catch {} }, 5 * 60 * 1000);
-      }
-    } catch (e) { console.error("artifact publish error:", e); }
-
-    try { ws.close(); } catch {}
-    cleanup();
-  });
-
-  ws.on("message", m => {
-    try {
-      const msg = JSON.parse(m.toString());
-      if (msg?.type === "stdin") {
-        child.stdin.write(String(msg.data));
-      }
-    } catch {
-      // ignore non-JSON messages
+      const msg = JSON.parse(String(raw || "{}"));
+      const fakeReq = { body: msg };
+      const out = await new Promise((resolve) => {
+        const resShim = {
+          status: (_s) => resShim,
+          json: (o) => resolve(o)
+        };
+        app._router.handle({ ...fakeReq, method: "POST", url: "/api/cc/run" }, resShim, () => {});
+      });
+      ws.send(JSON.stringify(out));
+    } catch (e) {
+      ws.send(JSON.stringify({ error: String(e && e.message || e) }));
     }
   });
-
-  ws.on("close", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
-  ws.on("error", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
-
-  function cleanup() {
-    try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-    SESSIONS.delete(token);
-  }
 });
