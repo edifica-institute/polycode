@@ -915,7 +915,8 @@ try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  
 
    ws.addEventListener('close', ()=>{
         // stop timers/overlays, then resolve/reject so shell.js can set final status + time
-        const ok = (runState.exitCode === 0);
+        const ok = __userReset || (runState.exitCode === 0);
+      __userReset = false;  
         finish(ok);
       }, { once:true });
 
