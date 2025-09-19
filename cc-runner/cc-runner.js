@@ -275,9 +275,18 @@ wss.on("connection", (ws, req) => {
   child.stderr.on("data", d => { try { ws.send(d.toString()); } catch {} });
 
   // Close handler: publishes images, then cleanup
-  child.on("close", async (code) => {
-    try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
+  //child.on("close", async (code) => {
+    //try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
+child.on("close", async (code, signal) => {
+   // normalize the signal even if only exit code is present
+  const map = {132:'SIGILL', 134:'SIGABRT', 136:'SIGFPE', 138:'SIGBUS', 139:'SIGSEGV'};
+   const normSignal = signal || map[code] || null;
+   try {
+     ws.send(JSON.stringify({ type: "status", exitCode: code, signal: normSignal }));
+     ws.send(`\n[process exited with code ${code}${normSignal ? ` (${normSignal})` : ''}]\n`);
+   } catch {}
 
+      
     try {
       const found = await collectImagesFrom(dir);
       if (found.length) {
