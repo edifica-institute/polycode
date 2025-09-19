@@ -834,15 +834,32 @@ const finish = async (ok) => {
 
 
   if (!ok) {
-  const j  = document.getElementById('jconsole')?.textContent || '';
-   window.PolyShell?.setRawOutputs('', j);                 // NEW: give stderr to explainer
-try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  // NEW
+  const j = document.getElementById('jconsole')?.textContent || '';
+
+  // 1) Show only non-analysis text in the raw stderr panel
   const st = document.getElementById('stderrText');
-  if (st) { st.textContent = j; st.style.display = 'block'; }
-  showCompileFailNotice('runtime');                // add this
-  const jc = document.getElementById('jconsole');  // and clear console
+  if (st) {
+    const cleaned = j
+      .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')                       // strip ANSI
+      .replace(/\[runtime analysis\][\s\S]*?(?=\n\[[^\]]+\]|$)/i, '') // strip legacy block
+      .replace(/{\s*"type"\s*:\s*"analysis"[\s\S]*?}\s*/i, '')     // strip JSON analysis block
+      .trim();
+    st.textContent = cleaned;
+    st.style.display = 'block';
+  }
+
+  // 2) Render the “Polycode Analysis” card (this adds the runtime bullets inside it)
+  await explainAndMaybeBlock("runtime", { stderr: j, stdout: "", code: src });
+
+  // 3) Usual UI
+  showCompileFailNotice('runtime');
+  const jc = document.getElementById('jconsole');  // keep console tidy
   if (jc) jc.textContent = '';
+
+  window.PolyShell?.setRunnerPhase?.('error');
+  window.PolyShell?.setStatus('Execution Failed','error');
 }
+
 
 
   ok ? resolve() : reject(new Error('run_failed'));
