@@ -652,6 +652,75 @@ async function prepare(){
 
 
 
+// === Polycode Analysis renderer & gating (DROP-IN) ==================
+
+function renderPolycodeAnalysis(hints, hostId = "stderrExplain") {
+  const host = document.getElementById(hostId);
+  if (!host) return;
+  host.innerHTML = "";
+
+  if (!hints || !hints.length) return;
+
+  // minimal, clean card output
+  const wrap = document.createElement("div");
+  wrap.className = "pc-analysis";
+  wrap.innerHTML = `
+    <h3 class="explain-title" style="margin:0 0 8px;">Polycode Analysis</h3>
+    <div class="explain-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+  `;
+  const list = wrap.querySelector(".explain-list");
+
+  for (const h of hints) {
+    const item = document.createElement("div");
+    item.className = "explain-item";
+    item.innerHTML = `
+      <div style="font-weight:600;">${escapeHtml(h.title || "Issue")}</div>
+      ${h.detail ? `<div style="opacity:.85">${escapeHtml(h.detail)}</div>` : ""}
+      ${h.fix ? `<div style="margin-top:4px;">✓ Fix: ${escapeHtml(h.fix)}</div>` : ""}
+    `;
+    list.appendChild(item);
+  }
+  host.appendChild(wrap);
+}
+
+// Treat some warnings as “errors” to beginners (block run)
+function shouldBlockRunFromHints(hints) {
+  if (!Array.isArray(hints)) return false;
+
+  // warnings to block even if exit code==0 (add/tweak as you like)
+  const blockIf = [
+    /printf.*format/i,               // printf format mismatch
+    /scanf.*(&|missing)/i,           // scanf missing &
+    /format.*mismatch/i,
+    /uninitialized/i,                // may be used uninitialized / is uninitialized
+    /use before set/i,
+    /incompatible (types|conversion)/i
+  ];
+
+  return hints.some(h =>
+    (String(h.kind || h.severity || "error") !== "warning") ||
+    blockIf.some(rx => rx.test(h.title || "") || rx.test(h.detail || ""))
+  );
+}
+
+function escapeHtml(s){ return String(s||"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Parse text → hints, render them, and optionally block
+async function explainAndMaybeBlock(phase, { stderr="", stdout="", code="" }) {
+  const parse = window.PolyExplain?.parseCompilerOutput;
+  const result = parse ? parse({ lang: "c", stderr, stdout, code }) : { hints: [] };
+
+  // Put everything in the “Polycode Analysis” area
+  renderPolycodeAnalysis(result.hints);
+
+  // For compile phase only: block execution on dangerous warnings
+  if (phase === "compile" && shouldBlockRunFromHints(result.hints)) {
+    // status + do not proceed to /cc
+    window.PolyShell?.setStatus("Executed with Error", "err");
+    return false;
+  }
+  return true;
+}
 
 
 
