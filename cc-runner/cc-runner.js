@@ -119,37 +119,22 @@ function mergeStreams(a, b) {
 }
 
 // Run a command with ulimits + hard timeout; unbuffer with stdbuf if available.
-// add near the other limits (top of file)
-// add near the top
-// turn off stdbuf by default; we won't need it with a PTY
-const CC_USE_STDBUF = process.env.CC_USE_STDBUF ?? "0";
-
-function runWithLimits(cmd, args, cwd, { timeoutSec, usePty = false } = {}) {
+function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
   const argv = [cmd, ...args].map(a => `'${String(a).replace(/'/g, `'\\''`)}'`).join(" ");
-
-  // no preloads of any kind
-  const preloadBlock = `unset LD_PRELOAD || true`;
-
-  // allocate a pseudo-tty for interactive runs
-  const runner = usePty ? `script -qfec ${argv} /dev/null` :
-                  (CC_USE_STDBUF !== "0" ? `stdbuf -o0 -e0 ${argv}` : `${argv}`);
-
   const bash = `
-${preloadBlock}
-export ASAN_OPTIONS=halt_on_error=1:detect_leaks=0:allocator_may_return_null=1:strip_path_prefix=${cwd}/
-export UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1
-ulimit -t ${CC_CPU_SECS} -f ${CC_FSIZE_KB}; ulimit -v unlimited 2>/dev/null || true
-${runner}
-`;
+    ulimit -t ${CC_CPU_SECS} -v ${CC_VMEM_KB} -f ${CC_FSIZE_KB};
+    if command -v stdbuf >/dev/null 2>&1; then
+      stdbuf -o0 -e0 ${argv};
+    else
+      ${argv};
+    fi
+  `;
   const child = spawn("bash", ["-lc", bash], { cwd });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
-
-
-
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
@@ -199,59 +184,35 @@ app.post("/api/cc/prepare", async (req, res) => {
     const isC   = /\.c$/i.test(entryFile) || (lang === "c");
 
     // Pull flags from environment (Dockerfile provides them)
-    
-    // Pull flags from environment (Dockerfile provides them)
-const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
-let envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
-// strip any -Werror from env (so warnings don't become errors)
-envFlags = envFlags.filter(f => !/^-(Werror)(=|$)/.test(f));
+    const envFlagsRaw = (isCpp ? process.env.CXXFLAGS : process.env.CFLAGS) || "";
+    const envFlags = envFlagsRaw.trim().split(/\s+/).filter(Boolean);
 
-// Detect if env already sets some knobs (based on sanitized envFlags)
-const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
-const hasWall   = envFlags.includes("-Wall");
-const hasWextra = envFlags.includes("-Wextra");
-const hasFmt2   = envFlags.includes("-Wformat=2");
+    // Detect if env already sets some knobs
+    const hasOpt    = envFlags.some(f => /^-O\d\b/.test(f));
+    const hasWall   = envFlags.includes("-Wall");
+    const hasWextra = envFlags.includes("-Wextra");
+    const hasFmt2   = envFlags.includes("-Wformat=2");
 
-// decide sanitizer flags
-const wantSan = String(process.env.CC_ENABLE_SAN || '1') !== '0';
-const sanFlags = wantSan ? ["-fsanitize=address,undefined", "-fno-omit-frame-pointer"] : [];
-
-
-
-// Build compiler argv.
-// Order: srcs, std, opts/warns, SANITIZERS, pthread, -o exe, libs, env
-const args = [
-  ...srcs,
-  std,
-  ...(hasOpt ? [] : ["-O2"]),
-  "-D_POSIX_C_SOURCE=200809L",
-  ...(hasWall   ? [] : ["-Wall"]),
-  ...(hasWextra ? [] : ["-Wextra"]),
-  ...(hasFmt2   ? [] : ["-Wformat=2"]),
-
-  // ✅ must be before -o and before libraries
-  ...sanFlags,
-
-  // keep warnings as warnings
-  "-Wno-error",
-
-  "-pthread",
-  "-o", exePath,
-
-  // libs last
-  "-lm",
-  ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
-
-  // env flags (after we've removed any -Werror)
-  ...envFlags,
-];
+    // Build compiler argv.
+    // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
+    const args = [
+      ...srcs,
+      std,
+      ...(hasOpt ? [] : ["-O2"]),
+      "-D_POSIX_C_SOURCE=200809L",
+      ...(hasWall   ? [] : ["-Wall"]),
+      ...(hasWextra ? [] : ["-Wextra"]),
+      ...(hasFmt2   ? [] : ["-Wformat=2"]),
+      "-pthread",
+      "-o", exePath,
+      "-lm",
+      ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
+      ...envFlags, // Dockerfile’s CFLAGS/CXXFLAGS appended last
+    ];
 
 
-
-    
-
-    
-    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S, usePty: false });
+      
+    const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
 
     let out = "", err = "";
     child.stdout.on("data", d => out += d.toString());
@@ -305,8 +266,7 @@ wss.on("connection", (ws, req) => {
   if (sess.tmr) { try { clearTimeout(sess.tmr); } catch {} sess.tmr = null; }
 
   const { dir, exePath } = sess;
-  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S, usePty: true });
-
+  const child = runWithLimits(exePath, [], dir, { timeoutSec: CC_TIMEOUT_S });
 
   // Stream output
   child.stdout.on("data", d => { try { ws.send(d.toString()); } catch {} });
@@ -342,16 +302,16 @@ wss.on("connection", (ws, req) => {
     cleanup();
   });
 
-ws.on("message", m => {
-  try {
-    const msg = JSON.parse(m.toString());
-    if (msg?.type === "stdin") {
-      const s = String(msg.data ?? "");
-      child.stdin.write(s.endsWith("\n") ? s : (s + "\n"));
+  ws.on("message", m => {
+    try {
+      const msg = JSON.parse(m.toString());
+      if (msg?.type === "stdin") {
+        child.stdin.write(String(msg.data));
+      }
+    } catch {
+      // ignore non-JSON messages
     }
-  } catch { /* ignore */ }
-});
-
+  });
 
   ws.on("close", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
   ws.on("error", () => { try { child.kill("SIGKILL"); } catch {}; cleanup(); });
