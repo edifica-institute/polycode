@@ -756,6 +756,7 @@ async function prepare(){
   return res.json();
 }
 
+let __runtimeAnalysisRaw = "";
 
 
 
@@ -801,6 +802,10 @@ window.runLang = async function(){
   // --- pre-run cleanup (same as you already do) ---
   clearEditorMarkers();
   setComplexityEnabled(false);
+  __runtimeAnalysisRaw = "";
+// (optional) also clear the card from a previous run:
+document.getElementById('stderrExplain')?.replaceChildren();
+
   const prefix = document.getElementById('consolePrefix'); if (prefix) prefix.textContent = '';
   showInputRow(false);
   setConsole('');
@@ -956,7 +961,12 @@ const finish = async (ok) => {
   }
 
   // 2) Render the “Polycode Analysis” card (this adds the runtime bullets inside it)
-  await explainAndMaybeBlock("runtime", { stderr: j, stdout: "", code: src });
+  await explainAndMaybeBlock("runtime", {
+  stderr: __runtimeAnalysisRaw || j,  // << use the captured blob
+  stdout: "",
+  code: src
+});
+
 
   // 3) Usual UI
   showCompileFailNotice('runtime');
@@ -984,48 +994,53 @@ const finish = async (ok) => {
         }
       });
 
-     ws.addEventListener('message', (ev)=>{
-  const raw = ev.data;
-  const text = typeof raw === 'string' ? raw : String(raw || '');
+ws.addEventListener('message', (ev) => {
+  const text = typeof ev.data === 'string' ? ev.data : String(ev.data || '');
+  let handled = false;
 
-  // 1) JSON image payload from runner
-  if (text.trim().startsWith('{')) {
+  // --- stash runtime analysis (JSON or legacy block) ---
+  const isRuntimeJson   = /"type"\s*:\s*"analysis"\s*,\s*"where"\s*:\s*"runtime"/i.test(text);
+  const isRuntimeLegacy = /\[runtime analysis\]/i.test(text);
+  if (isRuntimeJson || isRuntimeLegacy) {
+    __runtimeAnalysisRaw += text + "\n";  // keep it for the explainer
+    handled = true;                        // but don't print to console
+  }
+
+  // existing JSON handling…
+  if (!handled) {
     try {
       const msg = JSON.parse(text);
       if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
-        showImages(msg.urls);      // NEW
-        return;                    // don't print JSON to console
+        showImages(msg.urls); handled = true;
+      } else if (msg && msg.type === 'stdin_req') {
+        showInputRow(true);
+        window.PolyShell?.setRunnerPhase?.('waiting_input');
+        window.PolyShell?.setStatus('Waiting for User Input…','busy');
+        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+        startInputCountdown(5*60*1000);
+        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+        handled = true;
+      } else if (msg && msg.type === 'exit') {
+        runState.exitCode = Number(msg.code);
+        handled = true;
       }
     } catch {}
   }
 
-  // 2) Plain-text fallback marker from runner (still supported)
-  if (text.startsWith('[image] ')) {
+  // fallback image marker
+  if (!handled && text.startsWith('[image] ')) {
     const url = text.substring(8).trim();
-    if (url) { showImages([url]); return; }   // NEW
+    if (url) { showImages([url]); handled = true; }
   }
 
-  // 3) Original behavior (unchanged)
-  termWrite(text);
-
-  // 4) Your existing structured messages
-  try{
-    const msg = JSON.parse(text);
-    if (msg.type === 'stdin_req'){
-      showInputRow(true);
-      window.PolyShell?.setRunnerPhase?.('waiting_input');
-      window.PolyShell?.setStatus('Waiting for User Input…','busy');
-      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
-      startInputCountdown(5*60*1000);
-      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-    } else if (msg.type === 'exit'){
-      runState.exitCode = Number(msg.code);
-    }
-  }catch{}
-
-  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
-  if (m) runState.exitCode = parseInt(m[1],10);
+  // only print plain text
+  if (!handled) {
+    termWrite(text);
+    const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
+    if (m) runState.exitCode = parseInt(m[1],10);
+  }
 });
+
 
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
