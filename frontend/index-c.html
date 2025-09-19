@@ -210,9 +210,8 @@
           </div>
            
         
-        <pre id="stderrText" class="console-block error" aria-label="Compiler Errors"></pre>
-            <!-- NEW: explanations will be injected here -->
-            <div id="stderrExplain" class="console-explain" aria-live="polite"></div>
+      <div id="stderrExplain" class="console-explain" aria-live="polite"></div>
+<pre id="stderrText" class="console-block error"></pre>
         
         </div>
 
@@ -1076,6 +1075,15 @@ const finish = async (ok) => {
       }
       if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', start, { once:true }); }
       else { start(); }
+
+
+      (() => {
+  const ex = document.getElementById('stderrExplain');
+  const tx = document.getElementById('stderrText');
+  if (ex && tx) tx.parentNode.insertBefore(ex, tx);
+})();
+
+      
     })();
   </script>
 
