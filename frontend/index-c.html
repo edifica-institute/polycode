@@ -833,7 +833,7 @@ const finish = async (ok) => {
   }*/
 
 
-  if (!ok) {
+  if (!ok && !__userReset) {
   const j  = document.getElementById('jconsole')?.textContent || '';
    window.PolyShell?.setRawOutputs('', j);                 // NEW: give stderr to explainer
 try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  // NEW
