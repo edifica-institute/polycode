@@ -226,14 +226,19 @@ app.post("/api/cc/prepare", async (req, res) => {
       }
 
       // Successful compile → issue token with TTL (for unused tokens)
-      const token = nanoid();
-      const tmr = setTimeout(() => {
-        try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-        SESSIONS.delete(token);
-      }, CC_TOKEN_TTL_MS);
+      // ...after compile finished successfully
+const token = nanoid();
+const tmr = setTimeout(() => {
+  try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
+  SESSIONS.delete(token);
+}, CC_TOKEN_TTL_MS);
 
-      SESSIONS.set(token, { dir, exePath, tmr });
-      res.json({ token, ok: true, compileLog, diagnostics: [] });
+// NEW: parse warnings too
+const diags = parseGcc(compileLog).filter(d => d.severity !== "note");
+
+SESSIONS.set(token, { dir, exePath, tmr });
+res.json({ token, ok: true, compileLog, diagnostics: diags });
+
     });
   } catch (e) {
     console.error(e);
