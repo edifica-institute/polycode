@@ -1,4 +1,4 @@
-// cc-runner.js — C & C++ runner with CORS + WebSocket + friendly analysis
+// cc-runner.js — C & C++ runner with CORS + WebSocket + friendly analysis + friendly-fatal gate
 import express from "express";
 import cors from "cors";
 import { WebSocketServer } from "ws";
@@ -14,7 +14,7 @@ const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
 // Limits (env-overridable)
 const CC_CPU_SECS = Number(process.env.CC_CPU_SECS || 10);                 // per-process CPU seconds
-const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB (not used with ASan)
+const CC_VMEM_KB  = Number(process.env.CC_VMEM_KB  || 262144);             // ~256MB (not enforced with ASan)
 const CC_FSIZE_KB = Number(process.env.CC_FSIZE_KB || 1048576);            // 1GB output cap
 const CC_TIMEOUT_S = Number(process.env.CC_TIMEOUT_S || 300);              // hard kill (run)
 const CC_COMPILE_TIMEOUT_S = Number(process.env.CC_COMPILE_TIMEOUT_S || 60); // hard kill (compile)
@@ -122,29 +122,15 @@ function mergeStreams(a, b) {
 // We avoid stdbuf (LD_PRELOAD) and pass a single string to `script -c`.
 function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   const hardTimeout = Math.max(1, Number(timeoutSec ?? CC_TIMEOUT_S));
-
-  // shell-quote a single token
   const shQ = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
-
-  // 1) build the *one* command string we actually want to run
   const cmdStr = [cmd, ...args].map(shQ).join(" ");
-
-  // 2) resource limits (skip -v/VMEM so ASan can map shadow memory if enabled)
   const limits = `ulimit -t ${CC_CPU_SECS}; ulimit -f ${CC_FSIZE_KB};`;
-
-  // 3) PTY runner: disable echo so user input isn't printed by the PTY
   const inner = `if command -v stty >/dev/null 2>&1; then stty -echo; trap 'stty echo' EXIT INT TERM HUP; fi; ${cmdStr}; rc=$?; if command -v stty >/dev/null 2>&1; then stty echo; fi; exit $rc`;
   const ptyCmd   = `script -qefc ${shQ(`bash -lc ${shQ(inner)}`)} /dev/null`;
   const fallback = `bash -lc ${shQ(cmdStr)}`;
-
-  // prefer PTY, otherwise fall back to plain bash
-  const runner = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
-
+  const runner   = `if command -v script >/dev/null 2>&1; then ${ptyCmd}; else ${fallback}; fi`;
   const bash = `${limits} ${runner}`;
-
-  // keep sanitizers happy & output clean
   const env = { ...process.env, LD_PRELOAD: "", TERM: "dumb" };
-
   const child = spawn("bash", ["-lc", bash], { cwd, env });
   const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
@@ -169,12 +155,10 @@ function friendlyCompileItems(log) {
 
   for (const raw of L) {
     const s = raw.replace(/\x1B\[[0-9;?]*[ -/]*[@-~]/g, "");
-
     const loc = s.match(/^(.*?):(\d+):(\d+):\s+(warning|note|error):\s+(.*)$/i);
     const at = loc ? { file: loc[1], line: +loc[2], col: +loc[3], msg: loc[5] } : null;
     const msg = at ? at.msg : s;
 
-    // scanf missing &: “expects argument of type 'int *'”
     if (/format .*%d.* expects argument of type .*int \*/i.test(msg) ||
         /expects argument of type 'int \*'/i.test(msg)) {
       push("SCANF_MISSING_AMP",
@@ -185,7 +169,6 @@ function friendlyCompileItems(log) {
       );
       continue;
     }
-    // printf with %d but got double
     if (/format .*%d.* expects argument of type .*int\b/i.test(msg) && /has type .*double\b/i.test(msg)) {
       push("PRINTF_FORMAT_MISMATCH",
         "Mismatched printf format",
@@ -195,7 +178,6 @@ function friendlyCompileItems(log) {
       );
       continue;
     }
-    // incompatible pointer to integer conversion
     if (/incompatible pointer to integer conversion/i.test(msg)) {
       push("TYPE_MISMATCH",
         "Type mismatch",
@@ -205,7 +187,6 @@ function friendlyCompileItems(log) {
       );
       continue;
     }
-    // used uninitialized
     if (/is used uninitialized/i.test(msg) || /may be used uninitialized/i.test(msg)) {
       push("UNINITIALIZED",
         "Variable may be used before set",
@@ -215,7 +196,6 @@ function friendlyCompileItems(log) {
       );
       continue;
     }
-    // non-void function does not return
     if (/control reaches end of non-void function/i.test(msg) ||
         /non-void function does not return/i.test(msg)) {
       push("MISSING_RETURN",
@@ -235,7 +215,6 @@ function friendlyRuntimeItems(output) {
   const items = [];
   const push = (code, title, detail, fix) => items.push({ kind: "error", code, title, detail, fix });
 
-  // UBSan
   if (/UndefinedBehaviorSanitizer:.*integer[- ]divide[- ]by[- ]zero/i.test(s) || /runtime error: division by zero/i.test(s)) {
     push("DIV_BY_ZERO", "Division by zero",
          "A division had 0 as the denominator.", "Check the denominator before dividing.");
@@ -248,8 +227,6 @@ function friendlyRuntimeItems(output) {
     push("NULL_DEREF", "Null pointer dereference",
          "Code dereferenced a NULL pointer.", "Validate pointers before use; ensure memory is allocated.");
   }
-
-  // ASan
   if (/AddressSanitizer: heap-use-after-free/i.test(s)) {
     push("USE_AFTER_FREE", "Use after free",
          "Memory was used after it was freed.", "Don't use pointers after free; set to NULL.");
@@ -262,8 +239,6 @@ function friendlyRuntimeItems(output) {
     push("STACK_OVERFLOW", "Stack overflow",
          "Likely infinite recursion or very large stack allocation.", "Add a base case or use heap allocation.");
   }
-
-  // glibc aborts (when ASan misses)
   if (/double free/i.test(s)) {
     push("DOUBLE_FREE", "Double free",
          "The same pointer was freed twice.", "Free each allocation once and set pointer to NULL after free.");
@@ -272,7 +247,6 @@ function friendlyRuntimeItems(output) {
     push("INVALID_FREE", "Invalid free",
          "Pointer passed to free() wasn’t from malloc/new.", "Only free pointers obtained from malloc/new.");
   }
-
   return items;
 }
 
@@ -288,11 +262,20 @@ function formatFriendlyBlock(items, header="[analysis]") {
   return lines.join("\n") + "\n\n";
 }
 
+// Allow ops to choose which friendly codes are fatal (block run)
+const DEFAULT_FATALS = ["PRINTF_FORMAT_MISMATCH", "SCANF_MISSING_AMP", "TYPE_MISMATCH", "MISSING_RETURN"];
+const FRIENDLY_FATALS = new Set(
+  (process.env.FRIENDLY_FATALS || DEFAULT_FATALS.join(","))
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+);
+
 // Make sure root exists
 try { fssync.mkdirSync(JOB_ROOT, { recursive: true }); } catch {}
 
 // ----------------------------------------------------------------------------
-// In-memory sessions: token → { dir, exePath, tmr?, compileLog?, diagnostics?, friendly? }
+// In-memory sessions: token → { dir, exePath, ... }
 // ----------------------------------------------------------------------------
 const SESSIONS = new Map();
 
@@ -338,7 +321,6 @@ app.post("/api/cc/prepare", async (req, res) => {
     const hasFmt2   = envFlags.includes("-Wformat=2");
 
     // Build compiler argv.
-    // Order: sources, standard, minimal defaults, libs, then ENV flags (last wins).
     const args = [
       ...srcs,
       std,
@@ -347,19 +329,17 @@ app.post("/api/cc/prepare", async (req, res) => {
       ...(hasWall   ? [] : ["-Wall"]),
       ...(hasWextra ? [] : ["-Wextra"]),
       ...(hasFmt2   ? [] : ["-Wformat=2"]),
-      // extra beginner-friendly warnings (remain as warnings)
       "-Wuninitialized",
       "-Wmaybe-uninitialized",
       "-Wnull-dereference",
       "-Wreturn-type",
-      // clean, colorless logs (Docker also sets these; repeating is harmless)
       "-fdiagnostics-color=never",
       "-fno-diagnostics-show-caret",
       "-pthread",
       "-o", exePath,
       "-lm",
       ...(isCpp ? ["-lgmp", "-lgmpxx"] : ["-lgmp"]),
-      ...envFlags // Dockerfile’s CFLAGS/CXXFLAGS appended last
+      ...envFlags
     ];
 
     const child = runWithLimits(cc, args, dir, { timeoutSec: CC_COMPILE_TIMEOUT_S });
@@ -373,12 +353,29 @@ app.post("/api/cc/prepare", async (req, res) => {
       const diagnostics = parseGcc(compileLog);
       const friendly = friendlyCompileItems(compileLog);
 
-      if (code !== 0) {
+      // --- NEW: block execution if any "friendly fatal" is present
+      const friendlyFatal = friendly.filter(it => FRIENDLY_FATALS.has(it.code));
+      const polycodeAnalysis = formatFriendlyBlock(
+        friendlyFatal.length ? friendlyFatal : friendly,
+        "[compile analysis]"
+      );
+
+      if (code !== 0 || friendlyFatal.length) {
+        // treat as compilation failed for the UI if friendly-fatal
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
-        return res.json({ token: null, ok: false, compileLog, diagnostics, friendly });
+        return res.json({
+          token: null,
+          ok: false,
+          compileLog,
+          diagnostics,
+          friendly,
+          friendlyFatal,
+          polycodeAnalysis,
+          reason: friendlyFatal.length ? "friendly-fatal" : "compile-error"
+        });
       }
 
-      // Successful compile → issue token with TTL (for unused tokens)
+      // Successful compile → issue token (still return friendly warnings)
       const token = nanoid();
       const tmr = setTimeout(() => {
         try { fssync.rmSync(dir, { recursive: true, force: true }); } catch {}
@@ -386,7 +383,7 @@ app.post("/api/cc/prepare", async (req, res) => {
       }, CC_TOKEN_TTL_MS);
 
       SESSIONS.set(token, { dir, exePath, tmr, compileLog, diagnostics, friendly });
-      res.json({ token, ok: true, compileLog, diagnostics, friendly });
+      res.json({ token, ok: true, compileLog, diagnostics, friendly, polycodeAnalysis });
     });
   } catch (e) {
     console.error(e);
@@ -420,7 +417,7 @@ wss.on("connection", (ws, req) => {
 
   const { dir, exePath, friendly } = sess;
 
-  // Send friendly compile analysis (warnings/notes) up-front
+  // Optional: show compile analysis before run
   try {
     const block = formatFriendlyBlock(friendly, "[compile analysis]");
     if (block) ws.send(block);
