@@ -1,4 +1,4 @@
-/* =======================================================================
+   /* =======================================================================
    PolyCode Error Helper
    - Parse stderr/stdout from real compilers (C/C++/Java/Python)
    - Produce student-friendly explanations, quick fixes, and annotations
@@ -487,72 +487,39 @@ function detectPython(text, hints) {
 
 // --- POSIX runtime crash detector (for native langs like C/C++) ---
 // --- DROP-IN: smarter runtime crash classifier (C/C++) ---
-function detectPosixCrash(text, code, push) {
+// === DETECTOR A: POSIX runtime crashes (all native langs) ===
+function detectPosixCrash(text, opts, hints) {
   const t = String(text || '');
-  const mExit = /process exited with code\s+(-?\d+)/i.exec(t);
-  const exitCode = mExit ? parseInt(mExit[1], 10) : null;
-  const SIG_BY_EXIT = {132:'SIGILL', 134:'SIGABRT', 136:'SIGFPE', 139:'SIGSEGV', 138:'SIGBUS'};
-  const sig = exitCode && SIG_BY_EXIT[exitCode] ? SIG_BY_EXIT[exitCode] : null;
+  const exitCodeFromTrailer = (() => {
+    const m = /process exited with code\s+(-?\d+)/i.exec(t);
+    return m ? parseInt(m[1], 10) : null;
+  })();
 
-  const mSig = /(Illegal instruction|Floating point exception|Segmentation fault|Bus error|Aborted)(?:\s*\(core dumped\))?/i.exec(t);
-  const sigWord = mSig ? mSig[1].toLowerCase() : null;
+  let code = (opts && typeof opts.exitCode === 'number') ? opts.exitCode : exitCodeFromTrailer;
+  let sig  = (opts && opts.signal) || null;
 
-  if (!mSig && !sig) return false;
-
-  const findDivZero = (src) => {
-    const L = String(src || '').split('\n');
-    for (let i = 0; i < L.length; i++) {
-      if (/\b[/%]\s*0(?!\d)/.test(L[i])) return i + 1;  // match "/ 0" or "% 0"
-    }
-    return null;
-  };
-
-  // Heuristic: identify classic int divide/mod-by-zero in source, regardless of OS signal
-  const dzLine = findDivZero(code);
-  if (dzLine) {
-    push(
-      'Floating point exception / UB: divide by zero',
-      'Integer divide or modulo by zero is undefined behavior; many compilers emit a trap that appears as SIGILL.',
-      dzLine,
-      'Guard the divisor: e.g., `if (b==0) { /* handle */ } else { a/b; }`.',
-      'error',
-      null,
-      'high'
-    );
-    return true;
+  if (!sig && typeof code === 'number' && code >= 128 && code <= 255) {
+    const SIG = {1:"SIGHUP",2:"SIGINT",3:"SIGQUIT",4:"SIGILL",5:"SIGTRAP",6:"SIGABRT",7:"SIGBUS",8:"SIGFPE",9:"SIGKILL",11:"SIGSEGV",13:"SIGPIPE",14:"SIGALRM",15:"SIGTERM"};
+    sig = SIG[code - 128] || null;
   }
+  if (!sig) return;
 
-  // Otherwise fall back to signal-based message
-  let title = 'Program crashed at runtime';
-  let detail = 'The OS terminated the program.';
-  let fix = 'Check recent changes; validate inputs.';
-  let line = null;
+  const detail =
+    sig === 'SIGFPE' ? 'Most commonly divide-by-zero or invalid arithmetic.' :
+    sig === 'SIGSEGV'? 'Invalid memory access (NULL deref or out-of-bounds).' :
+    sig === 'SIGABRT'? 'Program aborted itself (often via assert()).' :
+                       'Process terminated by a POSIX signal.';
 
-  if (sigWord?.includes('illegal') || sig === 'SIGILL') {
-    title = 'Illegal instruction (SIGILL)';
-    detail = 'Invalid CPU instruction—often undefined behavior or aggressive build flags.';
-    fix = 'Remove UB; compile without aggressive -march; try UBSan/ASan.';
-  } else if (sigWord?.includes('floating') || sig === 'SIGFPE') {
-    title = 'Floating point exception (SIGFPE)';
-    detail = 'Most commonly divide-by-zero or invalid arithmetic.';
-    fix = 'Guard divisors against zero; validate arithmetic operands.';
-  } else if (sigWord?.includes('segmentation') || sig === 'SIGSEGV') {
-    title = 'Segmentation fault (SIGSEGV)';
-    detail = 'Invalid memory access (bad pointer or out-of-bounds).';
-    fix = 'Check pointer init and bounds; try AddressSanitizer.';
-  } else if (sigWord?.includes('aborted') || sig === 'SIGABRT') {
-    title = 'Aborted (SIGABRT)';
-    detail = 'abort() called (failed assert or fatal library error).';
-    fix = 'Find and handle the assert/error condition.';
-  } else if (sigWord?.includes('bus') || sig === 'SIGBUS') {
-    title = 'Bus error (SIGBUS)';
-    detail = 'Unaligned access or invalid mapping.';
-    fix = 'Check struct packing and file mappings.';
-  }
+  const fix =
+    sig === 'SIGFPE' ? 'Guard divisors against zero; validate arithmetic operands.' :
+    sig === 'SIGSEGV'? 'Check pointer init and bounds; try AddressSanitizer.' :
+    sig === 'SIGABRT'? 'Check failed assertions and abort() calls.' :
+                        null;
 
-  push(title, detail, line, fix, 'error', null, 'high');
-  return true;
+  // Add a single high-confidence hint
+  add(hints, { title: `Runtime crash: ${sig}`, detail, fix, severity: 'error', confidence: 'high' });
 }
+
 
 
 // (optional) collapse duplicate “[process exited …]” lines
@@ -765,6 +732,15 @@ export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' 
   const hints = [];
   const annotations = [];
 
+   if (phase === 'runtime') {
+    // Sanitizers first (they give very concrete messages)
+    detectSanitizers(rawText, hints);
+    // Then generic POSIX signal mapping
+    detectPosixCrash(rawText, options.status || {}, hints);
+    return hints;
+  }
+
+   
   // ---------- small utilities ----------
   const push = (title, detail, line=null, fix=null, kind='error', column=null, confidence='medium') => {
     hints.push({ title, detail, fix, line, column, kind, confidence });
