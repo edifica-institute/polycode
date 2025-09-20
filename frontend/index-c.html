@@ -688,6 +688,30 @@ async function prepare(){
     function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
     /* ===== Run flow (mirrors Java structure) ===== */
+
+
+window.refreshStderrExplanation = async function ({ alsoAlert = false, status = null } = {}) {
+    const stderr = document.getElementById('jconsole')?.textContent || '';
+    // Re-use the same helper module you load for compiler errors
+    const hints = window.PolyErrorHelper.parseCompilerOutput(stderr, {
+      phase: 'runtime',         // let the helper know we’re in run phase
+      lang:  'c',
+      status                      // forward exitCode/signal from runner
+    });
+    const html = window.PolyErrorHelper.renderHintHTML(hints);
+    const box  = document.getElementById('analysisBox');
+    if (box) { box.innerHTML = html; box.style.display = 'block'; }
+    if (alsoAlert && hints?.[0]?.title) { alert(`${hints[0].title}: ${hints[0].detail}`); }
+  };
+
+
+
+
+
+
+
+
+
     
 
 window.runLang = async function(){
@@ -897,6 +921,19 @@ try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  
     } else if (msg.type === 'exit'){
       runState.exitCode = Number(msg.code);
     }
+else if (msg.type === 'status') {
+  runState.exitCode = Number(msg.exitCode);
+  // Give stderr text to the analyzer (we read it from the console box)
+  const stderrRaw = document.getElementById('jconsole')?.textContent || '';
+  window.PolyShell?.setRawOutputs?.('', stderrRaw);
+  try { await window.refreshStderrExplanation?.({ alsoAlert:false, status: msg }); } catch {}
+  return; // don’t print the JSON object to the console
+}
+
+
+
+
+    
   }catch{}
 
   const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
