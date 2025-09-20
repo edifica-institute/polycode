@@ -276,8 +276,20 @@ wss.on("connection", (ws, req) => {
 
   // Close handler: publishes images, then cleanup
   child.on("close", async (code) => {
-  try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
-      
+  //try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
+
+const SIG = {
+    1:"SIGHUP", 2:"SIGINT", 3:"SIGQUIT", 4:"SIGILL", 5:"SIGTRAP", 6:"SIGABRT",
+    7:"SIGBUS", 8:"SIGFPE", 9:"SIGKILL", 11:"SIGSEGV", 13:"SIGPIPE", 14:"SIGALRM", 15:"SIGTERM"
+  };
+  let sig = signal || (typeof code === 'number' && code >= 128 && SIG[code-128] ? SIG[code-128] : null);
+
+  // 1) JSON status message (machine readable)
+  try { ws.send(JSON.stringify({ type: "status", exitCode: code, signal: sig })); } catch {}
+
+  // 2) Keep your original human trailer, but include the signal if known
+  try { ws.send(`\n[process exited with code ${code}${sig ? ` (${sig})` : ''}]\n`); } catch {}
+    
     try {
       const found = await collectImagesFrom(dir);
       if (found.length) {
