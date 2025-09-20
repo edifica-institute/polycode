@@ -1,4 +1,4 @@
-   /* =======================================================================
+/* =======================================================================
    PolyCode Error Helper
    - Parse stderr/stdout from real compilers (C/C++/Java/Python)
    - Produce student-friendly explanations, quick fixes, and annotations
@@ -486,28 +486,73 @@ function detectPython(text, hints) {
 
 
 // --- POSIX runtime crash detector (for native langs like C/C++) ---
-function detectPosixCrash(text, opts, hints) {
-  const before = hints.length;
-  // ... existing code ...
-  if (!sig) return false;
+// --- DROP-IN: smarter runtime crash classifier (C/C++) ---
+function detectPosixCrash(text, code, push) {
+  const t = String(text || '');
+  const mExit = /process exited with code\s+(-?\d+)/i.exec(t);
+  const exitCode = mExit ? parseInt(mExit[1], 10) : null;
+  const SIG_BY_EXIT = {132:'SIGILL', 134:'SIGABRT', 136:'SIGFPE', 139:'SIGSEGV', 138:'SIGBUS'};
+  const sig = exitCode && SIG_BY_EXIT[exitCode] ? SIG_BY_EXIT[exitCode] : null;
 
-  const detail =
-    sig === 'SIGFPE' ? 'Most commonly divide-by-zero or invalid arithmetic.' :
-    sig === 'SIGSEGV'? 'Invalid memory access (NULL deref or out-of-bounds).' :
-    sig === 'SIGABRT'? 'Program aborted itself (often via assert()).' :
-                       'Process terminated by a POSIX signal.';
+  const mSig = /(Illegal instruction|Floating point exception|Segmentation fault|Bus error|Aborted)(?:\s*\(core dumped\))?/i.exec(t);
+  const sigWord = mSig ? mSig[1].toLowerCase() : null;
 
-  const fix =
-    sig === 'SIGFPE' ? 'Guard divisors against zero; validate arithmetic operands.' :
-    sig === 'SIGSEGV'? 'Check pointer init and bounds; try AddressSanitizer.' :
-    sig === 'SIGABRT'? 'Check failed assertions and abort() calls.' :
-                        null;
+  if (!mSig && !sig) return false;
 
-  add(hints, { title: `Runtime crash: ${sig}`, detail, fix, severity: 'error', confidence: 'high' });
-  return hints.length > before;  // <— NEW
+  const findDivZero = (src) => {
+    const L = String(src || '').split('\n');
+    for (let i = 0; i < L.length; i++) {
+      if (/\b[/%]\s*0(?!\d)/.test(L[i])) return i + 1;  // match "/ 0" or "% 0"
+    }
+    return null;
+  };
+
+  // Heuristic: identify classic int divide/mod-by-zero in source, regardless of OS signal
+  const dzLine = findDivZero(code);
+  if (dzLine) {
+    push(
+      'Floating point exception / UB: divide by zero',
+      'Integer divide or modulo by zero is undefined behavior; many compilers emit a trap that appears as SIGILL.',
+      dzLine,
+      'Guard the divisor: e.g., `if (b==0) { /* handle */ } else { a/b; }`.',
+      'error',
+      null,
+      'high'
+    );
+    return true;
+  }
+
+  // Otherwise fall back to signal-based message
+  let title = 'Program crashed at runtime';
+  let detail = 'The OS terminated the program.';
+  let fix = 'Check recent changes; validate inputs.';
+  let line = null;
+
+  if (sigWord?.includes('illegal') || sig === 'SIGILL') {
+    title = 'Illegal instruction (SIGILL)';
+    detail = 'Invalid CPU instruction—often undefined behavior or aggressive build flags.';
+    fix = 'Remove UB; compile without aggressive -march; try UBSan/ASan.';
+  } else if (sigWord?.includes('floating') || sig === 'SIGFPE') {
+    title = 'Floating point exception (SIGFPE)';
+    detail = 'Most commonly divide-by-zero or invalid arithmetic.';
+    fix = 'Guard divisors against zero; validate arithmetic operands.';
+  } else if (sigWord?.includes('segmentation') || sig === 'SIGSEGV') {
+    title = 'Segmentation fault (SIGSEGV)';
+    detail = 'Invalid memory access (bad pointer or out-of-bounds).';
+    fix = 'Check pointer init and bounds; try AddressSanitizer.';
+  } else if (sigWord?.includes('aborted') || sig === 'SIGABRT') {
+    title = 'Aborted (SIGABRT)';
+    detail = 'abort() called (failed assert or fatal library error).';
+    fix = 'Find and handle the assert/error condition.';
+  } else if (sigWord?.includes('bus') || sig === 'SIGBUS') {
+    title = 'Bus error (SIGBUS)';
+    detail = 'Unaligned access or invalid mapping.';
+    fix = 'Check struct packing and file mappings.';
+  }
+
+  push(title, detail, line, fix, 'error', null, 'high');
+  return true;
 }
-
-
 
 
 // (optional) collapse duplicate “[process exited …]” lines
@@ -715,205 +760,457 @@ function detectCommonRuntimeErrors(text, push) {
 // =======================
 // Drop-in: parseCompilerOutput
 // =======================
-// =======================
-// Drop-in: parseCompilerOutput (fixed)
-// =======================
-export function parseCompilerOutput({
-  lang,
-  stderr = "",
-  stdout = "",
-  code = "",
-  phase = "compile",             // "compile" | "runtime"
-  status = null                  // { exitCode, signal, timedOut } from the runner
-}) {
-  const text = dedupeExitTrailers([stderr, stdout].filter(Boolean).join("\n"));
+export function parseCompilerOutput({ lang, stderr = '', stdout = '', code = '' }) {
+  const text = dedupeExitTrailers([stderr, stdout].filter(Boolean).join('\n'));
   const hints = [];
   const annotations = [];
 
   // ---------- small utilities ----------
-  const push = (title, detail, line = null, fix = null, severity = "error", column = null, confidence = "medium") => {
-    hints.push({ title, detail, fix, line, column, severity, confidence });
-    const msg = `${title}${detail ? ": " + detail : ""}`;
-    annotations.push({ line, column, message: msg, severity });
+  const push = (title, detail, line=null, fix=null, kind='error', column=null, confidence='medium') => {
+    hints.push({ title, detail, fix, line, column, kind, confidence });
+    const msg = `${title}${detail ? ': ' + detail : ''}`;
+    annotations.push({ line, column, message: msg, severity: kind });
   };
-  const firstLine = (s) => (String(s || "").split("\n").find(Boolean) || "").trim();
+  const firstLine = (s) => (String(s||'').split('\n').find(Boolean) || '').trim();
   const asInt = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
-  const L = (s) => String(s || "").toLowerCase();
+  const L = (s) => String(s||'').toLowerCase();
 
   // ---------- optional JSON diagnostics (clang/gcc/tsc) ----------
   try {
-    const trimmed = text.replace(/^\u001b\[[0-9;]*m/g, "").trim();
-    if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    const trimmed = text.replace(/^\u001b\[[0-9;]*m/g, '').trim(); // strip ANSI if any
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       const j = JSON.parse(trimmed);
+      // clang/gcc JSON can be array or obj with "diagnostics"
       const diags = Array.isArray(j) ? j : j?.diagnostics || [];
       if (Array.isArray(diags) && diags.length) {
         for (const d of diags) {
-          const msg = (d.message || d.text || d.rendered || "").trim();
-          const severity = L(d.severity || d.level || "error").includes("warn") ? "warning" : "error";
+          const msg = (d.message || d.text || d.rendered || '').trim();
+          const kind = L(d.severity || d.level || 'error').includes('warn') ? 'warning' : 'error';
           const loc = d.location || d.loc || d.range?.start || {};
           const line = asInt(loc.line || loc.row);
           const column = asInt(loc.column || loc.col);
-          let title = "Compiler diagnostic";
           const codeId = d.code || d.diagnosticId || null;
+          let title = 'Compiler diagnostic';
           if (codeId) title += ` (${codeId})`;
 
-          let fix = null, confidence = "medium";
-          if (/expected ['"`;)]/i.test(msg)) { title = "Missing token"; fix = "Insert the expected token."; confidence = "high"; }
-          if (/undeclared|not declared|cannot find name/i.test(msg)) { title = "Undeclared identifier"; fix = "Declare it or include/import the correct symbol."; confidence = "high"; }
-          if (/incompatible|mismatch|cannot convert/i.test(msg)) { title = "Type mismatch"; fix = "Adjust type or cast appropriately."; }
+          // light classification for JSON path
+          let fix = null, confidence = 'medium';
+          if (/expected ['"`;)]/i.test(msg)) { title = 'Missing token'; fix = 'Insert the expected token.'; confidence='high'; }
+          if (/undeclared|not declared|cannot find name/i.test(msg)) { title='Undeclared identifier'; fix='Declare it or include/import the correct symbol.'; confidence='high'; }
+          if (/incompatible|mismatch|cannot convert/i.test(msg)) { title='Type mismatch'; fix='Adjust type or cast appropriately.'; confidence='medium'; }
 
-          push(title, msg, line, fix, severity, column, confidence);
+          push(title, msg, line, fix, kind, column, confidence);
         }
+         
+         
+         
+         // Catch simple perror-style runtime errors early (works for any lang)
+
+
+
+ 
+         
       }
     }
-  } catch { /* ignore non-JSON */ }
+  } catch { /* non-JSON; continue */ }
 
-  // Catch simple perror-style runtime errors across languages
-  if (detectCommonRuntimeErrors(text, push)) return finalize();
 
-  // ---------- runtime phase (from program execution) ----------
-  if (phase === "runtime") {
-    detectSanitizers(text, hints);               // concrete ASan/UBSan/Tsan messages
-    detectPosixCrash(text, status || {}, hints); // SIGFPE/SIGSEGV/SIGABRT mapping
-    // (Optional) add Java/Python special cases if you run those here:
-    // detectJavaRuntime(text, (t,d,l,f,s,r,c) => push(t,d,l,f,s));
-    // detectPythonTraceback(text, (t,d,l,f,s,r,c) => push(t,d,l,f,s));
-    return finalize();
+   if (detectCommonRuntimeErrors(text, push)) {
+  return finalize();
+}
+
+   
+  // ---------- language-specific text parsers ----------
+  switch ((lang||'').toLowerCase()) {
+    case 'c':
+    case 'cpp':
+    case 'c++':
+    case 'cc': {
+      // --- keyword typo detector (e.g., "fore" vs "for") ---
+      const C_KEYWORDS = ['for','if','while','switch','return','break','continue','sizeof','struct','enum','typedef','do','goto','case','default','else','volatile','static','const','unsigned','signed','long','short','auto','register','extern','union'];
+      const lev = (a,b) => {
+        a=String(a||''); b=String(b||'');
+        const m=a.length, n=b.length; if(!m) return n; if(!n) return m;
+        const dp=Array.from({length:m+1},(_,i)=>Array(n+1).fill(0));
+        for(let i=0;i<=m;i++) dp[i][0]=i;
+        for(let j=0;j<=n;j++) dp[0][j]=j;
+        for(let i=1;i<=m;i++) for(let j=1;j<=n;j++){
+          const cost = a[i-1]===b[j-1] ? 0 : 1;
+          dp[i][j] = Math.min(dp[i-1][j]+1, dp[i][j-1]+1, dp[i-1][j-1]+cost);
+        }
+        return dp[m][n];
+      };
+      const nearestKw = (name) => {
+        let best=null, dist=1e9;
+        for (const k of C_KEYWORDS) { const d=lev(name,k); if (d<dist){ dist=d; best=k; } }
+        return dist<=1 ? best : null; // one edit away → likely typo
+      };
+
+       detectGccClang(text, hints);
+const hadSan = detectSanitizers(text, hints);
+
+// ALWAYS try to classify native crashes too (SIGILL/SIGFPE/etc.)
+const hadPosix = detectPosixCrash(text, code, push);
+
+// (optional) prioritize divide-by-zero over a generic UBSan card
+if (hadPosix && hadSan) {
+  const dzIdx = hints.findIndex(h =>
+    /divide by zero/i.test(h.title) || /divide by zero/i.test(h.detail)
+  );
+  const ubIdx = hints.findIndex(h => /UndefinedBehaviorSanitizer/i.test(h.title));
+  if (dzIdx >= 0 && ubIdx >= 0) {
+    // move DZ card to the top
+    const dz = hints.splice(dzIdx, 1)[0];
+    hints.unshift(dz);
   }
+}
 
-  // ---------- language-specific text parsers (compile phase) ----------
-  switch ((lang || "").toLowerCase()) {
-    case "c":
-    case "cpp":
-    case "c++":
-    case "cc": {
-      // GCC/Clang styled diagnostics
-      detectGccClang(text, hints);
-      const hadSan = detectSanitizers(text, hints);
-      const hadPosix = detectPosixCrash(text, status || {}, hints); // <-- fixed call
+     
 
-      // Prefer DZ over generic UBSan if both present
-      if (hadPosix && hadSan) {
-        const dzIdx = hints.findIndex(h => /divide by zero/i.test(h.title) || /divide by zero/i.test(h.detail));
-        const ubIdx = hints.findIndex(h => /UndefinedBehaviorSanitizer/i.test(h.title));
-        if (dzIdx >= 0 && ubIdx >= 0) {
-          const dz = hints.splice(dzIdx, 1)[0];
-          hints.unshift(dz);
-        }
-      }
+      // gcc/clang: file:line:col: error: message
+       if (!hints.length) {
+      const main = text.match(/^(.*?):(\d+)(?::(\d+))?:\s*(error|fatal error|warning):\s*(.+)$/m);
+      if (main) {
+        const line = asInt(main[2]), col = asInt(main[3]);
+        const level = L(main[4]), msg = main[5].trim();
 
-      // Fallback line-specific parse for gcc/clang text
-      if (!hints.length) {
-        const main = text.match(/^(.*?):(\d+)(?::(\d+))?:\s*(error|fatal error|warning):\s*(.+)$/m);
-        if (main) {
-          const line = asInt(main[2]), col = asInt(main[3]);
-          const level = L(main[4]), msg = main[5].trim();
-
-          if (/implicit declaration of function\s+['"`]?([A-Za-z_]\w*)['"`]?/i.test(msg)) {
-            push("Missing function prototype", "You called a function before it was declared or included.", line, "Add a prototype or include the header.", "error", col, "high");
-          }
-          if (/expected\s*['‘’"]?;['‘’"]?\s*(?:before|after)?/i.test(msg)) {
-            push("Missing semicolon", "Add a `;` at the end of the statement.", line, "Insert `;`.", "error", col, "high");
-          }
-          if (/['‘’"`]?([A-Za-z_]\w*)['‘’"`]?\s*(?:undeclared|was not declared)/i.test(msg) ||
-              /use of undeclared identifier/i.test(msg)) {
-            push("Undeclared identifier", "Declare the name or include the correct header.", line, "Declare it or include the header.", "error", col, "high");
-          }
-          if (/no such file or directory/i.test(msg) && /include/i.test(msg)) {
-            push("Header not found", "The included header file was not found.", line, "Fix the `#include` path or add the missing header.", "error", col, "high");
-          }
-          if (/format specifies type.*but the argument has type/i.test(msg)) {
-            push("printf/scanf format mismatch", "Your `%` format and argument types don’t match.", line, "Fix the format specifier or cast the argument.", "error", col, "high");
-          }
-          if (/conflicting types|redefinition/i.test(msg)) {
-            push("Conflicting types / Redefinition", "The same symbol is declared incompatibly.", line, "Use a single consistent declaration and remove duplicates.", "error", col, "medium");
-          }
-          if (!hints.length && (level === "error" || level === "fatal error")) {
-            push("Compiler error", msg, line, "Fix at the highlighted line.", "error", col, "low");
+        // implicit declaration (function) — check for keyword near-miss first
+        const imp = /implicit declaration of function\s+['"`]?([A-Za-z_]\w*)['"`]?/i.exec(msg);
+        if (imp) {
+          const name = imp[1], kw = nearestKw(name);
+          if (kw) {
+            push('Keyword typo', `Looks like \`${name}\` should be the keyword \`${kw}\`.`, line, `Replace \`${name}\` with \`${kw}\`.`, 'error', col, 'high');
+          } else {
+            push('Missing function prototype', 'You called a function before it was declared or included.', line, 'Add a prototype or include the header.', 'error', col, 'high');
           }
         }
-      }
-
-      // Linker: undefined reference to `foo`
-      if (!hints.length) {
-        const links = [...text.matchAll(/undefined reference to `?([A-Za-z_]\w*)`?/g)];
-        if (links.length) {
-          const names = Array.from(new Set(links.map(m => m[1]))).slice(0, 5);
-          push("Linker error: undefined reference", `Missing implementation or library for: ${names.join(", ")}`, null, "Provide the function(s) or link the correct library.", "error", null, "high");
+        // expected ';'
+        if (/expected\s*['‘’"]?;['‘’"]?\s*(?:before|after)?/i.test(msg)) {
+          push('Missing semicolon', 'Add a `;` at the end of the statement.', line, 'Insert `;`.', 'error', col, 'high');
+        }
+        // undeclared identifier
+        if (/['‘’"`]?([A-Za-z_]\w*)['‘’"`]?\s*(?:undeclared|was not declared)/i.test(msg) ||
+            /use of undeclared identifier/i.test(msg)) {
+          push('Undeclared identifier', 'Declare the name or include the correct header.', line, 'Declare it or include the header.', 'error', col, 'high');
+        }
+        // include not found
+        if (/no such file or directory/i.test(msg) && /include/i.test(msg)) {
+          push('Header not found', 'The included header file was not found.', line, 'Fix the `#include` path or add the missing header.', 'error', col, 'high');
+        }
+        // format mismatch
+        if (/format specifies type.*but the argument has type/i.test(msg)) {
+          push('printf/scanf format mismatch', 'Your `%` format and argument types don’t match.', line, 'Fix the format specifier or cast the argument.', 'error', col, 'high');
+        }
+        // conflicting types / redefinition
+        if (/conflicting types|redefinition/i.test(msg)) {
+          push('Conflicting types / Redefinition', 'The same symbol is declared incompatibly.', line, 'Use a single consistent declaration and remove duplicates.', 'error', col, 'medium');
+        }
+        // generic line-specific
+        if (!hints.length && (level==='error' || level==='fatal error')) {
+          push('Compiler error', msg, line, 'Fix at the highlighted line.', 'error', col, 'low');
         }
       }
+       }
+
+        if (!hints.length) {
+      // linker: undefined reference to `foo`
+      const links = [...text.matchAll(/undefined reference to `?([A-Za-z_]\w*)`?/g)];
+      if (links.length) {
+        const names = Array.from(new Set(links.map(m => m[1]))).slice(0,5);
+        push('Linker error: undefined reference', `Missing implementation or library for: ${names.join(', ')}`, null, 'Provide the function(s) or link the correct library.', 'error', null, 'high');
+      }}
+
+      //if (!hints.length) detectPosixCrash(text, code, push);
       break;
     }
 
-    case "java": {
-      // compile errors first
+    case 'java': {
+      // javac: file:line: error: message
       const m = text.match(/^(.*?):(\d+):\s*error:\s*(.+)$/m);
       if (m) {
         const line = asInt(m[2]), msg = m[3].trim();
-        if (/cannot find symbol/i.test(msg)) {
-          const name = text.match(/symbol:\s*(?:class|variable|method)\s+([A-Za-z_]\w*)/i)?.[1];
-          push("Cannot find symbol", name ? `Symbol \`${name}\` is not declared or not imported.` : "A symbol is not declared or not imported.", line, "Declare it or import the right package.", "error");
+
+        // cannot find symbol
+        const sym = /cannot find symbol/i.test(msg);
+        if (sym) {
+          // Try to capture symbol name from following lines
+          const nameMatch = text.match(/symbol:\s*(?:class|variable|method)\s+([A-Za-z_]\w*)/i);
+          const name = nameMatch?.[1];
+          push('Cannot find symbol', name ? `Symbol \`${name}\` is not declared or not imported.` : 'A symbol is not declared or not imported.', line, 'Declare it or import the right package.', 'error', null, 'high');
         }
-        if (/package .* does not exist/i.test(msg)) push("Package not found", "The package is not on the classpath.", line, "Add the dependency or correct the import.", "error");
-        if (/';' expected/i.test(msg))          push("Missing semicolon", "Add a `;` at the end of the statement.", line, "Insert `;`.", "error");
-        if (/incompatible types/i.test(msg))    push("Incompatible types", "The assigned expression type does not match the variable type.", line, "Adjust the type or cast safely.", "error");
-        if (/missing return statement/i.test(msg)) push("Missing return", "A non-void method must return a value on all paths.", line, "Return a value or change the method to void.", "error");
-        if (/unreported exception .*; must be caught or declared to be thrown/i.test(msg))
-          push("Unchecked exception handling", "You must catch or declare the checked exception.", line, "Wrap in try-catch or add `throws` to the method.", "error");
-        if (!hints.length) push("Compiler error", firstLine(msg), line, "Fix at the highlighted line.", "error");
+        // package does not exist
+        if (/package .* does not exist/i.test(msg)) {
+          push('Package not found', 'The package is not on the classpath.', line, 'Add the dependency or correct the import.', 'error', null, 'high');
+        }
+        // ';' expected
+        if (/';' expected/i.test(msg)) {
+          push('Missing semicolon', 'Add a `;` at the end of the statement.', line, 'Insert `;`.', 'error', null, 'high');
+        }
+        // incompatible types
+        if (/incompatible types/i.test(msg)) {
+          push('Incompatible types', 'The assigned expression type does not match the variable type.', line, 'Adjust the type or cast safely.', 'error', null, 'high');
+        }
+        // missing return statement
+        if (/missing return statement/i.test(msg)) {
+          push('Missing return', 'A non-void method must return a value on all paths.', line, 'Return a value or change the method to void.', 'error', null, 'high');
+        }
+        // unreported exception
+        if (/unreported exception .*; must be caught or declared to be thrown/i.test(msg)) {
+          push('Unchecked exception handling', 'You must catch or declare the checked exception.', line, 'Wrap in try-catch or add `throws` to the method.', 'error', null, 'high');
+        }
+        if (!hints.length) push('Compiler error', firstLine(msg), line, 'Fix at the highlighted line.', 'error', null, 'low');
       }
-      if (!hints.length) detectJava(text, code, hints); // runtime exception shape
+       if (!hints.length) detectJavaRuntime(text, push);
       break;
     }
 
-    case "python": {
-      // Use your existing Python logic
-      detectPython(text, hints) || detectPythonTraceback(text, (t, d, l, f, s, r, c) => push(t, d, l, f, s));
+    case 'python': {
+      // Extract last frame from traceback
+      // File "main.py", line X
+      const frame = [...text.matchAll(/File\s+"([^"]+)",\s+line\s+(\d+)(?:,\s+in\s+([^\n]+))?/g)].pop();
+      const errLine = frame ? asInt(frame[2]) : null;
+      const errMsg = (text.split('\n').reverse().find(l => /\w+Error:/.test(l)) || '').trim();
+
+      if (/SyntaxError:/i.test(errMsg)) {
+        // Common details: unexpected EOF/indent/':' expected etc.
+        if (/unexpected EOF/i.test(errMsg)) {
+          push('SyntaxError: unexpected end of file', 'You likely missed a closing bracket, quote, or block.', errLine, 'Close the bracket/quote or complete the block.', 'error', null, 'high');
+        } else if (/expected ':'/i.test(errMsg)) {
+          push('SyntaxError: missing colon', 'Statements like `if`, `for`, `def`, `class` require a `:`.', errLine, 'Add the colon `:` at the end of the header line.', 'error', null, 'high');
+        } else if (/invalid syntax/i.test(errMsg)) {
+          push('SyntaxError: invalid syntax', 'There is a syntax error on this line.', errLine, 'Fix the syntax near the caret.', 'error', null, 'medium');
+        } else {
+          push('SyntaxError', errMsg.replace(/^\w+Error:\s*/,''), errLine, 'Fix the syntax on this line.', 'error', null, 'medium');
+        }
+      } else if (/IndentationError:/i.test(errMsg)) {
+        push('IndentationError', 'Block indentation is incorrect or inconsistent (tabs/spaces).', errLine, 'Use consistent 4-space indents and align blocks.', 'error', null, 'high');
+      } else if (/NameError:/i.test(errMsg)) {
+        const nm = /NameError:\s*name\s*'([^']+)'/i.exec(errMsg)?.[1];
+        push('NameError', nm ? `\`${nm}\` is not defined.` : 'A name is not defined.', errLine, 'Define the variable/function or import it.', 'error', null, 'high');
+      } else if (/TypeError:/i.test(errMsg)) {
+  const q = explainPyTypeOrAttr(errMsg);
+  push('TypeError', q.detail, errLine, q.fix, 'error', null, q.confidence);
+} else if (/AttributeError:/i.test(errMsg)) {
+  const q = explainPyTypeOrAttr(errMsg);
+  push('AttributeError', q.detail, errLine, q.fix, 'error', null, q.confidence);
+}
+ 
+      
+      else if (errMsg) {
+        push('Runtime error', errMsg, errLine, 'Fix the error at this line.', 'error', null, 'low');
+      }
+       if (!hints.length) detectPythonTraceback(text, push);
+
       break;
     }
 
-    case "js":
-    case "javascript":
-    case "ts":
-    case "typescript":
-      // keep your TS/JS branch unchanged…
-      // (omitted here for brevity)
+    case 'js':
+    case 'javascript':
+    case 'ts':
+    case 'typescript': {
+      // tsc: file(line,col): error TSxxxx: message
+      const tsc = text.match(/^(.*)\((\d+),(\d+)\):\s*error\s*TS(\d+):\s*(.+)$/m);
+      if (tsc) {
+        const line = asInt(tsc[2]), col = asInt(tsc[3]);
+        const msg = tsc[5].trim();
+        // common TS classifications
+        if (/cannot find name/i.test(msg)) {
+          push('Cannot find name', 'This identifier is not declared in the current scope.', line, 'Declare it or import the symbol.', 'error', col, 'high');
+        } else if (/type .* is not assignable to type/i.test(msg)) {
+          push('Type mismatch', 'Assigned value type is incompatible.', line, 'Adjust types or add a safe cast.', 'error', col, 'high');
+        } else if (/property .* does not exist on type/i.test(msg)) {
+          push('Unknown property', 'The property/method is not part of this type.', line, 'Narrow the type or add the property.', 'error', col, 'high');
+        } else if (/cannot find module/i.test(msg)) {
+          push('Module not found', 'Import path or dependency is missing.', line, 'Fix import path or install the dependency.', 'error', col, 'high');
+        } else {
+          push('TypeScript error', msg, line, 'Fix at the highlighted location.', 'error', col, 'medium');
+        }
+      } else {
+        // Generic JS parse/runtime shapes
+        if (/Unexpected token/i.test(text)) {
+          push('Syntax error', firstLine(text), null, 'Check for a missing/extra token.', 'error', null, 'medium');
+        } else if (/is not defined/i.test(text)) {
+          push('ReferenceError', firstLine(text), null, 'Declare the variable or import it.', 'error', null, 'high');
+        } else if (/cannot read (?:properties|property) of undefined/i.test(text)) {
+          push('Undefined value', firstLine(text), null, 'Ensure the value is defined before accessing properties.', 'error', null, 'high');
+        }
+      }
       break;
+    }
 
-    case "sql":
-      // keep your SQL branch unchanged…
-      break;
+
+case 'sql': {
+  const s = String(text || '');
+  const first = firstLine(s);
+
+
+  
+
+
+   
+  // --- Table already exists (SQLite/sql.js & others) ---
+  // e.g. "table users already exists"
+  if (/\btable\s+[`"'[\]A-Za-z0-9_.-]+\s+already\s+exists\b/i.test(s) ||
+      /\balready\s+exists\b.*\btable\b/i.test(s)) {
+    const tbl = (s.match(/\btable\s+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
+    push(
+      'Table Already Exists',
+      `You’re trying to create ${tbl}, but it already exists in this database.`,
+      null,
+      `Use \`CREATE TABLE IF NOT EXISTS ${tbl}(...)\` or drop it first with \`DROP TABLE ${tbl};\`.`,
+      'error', null, 'high'
+    );
+  }
+
+  // --- Unknown table ---
+  // SQLite: "no such table: users" | Postgres: "relation users does not exist"
+  if (/\bno such table\b|\brelation\b.+\bdoes not exist\b/i.test(s)) {
+    const tbl = (s.match(/\b(?:no such table|relation)\s*[:\s]+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that table';
+    push(
+      'Unknown Table',
+      `Table ${tbl} does not exist.`,
+      null,
+      'Create the table first or correct the table name.',
+      'error', null, 'high'
+    );
+  }
+
+  // --- Unknown column ---
+  // SQLite: "no such column: x" | Postgres: 'column "x" does not exist'
+  if (/\bno such column\b|\bcolumn\b.+\bdoes not exist\b/i.test(s)) {
+    const col = (s.match(/\b(?:no such column|column)\s*[:\s]+([`"'[\]A-Za-z0-9_.-]+)/i) || [])[1] || 'that column';
+    push(
+      'Unknown Column',
+      `Column ${col} does not exist.`,
+      null,
+      'Fix the column name or add the column before querying it.',
+      'error', null, 'high'
+    );
+  }
+
+  // --- Syntax error near token (SQLite & Postgres phrasing) ---
+  if (/\bsyntax error\b/i.test(s)) {
+    const token =
+      (/\bnear\s+["']?([^"']+)["']?\s*:\s*syntax error/i.exec(s)?.[1]) ||
+      (/\bsyntax error at or near\s+["']?([^"']+)["']?/i.exec(s)?.[1]);
+    push(
+      'SQL Syntax Error',
+      token ? `Problem near \`${token}\`.` : first,
+      null,
+      'Check the SQL syntax around the highlighted token/position.',
+      'error', null, 'high'
+    );
+  }
+
+  // --- Unique / primary key constraint ---
+  // SQLite: "UNIQUE constraint failed: users.id"
+  // Postgres: "duplicate key value violates unique constraint"
+  if (/\bunique constraint failed\b|\bduplicate key\b|\bprimary key must be unique\b/i.test(s)) {
+    const what = (s.match(/unique constraint failed:\s*([A-Za-z0-9_.]+)/i)?.[1]) || 'a unique/primary key';
+    push(
+      'Unique Constraint Violation',
+      `Duplicate value for \`${what}\`.`,
+      null,
+      'Insert a different value, or change/remove the unique/primary key constraint.',
+      'error', null, 'high'
+    );
+  }
+
+  // --- NOT NULL constraint ---
+  // SQLite: "NOT NULL constraint failed: users.name"
+  // Postgres: "null value in column \"name\" violates not-null constraint"
+  if (/\bnot[- ]null constraint failed\b|\bnull value in column\b.+\bviolates not-null\b/i.test(s)) {
+    const what =
+      (s.match(/not[- ]null constraint failed:\s*([A-Za-z0-9_."]+)/i)?.[1]) ||
+      (s.match(/null value in column\s+([A-Za-z0-9_."]+)\s+violates/i)?.[1]) ||
+      'a NOT NULL column';
+    push(
+      'NOT NULL Violation',
+      `A required value for ${what} is missing.`,
+      null,
+      'Provide a non-NULL value for the column (or relax the constraint).',
+      'error', null, 'high'
+    );
+  }
+
+  // --- Foreign key constraint ---
+  if (/\bforeign key constraint failed\b|\breference constraint\b|\breferences\b.+\bfails\b/i.test(s)) {
+    push(
+      'Foreign Key Constraint Failed',
+      first,
+      null,
+      'Ensure the referenced parent row exists and that types/values match.',
+      'error', null, 'medium'
+    );
+  }
+
+  // --- Datatype mismatch / value too long ---
+  if (/\bdatatype mismatch\b|\bvalue too long\b|\binvalid input syntax\b/i.test(s)) {
+    push(
+      'Datatype Mismatch',
+      first,
+      null,
+      'Use a compatible type/size for the column, or cast/trim the value.',
+      'error', null, 'medium'
+    );
+  }
+
+  break;
+}
+
+
+
+
+
+
+
+
+        
+
   }
 
   // ---------- generic fallback ----------
   if (!hints.length) {
     if (/error/i.test(text) || /exception/i.test(text) || /traceback/i.test(text)) {
-      push("Error reported", firstLine(text) || "The tool reported an error.", null, "Inspect the first error and fix it.", "error");
+      push('Error reported', firstLine(text) || 'The tool reported an error.', null, 'Inspect the first error and fix it.', 'error', null, 'low');
     }
   }
 
-  // ---------- enrich hints with code snippets ----------
-  for (const h of hints) {
-    if (h && h.line && code) h.snippet = extractSnippet(code, h.line, 1);
+   // ---------- enrich hints with code snippets ----------
+for (const h of hints) {
+  if (h && h.line && code) {
+    h.snippet = extractSnippet(code, h.line, 1);  // 1 line of context above/below
   }
+}
+
 
   return finalize();
 
   // ---------- summarizer ----------
   function finalize() {
-    const seen = new Set(); const ann = [];
+    // de-dup annotations with same (line,column,message)
+    const seen = new Set();
+    const ann = [];
     for (const a of annotations) {
-      const key = `${a.line || 0}:${a.column || 0}:${a.message}`;
+      const key = `${a.line||0}:${a.column||0}:${a.message}`;
       if (!seen.has(key)) { seen.add(key); ann.push(a); }
     }
-    const top = hints[0];
-    const summary = hints.length
-      ? `${top.title}${top.detail ? " — " + top.detail : ""}`
-      : `The compiler reported errors, but I couldn’t interpret them confidently.`;
+
+    const strong = hints.filter(h => h.confidence === 'high').length;
+    /*const summary = hints.length
+      ? `Found ${hints.length} issue${hints.length>1?'s':''}${strong?` (${strong} high confidence)`:''}. Fix the first error first; later errors may be a cascade.`
+      : `The compiler reported errors, but I couldn’t interpret them confidently.`;*/
+
+
+     const top = hints[0];
+const summary = hints.length
+  ? `${top.title}${top.detail ? ' — ' + top.detail : ''}`
+  : `The compiler reported errors, but I couldn’t interpret them confidently.`;
+
+     
     return { hints, summary, annotations: ann };
   }
 }
-
 
 
 
