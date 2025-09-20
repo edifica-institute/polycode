@@ -9,7 +9,6 @@ import path from "node:path";
 import { nanoid } from "nanoid";
 import crypto from "crypto";
 
-
 const PORT = process.env.PORT || 8083;
 const JOB_ROOT = process.env.JOB_ROOT || "/tmp/ccjobs";
 
@@ -133,15 +132,10 @@ function runWithLimits(cmd, args, cwd, { timeoutSec } = {}) {
   `;
 
   const child = spawn("bash", ["-lc", bash], { cwd });
-  const killer = setTimeout(() => {
-    child._killedByTimeout = true;             // <-- tag timeouts
-    try { child.kill("SIGKILL"); } catch {}
-  }, hardTimeout * 1000);
-
+  const killer = setTimeout(() => { try { child.kill("SIGKILL"); } catch {} }, hardTimeout * 1000);
   child.on("close", () => { try { clearTimeout(killer); } catch {} });
   return child;
 }
-
 
 function compilerFor(lang, entry) {
   if (lang === "c")   return { cc: "gcc", std: "-std=c17" };
@@ -280,54 +274,34 @@ wss.on("connection", (ws, req) => {
   child.stderr.on("data", d => { try { ws.send(d.toString()); } catch {} });
 
   // Close handler: publishes images, then cleanup
-child.on("close", async (code, signal) => {          // <-- include 'signal' here
-  // Map exit code 128+N to SIG* (bash encodes crashes this way)
-  const SIG = {
-    1:"SIGHUP", 2:"SIGINT", 3:"SIGQUIT", 4:"SIGILL", 5:"SIGTRAP", 6:"SIGABRT",
-    7:"SIGBUS", 8:"SIGFPE", 9:"SIGKILL", 11:"SIGSEGV", 13:"SIGPIPE", 14:"SIGALRM", 15:"SIGTERM"
-  };
-  const sig = signal || (typeof code === "number" && code >= 128 ? SIG[code - 128] || null : null);
+  child.on("close", async (code) => {
+    try { ws.send(`\n[process exited with code ${code}]\n`); } catch {}
 
-  // 1) JSON status for the UI (don’t echo this back into the console on the client)
-  try {
-    ws.send(JSON.stringify({
-      type: "status",
-      exitCode: code,
-      signal: sig,
-      timedOut: !!child._killedByTimeout
-    }));
-  } catch {}
+    try {
+      const found = await collectImagesFrom(dir);
+      if (found.length) {
+        const tokenDir = crypto.randomUUID();
+        const outDir = path.join(PUBLIC_ROOT, tokenDir);
+        try { fssync.mkdirSync(outDir, { recursive: true }); } catch {}
 
-  // 2) Keep the human trailer line (nice for the raw console)
-  try { ws.send(`\n[process exited with code ${code}${sig ? ` (${sig})` : ""}]\n`); } catch {}
+        const urls = [];
+        for (const f of found) {
+          const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+          const dest = path.join(outDir, safeName);
+          await fs.copyFile(f.full, dest);
+          urls.push(`/artifacts/${tokenDir}/${safeName}`);
+        }
 
-  // ----- your existing artifact publish + cleanup (unchanged) -----
-  try {
-    const found = await collectImagesFrom(dir);
-    if (found.length) {
-      const tokenDir = crypto.randomUUID();
-      const outDir = path.join(PUBLIC_ROOT, tokenDir);
-      try { fssync.mkdirSync(outDir, { recursive: true }); } catch {}
+        try { ws.send(JSON.stringify({ type: "images", urls })); } catch {}
+        for (const u of urls) { try { ws.send(`[image] ${u}\n`); } catch {} }
 
-      const urls = [];
-      for (const f of found) {
-        const safeName = f.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-        const dest = path.join(outDir, safeName);
-        await fs.copyFile(f.full, dest);
-        urls.push(`/artifacts/${tokenDir}/${safeName}`);
+        setTimeout(() => { try { fssync.rmSync(outDir, { recursive: true, force: true }); } catch {} }, 5 * 60 * 1000);
       }
+    } catch (e) { console.error("artifact publish error:", e); }
 
-      try { ws.send(JSON.stringify({ type: "images", urls })); } catch {}
-      for (const u of urls) { try { ws.send(`[image] ${u}\n`); } catch {} }
-
-      setTimeout(() => { try { fssync.rmSync(outDir, { recursive: true, force: true }); } catch {} }, 5 * 60 * 1000);
-    }
-  } catch (e) { console.error("artifact publish error:", e); }
-
-  try { ws.close(); } catch {}
-  cleanup();
-});
-
+    try { ws.close(); } catch {}
+    cleanup();
+  });
 
   ws.on("message", m => {
     try {
