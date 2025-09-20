@@ -486,23 +486,10 @@ function detectPython(text, hints) {
 
 
 // --- POSIX runtime crash detector (for native langs like C/C++) ---
-// --- DROP-IN: smarter runtime crash classifier (C/C++) ---
-// === DETECTOR A: POSIX runtime crashes (all native langs) ===
 function detectPosixCrash(text, opts, hints) {
-  const t = String(text || '');
-  const exitCodeFromTrailer = (() => {
-    const m = /process exited with code\s+(-?\d+)/i.exec(t);
-    return m ? parseInt(m[1], 10) : null;
-  })();
-
-  let code = (opts && typeof opts.exitCode === 'number') ? opts.exitCode : exitCodeFromTrailer;
-  let sig  = (opts && opts.signal) || null;
-
-  if (!sig && typeof code === 'number' && code >= 128 && code <= 255) {
-    const SIG = {1:"SIGHUP",2:"SIGINT",3:"SIGQUIT",4:"SIGILL",5:"SIGTRAP",6:"SIGABRT",7:"SIGBUS",8:"SIGFPE",9:"SIGKILL",11:"SIGSEGV",13:"SIGPIPE",14:"SIGALRM",15:"SIGTERM"};
-    sig = SIG[code - 128] || null;
-  }
-  if (!sig) return;
+  const before = hints.length;
+  // ... existing code ...
+  if (!sig) return false;
 
   const detail =
     sig === 'SIGFPE' ? 'Most commonly divide-by-zero or invalid arithmetic.' :
@@ -516,9 +503,10 @@ function detectPosixCrash(text, opts, hints) {
     sig === 'SIGABRT'? 'Check failed assertions and abort() calls.' :
                         null;
 
-  // Add a single high-confidence hint
   add(hints, { title: `Runtime crash: ${sig}`, detail, fix, severity: 'error', confidence: 'high' });
+  return hints.length > before;  // <— NEW
 }
+
 
 
 
