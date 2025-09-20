@@ -688,49 +688,6 @@ async function prepare(){
     function stopHeartbeat(){ if (hbInterval){ clearInterval(hbInterval); hbInterval=null; } if (hbTimeout){ clearTimeout(hbTimeout); hbTimeout=null; } }
 
     /* ===== Run flow (mirrors Java structure) ===== */
-
-
-window.refreshStderrExplanation = async function ({ alsoAlert = false, status = null } = {}) {
-  const stderr = document.getElementById('jconsole')?.textContent || '';
-  const code   = window.editor?.getValue?.() || '';
-  const { hints } = window.PolyErrorHelper.parseCompilerOutput({
-    lang:  'c',
-    stderr,
-    code,
-    phase: 'runtime',
-    status
-  });
-
-  const box = document.getElementById('stderrExplain');
-  if (box) {
-    box.innerHTML = hints.map(window.PolyErrorHelper.renderHintHTML).join('');
-    box.style.display = hints.length ? 'block' : 'none';
-  }
-
-  if (alsoAlert && hints?.[0]?.title) {
-    alert(`${hints[0].title}${hints[0].detail ? ': ' + hints[0].detail : ''}`);
-  }
-};
-
-
-
-async function loadHeaders(list){
-  const files = [];
-  for (const name of list) {
-    if (name === 'graphics.h') {
-      __GRAPHICS_H_TEXT = __GRAPHICS_H_TEXT ?? await loadGraphicsHeader();
-      files.push({ path: 'graphics.h', content: __GRAPHICS_H_TEXT || GRAPHICS_H_FALLBACK });
-    }
-  }
-  return files;
-}
-
-
-
-
-
-
-
     
 
 window.runLang = async function(){
@@ -903,59 +860,48 @@ try { await window.refreshStderrExplanation?.({ alsoAlert:false }); } catch {}  
         }
       });
 
-     ws.addEventListener('message', async (ev) => {
-  const text = typeof ev.data === 'string' ? ev.data : String(ev.data || '');
+     ws.addEventListener('message', (ev)=>{
+  const raw = ev.data;
+  const text = typeof raw === 'string' ? raw : String(raw || '');
 
-  // 1) Structured messages first
+  // 1) JSON image payload from runner
   if (text.trim().startsWith('{')) {
     try {
       const msg = JSON.parse(text);
-
-      if (msg.type === 'images' && Array.isArray(msg.urls)) {
-        showImages(msg.urls);
-        return;
+      if (msg && msg.type === 'images' && Array.isArray(msg.urls)) {
+        showImages(msg.urls);      // NEW
+        return;                    // don't print JSON to console
       }
-
-      if (msg.type === 'status') {
-        runState.exitCode = Number(msg.exitCode);
-        const stderrRaw = document.getElementById('jconsole')?.textContent || '';
-        window.PolyShell?.setRawOutputs?.('', stderrRaw);
-        try { await window.refreshStderrExplanation?.({ alsoAlert:false, status: msg }); } catch {}
-        return;
-      }
-
-      if (msg.type === 'stdin_req') {
-        showInputRow(true);
-        window.PolyShell?.setRunnerPhase?.('waiting_input');
-        window.PolyShell?.setStatus('Waiting for User Input…','busy');
-        __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
-        startInputCountdown(5*60*1000);
-        window.PolyShell?.startInputTicker?.(getCountdownText, 500);
-        return;
-      }
-
-      if (msg.type === 'exit') {
-        runState.exitCode = Number(msg.code);
-        return;
-      }
-    } catch { /* fall through if not JSON */ }
+    } catch {}
   }
 
-  // 2) Legacy image marker
+  // 2) Plain-text fallback marker from runner (still supported)
   if (text.startsWith('[image] ')) {
     const url = text.substring(8).trim();
-    if (url) showImages([url]);
-    return;
+    if (url) { showImages([url]); return; }   // NEW
   }
 
-  // 3) Plain program output
+  // 3) Original behavior (unchanged)
   termWrite(text);
 
-  // 4) Trailer exit code capture
-  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
-  if (m) runState.exitCode = parseInt(m[1], 10);
-});
+  // 4) Your existing structured messages
+  try{
+    const msg = JSON.parse(text);
+    if (msg.type === 'stdin_req'){
+      showInputRow(true);
+      window.PolyShell?.setRunnerPhase?.('waiting_input');
+      window.PolyShell?.setStatus('Waiting for User Input…','busy');
+      __statusBase = 'Waiting for User Input'; startStatusDots(__statusBase);
+      startInputCountdown(5*60*1000);
+      window.PolyShell?.startInputTicker?.(getCountdownText, 500);
+    } else if (msg.type === 'exit'){
+      runState.exitCode = Number(msg.code);
+    }
+  }catch{}
 
+  const m = text.match(/\[process exited with code\s+(-?\d+)\]/i);
+  if (m) runState.exitCode = parseInt(m[1],10);
+});
 
 
       ws.addEventListener('error', ()=>{ termWrite('\n[connection error]\n'); finish(false); });
