@@ -2681,7 +2681,12 @@ async function captureOutputImageDataURL(){
           backgroundColor: '#ffffff',
           scale: 2,
           useCORS: true,
-          allowTaint: true
+          allowTaint: true,
+          width: el.scrollWidth,
+         height: el.scrollHeight,
+          windowWidth: el.scrollWidth,
+          windowHeight: el.scrollHeight,
+          logging: false
         });
         return canvas.toDataURL('image/png');
       }
@@ -2931,7 +2936,12 @@ async function capturePreviewImageDataURL() {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
-      allowTaint: false
+      allowTaint: false,
+      width: el.scrollWidth,
+     height: el.scrollHeight,
+     windowWidth: el.scrollWidth,
+     windowHeight: el.scrollHeight,
+     logging: false
     });
     return canvas.toDataURL('image/png');
   } catch (_) {
