@@ -1525,3 +1525,34 @@ body[data-boot] .right.panel{
   white-space:nowrap;            /* keep "Line" + "Confidence" on one line */
 }
 
+
+
+
+
+
+
+
+
+
+/* === PRINT / PDF === */
+@media print {
+  /* let the page expand and disable the 3-pane grid */
+  html, body { height:auto !important; overflow:visible !important; }
+  .app { display:block !important; height:auto !important; }
+  .left.panel, .right.panel, .v-resize { display:none !important; } /* print only the center/output */
+  .center.panel { display:block !important; }
+
+  /* Use the full page width and make tables printable */
+  #output { overflow:visible !important; padding:0 !important; }
+  #output table {
+    table-layout: auto !important;
+    width: auto !important;          /* don’t force 100% if it causes clipping */
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 12px;                 /* slightly smaller to fit more columns */
+  }
+  #output th, #output td { padding: 4px 6px !important; white-space: nowrap; }
+
+  /* Landscape gives more horizontal room */
+  @page { size: A4 landscape; margin: 12mm; }
+}
