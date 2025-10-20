@@ -2485,28 +2485,39 @@ async function buildReportImageBlob() {
 
 
   // Expand any horizontal scroll containers so html2canvas sees full width
+// Expand ONLY wrappers that actually clip horizontally.
+// Runs on a CLONED document so the live UI is untouched.
 function widenScrollContainers(rootDoc) {
   const win = rootDoc.defaultView || window;
 
-  // 1) Expand wrappers that clip horizontally
+  // mark widened wrappers so tables inside can inherit "no max-width"
   rootDoc.querySelectorAll('*').forEach(el => {
     const cs = win.getComputedStyle(el);
-    if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') &&
-        el.scrollWidth > el.clientWidth) {
+    const ox = cs.overflowX;
+
+    // widen only if (a) can clip, and (b) really does clip
+    if ((ox === 'auto' || ox === 'scroll' || ox === 'hidden') &&
+        (el.scrollWidth > el.clientWidth + 1)) {
+      el.setAttribute('data-polycode-widened', '1');
       el.style.overflowX = 'visible';
-      el.style.width = el.scrollWidth + 'px';   // use full scroll width
+      el.style.width = el.scrollWidth + 'px';
       el.style.maxWidth = 'none';
     }
   });
 
-  // 2) Make tables themselves fully measureable
+  // Loosen table sizing ONLY when it’s overflowing OR inside a widened wrapper
   rootDoc.querySelectorAll('table').forEach(t => {
-    t.style.tableLayout = 'auto';
-    t.style.width = 'auto';
-    t.style.maxWidth = 'none';
-    t.style.transform = 'none';
+    const overflowing = t.scrollWidth > t.clientWidth + 1;
+    const inWidened  = !!t.closest('[data-polycode-widened]');
+    if (overflowing || inWidened) {
+      t.style.tableLayout = 'auto';
+      t.style.width = 'auto';
+      t.style.maxWidth = 'none';
+      t.style.transform = 'none';
+    }
   });
 }
+
 
 
 
