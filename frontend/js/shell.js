@@ -2678,7 +2678,7 @@ async function captureOutputImageDataURL(){
       if (ifr.contentDocument) {
         const doc = ifr.contentDocument;
         const el = doc.documentElement;
-        const canvas = await html2canvas(e1, {
+        const canvas = await html2canvas(el, {
           backgroundColor: '#ffffff',
           scale: 2,
           useCORS: true,
@@ -2915,7 +2915,7 @@ async function capturePreviewImageDataURL() {
 
     // Snapshot the entire preview document
     const el = doc.documentElement;
-    const canvas = await html2canvas(e1, {
+    const canvas = await html2canvas(el, {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
