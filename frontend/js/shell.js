@@ -2483,7 +2483,7 @@ async function buildReportImageBlob() {
 
   // Put this near your other PDF helpers
 async function addImagePaginated(pdf, dataURL, env, {
-  maxWidthPt = 420,        // ~5.8in wide (keeps images modest)
+  maxWidthPt = null,        // ~5.8in wide (keeps images modest)
   blockHeightPt = 260,     // each image block height per page (~3.6in)
   gapPt = 8,               // gap after each image block
   marginPt = 40
@@ -2495,7 +2495,7 @@ async function addImagePaginated(pdf, dataURL, env, {
 
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const availW = Math.min(maxWidthPt, pageW - marginPt * 2);
+  const availW = Math.min((maxWidthPt ?? (pageW - marginPt * 2)), pageW - marginPt * 2);
 
   // Scale image to target width (keeps it “normal-sized”)
   const scale = availW / img.width;
@@ -2677,7 +2677,8 @@ async function captureOutputImageDataURL(){
     try {
       if (ifr.contentDocument) {
         const doc = ifr.contentDocument;
-        const canvas = await html2canvas(doc.documentElement, {
+        const el = doc.documentElement;
+        const canvas = await html2canvas(e1, {
           backgroundColor: '#ffffff',
           scale: 2,
           useCORS: true,
@@ -2707,30 +2708,11 @@ async function captureOutputImageDataURL(){
   const out = document.getElementById('output');
   if (!out) return null;
 
-  const prev = { height: out.style.height, overflowY: out.style.overflowY };
-  out.style.height = out.scrollHeight + 'px';
-  out.style.overflowY = 'visible';
-
-  try {
-    const canvas = await html2canvas(out, {
-      backgroundColor: '#ffffff',
-      scale: 2,
-      useCORS: true,
-      allowTaint: true,
-      onclone: (doc) => {
-        const style = doc.createElement('style');
-        style.textContent = `
-          .monaco-editor, .monaco-editor * { visibility: hidden !important; }
-          canvas { visibility: hidden !important; }
-        `;
-        doc.head.appendChild(style);
-      }
-    });
-    return canvas.toDataURL('image/png');
-  } finally {
-    out.style.height = prev.height;
-    out.style.overflowY = prev.overflowY;
-  }
+ const canvas = await snapshotElementFull(out, html2canvas, {
+   scale: 2,
+   backgroundColor: '#ffffff'
+ });
+ return canvas.toDataURL('image/png');
 }
 
 function askPreviewForScreenshot(ifr, timeout=2500){
@@ -2932,7 +2914,8 @@ async function capturePreviewImageDataURL() {
     const html2canvas = await ensureHtml2Canvas();
 
     // Snapshot the entire preview document
-    const canvas = await html2canvas(doc.documentElement, {
+    const el = doc.documentElement;
+    const canvas = await html2canvas(e1, {
       backgroundColor: '#ffffff',
       scale: 2,
       useCORS: true,
