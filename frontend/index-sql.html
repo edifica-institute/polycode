@@ -289,6 +289,27 @@ function guessSqlErrorLine(msg){
 
 
 
+    function mysqlDescribeToSqlite(sql) {
+  // split by semicolons, rewrite only pure DESC/DESCRIBE statements
+  return sql
+    .split(/;(?![^'"]*['"])/) // split on semicolons not inside quotes
+    .map(stmt => {
+      const s = stmt.trim();
+      // DESC tableName  | DESCRIBE tableName
+      const m = s.match(/^(?:DESC|DESCRIBE)\s+([A-Za-z_][A-Za-z0-9_"]*)\s*$/i);
+      if (m) {
+        const table = m[1].replace(/^"(.+)"$/, '$1'); // keep simple names
+        // Return 2 statements to mimic common MySQL workflows:
+        // 1) column info, 2) the CREATE statement
+        return `PRAGMA table_info(${table});\nSELECT sql FROM sqlite_master WHERE type='table' AND name='${table}';`;
+      }
+      return stmt;
+    })
+    .filter(Boolean)
+    .join(';\n');
+}
+
+
     
   async function bootstrap(){
     await PolyShell.initMonaco({ value: SAMPLE_SQL, language: 'sql' });
@@ -329,6 +350,8 @@ function guessSqlErrorLine(msg){
       const sql = (typeof codeOverride === 'string' && codeOverride.trim())
         ? codeOverride
         : window.editor.getValue();
+
+      sql = mysqlDescribeToSqlite(sql);
       const results = db.exec(sql);
 
       if (!results.length) {
