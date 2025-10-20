@@ -2482,114 +2482,22 @@ async function buildReportImageBlob() {
 
 
   // Put this near your other PDF helpers
-async function addImagePaginated(pdf, dataURL, env, {
-  maxWidthPt = 420,        // ~5.8in wide (keeps images modest)
-  blockHeightPt = 260,     // each image block height per page (~3.6in)
-  gapPt = 8,               // gap after each image block
-  marginPt = 40
-} = {}) {
-  // Load to know pixel size
-  const img = new Image();
-  img.src = dataURL;
-  try { await img.decode(); } catch {}
+/* ============ Polycode PDF & Snapshot DROP-IN ============ */
+/* Dependencies loaded on demand from CDN: html2canvas, jsPDF */
 
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const availW = Math.min(maxWidthPt, pageW - marginPt * 2);
-
-  // Scale image to target width (keeps it “normal-sized”)
-  const scale = availW / img.width;
-  const scaledW = Math.round(img.width * scale);
-  const scaledH = Math.round(img.height * scale);
-
-  // We’ll slice the tall image into chunks of height = blockHeightPt
-  const sliceH = Math.max(40, Math.floor(blockHeightPt)); // safety floor
-
-  // Make an offscreen canvas for cropping
-  const crop = document.createElement('canvas');
-  crop.width = scaledW;
-  crop.height = sliceH;
-  const ctx = crop.getContext('2d');
-
-  // y position on current page (we’ll place “Output” title before calling this)
-  let y = pdf.__polycode_cursorY || marginPt;
-
-  // Iterate over vertical slices
-  let srcY = 0; // in scaled pixels
-  while (srcY < scaledH) {
-    // If no room for another block on this page, start a new page w/ header+watermark
-    const footerReserve = 26;
-    const room = (pageH - marginPt - footerReserve) - y;
-    if (room < sliceH) {
-      y = newPage(pdf, env); // your existing helper adds header & watermark
-    }
-
-    // how tall is this slice?
-    const slicePixH = Math.min(sliceH, scaledH - srcY);
-    crop.height = slicePixH;
-
-    // draw the scaled image portion
-    ctx.clearRect(0, 0, crop.width, crop.height);
-    // drawImage parameters: (img, sx,sy, sw,sh, dx,dy, dw,dh)
-    // we need to draw from the scaled space -> easiest route: draw full image scaled, then copy
-    // Simpler: draw from original, but map to target width; compute corresponding source rect:
-    const srcFromOrigY = srcY / scale;
-    const srcFromOrigH = slicePixH / scale;
-
-    ctx.drawImage(
-      img,
-      0, srcFromOrigY, img.width, srcFromOrigH, // source (original px)
-      0, 0, scaledW, slicePixH                  // dest (scaled slice)
-    );
-
-    const pieceURL = crop.toDataURL('image/png');
-
-    // center horizontally
-    const x = marginPt + Math.round((pageW - marginPt * 2 - scaledW) / 2);
-
-    pdf.addImage(pieceURL, 'PNG', x, y, scaledW, slicePixH, undefined, 'FAST');
-    y += slicePixH + gapPt;
-  }
-
-  // stash cursor for callers
-  pdf.__polycode_cursorY = y;
-  return y;
-}
-
-
-
-  
-
-  document.addEventListener('DOMContentLoaded', () => {
-  const ifr = document.getElementById('preview');
-  if (ifr) {
-    const need = new Set(['allow-scripts','allow-same-origin']);
-    const cur = new Set((ifr.getAttribute('sandbox')||'').split(/\s+/).filter(Boolean));
-    need.forEach(t => cur.add(t));
-    ifr.setAttribute('sandbox', Array.from(cur).join(' '));
-  }
-});
-
-
-
-
-// --- Lazy loaders (safe if libs already present) ---
+/* ---------- lazy loaders ---------- */
 let _h2cReady = null;
-
 async function ensureHtml2Canvas() {
-  // already present?
   if (typeof window.html2canvas === 'function') return window.html2canvas;
   if (_h2cReady) return _h2cReady;
 
   _h2cReady = (async () => {
-    // 1) Try ESM first — avoids AMD/RequireJS conflicts
     try {
       const mod = await import('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.esm.js');
       const fn = mod?.default || mod?.html2canvas || mod;
       if (typeof fn === 'function') return fn;
-    } catch (_) { /* fall through */ }
+    } catch (_) {}
 
-    // 2) UMD fallback, but temporarily mask AMD 'define' so it attaches to window
     if (typeof window.html2canvas === 'function') return window.html2canvas;
 
     await new Promise((res, rej) => {
@@ -2601,40 +2509,28 @@ async function ensureHtml2Canvas() {
       const hadAMD = !!(prevDefine && prevDefine.amd);
       if (hadAMD) window.define = undefined;
 
-      s.onload = () => {
-        if (hadAMD) window.define = prevDefine;
-        res();
-      };
-      s.onerror = () => {
-        if (hadAMD) window.define = prevDefine;
-        rej(new Error('Failed to load html2canvas'));
-      };
+      s.onload = () => { if (hadAMD) window.define = prevDefine; res(); };
+      s.onerror = () => { if (hadAMD) window.define = prevDefine; rej(new Error('Failed to load html2canvas')); };
       document.head.appendChild(s);
     });
 
     if (typeof window.html2canvas === 'function') return window.html2canvas;
-    throw new Error('html2canvas not available after loading');
+    throw new Error('html2canvas not available');
   })();
 
   return _h2cReady;
 }
 
-
-
-// Put these near the top of your PDF helpers file (outside the function) so we never double-load:
 let _jspdfReady = null;
-
 async function ensureJsPDF() {
   if (_jspdfReady) return _jspdfReady;
 
   _jspdfReady = (async () => {
-    // 1) Native ESM path (bypasses AMD/RequireJS entirely)
     try {
       const mod = await import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.es.min.js');
       if (mod?.jsPDF) return mod.jsPDF;
-    } catch (_) { /* fall through */ }
+    } catch (_) {}
 
-    // 2) UMD fallback BUT guard against AMD + double-loads
     if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
 
     await new Promise((res, rej) => {
@@ -2642,139 +2538,210 @@ async function ensureJsPDF() {
       s.src = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
       s.async = true;
 
-      // temporarily disable AMD 'define' so UMD attaches to window.jspdf
       const prevDefine = window.define;
       const hadAMD = !!(prevDefine && prevDefine.amd);
       if (hadAMD) window.define = undefined;
 
-      s.onload = () => {
-        if (hadAMD) window.define = prevDefine;
-        res();
-      };
-      s.onerror = () => {
-        if (hadAMD) window.define = prevDefine;
-        rej(new Error('Failed to load jsPDF UMD'));
-      };
+      s.onload = () => { if (hadAMD) window.define = prevDefine; res(); };
+      s.onerror = () => { if (hadAMD) window.define = prevDefine; rej(new Error('Failed to load jsPDF UMD')); };
       document.head.appendChild(s);
     });
 
     if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
-    throw new Error('jsPDF not available after loading');
+    throw new Error('jsPDF not available');
   })();
 
   return _jspdfReady;
 }
 
-
-// --- Your functions (patched) ---
-async function captureOutputImageDataURL(){
-  const html2canvas = await ensureHtml2Canvas();
-
-  // Prefer the WEB preview iframe itself (best quality)
+/* ---------- iframe sandbox hardening (keeps same-origin capture possible) ---------- */
+document.addEventListener('DOMContentLoaded', () => {
   const ifr = document.getElementById('preview');
   if (ifr) {
-    // 2a. Try direct same-origin capture
-    try {
-      if (ifr.contentDocument) {
-        const doc = ifr.contentDocument;
-        const canvas = await html2canvas(doc.documentElement, {
-          backgroundColor: '#ffffff',
-          scale: 2,
-          useCORS: true,
-          allowTaint: true
-        });
-        return canvas.toDataURL('image/png');
-      }
-    } catch (_) {
-      /* fall through to message-based approach */
-    }
-
-    // 2b. Ask the iframe to self-capture via postMessage
-     try {
-      const snap = await askPreviewForScreenshot(3000); // uses #preview internally
-      if (snap?.url) return snap.url;
-    } catch (_) {
-      /* fall back */
-    }
+    const need = new Set(['allow-scripts','allow-same-origin']);
+    const cur = new Set((ifr.getAttribute('sandbox')||'').split(/\s+/).filter(Boolean));
+    need.forEach(t => cur.add(t));
+    ifr.setAttribute('sandbox', Array.from(cur).join(' '));
   }
+});
 
-  // 3) Fallback: capture the host #output container (will not include iframe internals)
-  const out = document.getElementById('output');
-  if (!out) return null;
-
-  const prev = { height: out.style.height, overflowY: out.style.overflowY };
-  out.style.height = out.scrollHeight + 'px';
-  out.style.overflowY = 'visible';
+/* ---------- util: full-size clone snapshot (captures scrollWidth+scrollHeight) ---------- */
+async function snapshotElementFull(el, html2canvas, { scale = 2, backgroundColor = '#ffffff' } = {}) {
+  const clone = el.cloneNode(true);
+  Object.assign(clone.style, {
+    position: 'fixed',
+    left: '-100000px',
+    top: '0',
+    width:  el.scrollWidth + 'px',
+    height: el.scrollHeight + 'px',
+    maxHeight: 'none',
+    overflow: 'visible',
+    contain: 'paint'
+  });
+  document.body.appendChild(clone);
 
   try {
-    const canvas = await html2canvas(out, {
-      backgroundColor: '#ffffff',
-      scale: 2,
+    const canvas = await html2canvas(clone, {
+      backgroundColor,
+      scale,
       useCORS: true,
-      allowTaint: true,
-      onclone: (doc) => {
-        const style = doc.createElement('style');
-        style.textContent = `
-          .monaco-editor, .monaco-editor * { visibility: hidden !important; }
-          canvas { visibility: hidden !important; }
-        `;
-        doc.head.appendChild(style);
-      }
+      allowTaint: false,
+      logging: false,
+      width: clone.scrollWidth,
+      height: clone.scrollHeight,
+      windowWidth: clone.scrollWidth,
+      windowHeight: clone.scrollHeight
     });
-    return canvas.toDataURL('image/png');
+    return canvas;
   } finally {
-    out.style.height = prev.height;
-    out.style.overflowY = prev.overflowY;
+    document.body.removeChild(clone);
   }
 }
 
-function askPreviewForScreenshot(ifr, timeout=2500){
-  return new Promise((resolve, reject) => {
-    const onMsg = (e) => {
-      const d = e.data;
-      if (!d || d.__polycode !== 'snap') return;
-      clearTimeout(tid);
-      window.removeEventListener('message', onMsg);
-      if (d.ok && d.url) resolve(d.url);
-      else reject(new Error(d.error || 'preview snap failed'));
-    };
-    const tid = setTimeout(() => {
-      window.removeEventListener('message', onMsg);
-      reject(new Error('preview snap timeout'));
-    }, timeout);
+/* ---------- install a self-snapper inside the preview iframe ---------- */
+async function installPreviewSnapper(){
+  const ifr = document.getElementById('preview');
+  if (!ifr) return false;
 
-    window.addEventListener('message', onMsg);
-    try {
-      ifr.contentWindow.postMessage('__polycode_snap__', '*');
-    } catch (err) {
-      clearTimeout(tid);
+  let doc = null;
+  try { doc = ifr.contentDocument; } catch { doc = null; }
+  if (!doc) return false;
+
+  if (doc.getElementById('polycode-snapper')) return true;
+
+  const sc = doc.createElement('script');
+  sc.id = 'polycode-snapper';
+  sc.type = 'text/javascript';
+  sc.text = `
+    (function(){
+      function loadHtml2Canvas(){
+        return new Promise((resolve, reject) => {
+          if (window.html2canvas) return resolve(window.html2canvas);
+          const s = document.createElement('script');
+          s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+          s.onload = () => resolve(window.html2canvas);
+          s.onerror = () => reject(new Error('html2canvas load failed inside preview'));
+          document.head.appendChild(s);
+        });
+      }
+      window.addEventListener('message', async (e) => {
+        if (!e || e.data !== '__polycode_snap__') return;
+        try{
+          const h2c = await loadHtml2Canvas();
+          const el = document.documentElement;
+          const canvas = await h2c(el, {
+            backgroundColor: '#ffffff',
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            width: el.scrollWidth,
+            height: el.scrollHeight,
+            windowWidth: el.scrollWidth,
+            windowHeight: el.scrollHeight
+          });
+          const url = canvas.toDataURL('image/png');
+          parent.postMessage({ __polycode:'snap', ok:true, url, w:canvas.width, h:canvas.height }, '*');
+        }catch(err){
+          parent.postMessage({ __polycode:'snap', ok:false, error: String(err) }, '*');
+        }
+      });
+    })();
+  `;
+  doc.head.appendChild(sc);
+  return true;
+}
+
+/* ---------- canonical: ask preview to screenshot itself ---------- */
+function askPreviewForScreenshot(timeoutMs = 3000){
+  return new Promise(async (resolve, reject) => {
+    const ifr = document.getElementById('preview');
+    if (!ifr || !ifr.contentWindow) return reject(new Error('preview iframe not found'));
+
+    const ok = await installPreviewSnapper();
+    if (!ok) return reject(new Error('failed to inject snapper (check sandbox: allow-scripts allow-same-origin)'));
+
+    const onMsg = (ev) => {
+      const d = ev.data;
+      if (!d || d.__polycode !== 'snap') return;
       window.removeEventListener('message', onMsg);
-      reject(err);
-    }
+      if (d.ok && d.url) resolve({ url:d.url, w:d.w, h:d.h });
+      else reject(new Error(d?.error || 'snapshot failed'));
+    };
+    window.addEventListener('message', onMsg);
+
+    try { ifr.contentWindow.postMessage('__polycode_snap__', '*'); } catch {}
+    setTimeout(() => { window.removeEventListener('message', onMsg); reject(new Error('snapshot timeout')); }, timeoutMs);
   });
 }
 
+/* ---------- high-level capture helpers ---------- */
+async function capturePreviewImageDataURL() {
+  const ifr = document.getElementById('preview');
+  if (!ifr) return null;
 
+  try {
+    const doc = ifr.contentDocument || ifr.contentWindow?.document;
+    if (!doc) return null;
 
-
-
-
-// ====== PDF helpers: watermark, header, footer, paging ======
-// ---- Logos (optional; base64 PNGs). Leave null if not ready.
-const POLYCODE_WATERMARK = null;     // big centered watermark on every page
-const POLYCODE_HEADER_LOGO = null;   // small logo in header-left
-const EDIFICA_FOOTER_LOGO = null;    // small logo in footer-left
-
-// ---- Helpers
-function extractTitle(code){
-  if (!code) return 'Sample Program';
-  const first = String(code).split('\n')[0].trim();
-  if (/^title\s*:/i.test(first)) {
-    const t = first.replace(/^title\s*:/i, '').trim();
-    return t || 'Sample Program';
+    const html2canvas = await ensureHtml2Canvas();
+    const el = doc.documentElement;
+    const canvas = await html2canvas(el, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      allowTaint: false,
+      logging: false,
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight
+    });
+    return canvas.toDataURL('image/png');
+  } catch {
+    return null;
   }
-  return 'Sample Program';
 }
+
+async function captureOutputImageDataURL(){
+  const html2canvas = await ensureHtml2Canvas();
+
+  // Prefer same-origin preview
+  const ifr = document.getElementById('preview');
+  if (ifr) {
+    try {
+      if (ifr.contentDocument) {
+        const el = ifr.contentDocument.documentElement;
+        const canvas = await html2canvas(el, {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          width: el.scrollWidth,
+          height: el.scrollHeight,
+          windowWidth: el.scrollWidth,
+          windowHeight: el.scrollHeight
+        });
+        return canvas.toDataURL('image/png');
+      }
+    } catch {}
+    try {
+      const snap = await askPreviewForScreenshot(3000);
+      if (snap?.url) return snap.url;
+    } catch {}
+  }
+
+  // Fallback: full-size snapshot of #output
+  const out = document.getElementById('output');
+  if (!out) return null;
+  const canvas = await snapshotElementFull(out, html2canvas, { scale: 2, backgroundColor: '#ffffff' });
+  return canvas.toDataURL('image/png');
+}
+
+/* ---------- PDF drawing helpers ---------- */
+const POLYCODE_WATERMARK = null;
+const POLYCODE_HEADER_LOGO = null;
+const EDIFICA_FOOTER_LOGO = null;
 
 function addWatermark(pdf, watermarkBase64){
   if (!watermarkBase64) return;
@@ -2786,7 +2753,6 @@ function addWatermark(pdf, watermarkBase64){
   pdf.addImage(watermarkBase64, 'PNG', x, y, w, h, undefined, 'FAST');
   if (pdf.GState) pdf.setGState(new pdf.GState({ opacity: 1 }));
 }
-
 function boldHR(pdf, y, { theme='light' } = {}) {
   const margin = 40, pageW = pdf.internal.pageSize.getWidth();
   const prev = pdf.getLineWidth?.() || 0.2;
@@ -2796,14 +2762,12 @@ function boldHR(pdf, y, { theme='light' } = {}) {
   pdf.setLineWidth?.(prev);
   return y + 10;
 }
-
 function thinHR(pdf, y, { theme='light' } = {}) {
   const margin = 40, pageW = pdf.internal.pageSize.getWidth();
   pdf.setDrawColor(theme === 'dark' ? 150 : 180);
   pdf.line(margin, y, pageW - margin, y);
   return y + 10;
 }
-
 function addHeader(pdf, y, { headerLogoBase64, theme='light' } = {}){
   const isDark = theme === 'dark';
   const margin = 40;
@@ -2830,11 +2794,10 @@ function addHeader(pdf, y, { headerLogoBase64, theme='light' } = {}){
   pdf.setTextColor(isDark ? 255 : 0);
 
   let ny = y + 22;
-  ny = boldHR(pdf, ny, { theme });   // ← pass theme
+  ny = boldHR(pdf, ny, { theme });
   ny += 6;
   return ny;
 }
-
 function addFooter(pdf, { footerLogoBase64, theme='light' } = {}){
   const isDark = theme === 'dark';
   const pageW = pdf.internal.pageSize.getWidth();
@@ -2865,40 +2828,28 @@ function addFooter(pdf, { footerLogoBase64, theme='light' } = {}){
   pdf.setFontSize(9);
   pdf.text(String(page), pageW / 2, y, { align:'center' });
 }
-
-// fill background (only when asked)
 function fillPageBackground(pdf, color=[24,28,34]) {
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   pdf.setFillColor(...color);
   pdf.rect(0, 0, pageW, pageH, 'F');
 }
-
 function newPage(pdf, env, { theme='light', fillPage=false } = {}){
   addFooter(pdf, { footerLogoBase64: env.footerLogoBase64, theme });
   pdf.addPage();
-  if (fillPage) fillPageBackground(pdf);        // dark background under everything
-  addWatermark(pdf, env.watermarkLogoBase64);   // optional watermark goes above bg
+  if (fillPage) fillPageBackground(pdf);
+  addWatermark(pdf, env.watermarkLogoBase64);
   return addHeader(pdf, 40, { headerLogoBase64: env.headerLogoBase64, theme });
 }
-
-function isDarkMode(){
-  return document.documentElement.classList.contains('dark')
-      || document.documentElement.dataset.theme === 'dark'
-      || window.matchMedia?.('(prefers-color-scheme: dark)').matches;
-}
-
-
 function ensureSpace(pdf, y, need, env){
   const pageH = pdf.internal.pageSize.getHeight();
   const margin = 40;
-  if (y + need <= pageH - margin - 26) return y;  // leave room for footer band
+  if (y + need <= pageH - margin - 26) return y;
   addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
   pdf.addPage();
   addWatermark(pdf, env.watermarkLogoBase64);
   return addHeader(pdf, margin, { headerLogoBase64: env.headerLogoBase64 });
 }
-
 function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, lh=12, env } = {}){
   const margin = 40, pageW = pdf.internal.pageSize.getWidth();
   const maxW = pageW - margin*2;
@@ -2913,45 +2864,17 @@ function writeWrapped(pdf, y, text, { font='courier', style='normal', size=10, l
   return y;
 }
 
-
-
-async function capturePreviewImageDataURL() {
-  const ifr = document.getElementById('preview');
-  if (!ifr) return null;
-
-  try {
-    // You must have same-origin access: sandbox should include allow-same-origin.
-    const doc = ifr.contentDocument || ifr.contentWindow?.document;
-    if (!doc) return null;
-
-    const html2canvas = await ensureHtml2Canvas();
-
-    // Snapshot the entire preview document
-    const canvas = await html2canvas(doc.documentElement, {
-      backgroundColor: '#ffffff',
-      scale: 2,
-      useCORS: true,
-      allowTaint: false
-    });
-    return canvas.toDataURL('image/png');
-  } catch (_) {
-    // cross-origin or sandbox prevented access
-    return null;
-  }
-}
-
+/* ---------- image adders (use full width by default) ---------- */
 async function addImageFitted(pdf, y, dataURL, env) {
   const margin = 40;
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
 
-  // If there's almost no space left, start a new page first
   const minNeeded = 80;
   if (pageH - margin - 26 - y < minNeeded) {
     y = newPage(pdf, env);
   }
 
-  // Measure image
   const img = new Image();
   img.src = dataURL;
   try { await img.decode(); } catch {}
@@ -2963,219 +2886,95 @@ async function addImageFitted(pdf, y, dataURL, env) {
   const h = img.height * scale;
 
   pdf.addImage(dataURL, 'PNG', margin, y, w, h, undefined, 'FAST');
-  return y + h + 6; // small gap after image
+  return y + h + 6;
 }
 
-
-
-
-  async function drawImageToPdf(pdf, dataURL, margin, y, env){
-  // load the image to know its size
-  const img = await new Promise((res, rej) => {
-    const i = new Image();
-    i.onload = () => res(i);
-    i.onerror = rej;
-    i.src = dataURL;
-  });
+async function addImagePaginated(pdf, dataURL, env, {
+  maxWidthPt = null,      // null -> use full page width minus margins
+  blockHeightPt = 260,
+  gapPt = 8,
+  marginPt = 40
+} = {}) {
+  const img = new Image();
+  img.src = dataURL;
+  try { await img.decode(); } catch {}
 
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
-  const maxW  = pageW - margin * 2;
-  const maxH  = pageH - margin - 26;  // leave room for footer band
+  const availW = Math.min((maxWidthPt ?? (pageW - marginPt * 2)), pageW - marginPt * 2);
 
-  // scale to width
-  const scale = Math.min(maxW / img.width, maxH / img.height);
-  const w = Math.max(1, img.width  * scale);
-  const h = Math.max(1, img.height * scale);
+  const scale = availW / img.width;
+  const scaledW = Math.round(img.width * scale);
+  const scaledH = Math.round(img.height * scale);
 
-  // new page if not enough space
-  if (y + h > pageH - margin - 26) {
-    addFooter(pdf, { footerLogoBase64: env.footerLogoBase64 });
-    pdf.addPage();
-    addWatermark(pdf, env.watermarkLogoBase64);
-    y = addHeader(pdf, margin, { headerLogoBase64: env.headerLogoBase64 });
+  const sliceH = Math.max(40, Math.floor(blockHeightPt));
+
+  const crop = document.createElement('canvas');
+  crop.width = scaledW;
+  crop.height = sliceH;
+  const ctx = crop.getContext('2d');
+
+  let y = pdf.__polycode_cursorY || marginPt;
+  let srcY = 0;
+
+  while (srcY < scaledH) {
+    const footerReserve = 26;
+    const room = (pageH - marginPt - footerReserve) - y;
+    if (room < sliceH) y = newPage(pdf, env);
+
+    const slicePixH = Math.min(sliceH, scaledH - srcY);
+    crop.height = slicePixH;
+
+    const srcFromOrigY = srcY / scale;
+    const srcFromOrigH = slicePixH / scale;
+
+    ctx.clearRect(0, 0, crop.width, crop.height);
+    ctx.drawImage(img, 0, srcFromOrigY, img.width, srcFromOrigH, 0, 0, scaledW, slicePixH);
+
+    const pieceURL = crop.toDataURL('image/png');
+    const x = marginPt + Math.round((pageW - marginPt * 2 - scaledW) / 2);
+
+    pdf.addImage(pieceURL, 'PNG', x, y, scaledW, slicePixH, undefined, 'FAST');
+    y += slicePixH + gapPt;
+    srcY += slicePixH;
   }
 
-  pdf.addImage(dataURL, 'PNG', margin, y, w, h, undefined, 'FAST');
-  return y + h;
+  pdf.__polycode_cursorY = y;
+  return y;
 }
 
-
-
-// --- Install a "snapper" inside the preview iframe so it can screenshot itself ---
-async function installPreviewSnapper(){
-  const ifr = document.getElementById('preview');
-  if (!ifr) return false;
-
-  // wait for the iframe to be ready if possible
-  const doc = (() => {
-    try { return ifr.contentDocument; } catch { return null; }
-  })();
-  if (!doc) return false;  // blocked by sandbox? (needs allow-same-origin)
-
-  if (doc.getElementById('polycode-snapper')) return true; // already installed
-
-  const sc = doc.createElement('script');
-  sc.id = 'polycode-snapper';
-  sc.type = 'text/javascript';
-  sc.text = `
-    (function(){
-      function loadHtml2Canvas(){
-        return new Promise((resolve, reject) => {
-          if (window.html2canvas) return resolve(window.html2canvas);
-          const s = document.createElement('script');
-          s.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-          s.onload = () => resolve(window.html2canvas);
-          s.onerror = () => reject(new Error('html2canvas load failed inside preview'));
-          document.head.appendChild(s);
-        });
-      }
-
-      window.addEventListener('message', async (e) => {
-        if (!e || e.data !== '__polycode_snap__') return;
-        try{
-          const h2c = await loadHtml2Canvas();
-          const canvas = await h2c(document.documentElement, {
-            backgroundColor: '#ffffff',
-            scale: 2,
-            useCORS: true,
-            allowTaint: true
-          });
-          const url = canvas.toDataURL('image/png');
-          parent.postMessage({ __polycode:'snap', ok:true, url, w:canvas.width, h:canvas.height }, '*');
-        }catch(err){
-          parent.postMessage({ __polycode:'snap', ok:false, error: String(err) }, '*');
-        }
-      });
-    })();
-  `;
-  doc.head.appendChild(sc);
-  return true;
-}
-
-// Ask the iframe to screenshot itself and return {url,w,h}
-function askPreviewForScreenshot(timeoutMs = 3000){
-  return new Promise(async (resolve, reject) => {
-    const ifr = document.getElementById('preview');
-    if (!ifr || !ifr.contentWindow) return reject(new Error('preview iframe not found'));
-
-    const ok = await installPreviewSnapper();
-    if (!ok) return reject(new Error('failed to inject snapper (check sandbox: allow-scripts allow-same-origin)'));
-
-    const onMsg = (ev) => {
-      const d = ev.data;
-      if (!d || d.__polycode !== 'snap') return;
-      window.removeEventListener('message', onMsg);
-      if (d.ok && d.url) resolve({ url:d.url, w:d.w, h:d.h });
-      else reject(new Error(d?.error || 'snapshot failed'));
-    };
-
-    window.addEventListener('message', onMsg);
-    try { ifr.contentWindow.postMessage('__polycode_snap__', '*'); } catch(e){ /* ignore */ }
-    setTimeout(() => {
-      window.removeEventListener('message', onMsg);
-      reject(new Error('snapshot timeout'));
-    }, timeoutMs);
-  });
-}
-
-
-
-// Quick same-origin check for iframe
-function isSameOriginIframe(ifr){
-  try {
-    // access will throw if cross-origin
-    return !!(ifr && ifr.contentDocument && ifr.contentDocument.documentElement);
-  } catch { return false; }
-}
-
-
-// Render an element at its FULL scroll size by cloning it off-screen
-async function snapshotElementFull(el, html2canvas, {
-  scale = 2,
-  backgroundColor = null
-} = {}) {
-  const clone = el.cloneNode(true);
-  // make it render full height/width without scrollbars
-  Object.assign(clone.style, {
-    position: 'fixed',
-    left: '-100000px',
-    top: '0',
-    width: el.scrollWidth + 'px',
-    height: el.scrollHeight + 'px',
-    maxHeight: 'none',
-    overflow: 'visible',
-    contain: 'paint'
-  });
-  document.body.appendChild(clone);
-
-  try {
-    const canvas = await html2canvas(clone, {
-      backgroundColor,
-      scale,
-      useCORS: true,
-      allowTaint: false,
-      logging: false,
-      // ensure html2canvas considers the full box
-      width: clone.scrollWidth,
-      height: clone.scrollHeight,
-      windowWidth: clone.scrollWidth,
-      windowHeight: clone.scrollHeight
-    });
-    return canvas;
-  } finally {
-    document.body.removeChild(clone);
-  }
-}
-
-// Compute offset of a descendant element relative to an ancestor
-function offsetWithin(ancestor, el) {
-  let x = 0, y = 0, n = el;
-  while (n && n !== ancestor && n instanceof HTMLElement) {
-    x += n.offsetLeft || 0;
-    y += n.offsetTop  || 0;
-    n = n.offsetParent;
-  }
-  return { x, y };
-}
-
-
-  
-  
-
-// Screenshot the preview area (iframe if same-origin; else fall back to #output)
+/* ---------- top-level: screenshot entire output for PDF ---------- */
 async function screenshotOutputForPdf() {
   const html2canvas = await ensureHtml2Canvas();
 
-  // Prefer the preview iframe (now same-origin)
+  // Prefer the preview iframe (same-origin)
   const iframe = document.getElementById('preview');
   const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
   if (doc && doc.documentElement) {
-    // prevent focus outlines etc.
     doc.activeElement?.blur?.();
-
     const el = doc.documentElement;
     const canvas = await html2canvas(el, {
-      backgroundColor: null,  // use actual page colors (dark/light)
+      backgroundColor: null,
       scale: 2,
       useCORS: true,
       allowTaint: false,
-      windowWidth:  el.scrollWidth,
-      windowHeight: el.scrollHeight,
-      logging: false
+      logging: false,
+      width: el.scrollWidth,
+      height: el.scrollHeight,
+      windowWidth: el.scrollWidth,
+      windowHeight: el.scrollHeight
     });
     return canvas.toDataURL('image/png');
   }
 
-  // Fallback: capture host #output (should rarely run now)
-const out = document.getElementById('output');
-if (!out) return null;
-const canvas = await snapshotElementFull(out, html2canvas, {
-  scale: 2,
-  backgroundColor: null
-});
-return canvas.toDataURL('image/png');
+  // Fallback: host #output (full size)
+  const out = document.getElementById('output');
+  if (!out) return null;
+  const canvas = await snapshotElementFull(out, html2canvas, { scale: 2, backgroundColor: null });
+  return canvas.toDataURL('image/png');
 }
+/* ============ /DROP-IN ============ */
+
 
 
 
