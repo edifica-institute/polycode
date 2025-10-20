@@ -347,7 +347,7 @@ function guessSqlErrorLine(msg){
 
     
     try {
-      const sql = (typeof codeOverride === 'string' && codeOverride.trim())
+      let sql = (typeof codeOverride === 'string' && codeOverride.trim())
         ? codeOverride
         : window.editor.getValue();
 
