@@ -289,25 +289,64 @@ function guessSqlErrorLine(msg){
 
 
 
-    function mysqlDescribeToSqlite(sql) {
-  // split by semicolons, rewrite only pure DESC/DESCRIBE statements
-  return sql
-    .split(/;(?![^'"]*['"])/) // split on semicolons not inside quotes
-    .map(stmt => {
-      const s = stmt.trim();
-      // DESC tableName  | DESCRIBE tableName
-      const m = s.match(/^(?:DESC|DESCRIBE)\s+([A-Za-z_][A-Za-z0-9_"]*)\s*$/i);
-      if (m) {
-        const table = m[1].replace(/^"(.+)"$/, '$1'); // keep simple names
-        // Return 2 statements to mimic common MySQL workflows:
-        // 1) column info, 2) the CREATE statement
-        return `PRAGMA table_info(${table});\nSELECT sql FROM sqlite_master WHERE type='table' AND name='${table}';`;
-      }
-      return stmt;
-    })
-    .filter(Boolean)
-    .join(';\n');
+   function mysqlDescribeToSqlite(sql) {
+  // split by semicolons that are not inside quotes
+  const stmts = sql
+    .split(/;(?![^'"]*['"])/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  const rewritten = stmts.map(s => {
+    // Match: DESC table ;  DESCRIBE table ; (optional schema: db.table)
+    const m = s.match(/^(?:DESC|DESCRIBE)\s+((?:[A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_][A-Za-z0-9_]*|"(?:[^"]+)")\s*$/i);
+    if (!m) return s;
+
+    let raw = m[1];
+    // strip quotes if simple "name"
+    if (/^".*"$/.test(raw)) raw = raw.slice(1, -1);
+    const [schema, table] = raw.includes('.') ? raw.split('.', 2) : [null, raw];
+    const tbl = table;
+
+    // Build a single SELECT that emulates MySQL’s DESC
+    // - Field   → column name
+    // - Type    → declared type text (SQLite keeps whatever you wrote)
+    // - Null    → YES/NO from notnull flag
+    // - Key     → PRI if pk=1, UNI/MUL from index metadata
+    // - Default → dflt_value
+    // - Extra   → ''  (SQLite lacks AUTO_INCREMENT; you can extend if you parse CREATE sql)
+    //
+    // Note: using table-valued PRAGMA functions works in sql.js.
+    return `
+WITH cols AS (
+  SELECT cid, name, type, notnull, dflt_value, pk
+  FROM pragma_table_info('${tbl}')
+),
+idx AS (
+  SELECT ii.name AS col, il."unique" AS is_unique
+  FROM pragma_index_list('${tbl}') il
+  JOIN pragma_index_info(il.name) ii
+)
+SELECT
+  cols.name                AS "Field",
+  cols.type                AS "Type",
+  CASE cols.notnull WHEN 0 THEN 'YES' ELSE 'NO' END AS "Null",
+  CASE
+    WHEN cols.pk = 1 THEN 'PRI'
+    WHEN COALESCE(idx.is_unique, 0) = 1 THEN 'UNI'
+    WHEN idx.is_unique = 0 THEN 'MUL'
+    ELSE ''
+  END                      AS "Key",
+  cols.dflt_value          AS "Default",
+  ''                       AS "Extra"
+FROM cols
+LEFT JOIN idx ON idx.col = cols.name
+ORDER BY cols.cid;
+`.trim();
+  });
+
+  return rewritten.join(';\n');
 }
+
 
 
     
