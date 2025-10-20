@@ -2482,6 +2482,35 @@ async function buildReportImageBlob() {
 
 
   // Put this near your other PDF helpers
+
+
+  // Expand any horizontal scroll containers so html2canvas sees full width
+function widenScrollContainers(rootDoc) {
+  const win = rootDoc.defaultView || window;
+
+  // 1) Expand wrappers that clip horizontally
+  rootDoc.querySelectorAll('*').forEach(el => {
+    const cs = win.getComputedStyle(el);
+    if ((cs.overflowX === 'auto' || cs.overflowX === 'scroll') &&
+        el.scrollWidth > el.clientWidth) {
+      el.style.overflowX = 'visible';
+      el.style.width = el.scrollWidth + 'px';   // use full scroll width
+      el.style.maxWidth = 'none';
+    }
+  });
+
+  // 2) Make tables themselves fully measureable
+  rootDoc.querySelectorAll('table').forEach(t => {
+    t.style.tableLayout = 'auto';
+    t.style.width = 'auto';
+    t.style.maxWidth = 'none';
+    t.style.transform = 'none';
+  });
+}
+
+
+
+  
 async function addImagePaginated(pdf, dataURL, env, {
   maxWidthPt = null,        // ~5.8in wide (keeps images modest)
   blockHeightPt = 260,     // each image block height per page (~3.6in)
@@ -2687,7 +2716,8 @@ async function captureOutputImageDataURL(){
          height: el.scrollHeight,
           windowWidth: el.scrollWidth,
           windowHeight: el.scrollHeight,
-          logging: false
+          logging: false,
+          onclone: (clonedDoc) => widenScrollContainers(clonedDoc)
         });
         return canvas.toDataURL('image/png');
       }
@@ -3101,7 +3131,9 @@ async function snapshotElementFull(el, html2canvas, {
     contain: 'paint'
   });
   document.body.appendChild(clone);
+ widenScrollContainers(clone.ownerDocument);
 
+  
   try {
     const canvas = await html2canvas(clone, {
       backgroundColor,
@@ -3155,7 +3187,8 @@ async function screenshotOutputForPdf() {
       allowTaint: false,
       windowWidth:  el.scrollWidth,
       windowHeight: el.scrollHeight,
-      logging: false
+      logging: false,
+      onclone: (clonedDoc) => widenScrollContainers(clonedDoc)
     });
     return canvas.toDataURL('image/png');
   }
