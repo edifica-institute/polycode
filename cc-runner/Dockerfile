@@ -24,8 +24,24 @@ ENV CXXFLAGS="-O1 -g -Wall -Wextra -Wpedantic -Wformat=2 -Wshadow -Wconversion -
 WORKDIR /app
 
 # Install deps first (better layer caching)
-COPY package*.json ./
-RUN npm ci --omit=dev || npm i --production
+#COPY package*.json ./
+#RUN npm ci --omit=dev || npm i --production
+
+
+# Install deps first (better layer caching)
+COPY package.json ./
+# Copy lockfile only if it exists (pattern is okay; if it doesn't exist, the build still succeeds)
+COPY package-lock.json* npm-shrinkwrap.json* ./
+
+# Use npm ci if a lockfile is present, otherwise use npm install
+RUN if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then \
+      echo "Lockfile found → npm ci --omit=dev"; \
+      npm ci --omit=dev; \
+    else \
+      echo "No lockfile → npm install --omit=dev"; \
+      npm install --omit=dev; \
+    fi
+
 
 # App code
 COPY cc-runner.js ./cc-runner.js
