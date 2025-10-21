@@ -61,6 +61,15 @@ if ('navigation' in window && typeof navigation.addEventListener === 'function')
 
 
 
+function __pcUpdateRunBtn(){
+  const btn = document.getElementById('btnRun');
+  if (!btn || !window.editor?.getValue) return;
+  const hasText = /\S/.test(window.editor.getValue() || '');
+  btn.disabled = !hasText;          // native disable when empty
+}
+window.__pcUpdateRunBtn = __pcUpdateRunBtn; // expose if needed
+
+
 
 function getPyodideIndexURL() {
   // Pick from HTML if set, else default to the newest you want to support
@@ -754,6 +763,9 @@ function initMonaco({ value, language }) {
           scrollBeyondLastLine: false,
           scrollbar: { alwaysConsumeMouseWheel: false }
         });
+
+        window.editor.onDidChangeModelContent(window.__pcUpdateRunBtn);
+window.__pcUpdateRunBtn(); // set initial state
         installSelectAllAction(window.editor);
 
 
