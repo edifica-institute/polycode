@@ -425,8 +425,40 @@ const stmts = splitSqlSafe(sql);
 let resNum = 0;
 let anyRendered = false;
 
+
+      const renderError = (msg) => {
+  const block = document.createElement('div');
+  block.className = 'console-block error';
+  block.textContent = msg;
+  out.appendChild(block);
+};
+
+      
 for (const stmt of stmts) {
-  const rs = db.exec(stmt);
+  let rs;
+  try {
+    rs = db.exec(stmt);
+  } catch (err) {
+    const msg = (err?.message || String(err)).trim();
+
+    // append the error without clearing earlier successes
+    renderError(`❌ Error in statement: ${msg}`);
+
+    // keep your existing diagnostics (stderr, banner, hints, marker)
+    const st = document.getElementById('stderrText'); if (st) st.textContent = msg;
+    if (!document.getElementById('pcFailNote')) showCompileFailNotice('runtime');
+    try { await refreshStderrExplanation(); } catch {}
+    try {
+      const line = guessSqlErrorLine(msg);
+      const firstLine = msg.split('\n')[0] || 'SQL error';
+      setSqlEditorMarker(line, firstLine);
+    } catch {}
+
+    return; // stop here so the OUTER catch never fires (and nothing gets cleared)
+  }
+  // ... (rest of your rs.length rendering stays the same)
+}
+
 
   if (rs.length) {
     anyRendered = true;
