@@ -290,55 +290,72 @@ function guessSqlErrorLine(msg){
 
 
 function mysqlDescribeToSqlite(sql) {
-  const stmts = sql
-    .split(/;(?![^'"]*['"])/)
-    .map(s => s.trim())
-    .filter(Boolean);
+  // 1) Strip comments first (so semicolons inside comments don't confuse us)
+  const noBlockComments = sql.replace(/\/\*[\s\S]*?\*\//g, '');
+  const noLineComments  = noBlockComments.replace(/--[^\n]*$/gm, '');
 
-  const rewritten = stmts.map(s => {
-    const m = s.match(/^(?:DESC|DESCRIBE)\s+((?:[A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_][A-Za-z0-9_]*|"(?:[^"]+)")\s*$/i);
-    if (!m) return s;
+  // 2) Split on semicolons not inside quotes (single or double)
+  const parts = [];
+  let buf = '', inS = false, inD = false;
+  for (let i = 0; i < noLineComments.length; i++) {
+    const ch = noLineComments[i];
+    if (ch === "'" && !inD) inS = !inS;
+    if (ch === '"' && !inS) inD = !inD;
+    if (ch === ';' && !inS && !inD) {
+      if (buf.trim()) parts.push(buf.trim());
+      buf = '';
+    } else {
+      buf += ch;
+    }
+  }
+  if (buf.trim()) parts.push(buf.trim());
 
-    let raw = m[1];
-    if (/^".*"$/.test(raw)) raw = raw.slice(1, -1);
-    const [, table] = raw.includes('.') ? raw.split('.', 2) : [null, raw];
-    const tbl = table;
+  // 3) Rewrite DESC/ DESCRIBE statements
+  const rewritten = parts.map((stmt) => {
+    // matches: DESC users   |  DESCRIBE "users"  |  DESC main.users
+    const m = stmt.match(
+      /^(?:DESC|DESCRIBE)\s+((?:[A-Za-z_][A-Za-z0-9_]*\.)?(?:`?[A-Za-z_][A-Za-z0-9_]*`?|"(?:[^"]+)"))\s*$/i
+    );
+    if (!m) return stmt;
+
+    // Extract table (strip schema and quotes/backticks)
+    let raw = m[1].trim();
+    if (raw.includes('.')) raw = raw.split('.', 2)[1];
+    raw = raw.replace(/^`|`$/g, '');       // backticks
+    if (/^".*"$/.test(raw)) raw = raw.slice(1, -1); // double quotes
+
+    const tbl = raw.replace(/'/g, "''");   // minimal escape for literal
 
     return `
 WITH cols AS (
-  SELECT
-    cid,
-    name,
-    type,
-    "notnull" AS nn,         -- 👈 quote/alias this column
-    dflt_value,
-    pk
+  SELECT cid, name, type, "notnull" AS notnull, dflt_value, pk
   FROM pragma_table_info('${tbl}')
 ),
-idx AS (
-  SELECT ii.name AS col, il."unique" AS is_unique
+u AS (
+  /* collapse all indexes -> per-column uniqueness flags */
+  SELECT ii.name AS col, MAX(il."unique") AS is_unique
   FROM pragma_index_list('${tbl}') AS il
-  JOIN pragma_index_info(il.name) AS ii
+  JOIN pragma_index_info(il.name)     AS ii
+  GROUP BY ii.name
 )
 SELECT
   cols.name                                AS "Field",
   cols.type                                AS "Type",
-  CASE cols.nn WHEN 0 THEN 'YES' ELSE 'NO' END AS "Null",  -- 👈 use alias
+  CASE cols.notnull WHEN 0 THEN 'YES' ELSE 'NO' END AS "Null",
   CASE
     WHEN cols.pk = 1 THEN 'PRI'
-    WHEN COALESCE(idx.is_unique, 0) = 1 THEN 'UNI'
-    WHEN idx.is_unique = 0 THEN 'MUL'
+    WHEN COALESCE(u.is_unique, 0) = 1 THEN 'UNI'
     ELSE ''
-  END                                      AS "Key",
-  cols.dflt_value                          AS "Default",
-  ''                                       AS "Extra"
+  END                                       AS "Key",
+  cols.dflt_value                           AS "Default",
+  ''                                        AS "Extra"
 FROM cols
-LEFT JOIN idx ON idx.col = cols.name
-ORDER BY cols.cid;
+LEFT JOIN u ON u.col = cols.name
+ORDER BY cols.cid
 `.trim();
   });
 
-  return rewritten.join(';\n');
+  return rewritten.join(';\n') + (rewritten.length ? ';' : '');
 }
 
 
