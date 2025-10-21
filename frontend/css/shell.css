@@ -1532,6 +1532,8 @@ body[data-boot] .right.panel{
 
 
 
+.btn.attn:disabled,
+.btn.attn[aria-disabled="true"] { animation: none !important; box-shadow: none !important; }
 
 
 /* === PRINT / PDF === */
