@@ -393,58 +393,118 @@ ORDER BY cols.cid
         ? codeOverride
         : window.editor.getValue();
 
-      sql = mysqlDescribeToSqlite(sql);
-      const results = db.exec(sql);
+sql = mysqlDescribeToSqlite(sql);
 
-      if (!results.length) {
-        out.textContent = '(no rows)';
-        return;
-      }
+/* helpers scoped to runLang */
+const splitSqlSafe = (src) => {
+  const outArr = []; let b = '', s = false, d = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === "'" && !d) s = !s;
+    if (ch === '"' && !s) d = !d;
+    if (ch === ';' && !s && !d) { if (b.trim()) outArr.push(b.trim()); b = ''; }
+    else b += ch;
+  }
+  if (b.trim()) outArr.push(b.trim());
+  return outArr;
+};
+const kindOf = (stmt) => {
+  const m = /^\s*([A-Za-z]+)/.exec(stmt);
+  return m ? m[1].toUpperCase() : '';
+};
+const renderInfo = (msg) => {
+  const block = document.createElement('div');
+  block.className = 'console-block';
+  block.style.cssText = 'border:1px solid var(--border);padding:8px 10px;margin:10px 0;background:var(--panel)';
+  block.textContent = msg;
+  out.appendChild(block);
+};
 
-      results.forEach((r, i) => {
-        const block = document.createElement('div');
+/* run statement-by-statement so we can show status messages */
+const stmts = splitSqlSafe(sql);
+let resNum = 0;
+let anyRendered = false;
 
-        const title = document.createElement('div');
-        title.textContent = `Result ${i + 1} — ${r.values.length} row${r.values.length === 1 ? '' : 's'}`;
-        title.style.cssText = 'font-size:12.5px;color:var(--muted);margin:8px 0 6px;';
-        block.appendChild(title);
+for (const stmt of stmts) {
+  const rs = db.exec(stmt);
 
-        const wrap = document.createElement('div');
-        wrap.style.cssText = 'max-width:100%;overflow:auto;border:1px solid var(--border);';
+  if (rs.length) {
+    anyRendered = true;
+    rs.forEach((r) => {
+      const block = document.createElement('div');
 
-        const table = document.createElement('table');
-        table.style.borderCollapse = 'collapse';
-        table.style.width = '100%';
+      const title = document.createElement('div');
+      title.textContent = `Result ${++resNum} — ${r.values.length} row${r.values.length === 1 ? '' : 's'}`;
+      title.style.cssText = 'font-size:12.5px;color:var(--muted);margin:8px 0 6px;';
+      block.appendChild(title);
 
-        const thead = document.createElement('thead');
-        const trh = document.createElement('tr');
-        r.columns.forEach(c => {
-          const th = document.createElement('th');
-          th.textContent = c;
-          th.style.cssText = 'border:1px solid var(--border);padding:6px 8px;background:var(--panel-2);position:sticky;top:0;';
-          trh.appendChild(th);
-        });
-        thead.appendChild(trh);
-        table.appendChild(thead);
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'max-width:100%;overflow:auto;border:1px solid var(--border);';
 
-        const tbody = document.createElement('tbody');
-        r.values.forEach(row => {
-          const tr = document.createElement('tr');
-          row.forEach(cell => {
-            const td = document.createElement('td');
-            td.textContent = cell === null ? 'NULL' : String(cell);
-            td.style.cssText = 'border:1px solid var(--border);padding:6px 8px;';
-            tr.appendChild(td);
-          });
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
+      const table = document.createElement('table');
+      table.style.borderCollapse = 'collapse';
+      table.style.width = '100%';
 
-        wrap.appendChild(table);
-        block.appendChild(wrap);
-        block.style.marginBottom = '14px';
-        out.appendChild(block);
+      const thead = document.createElement('thead');
+      const trh = document.createElement('tr');
+      r.columns.forEach(c => {
+        const th = document.createElement('th');
+        th.textContent = c;
+        th.style.cssText = 'border:1px solid var(--border);padding:6px 8px;background:var(--panel-2);position:sticky;top:0;';
+        trh.appendChild(th);
       });
+      thead.appendChild(trh);
+      table.appendChild(thead);
+
+      const tbody = document.createElement('tbody');
+      r.values.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+          const td = document.createElement('td');
+          td.textContent = cell === null ? 'NULL' : String(cell);
+          td.style.cssText = 'border:1px solid var(--border);padding:6px 8px;';
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+
+      wrap.appendChild(table);
+      block.appendChild(wrap);
+      block.style.marginBottom = '14px';
+      out.appendChild(block);
+    });
+  } else {
+    // No result set => friendly status line
+    const k = kindOf(stmt);
+    const n = db.getRowsModified();
+    let msg = '✓ Statement executed.';
+
+    if (k === 'INSERT') msg = `✅ Inserted ${n} row${n === 1 ? '' : 's'}.`;
+    else if (k === 'UPDATE') msg = `✅ Updated ${n} row${n === 1 ? '' : 's'}.`;
+    else if (k === 'DELETE') msg = `✅ Deleted ${n} row${n === 1 ? '' : 's'}.`;
+    else if (k === 'CREATE') msg = '✅ Table created successfully.';
+    else if (k === 'DROP')   msg = '✅ Dropped successfully.';
+    else if (k === 'ALTER')  msg = '✅ Schema altered successfully.';
+
+    renderInfo(msg);
+    anyRendered = true;
+
+    // Optional: show last rowid after INSERT
+    if (k === 'INSERT') {
+      try {
+        const rid = db.exec(`SELECT last_insert_rowid() AS rowid`);
+        const id = rid?.[0]?.values?.[0]?.[0];
+        if (id != null) renderInfo(`ℹ️ last_insert_rowid() = ${id}`);
+      } catch {}
+    }
+  }
+}
+
+if (!anyRendered) {
+  out.textContent = '(no rows)';
+}
+
    } catch (e) {
   const msg = (e?.message || String(e || 'SQL error')).trim();
 
