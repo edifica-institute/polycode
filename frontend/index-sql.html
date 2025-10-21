@@ -493,9 +493,9 @@ for (const stmt of stmts) {
     // Optional: show last rowid after INSERT
     if (k === 'INSERT') {
       try {
-        const rid = db.exec(`SELECT last_insert_rowid() AS rowid`);
-        const id = rid?.[0]?.values?.[0]?.[0];
-        if (id != null) renderInfo(`ℹ️ last_insert_rowid() = ${id}`);
+        //const rid = db.exec(`SELECT last_insert_rowid() AS rowid`);
+        //const id = rid?.[0]?.values?.[0]?.[0];
+        //if (id != null) renderInfo(`ℹ️ last_insert_rowid() = ${id}`);
       } catch {}
     }
   }
